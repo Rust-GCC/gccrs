@@ -159,7 +159,7 @@ uint8_t f7_classify (const f7_t *aa)
 {
   extern void f7_classify_asm (void);
   register uint8_t rclass __asm ("r24");
-  __asm ("%~call %x[f]"
+  __asm ("%~call %x[f] ; [[len=%~call]]"
 	 : "=r" (rclass)
 	 : [f] "i" (f7_classify_asm), "z" (aa));
   return rclass;
@@ -268,7 +268,7 @@ static F7_INLINE
 void f7_clr (f7_t *cc)
 {
   extern void f7_clr_asm (void);
-  __asm ("%~call %x[f]"
+  __asm ("%~call %x[f] ; [[len=%~call]]"
 	 :
 	 : [f] "i" (f7_clr_asm), "z" (cc)
 	 : "memory");
@@ -278,7 +278,7 @@ static F7_INLINE
 f7_t* f7_copy (f7_t *cc, const f7_t *aa)
 {
   extern void f7_copy_asm (void);
-  __asm ("%~call %x[f]"
+  __asm ("%~call %x[f] ; [[len=%~call]]"
 	 :
 	 : [f] "i" (f7_copy_asm), "z" (cc), "x" (aa)
 	 : "memory");
@@ -289,7 +289,7 @@ static F7_INLINE
 f7_t* f7_copy_P (f7_t *cc, const f7_t *aa)
 {
   extern void f7_copy_P_asm (void);
-  __asm ("%~call %x[f]"
+  __asm ("%~call %x[f] ; [[len=%~call]]"
 	 :
 	 : [f] "i" (f7_copy_P_asm), "x" (cc), "z" (aa)
 	 : "memory");
@@ -300,7 +300,7 @@ static F7_INLINE
 void f7_copy_mant (f7_t *cc, const f7_t *aa)
 {
   extern void f7_copy_mant_asm (void);
-  __asm ("%~call %x[f]"
+  __asm ("%~call %x[f] ; [[len=%~call]]"
 	 :
 	 : [f] "i" (f7_copy_mant_asm), "z" (cc), "x" (aa)
 	 : "memory");
@@ -337,7 +337,7 @@ int8_t f7_cmp_mant (const f7_t *aa, const f7_t *bb)
 {
   extern void f7_cmp_mant_asm (void);
   register int8_t r24 __asm ("r24");
-  __asm ("%~call %x[f] ;; %1 %3"
+  __asm ("%~call %x[f] ;; %1 %3 ; [[len=%~call]]"
 	 : "=r" (r24)
 	 : [f] "i" (f7_cmp_mant_asm), "x" (aa), "z" (bb));
   return r24;
@@ -349,7 +349,7 @@ bool f7_store_expo (f7_t *cc, int16_t expo)
   extern void f7_store_expo_asm (void);
   register bool r24 __asm ("r24");
   register int16_t rexpo __asm ("r24") = expo;
-  __asm ("%~call %x[f] ;; %0 %2 %3"
+  __asm ("%~call %x[f] ;; %0 %2 %3 ; [[len=%~call]]"
 	 : "=r" (r24)
 	 : [f] "i" (f7_store_expo_asm), "z" (cc), "r" (rexpo));
   return r24;

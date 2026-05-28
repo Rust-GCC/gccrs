@@ -984,8 +984,8 @@ Objective-C and Objective-C++ Dialects}.
 -mvectorize-with-neon-quad  -mvectorize-with-neon-double}
 
 @emph{AVR Options} (@ref{AVR Options})
-@gccoptlist{-mmcu=@var{mcu}  -mabsdata  -maccumulate-args  -mcvt
--mbranch-cost=@var{cost}  -mfuse-add=@var{level}  -mfuse-move=@var{level}
+@gccoptlist{-mmcu=@var{mcu}  -mabsdata  -maccumulate-args -masm-len-notes
+-mcvt  -mbranch-cost=@var{cost}  -mfuse-add=@var{level}  -mfuse-move=@var{level}
 -mfuse-move2  -mcall-prologues  -mgas-isr-prologues  -mint8  -mflmap
 -mdouble=@var{bits}  -mlong-double=@var{bits}  -mno-call-main
 -mn_flash=@var{size}  -mfract-convert-truncate  -mno-interrupts
@@ -993,7 +993,7 @@ Objective-C and Objective-C++ Dialects}.
 -mrmw  -mstrict-X  -mtiny-stack
 -mrodata-in-ram  -msplit-bit-shift  -msplit-ldst  -mshort-calls
 -mskip-bug  -muse-nonzero-bits  -nodevicelib  -nodevicespecs
--Waddr-space-convert  -Wmisspelled-isr}
+-Wasm-len-notes  -Waddr-space-convert  -Wmisspelled-isr}
 
 @emph{Blackfin Options} (@ref{Blackfin Options})
 @gccoptlist{-mcpu=@var{cpu}@r{[}-@var{sirevision}@r{]}
@@ -24314,6 +24314,15 @@ instructions.  This option has only an effect on reduced Tiny devices like
 ATtiny40.  See also the @code{absdata}
 @ref{AVR Attributes,variable attribute}.
 
+@anchor{avr_masm_len_notes}
+@opindex masm-len-notes
+@item -masm-len-notes
+@itemx -mno-asm-len-notes
+Recognize resp.@: ignore @code{[[len=@var{spec}]]} notes that are placed in
+(comments in) inline assembly code templates.  They allow to specify
+the exact @ref{Size of an asm,size of @code{asm} constructs}.
+This option is on per default.
+
 @opindex mcvt
 @item -mcvt
 Use a @emph{compact vector table}.  Some devices support a CVT
@@ -24467,6 +24476,15 @@ which contains a folder named @code{device-specs} which contains a specs file na
 @item -Waddr-space-convert
 Warn about conversions between address spaces in the case where the
 resulting address space is not contained in the incoming address space.
+
+@anchor{avr_Wasm_len_notes}
+@opindex Wasm-len-notes
+@item -Wasm-len-notes
+Warn about unrecognized @code{[[len=@var{spec}]]}
+@ref{Size of an asm,length} annotations in inline assembly code templates.
+This @ref{Warning Options,warning} is on per default.
+Notice that in LTO mode, the code must be compiled with option
+@option{-ffat-lto-objects} in order for these diagnoses to appear.
 
 @opindex Wmisspelled-isr
 @opindex Wno-misspelled-isr

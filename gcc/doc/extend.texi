@@ -13464,6 +13464,74 @@ This size is also used for inlining decisions.  If you use @code{asm inline}
 instead of just @code{asm}, then for inlining purposes the size of the asm
 is taken as the minimum size, ignoring how many instructions GCC thinks it is.
 
+@subsubheading Specifying the size of an @code{asm} on AVR
+
+Apart from the default size calculation explained above, since GCC@tie{}17
+there is a way to specify the exact size of an @code{asm} by means of
+@code{[[len=@var{spec}]]} annotations.  The annotations must be placed
+in assembly comments in the @code{asm} template:
+In a @code{/* ... */} block comment, or after a @samp{;} that starts
+a single-line comment.
+
+The following @code{@var{spec}}'s are supported.  They specify the
+size of the @code{asm} --- or parts of it --- in units of 16-bit words:
+
+@table @code
+@item [0-9]+
+The decimal representation of a non-negative integer.
+
+@item %[0-9]+
+@itemx %[@var{name}]
+The value of the referred operand, which must evaluate to a
+compile-time integer constant.
+
+@item %~
+@itemx %~jmp
+@itemx %~call
+The length of a @code{%~call} or @code{%~jmp} instruction before relaxing.
+
+@item lds
+@itemx sts
+The length of a @code{lds} resp.@: @code{sts} instruction.
+@end table
+
+The following rules apply:
+
+@itemize
+@item All such annotations will be ignored with option
+@ref{avr_masm_len_notes,@option{-mno-asm-len-notes}}.  Diagnosing can be
+adjusted with option @ref{avr_Wasm_len_notes,@option{-Wasm-len-notes}}.
+
+@item The length of the @code{asm} is the sum over all
+@code{[[len=@var{spec}]]} notes in the @code{asm} template.  When an invalid
+or unrecognizable note is found, then the default length (as calculated from
+the number of physical and logical line breaks) applies.
+
+@item No white-spaces are recognized inside @code{[[...]]} notes, and all
+letters must be lower case.  Otherwise, all notes in that asm are ignored,
+and the default length of the @code{asm} is used.
+@end itemize
+
+The actual instruction lengths can be inferred from @samp{;; ADDR = ...}
+assembly comments as generated with, say
+@option{-save-temps -mlog=insn_addresses}.
+Length calculations are also shown in the RTL dump file(s) as generated with
+@option{-fdump-rtl-shorten}.
+
+Lengths annotations can solve two issues:
+
+@itemize
+@item Cases where the expanded assembly code is longer than determined from the
+number of physical and logical line breaks.  Such cases can lead to errors when
+a jump that uses a too optimistic jump offset is crossing such assembly code.
+
+@item Better code generation for jumps that are crossing an @code{asm}.
+The default length of an asm is (1 + @var{NL}) * 2 words, where @var{NL}
+denotes the sum of physical and logical line breaks.  However, almost
+all AVR instructions occupy only a single 16-bit word.
+@end itemize
+
+
 @node Syntax Extensions
 @section Other Extensions to C Syntax
 

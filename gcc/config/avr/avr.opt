@@ -140,6 +140,14 @@ mfuse-add=
 Target Joined RejectNegative UInteger Var(avropt_fuse_add) Init(0) Optimization IntegerRange(0, 3)
 -mfuse-add=<0,2>	Optimization. Split register additions from load/store instructions. Most useful on Reduced Tiny.
 
+masm-len-notes
+Target Var(avropt_asmlen_notes) Init(1) Save
+Recognize [[len=<spec>]] notes to specify the size of inline asm constructs. Enabled by default.
+
+Wasm-len-notes
+Warning C C++ Var(avropt_warn_asmlen_notes) Init(1) Save
+Warn about unrecognized [[len=<spec>]] notes in inline asm constructs. Enabled by default.
+
 Waddr-space-convert
 Warning C Var(avropt_warn_addr_space_convert) Init(0)
 Warn if the address space of an address is changed.
