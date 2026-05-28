@@ -248,12 +248,31 @@ Token::as_string () const
 	  if (get_type_hint () == CORETYPE_UNKNOWN)
 	    return get_str ();
 	  else
-	    return get_str () + get_type_hint_str ();
+	    /* FIXME: This is a workaround for an overzealous -Wrestrict,
+	       #125404 - we should remove it once it is fixed
+
+	       return get_str () + get_type_hint_str ();
+	       */
+	    {
+	      std::string s = get_str ();
+	      s += get_type_hint_str ();
+	      return s;
+	    }
 	case FLOAT_LITERAL:
 	  if (get_type_hint () == CORETYPE_UNKNOWN)
 	    return get_str ();
 	  else
-	    return get_str () + get_type_hint_str ();
+	    /* FIXME: This is a workaround for an overzealous -Wrestrict,
+	       #125404 - we should remove it once it is fixed
+
+	       return get_str () + get_type_hint_str ();
+	       */
+	    {
+	      std::string s = get_str ();
+	      s += get_type_hint_str ();
+	      return s;
+	    }
+
 	default:
 	  return get_str ();
 	}
