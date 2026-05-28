@@ -527,7 +527,8 @@ scalar_chain::add_insn (bitmap candidates, unsigned int insn_uid,
       }
 
   for (ref = DF_INSN_UID_USES (insn_uid); ref; ref = DF_REF_NEXT_LOC (ref))
-    if (!DF_REF_REG_MEM_P (ref))
+    if (DF_REF_TYPE (ref) == DF_REF_REG_USE
+	&& !SUBREG_P (DF_REF_REG (ref)))
       if (!analyze_register_chain (candidates, ref, disallowed))
 	return false;
 
@@ -1167,7 +1168,8 @@ scalar_chain::convert_op (rtx *op, rtx_insn *insn)
   else
     {
       gcc_assert (SUBREG_P (*op));
-      gcc_assert (GET_MODE (*op) == vmode);
+      if (GET_MODE (*op) != vmode)
+	*op = gen_lowpart (vmode, *op);
     }
 }
 
@@ -2343,12 +2345,8 @@ convertible_comparison_p (rtx_insn *insn, enum machine_mode mode)
   rtx op2 = XEXP (src, 1);
 
   /* *cmp<dwi>_doubleword.  */
-  if ((CONST_SCALAR_INT_P (op1)
-       || ((REG_P (op1) || MEM_P (op1))
-	   && GET_MODE (op1) == mode))
-      && (CONST_SCALAR_INT_P (op2)
-	  || ((REG_P (op2) || MEM_P (op2))
-	      && GET_MODE (op2) == mode)))
+  if (general_operand (op1, mode)
+      && general_operand (op2, mode))
     return true;
 
   /* *testti_doubleword.  */
@@ -2715,8 +2713,9 @@ timode_remove_non_convertible_regs (bitmap candidates)
 					       DF_REF_REGNO (ref));
 
 	FOR_EACH_INSN_USE (ref, insn)
-	  if (!DF_REF_REG_MEM_P (ref)
-	      && GET_MODE (DF_REF_REG (ref)) == TImode)
+	  if (DF_REF_TYPE (ref) == DF_REF_REG_USE
+	      && GET_MODE (DF_REF_REG (ref)) == TImode
+	      && !SUBREG_P (DF_REF_REG (ref)))
 	    timode_check_non_convertible_regs (candidates, regs,
 					       DF_REF_REGNO (ref));
       }
