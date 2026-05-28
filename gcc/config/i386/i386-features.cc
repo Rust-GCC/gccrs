@@ -1867,7 +1867,7 @@ timode_scalar_chain::compute_convert_gain ()
 	      else if (op1val > 32 && op1val < 96)
 		vcost = COSTS_N_INSNS (5);
 	      else
-		vcost = COSTS_N_INSNS (1);
+		vcost = COSTS_N_INSNS (4);
 	    }
 	  igain = scost - vcost;
 	  break;
