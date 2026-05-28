@@ -684,12 +684,22 @@ fold_using_range::fold_stmt (vrange &r, gimple *s, fur_source &src, tree name)
   else if (is_a<gassign *> (s) && gimple_assign_rhs_code (s) == COND_EXPR)
     res = range_of_cond_expr (r, as_a<gassign *> (s), src);
 
-  // If the result is varying, check for basic nonnegativeness.
-  // Specifically this helps for now with strict enum in cases like
-  // g++.dg/warn/pr33738.C.
-  if (res && r.varying_p () && INTEGRAL_TYPE_P (r.type ())
-      && gimple_stmt_nonnegative_p (s))
-    r.set_nonnegative (r.type ());
+  // If the result is varying, use the type's min/max if either is not
+  // the same as the full precision min/max. This helps with strict enum
+  // e.g. `g++.dg/warn/pr33738.C`.
+  if (res && r.varying_p () && INTEGRAL_TYPE_P (r.type ()))
+    {
+      irange &ir = as_a <irange> (r);
+      tree type = r.type ();
+      auto typemax = wi::to_wide (TYPE_MAX_VALUE (type));
+      auto typemin = wi::to_wide (TYPE_MIN_VALUE (type));
+      auto precisionmax = wi::max_value (TYPE_PRECISION (type),
+					 TYPE_SIGN (type));
+      auto precisionmin = wi::min_value (TYPE_PRECISION (type),
+					 TYPE_SIGN (type));
+      if (typemax != precisionmax || typemin != precisionmin)
+	ir.set (type, typemin, typemax);
+    }
 
   if (!res)
     {
