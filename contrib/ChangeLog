@@ -1,3 +1,13 @@
+2026-05-27  Richard Earnshaw  <rearnsha@arm.com>
+
+	* check-MAINTAINERS.py (get_surname): Rename to ...
+	(get_name_for_sort): ... this.  Add the forenames after the
+	surname.
+	(check_group): match against regexs and support additional
+	fields for secondary sorting.
+	(sections): Rework to use regexs, add rules for the other
+	sections in the MAINTAINERS file.
+
 2026-05-12  Léo Hardt  <leom.hardt@inf.ufrgs.br>
 
 	* texi2pod.pl: Remove rule to parse the defunct @gol macro.

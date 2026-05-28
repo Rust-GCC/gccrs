@@ -1,3 +1,102 @@
+2026-05-27  Philipp Tomsich  <philipp.tomsich@vrull.eu>
+	    Konstantinos Eleftheriou  <konstantinos.eleftheriou@vrull.eu>
+
+	* ext-dce.cc (ext_dce_try_optimize_extension): Handle
+	SIGN_EXTEND of MEM by replacing with ZERO_EXTEND of MEM
+	when upper bits are dead.
+
+2026-05-27  Philipp Tomsich  <philipp.tomsich@vrull.eu>
+	    Konstantinos Eleftheriou  <konstantinos.eleftheriou@vrull.eu>
+
+	* ext-dce.cc (ext_dce_process_uses): Fix off-by-one: use
+	size > 32 instead of size >= 32 for group 3 liveness.
+
+2026-05-27  Wilco Dijkstra  <wilco.dijkstra@arm.com>
+
+	* config/aarch64/aarch64.md (movdi_aarch64): Use aarch64_output_move_imm
+	to select w-regs.
+	* config/aarch64/aarch64.cc (aarch64_output_move_imm): New function.
+	* config/aarch64/aarch64-protos.h (aarch64_output_move_imm): Add
+	declaration.
+
+2026-05-27  Tamar Christina  <tamar.christina@arm.com>
+
+	PR tree-optimization/120164
+	* tree-if-conv.cc (if_convertible_stmt_p): Detect prefetches.
+	(predicate_statements): Drop them during predication.
+
+2026-05-27  oltolm  <oleg.tolmatcev@gmail.com>
+
+	PR target/54412
+	* target.def (overaligned_stack_slot_required): New calls hook.
+	* calls.cc (allocate_call_dynamic_stack_space): New helper.
+	(initialize_argument_information): Use
+	targetm.calls.overaligned_stack_slot_required for over-aligned
+	by-reference argument copies.
+	(expand_call): Use
+	targetm.calls.overaligned_stack_slot_required for over-aligned
+	hidden return slots.
+	* function.cc (assign_stack_local_aligned): New helper.
+	(assign_parm_setup_block): Use
+	targetm.calls.overaligned_stack_slot_required for over-aligned
+	stack parm slots.
+	(assign_parm_setup_reg): Likewise.
+	* config/i386/i386.cc (ix86_overaligned_stack_slot_required): New.
+	(TARGET_OVERALIGNED_STACK_SLOT_REQUIRED): Define for i386.
+	* doc/tm.texi.in: Add hook placement.
+	* doc/tm.texi: Regenerate.
+
+2026-05-27  oltolm  <oleg.tolmatcev@gmail.com>
+
+	PR target/89597
+	* config/i386/i386.cc (function_value_ms_64): Handle 32-byte and
+	64-byte vector returns in registers when supported.
+	(ix86_return_in_memory): Do not force 32-byte/64-byte eligible
+	vector returns to memory for MS ABI.
+
+2026-05-27  Tamar Christina  <tamar.christina@arm.com>
+
+	PR tree-optimization/120352
+	* tree-vectorizer.h (LOOP_VINFO_EARLY_BRK_NEEDS_EPILOG): New.
+	(class _loop_vec_info): Add early_break_needs_epilogue.
+	* tree-vect-data-refs.cc (vect_analyze_early_break_dependences): Detect
+	usage of stores.
+	* tree-vect-loop-manip.cc (vect_do_peeling): Use them.
+	* tree-vect-loop.cc (_loop_vec_info::_loop_vec_info): Likewise.
+	(vect_create_loop_vinfo): Likewise.
+	(vect_update_ivs_after_vectorizer_for_early_breaks): Likewise.
+	* tree-vect-stmts.cc (vect_stmt_relevant_p): Likewise.
+
+2026-05-27  Tamar Christina  <tamar.christina@arm.com>
+
+	PR tree-optimization/120352
+	* tree-vect-loop-manip.cc (slpeel_tree_duplicate_loop_to_edge_cfg): Add
+	redirect_exits.
+	(vect_do_peeling): Use it.
+	* tree-vectorizer.h (slpeel_tree_duplicate_loop_to_edge_cfg): Update
+	prototype.
+
+2026-05-27  Tamar Christina  <tamar.christina@arm.com>
+
+	PR target/125148
+	* config/aarch64/aarch64-sve.md
+	(*aarch64_vec_shl_insert_into_zero_<mode>,
+	*aarch64_vec_shl_insert_into_zero_vnx16qi,
+	*aarch64_vec_shl_insert_from_load_<mode>): New.
+	* config/aarch64/aarch64.cc (aarch64_emit_load_store_through_mode):
+	Replace paradoxical subreg with zero-extend.
+
+2026-05-27  Evgeny Karpov  <evgeny.karpov@arm.com>
+
+	* config/aarch64/aarch64-coff.h (SUPPORTS_INIT_PRIORITY):
+	Enable SUPPORTS_INIT_PRIORITY by default.
+
+2026-05-27  liuhongt  <hongtao.liu@intel.com>
+
+	* config/i386/x86-tune.def (X86_TUNE_USE_GATHER_2PARTS): Disable
+	for m_DIAMONDRAPIDS.
+	(X86_TUNE_USE_GATHER_4PARTS): Likewise.
+
 2026-05-26  Sergei Trofimovich  <siarheit@google.com>
 
 	PR bootstrap/125318

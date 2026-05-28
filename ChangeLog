@@ -1,3 +1,36 @@
+2026-05-27  Richard Earnshaw  <rearnsha@arm.com>
+
+	* MAINTAINERS (Contributing under the DCO): Secondary sort
+	by email address.
+
+2026-05-27  Richard Earnshaw  <rearnsha@arm.com>
+
+	* MAINTAINERS (Write After Approval): Secondary sort by email.
+
+2026-05-27  Richard Earnshaw  <rearnsha@arm.com>
+
+	* MAINTAINERS (Reviewers): Sort entries.
+
+2026-05-27  Richard Earnshaw  <rearnsha@arm.com>
+
+	* MAINTAINERS (Various Maintainers): Sort entries.
+
+2026-05-27  Richard Earnshaw  <rearnsha@arm.com>
+
+	* MAINTAINERS (Language Front Ends Maintainers): Sort entries.
+
+2026-05-27  Richard Earnshaw  <rearnsha@arm.com>
+
+	* MAINTAINERS (OS Port Maintainers): Sort entries.
+
+2026-05-27  Richard Earnshaw  <rearnsha@arm.com>
+
+	* MAINTAINERS (CPU Maintainers): Sort by CPU and then user.
+
+2026-05-27  Evgeny Karpov  <evgeny.karpov@arm.com>
+
+	* MAINTAINERS: Update my email address.
+
 2026-05-15  Karl Meakin  <karl.meakin@arm.com>
 
 	* .editorconfig (COMMIT_EDITMSG): New section.

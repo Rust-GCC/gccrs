@@ -1,3 +1,381 @@
+2026-05-27  Marek Polacek  <polacek@redhat.com>
+
+	* g++.dg/warn/Winvalid-memory-model-2.C: Adjust dg-regexp.
+	* g++.dg/warn/Winvalid-memory-model.C: Likewise.
+
+2026-05-27  Philipp Tomsich  <philipp.tomsich@vrull.eu>
+	    Konstantinos Eleftheriou  <konstantinos.eleftheriou@vrull.eu>
+
+	* gcc.target/aarch64/ext-dce-1.c: New test.
+	* gcc.target/riscv/ext-dce-3.c: New test.
+	* gcc.target/riscv/ext-dce-4.c: New test.
+
+2026-05-27  Wilco Dijkstra  <wilco.dijkstra@arm.com>
+
+	* gcc.target/aarch64/acle/chkfeat-1.c: Update.
+	* gcc.target/aarch64/acle/gcs-1.c: Update.
+	* gcc.target/aarch64/acle/pr110100.c: Update.
+	* gcc.target/aarch64/bitfield-bitint-abi-align16.c: Update.
+	* gcc.target/aarch64/bitfield-bitint-abi-align8.c: Update.
+	* gcc.target/aarch64/chkfeat-1.c: Update.
+	* gcc.target/aarch64/chkfeat-2.c: Update.
+	* gcc.target/aarch64/cmpbr.c: Update.
+	* gcc.target/aarch64/eh_return-3.c: Update.
+	* gcc.target/aarch64/gcspopm-1.c: Update.
+	* gcc.target/aarch64/gcsss-1.c: Update.
+	* gcc.target/aarch64/int_mov_immediate_1.c: Update.
+	* gcc.target/aarch64/memset-corner-cases-2.c: Update.
+	* gcc.target/aarch64/memset-corner-cases.c: Update.
+	* gcc.target/aarch64/mops_1.c: Update.
+	* gcc.target/aarch64/mops_2.c: Update.
+	* gcc.target/aarch64/mops_3.c: Update.
+	* gcc.target/aarch64/movk_3.c: Update.
+	* gcc.target/aarch64/movtf_1.c: Update.
+	* gcc.target/aarch64/movti_1.c: Update.
+	* gcc.target/aarch64/noeffect9.c: Update.
+	* gcc.target/aarch64/pr71727.c: Update.
+	* gcc.target/aarch64/pr84882.c: Update.
+	* gcc.target/aarch64/sme/locally_streaming_1.c: Update.
+	* gcc.target/aarch64/sme/locally_streaming_1_nosve.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilege_b16.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilege_b32.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilege_b64.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilege_b8.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilege_c16.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilege_c32.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilege_c64.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilege_c8.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilegt_b16.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilegt_b32.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilegt_b64.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilegt_b8.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilegt_c16.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilegt_c32.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilegt_c64.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilegt_c8.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilele_b16.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilele_b32.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilele_b64.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilele_b8.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilele_c16.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilele_c32.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilele_c64.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilele_c8.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilelt_b16.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilelt_b32.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilelt_b64.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilelt_b8.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilelt_c16.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilelt_c32.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilelt_c64.c: Update.
+	* gcc.target/aarch64/sme2/acle-asm/whilelt_c8.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/cntb_pat.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/cntd_pat.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/cnth_pat.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/cntw_pat.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/dup_s64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/dup_u64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/dupq_f32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/dupq_s32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/dupq_u32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/index_s64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/index_u64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ld1_gather_f32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ld1_gather_f64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ld1_gather_s32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ld1_gather_s64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ld1_gather_u32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ld1_gather_u64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ld1sb_gather_s32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ld1sb_gather_s64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ld1sb_gather_u32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ld1sb_gather_u64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ld1sh_gather_s32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ld1sh_gather_s64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ld1sh_gather_u32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ld1sh_gather_u64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ld1sw_gather_s64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ld1sw_gather_u64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ld1ub_gather_s32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ld1ub_gather_s64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ld1ub_gather_u32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ld1ub_gather_u64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ld1uh_gather_s32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ld1uh_gather_s64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ld1uh_gather_u32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ld1uh_gather_u64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ld1uw_gather_s64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ld1uw_gather_u64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ldff1_gather_f32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ldff1_gather_f64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ldff1_gather_s32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ldff1_gather_s64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ldff1_gather_u32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ldff1_gather_u64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ldff1sb_gather_s32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ldff1sb_gather_s64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ldff1sb_gather_u32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ldff1sb_gather_u64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ldff1sh_gather_s32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ldff1sh_gather_s64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ldff1sh_gather_u32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ldff1sh_gather_u64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ldff1sw_gather_s64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ldff1sw_gather_u64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ldff1ub_gather_s32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ldff1ub_gather_s64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ldff1ub_gather_u32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ldff1ub_gather_u64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ldff1uh_gather_s32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ldff1uh_gather_s64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ldff1uh_gather_u32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ldff1uh_gather_u64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ldff1uw_gather_s64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/ldff1uw_gather_u64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/prfb_gather.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/prfd_gather.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/prfh_gather.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/prfw_gather.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/st1_scatter_f32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/st1_scatter_f64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/st1_scatter_s32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/st1_scatter_s64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/st1_scatter_u32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/st1_scatter_u64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/st1b_scatter_s32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/st1b_scatter_s64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/st1b_scatter_u32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/st1b_scatter_u64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/st1h_scatter_s32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/st1h_scatter_s64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/st1h_scatter_u32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/st1h_scatter_u64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/st1w_scatter_s64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/st1w_scatter_u64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/whilele_b16.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/whilele_b32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/whilele_b64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/whilele_b8.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/whilelt_b16.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/whilelt_b32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/whilelt_b64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/whilelt_b8.c: Update.
+	* gcc.target/aarch64/sve/acle/general/cntb_pat_1.c: Update.
+	* gcc.target/aarch64/sve/acle/general/cntd_pat_1.c: Update.
+	* gcc.target/aarch64/sve/acle/general/cnth_pat_1.c: Update.
+	* gcc.target/aarch64/sve/acle/general/cntw_pat_1.c: Update.
+	* gcc.target/aarch64/sve/acle/general/whilelt_5.c: Update.
+	* gcc.target/aarch64/sve/const_2.c: Update.
+	* gcc.target/aarch64/sve/const_3.c: Update.
+	* gcc.target/aarch64/sve/noeffect9.c: Update.
+	* gcc.target/aarch64/sve/pcs/stack_clash_1_2048.c: Update.
+	* gcc.target/aarch64/sve/pcs/stack_clash_2.c: Update.
+	* gcc.target/aarch64/sve/pcs/stack_clash_2_1024.c: Update.
+	* gcc.target/aarch64/sve/pcs/stack_clash_2_128.c: Update.
+	* gcc.target/aarch64/sve/pcs/stack_clash_2_2048.c: Update.
+	* gcc.target/aarch64/sve/pcs/stack_clash_2_256.c: Update.
+	* gcc.target/aarch64/sve/pcs/stack_clash_2_512.c: Update.
+	* gcc.target/aarch64/sve/pcs/struct_3_128.c: Update.
+	* gcc.target/aarch64/sve/pfalse-count_pred.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ld1q_gather_bf16.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ld1q_gather_f16.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ld1q_gather_f32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ld1q_gather_f64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ld1q_gather_s16.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ld1q_gather_s32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ld1q_gather_s64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ld1q_gather_s8.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ld1q_gather_u16.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ld1q_gather_u32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ld1q_gather_u64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ld1q_gather_u8.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ldnt1_gather_f32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ldnt1_gather_f64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ldnt1_gather_s32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ldnt1_gather_s64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ldnt1_gather_u32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ldnt1_gather_u64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ldnt1sb_gather_s32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ldnt1sb_gather_s64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ldnt1sb_gather_u32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ldnt1sb_gather_u64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ldnt1sh_gather_s32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ldnt1sh_gather_s64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ldnt1sh_gather_u32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ldnt1sh_gather_u64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ldnt1sw_gather_s64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ldnt1sw_gather_u64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ldnt1ub_gather_s32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ldnt1ub_gather_s64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ldnt1ub_gather_u32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ldnt1ub_gather_u64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ldnt1uh_gather_s32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ldnt1uh_gather_s64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ldnt1uh_gather_u32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ldnt1uh_gather_u64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ldnt1uw_gather_s64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/ldnt1uw_gather_u64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/st1q_scatter_bf16.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/st1q_scatter_f16.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/st1q_scatter_f32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/st1q_scatter_f64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/st1q_scatter_s16.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/st1q_scatter_s32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/st1q_scatter_s64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/st1q_scatter_s8.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/st1q_scatter_u16.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/st1q_scatter_u32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/st1q_scatter_u64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/st1q_scatter_u8.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/stnt1_scatter_f32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/stnt1_scatter_f64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/stnt1_scatter_s32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/stnt1_scatter_s64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/stnt1_scatter_u32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/stnt1_scatter_u64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/stnt1b_scatter_s32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/stnt1b_scatter_s64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/stnt1b_scatter_u32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/stnt1b_scatter_u64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/stnt1h_scatter_s32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/stnt1h_scatter_s64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/stnt1h_scatter_u32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/stnt1h_scatter_u64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/stnt1w_scatter_s64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/stnt1w_scatter_u64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilege_b16.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilege_b16_x2.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilege_b32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilege_b32_x2.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilege_b64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilege_b64_x2.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilege_b8.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilege_b8_x2.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilege_c16.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilege_c32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilege_c64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilege_c8.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilegt_b16.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilegt_b16_x2.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilegt_b32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilegt_b32_x2.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilegt_b64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilegt_b64_x2.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilegt_b8.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilegt_b8_x2.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilegt_c16.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilegt_c32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilegt_c64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilegt_c8.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilele_b16_x2.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilele_b32_x2.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilele_b64_x2.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilele_b8_x2.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilele_c16.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilele_c32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilele_c64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilele_c8.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilelt_b16_x2.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilelt_b32_x2.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilelt_b64_x2.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilelt_b8_x2.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilelt_c16.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilelt_c32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilelt_c64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilelt_c8.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilerw_bf16.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilerw_f16.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilerw_f32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilerw_f64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilerw_mf8.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilerw_s16.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilerw_s32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilerw_s64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilerw_s8.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilerw_u16.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilerw_u32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilerw_u64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilerw_u8.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilewr_bf16.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilewr_f16.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilewr_f32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilewr_f64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilewr_mf8.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilewr_s16.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilewr_s32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilewr_s64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilewr_s8.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilewr_u16.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilewr_u32.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilewr_u64.c: Update.
+	* gcc.target/aarch64/sve2/acle/asm/whilewr_u8.c: Update.
+	* gcc.target/aarch64/test_frame_17.c: Update.
+	* gcc.target/aarch64/vec-init-single-const.c: Update.
+	* gcc.target/aarch64/vect-cse-codegen.c: Update.
+
+2026-05-27  Kishan Parmar  <kishan@linux.ibm.com>
+	    Surya Kumari Jangala  <jskumari@linux.ibm.com>
+
+	PR target/125448
+	* gcc.target/powerpc/mpc860_no_lwsync.c: Restrict to ilp32 targets.
+
+2026-05-27  Tamar Christina  <tamar.christina@arm.com>
+
+	PR tree-optimization/120164
+	* gcc.dg/vect/vect-prefetch-drop_2.c: New test.
+
+2026-05-27  oltolm  <oleg.tolmatcev@gmail.com>
+
+	* gcc.target/i386/pr89597-1.c: New test.
+	* gcc.target/i386/pr89597-2.c: New test.
+
+2026-05-27  Tamar Christina  <tamar.christina@arm.com>
+
+	PR tree-optimization/120352
+	* gcc.dg/vect/vect-early-break-no-epilog_1.c: New test.
+	* gcc.dg/vect/vect-early-break-no-epilog_10.c: New test.
+	* gcc.dg/vect/vect-early-break-no-epilog_11.c: New test.
+	* gcc.dg/vect/vect-early-break-no-epilog_2.c: New test.
+	* gcc.dg/vect/vect-early-break-no-epilog_3.c: New test.
+	* gcc.dg/vect/vect-early-break-no-epilog_4.c: New test.
+	* gcc.dg/vect/vect-early-break-no-epilog_5.c: New test.
+	* gcc.dg/vect/vect-early-break-no-epilog_6.c: New test.
+	* gcc.dg/vect/vect-early-break-no-epilog_7.c: New test.
+	* gcc.dg/vect/vect-early-break-no-epilog_8.c: New test.
+	* gcc.dg/vect/vect-early-break-no-epilog_9.c: New test.
+	* gcc.target/aarch64/noeffect.c: New test.
+	* gcc.target/aarch64/noeffect10.c: New test.
+	* gcc.target/aarch64/noeffect11.c: New test.
+	* gcc.target/aarch64/noeffect2.c: New test.
+	* gcc.target/aarch64/noeffect3.c: New test.
+	* gcc.target/aarch64/noeffect4.c: New test.
+	* gcc.target/aarch64/noeffect5.c: New test.
+	* gcc.target/aarch64/noeffect6.c: New test.
+	* gcc.target/aarch64/noeffect7.c: New test.
+	* gcc.target/aarch64/noeffect8.c: New test.
+	* gcc.target/aarch64/noeffect9.c: New test.
+	* gcc.target/aarch64/sve/noeffect.c: New test.
+	* gcc.target/aarch64/sve/noeffect10.c: New test.
+	* gcc.target/aarch64/sve/noeffect11.c: New test.
+	* gcc.target/aarch64/sve/noeffect2.c: New test.
+	* gcc.target/aarch64/sve/noeffect3.c: New test.
+	* gcc.target/aarch64/sve/noeffect4.c: New test.
+	* gcc.target/aarch64/sve/noeffect5.c: New test.
+	* gcc.target/aarch64/sve/noeffect6.c: New test.
+	* gcc.target/aarch64/sve/noeffect7.c: New test.
+	* gcc.target/aarch64/sve/noeffect8.c: New test.
+	* gcc.target/aarch64/sve/noeffect9.c: New test.
+
+2026-05-27  Tamar Christina  <tamar.christina@arm.com>
+
+	PR target/125148
+	* gcc.target/aarch64/sve/highway_run.c: New test.
+
+2026-05-27  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/125412
+	* g++.dg/reflect/pr125412.C: New test.
+
 2026-05-26  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/125423

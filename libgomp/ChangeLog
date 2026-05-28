@@ -1,3 +1,19 @@
+2026-05-27  Tobias Burnus  <tburnus@baylibre.com>
+
+	* libgomp.texi (Foreign-runtime support for AMD GPUs,
+	Foreign-runtime support for Nvdia GPUs): Fix vendor
+	value to match compiler not GPU vendor.
+	* plugin/plugin-gcn.c (GOMP_OFFLOAD_get_interop_int,
+	GOMP_OFFLOAD_get_interop_str): Return 5/"gnu" as ipr_vendor.
+	* plugin/plugin-nvptx.c (GOMP_OFFLOAD_get_interop_int,
+	GOMP_OFFLOAD_get_interop_str): Likewise.
+	* testsuite/libgomp.c/append-args-fr.h: Updated expected
+	value.
+	* testsuite/libgomp.c/interop-cuda-full.c: Likewise.
+	* testsuite/libgomp.c/interop-fr-1.c: Likewise.
+	* testsuite/libgomp.c/interop-hip.h: Likewise.
+	* testsuite/libgomp.fortran/interop-hip.h: Likewise.
+
 2026-05-21  Martin Jambor  <mjambor@suse.cz>
 
 	* testsuite/libgomp.c/ipcp-cb-spec1.c: Set lower param
