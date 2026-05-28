@@ -369,12 +369,12 @@ namespace __gnu_test
 	if (std::__is_constant_evaluated())
 	  return p;
 
-	try
+	__try
 	  {
 	    get_map().insert(map_type::value_type(reinterpret_cast<void*>(p),
 						  personality));
 	  }
-	catch(...)
+	__catch(...)
 	  {
 	    AllocTraits::deallocate(*this, p, n);
 	    __throw_exception_again;
@@ -394,12 +394,12 @@ namespace __gnu_test
 	  { return r; }
 	else
 	  {
-	    try
+	    __try
 	      {
 		get_map().insert(map_type::value_type(
 		      reinterpret_cast<void*>(r.ptr), personality));
 	      }
-	    catch(...)
+	    __catch(...)
 	      {
 		AllocTraits::deallocate(*this, r.ptr, r.count);
 		__throw_exception_again;
