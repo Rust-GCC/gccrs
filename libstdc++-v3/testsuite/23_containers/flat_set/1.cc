@@ -301,6 +301,8 @@ struct throwing_vector : std::vector<T>
       throw std::runtime_error("move assign");
     return *this;
   }
+
+  using std::vector<int>::operator=;
 };
 
 void
@@ -324,8 +326,7 @@ test10()
     }
 
   // Verify invariant preservation upon throwing move assignment.
-  source.clear();
-  source.insert({1, 2});
+  source = {1, 2};
   flat_set target = {3, 4};
   try
     {
@@ -339,10 +340,8 @@ test10()
     }
 
   // Verify invariant preservation upon throwing swap.
-  source.clear();
-  source.insert({1, 2});
-  target.clear();
-  target.insert({3, 4});
+  source = {1, 2};
+  target = {3, 4};
   try
     {
       source.swap(target);
@@ -368,6 +367,17 @@ test11()
 }
 
 void
+test12()
+{
+  // Verify usability of flat_set::operator=(initializer_list).
+  throwing_vector<int>::throw_on_move = true;
+  std::flat_set<int, std::less<int>, throwing_vector<int>> s;
+  std::initializer_list<int> il = {2, 3, 1};
+  s = il;
+  VERIFY( std::ranges::equal(s, (int[]){1, 2, 3}) );
+}
+
+void
 test()
 {
   test01<std::vector>();
@@ -382,6 +392,7 @@ test()
   test09();
   test10();
   test11();
+  test12();
 }
 
 constexpr
@@ -398,6 +409,7 @@ test_constexpr()
   test09();
   // test10() is non-constexpr
   test11();
+  // test12() is non-constexpr
   return true;
 }
 

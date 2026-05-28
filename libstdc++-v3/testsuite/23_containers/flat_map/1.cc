@@ -351,8 +351,7 @@ test11()
     }
 
   // Verify invariant preservation upon throwing move assignment.
-  source.clear();
-  source.insert({{1, 100}, {2, 200}});
+  source = {{1, 100}, {2, 200}};
   flat_map target;
   target.insert({{3, 300}, {4, 400}});
   try
@@ -367,10 +366,8 @@ test11()
     }
 
   // Verify invariant preservation upon throwing swap.
-  source.clear();
-  source.insert({{1, 100}, {2, 200}});
-  target.clear();
-  target.insert({{3, 300}, {4, 400}});
+  source = {{1, 100}, {2, 200}};
+  target = {{3, 300}, {4, 400}};
   try
     {
       source.swap(target);
@@ -397,6 +394,18 @@ test12()
 }
 
 void
+test13()
+{
+  // Verify usability of flat_map::operator=(initializer_list).
+  throwing_vector<int>::throw_on_move = true;
+  std::flat_map<int, int, std::less<int>, throwing_vector<int>> s;
+  std::initializer_list<std::pair<int, int>> il = {{2, 1}, {3, 2}, {1, 3}};
+  s = il;
+  VERIFY( std::ranges::equal(s.keys(), (int[]){1, 2, 3}) );
+  VERIFY( std::ranges::equal(s.values(), (int[]){3, 1, 2}) );
+}
+
+void
 test()
 {
   test01<std::vector, std::vector>();
@@ -415,6 +424,7 @@ test()
   test11<std::vector, throwing_vector>();
   test11<throwing_vector, std::vector>();
   test12();
+  test13();
 }
 
 constexpr
@@ -435,6 +445,7 @@ test_constexpr()
 #endif
   // test11() is non-constexpr
   test12();
+  // test13() is non-constexpr
   return true;
 }
 

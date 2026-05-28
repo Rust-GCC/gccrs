@@ -1275,6 +1275,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       // constructors
       using _Impl::_Impl;
 
+      // operator=(initializer_list<value_type>)
+      // Although this also brings in the base move/copy assignment operators,
+      // they will be hidden by our synthesized ones.
+      using _Impl::operator=;
+
       // iterators
       using _Impl::begin;
       using _Impl::end;
@@ -1627,6 +1632,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       // constructors
       using _Impl::_Impl;
+
+      // operator=(initializer_list<value_type>)
+      // Although this also brings in the base move/copy assignment operators,
+      // they will be hidden by our synthesized ones.
+      using _Impl::operator=;
 
       // iterators
       using _Impl::begin;
