@@ -20,17 +20,20 @@
 ;; <http://www.gnu.org/licenses/>.
 
 (define_c_enum "unspec" [
-  UNSPEC_COMPARE_AND_SWAP
-  UNSPEC_COMPARE_AND_SWAP_SUBWORD
-  UNSPEC_SYNC_OLD_OP
-  UNSPEC_SYNC_OLD_OP_SUBWORD
-  UNSPEC_SYNC_OLD_OP_ZABHA
-  UNSPEC_SYNC_EXCHANGE
-  UNSPEC_SYNC_EXCHANGE_SUBWORD
-  UNSPEC_SYNC_EXCHANGE_ZABHA
-  UNSPEC_ATOMIC_LOAD
-  UNSPEC_ATOMIC_STORE
   UNSPEC_MEMORY_BARRIER
+])
+
+(define_c_enum "unspecv" [
+  UNSPECV_COMPARE_AND_SWAP
+  UNSPECV_COMPARE_AND_SWAP_SUBWORD
+  UNSPECV_SYNC_OLD_OP
+  UNSPECV_SYNC_OLD_OP_SUBWORD
+  UNSPECV_SYNC_OLD_OP_ZABHA
+  UNSPECV_SYNC_EXCHANGE
+  UNSPECV_SYNC_EXCHANGE_SUBWORD
+  UNSPECV_SYNC_EXCHANGE_ZABHA
+  UNSPECV_ATOMIC_LOAD
+  UNSPECV_ATOMIC_STORE
 ])
 
 ;; Memory barriers.
@@ -96,7 +99,7 @@
 	  [(any_atomic:SHORT (match_dup 0)
 		     (match_operand:SHORT 1 "reg_or_0_operand" "rJ"))
 	   (match_operand:SI 2 "const_int_operand")] ;; model
-	 UNSPEC_SYNC_OLD_OP_ZABHA))]
+	 UNSPECV_SYNC_OLD_OP_ZABHA))]
   "TARGET_ZABHA"
   "amo<insn>.<amobh>%A2\tzero,%z1,%0"
   [(set_attr "type" "atomic")
@@ -123,7 +126,7 @@
 	  [(any_atomic:GPR (match_dup 0)
 		     (match_operand:GPR 1 "reg_or_0_operand" "rJ"))
 	   (match_operand:SI 2 "const_int_operand")] ;; model
-	 UNSPEC_SYNC_OLD_OP))]
+	 UNSPECV_SYNC_OLD_OP))]
   "TARGET_ZAAMO"
   "amo<insn>.<amo>%A2\tzero,%z1,%0"
   [(set_attr "type" "atomic")
@@ -135,7 +138,7 @@
 	  [(any_atomic:GPR (match_dup 0)
 		     (match_operand:GPR 1 "reg_or_0_operand" "rJ"))
 	   (match_operand:SI 2 "const_int_operand")] ;; model
-	 UNSPEC_SYNC_OLD_OP))
+	 UNSPECV_SYNC_OLD_OP))
    (clobber (match_scratch:GPR 3 "=&r"))]	     ;; tmp_1
   "!TARGET_ZAAMO && TARGET_ZALRSC"
   {
@@ -174,7 +177,7 @@
 	  [(any_atomic:GPR (match_dup 1)
 		     (match_operand:GPR 2 "reg_or_0_operand" "rJ"))
 	   (match_operand:SI 3 "const_int_operand")] ;; model
-	 UNSPEC_SYNC_OLD_OP))]
+	 UNSPECV_SYNC_OLD_OP))]
   "TARGET_ZAAMO"
   "amo<insn>.<amo>%A3\t%0,%z2,%1"
   [(set_attr "type" "atomic")
@@ -188,7 +191,7 @@
 	  [(any_atomic:GPR (match_dup 1)
 		     (match_operand:GPR 2 "arith_operand" "rI"))
 	   (match_operand:SI 3 "const_int_operand")] ;; model
-	 UNSPEC_SYNC_OLD_OP))
+	 UNSPECV_SYNC_OLD_OP))
    (clobber (match_scratch:GPR 4 "=&r"))]	  ;; tmp_1
   "!TARGET_ZAAMO && TARGET_ZALRSC"
   {
@@ -209,7 +212,7 @@
 	  [(any_atomic:SI (match_dup 1)
 		     (match_operand:SI 2 "arith_operand" "rI")) ;; value for op
 	   (match_operand:SI 3 "const_int_operand")]		   ;; model
-	 UNSPEC_SYNC_OLD_OP_SUBWORD))
+	 UNSPECV_SYNC_OLD_OP_SUBWORD))
     (use (match_operand:SI 4 "arith_operand" "rI"))	   ;; mask
     (use (match_operand:SI 5 "arith_operand" "rI"))	   ;; not_mask
     (clobber (match_scratch:SI 6 "=&r"))			   ;; tmp_1
@@ -276,7 +279,7 @@
 	  [(not:SI (and:SI (match_dup 1)
 			   (match_operand:SI 2 "arith_operand" "rI")))    ;; value for op
 	   (match_operand:SI 3 "const_int_operand")]			  ;; mask
-	 UNSPEC_SYNC_OLD_OP_SUBWORD))
+	 UNSPECV_SYNC_OLD_OP_SUBWORD))
     (use (match_operand:SI 4 "arith_operand" "rI"))		  ;; mask
     (use (match_operand:SI 5 "arith_operand" "rI"))		  ;; not_mask
     (clobber (match_scratch:SI 6 "=&r"))				  ;; tmp_1
@@ -320,7 +323,7 @@
 	  [(any_atomic:SHORT (match_dup 1)
 		     (match_operand:SHORT 2 "reg_or_0_operand" "rJ"))
 	   (match_operand:SI 3 "const_int_operand")] ;; model
-	 UNSPEC_SYNC_OLD_OP_ZABHA))]
+	 UNSPECV_SYNC_OLD_OP_ZABHA))]
    "TARGET_ZABHA"
    "amo<insn>.<amobh>%A3\t%0,%z2,%1"
    [(set_attr "type" "atomic")
@@ -402,7 +405,7 @@
 	(unspec_volatile:GPR
 	  [(match_operand:GPR 1 "memory_operand" "+A")
 	   (match_operand:SI 3 "const_int_operand")] ;; model
-	  UNSPEC_SYNC_EXCHANGE))
+	  UNSPECV_SYNC_EXCHANGE))
    (set (match_dup 1)
 	(match_operand:GPR 2 "reg_or_0_operand" "rJ"))]
   "TARGET_ZAAMO"
@@ -415,7 +418,7 @@
     (sign_extend:DI (unspec_volatile:SI
       [(match_operand:SI 1 "memory_operand" "+A")
        (match_operand:SI 3 "const_int_operand")] ;; model
-      UNSPEC_SYNC_EXCHANGE)))
+      UNSPECV_SYNC_EXCHANGE)))
    (set (match_dup 1)
     (match_operand:SI 2 "reg_or_0_operand" "rJ"))]
   "TARGET_64BIT && TARGET_ZAAMO"
@@ -428,7 +431,7 @@
 	(unspec_volatile:GPR
 	  [(match_operand:GPR 1 "memory_operand" "+A")
 	   (match_operand:SI 3 "const_int_operand")] ;; model
-	  UNSPEC_SYNC_EXCHANGE))
+	  UNSPECV_SYNC_EXCHANGE))
    (set (match_dup 1)
 	(match_operand:GPR 2 "reg_or_0_operand" "rJ"))
    (clobber (match_scratch:GPR 4 "=&r"))]	  ;; tmp_1
@@ -463,7 +466,7 @@
 	(unspec_volatile:SHORT
 	  [(match_operand:SHORT 1 "memory_operand" "+A")
 	   (match_operand:SI 3 "const_int_operand")] ;; model
-	  UNSPEC_SYNC_EXCHANGE_ZABHA))
+	  UNSPECV_SYNC_EXCHANGE_ZABHA))
    (set (match_dup 1)
 	(match_operand:SHORT 2 "reg_or_0_operand" "rJ"))]
   "TARGET_ZABHA"
@@ -511,7 +514,7 @@
 	(unspec_volatile:SI
 	  [(match_operand:SI 2 "arith_operand" "rI")	 ;; value
 	   (match_operand:SI 3 "const_int_operand")]	 ;; model
-      UNSPEC_SYNC_EXCHANGE_SUBWORD))
+      UNSPECV_SYNC_EXCHANGE_SUBWORD))
     (use (match_operand:SI 4 "arith_operand" "rI"))	 ;; not_mask
     (clobber (match_scratch:SI 5 "=&r"))]		 ;; tmp_1
   "TARGET_ZALRSC && TARGET_INLINE_SUBWORD_ATOMIC"
@@ -541,7 +544,7 @@
 			      (match_operand:GPR 3 "reg_or_0_operand" "rJ") ;; desired val
 			      (match_operand:SI 4 "const_int_operand")	    ;; mod_s
 			      (match_operand:SI 5 "const_int_operand")]	    ;; mod_f
-	 UNSPEC_COMPARE_AND_SWAP))]
+	 UNSPECV_COMPARE_AND_SWAP))]
   "TARGET_ZACAS"
   {
     enum memmodel model_success = (enum memmodel) INTVAL (operands[4]);
@@ -569,7 +572,7 @@
 			      (match_operand:GPR 3 "reg_or_0_operand" "rJ")
 			      (match_operand:SI 4 "const_int_operand")  ;; mod_s
 			      (match_operand:SI 5 "const_int_operand")] ;; mod_f
-	 UNSPEC_COMPARE_AND_SWAP))
+	 UNSPECV_COMPARE_AND_SWAP))
    (clobber (match_scratch:GPR 6 "=&r"))]
   "TARGET_ZALRSC"
   {
@@ -654,7 +657,7 @@
 				(match_operand:SHORT 3 "reg_or_0_operand" "rJ") ;; desired_val
 				(match_operand:SI 4 "const_int_operand")	;; mod_s
 				(match_operand:SI 5 "const_int_operand")]	;; mod_f
-	 UNSPEC_COMPARE_AND_SWAP))]
+	 UNSPECV_COMPARE_AND_SWAP))]
   "TARGET_ZACAS && TARGET_ZABHA"
   {
     enum memmodel model_success = (enum memmodel) INTVAL (operands[4]);
@@ -784,7 +787,7 @@
    (set (match_dup 1)
 	(unspec_volatile:SI [(match_operand:SI 2 "reg_or_0_operand" "rJ")  ;; expected value
 			     (match_operand:SI 3 "arith_operand" "rI")] ;; desired value
-	 UNSPEC_COMPARE_AND_SWAP_SUBWORD))
+	 UNSPECV_COMPARE_AND_SWAP_SUBWORD))
 	(match_operand:SI 4 "const_int_operand")		;; model
 	(use (match_operand:SI 5 "arith_operand" "rI"))		;; mask
 	(use (match_operand:SI 6 "arith_operand" "rI"))		;; not_mask

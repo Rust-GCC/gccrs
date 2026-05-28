@@ -51,7 +51,7 @@
 	(unspec_volatile:ANYI
 	    [(match_operand:ANYI 1 "memory_operand" "A")
 	     (match_operand:SI 2 "const_int_operand")]  ;; model
-	 UNSPEC_ATOMIC_LOAD))]
+	 UNSPECV_ATOMIC_LOAD))]
   "!TARGET_ZTSO"
   {
     enum memmodel model = (enum memmodel) INTVAL (operands[2]);
@@ -81,7 +81,7 @@
 	(unspec_volatile:ANYI
 	    [(match_operand:ANYI 1 "reg_or_0_operand" "rJ")
 	     (match_operand:SI 2 "const_int_operand")]  ;; model
-	 UNSPEC_ATOMIC_STORE))]
+	 UNSPECV_ATOMIC_STORE))]
   "!TARGET_ZTSO"
   {
     enum memmodel model = (enum memmodel) INTVAL (operands[2]);
