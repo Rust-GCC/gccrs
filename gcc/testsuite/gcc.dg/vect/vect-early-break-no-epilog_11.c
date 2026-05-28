@@ -3,6 +3,9 @@
 /* { dg-require-effective-target vect_early_break_hw } */
 /* { dg-require-effective-target vect_long } */
 
+/* { dg-additional-options "-mavx512f" { target { i?86-*-* x86_64-*-* } } } */
+/* { dg-require-effective-target avx512f_hw { target i?86-*-* x86_64-*-* } } */
+
 #include "tree-vect.h"
 
 __attribute__ ((noipa))
