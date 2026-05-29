@@ -680,8 +680,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       {
 	auto __guard = _M_make_clear_guard();
 	auto __guard_y = _ClearGuard{__y._M_cont};
-	ranges::swap(_M_comp, __y._M_comp);
 	ranges::swap(_M_cont, __y._M_cont);
+	ranges::swap(_M_comp, __y._M_comp);
 	__guard._M_disable();
 	__guard_y._M_disable();
       }
