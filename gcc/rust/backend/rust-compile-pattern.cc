@@ -27,10 +27,35 @@
 #include "rust-hir-pattern.h"
 #include "rust-system.h"
 #include "rust-tyty.h"
+#include "rust-hir-type-bounds.h"
+#include "rust-hir-trait-reference.h"
+#include "rust-lang-item.h"
 #include "tree.h"
 
 namespace Rust {
 namespace Compile {
+
+static bool
+type_has_drop_impl (Context *ctx, TyTy::BaseType *ty)
+{
+  auto drop_lang_item
+    = ctx->get_mappings ().lookup_lang_item (LangItem::Kind::DROP);
+
+  if (!drop_lang_item.has_value ())
+    return false;
+
+  DefId drop_id = drop_lang_item.value ();
+
+  auto candidates = Resolver::TypeBoundsProbe::Probe (ty);
+  for (auto &candidate : candidates)
+    {
+      Resolver::TraitReference *trait_ref = candidate.first;
+      if (trait_ref != nullptr && trait_ref->get_defid () == drop_id)
+	return true;
+    }
+
+  return false;
+}
 
 void
 CompilePatternCheckExpr::visit (HIR::PathInExpression &pattern)
@@ -1343,6 +1368,11 @@ CompilePatternLet::visit (HIR::IdentifierPattern &pattern)
       auto s = Backend::init_statement (fnctx.fndecl, var, init_expr);
       ctx->add_statement (s);
     }
+
+  if (!pattern.has_subpattern () && !pattern.get_is_ref ()
+      && type_has_drop_impl (ctx, ty))
+    ctx->note_simple_drop_candidate (pattern.get_mappings ().get_hirid (),
+				     pattern.get_locus ());
 }
 
 void
