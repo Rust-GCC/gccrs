@@ -75,13 +75,13 @@ package body Ada.Containers.Bounded_Indefinite_Holders is
 
    procedure Clear (Container : in out Holder) is
    begin
-      if Is_Empty (Container) then
-         return; -- nothing to do
+      if not Is_Empty (Container) then
+         if Container.Busy /= 0 then
+            raise Program_Error with "attempt to tamper with elements";
+         end if;
+         Free (Container.Element); -- finalize element
       end if;
-      if Container.Busy /= 0 then
-         raise Program_Error with "attempt to tamper with elements";
-      end if;
-      Free (Container.Element); -- finalize element
+      --  Unconditionally deallocate the subpool for Finalize, see below
       Ada.Unchecked_Deallocate_Subpool (Container.Handle);
    end Clear;
 
