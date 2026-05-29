@@ -108,8 +108,12 @@ _Static_assert (GOMP_OMPX_PREDEF_ALLOC_MIN == ompx_gnu_min_predefined_alloc,
 		"GOMP_OMPX_PREDEF_ALLOC_MIN == ompx_gnu_min_predefined_alloc");
 _Static_assert (GOMP_OMPX_PREDEF_ALLOC_MAX == ompx_gnu_max_predefined_alloc,
 		"GOMP_OMPX_PREDEF_ALLOC_MAX == ompx_gnu_max_predefined_alloc");
-_Static_assert (GOMP_OMP_PREDEF_ALLOC_THREADS == omp_thread_mem_alloc,
-		"GOMP_OMP_PREDEF_ALLOC_THREADS == omp_thread_mem_alloc");
+_Static_assert (GOMP_OMP_PREDEF_ALLOC_CGROUP == omp_cgroup_mem_alloc,
+		"GOMP_OMP_PREDEF_ALLOC_CGROUP == omp_cgroup_mem_alloc");
+_Static_assert (GOMP_OMP_PREDEF_ALLOC_PTEAM == omp_pteam_mem_alloc,
+		"GOMP_OMP_PREDEF_ALLOC_PTEAM == omp_pteam_mem_alloc");
+_Static_assert (GOMP_OMP_PREDEF_ALLOC_THREAD == omp_thread_mem_alloc,
+		"GOMP_OMP_PREDEF_ALLOC_THREAD == omp_thread_mem_alloc");
 
 #define omp_max_predefined_mem_space omp_low_lat_mem_space
 #define ompx_gnu_min_predefined_mem_space ompx_gnu_managed_mem_space

@@ -14938,7 +14938,7 @@ gimplify_scan_omp_clauses (tree *list_p, gimple_seq *pre_p,
 	  decl = OMP_CLAUSE_ALLOCATE_ALLOCATOR (c);
 	  if (decl
 	      && TREE_CODE (decl) == INTEGER_CST
-	      && wi::eq_p (wi::to_widest (decl), GOMP_OMP_PREDEF_ALLOC_THREADS)
+	      && wi::eq_p (wi::to_widest (decl), GOMP_OMP_PREDEF_ALLOC_THREAD)
 	      && (code == OMP_TARGET || code == OMP_TASK || code == OMP_TASKLOOP))
 	    warning_at (OMP_CLAUSE_LOCATION (c), OPT_Wopenmp,
 			"allocator with access trait set to %<thread%> "

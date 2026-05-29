@@ -23629,6 +23629,19 @@ c_parser_omp_allocate (c_parser *parser)
 			"%<allocator%> clause requires a predefined allocator as "
 			"%qD is static", var);
 	    }
+	  else if (allocator
+		   && (wi::eq_p (wi::to_widest (allocator),
+				 GOMP_OMP_PREDEF_ALLOC_CGROUP)
+		       || wi::eq_p (wi::to_widest (allocator),
+				    GOMP_OMP_PREDEF_ALLOC_PTEAM)
+		       || wi::eq_p (wi::to_widest (allocator),
+				    GOMP_OMP_PREDEF_ALLOC_THREAD)))
+	    {
+	      error_at (allocator_loc,
+			"%<allocator%> clause for static variable %qD must not "
+			"be %<omp_cgroup_mem_alloc%>, %<omp_pteam_mem_alloc%>, "
+			"or %<omp_thread_mem_alloc%>", var);
+	    }
 	}
       if (allocator)
 	{

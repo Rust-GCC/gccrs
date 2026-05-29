@@ -5,7 +5,10 @@
 ! OpenMP 6.0 clarified that the omp_{cgroup,pteam,thread}_mem_alloc
 ! (i.e. those with access trait != device) may only be used for
 ! static local variables.
-! Check for this!
+!
+! Since OpenMP 6.1, omp_{cgroup,pteam,thread}_mem_alloc may not
+! be used for static variables, local static or not.
+! Cf. OpenMP Spec issue #4665
 
 module omp_lib_kinds
   use iso_c_binding, only: c_int, c_intptr_t
@@ -60,9 +63,9 @@ block data
   !$omp allocate(/b_i3/) allocator(omp_const_mem_alloc)
   !$omp allocate(/b_i4/) allocator(omp_high_bw_mem_alloc)
   !$omp allocate(/b_i5/) allocator(omp_low_lat_mem_alloc)
-  !$omp allocate(/b_i6/) allocator(omp_cgroup_mem_alloc)  ! { dg-error "Predefined allocator 'omp_cgroup_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_i6/' at .2., may only be used for local static variables" }
-  !$omp allocate(/b_i7/) allocator(omp_pteam_mem_alloc)   ! { dg-error "Predefined allocator 'omp_pteam_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_i7/' at .2., may only be used for local static variables" }
-  !$omp allocate(/b_i8/) allocator(omp_thread_mem_alloc)  ! { dg-error "Predefined allocator 'omp_thread_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_i8/' at .2., may only be used for local static variables" }
+  !$omp allocate(/b_i6/) allocator(omp_cgroup_mem_alloc)  ! { dg-error "Predefined allocator 'omp_cgroup_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_i6/' at .2., may not be used for static variables" }
+  !$omp allocate(/b_i7/) allocator(omp_pteam_mem_alloc)   ! { dg-error "Predefined allocator 'omp_pteam_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_i7/' at .2., may not be used for static variables" }
+  !$omp allocate(/b_i8/) allocator(omp_thread_mem_alloc)  ! { dg-error "Predefined allocator 'omp_thread_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_i8/' at .2., may not be used for static variables" }
 end block data
 
 block data my_block_data
@@ -92,9 +95,9 @@ block data my_block_data
   !$omp allocate(/b_j3/) allocator(omp_const_mem_alloc)
   !$omp allocate(/b_j4/) allocator(omp_high_bw_mem_alloc)
   !$omp allocate(/b_j5/) allocator(omp_low_lat_mem_alloc)
-  !$omp allocate(/b_j6/) allocator(omp_cgroup_mem_alloc)  ! { dg-error "Predefined allocator 'omp_cgroup_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_j6/' at .2., may only be used for local static variables" }
-  !$omp allocate(/b_j7/) allocator(omp_pteam_mem_alloc)   ! { dg-error "Predefined allocator 'omp_pteam_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_j7/' at .2., may only be used for local static variables" }
-  !$omp allocate(/b_j8/) allocator(omp_thread_mem_alloc)  ! { dg-error "Predefined allocator 'omp_thread_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_j8/' at .2., may only be used for local static variables" }
+  !$omp allocate(/b_j6/) allocator(omp_cgroup_mem_alloc)  ! { dg-error "Predefined allocator 'omp_cgroup_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_j6/' at .2., may not be used for static variables" }
+  !$omp allocate(/b_j7/) allocator(omp_pteam_mem_alloc)   ! { dg-error "Predefined allocator 'omp_pteam_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_j7/' at .2., may not be used for static variables" }
+  !$omp allocate(/b_j8/) allocator(omp_thread_mem_alloc)  ! { dg-error "Predefined allocator 'omp_thread_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_j8/' at .2., may not be used for static variables" }
 end block data my_block_data
 
 module m
@@ -117,18 +120,18 @@ module m
   !$omp allocate(a3) allocator(omp_const_mem_alloc)
   !$omp allocate(a4) allocator(omp_high_bw_mem_alloc)
   !$omp allocate(a5) allocator(omp_low_lat_mem_alloc)
-  !$omp allocate(a6) allocator(omp_cgroup_mem_alloc)  ! { dg-error "Predefined allocator 'omp_cgroup_mem_alloc' in ALLOCATOR clause at .1., used for list item 'a6' at .2., may only be used for local static variables" }
-  !$omp allocate(a7) allocator(omp_pteam_mem_alloc)   ! { dg-error "Predefined allocator 'omp_pteam_mem_alloc' in ALLOCATOR clause at .1., used for list item 'a7' at .2., may only be used for local static variables" }
-  !$omp allocate(a8) allocator(omp_thread_mem_alloc)  ! { dg-error "Predefined allocator 'omp_thread_mem_alloc' in ALLOCATOR clause at .1., used for list item 'a8' at .2., may only be used for local static variables" }
+  !$omp allocate(a6) allocator(omp_cgroup_mem_alloc)  ! { dg-error "Predefined allocator 'omp_cgroup_mem_alloc' in ALLOCATOR clause at .1., used for list item 'a6' at .2., may not be used for static variables" }
+  !$omp allocate(a7) allocator(omp_pteam_mem_alloc)   ! { dg-error "Predefined allocator 'omp_pteam_mem_alloc' in ALLOCATOR clause at .1., used for list item 'a7' at .2., may not be used for static variables" }
+  !$omp allocate(a8) allocator(omp_thread_mem_alloc)  ! { dg-error "Predefined allocator 'omp_thread_mem_alloc' in ALLOCATOR clause at .1., used for list item 'a8' at .2., may not be used for static variables" }
 
   !$omp allocate(/b_b1/) allocator(omp_default_mem_alloc)
   !$omp allocate(/b_b2/) allocator(omp_large_cap_mem_alloc)
   !$omp allocate(/b_b3/) allocator(omp_const_mem_alloc)
   !$omp allocate(/b_b4/) allocator(omp_high_bw_mem_alloc)
   !$omp allocate(/b_b5/) allocator(omp_low_lat_mem_alloc)
-  !$omp allocate(/b_b6/) allocator(omp_cgroup_mem_alloc)  ! { dg-error "Predefined allocator 'omp_cgroup_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_b6/' at .2., may only be used for local static variables" }
-  !$omp allocate(/b_b7/) allocator(omp_pteam_mem_alloc)   ! { dg-error "Predefined allocator 'omp_pteam_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_b7/' at .2., may only be used for local static variables" }
-  !$omp allocate(/b_b8/) allocator(omp_thread_mem_alloc)  ! { dg-error "Predefined allocator 'omp_thread_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_b8/' at .2., may only be used for local static variables" }
+  !$omp allocate(/b_b6/) allocator(omp_cgroup_mem_alloc)  ! { dg-error "Predefined allocator 'omp_cgroup_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_b6/' at .2., may not be used for static variables" }
+  !$omp allocate(/b_b7/) allocator(omp_pteam_mem_alloc)   ! { dg-error "Predefined allocator 'omp_pteam_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_b7/' at .2., may not be used for static variables" }
+  !$omp allocate(/b_b8/) allocator(omp_thread_mem_alloc)  ! { dg-error "Predefined allocator 'omp_thread_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_b8/' at .2., may not be used for static variables" }
 end
 
 program main
@@ -151,18 +154,18 @@ program main
   !$omp allocate(m3) allocator(omp_const_mem_alloc)
   !$omp allocate(m4) allocator(omp_high_bw_mem_alloc)
   !$omp allocate(m5) allocator(omp_low_lat_mem_alloc)
-  !$omp allocate(m6) allocator(omp_cgroup_mem_alloc)  ! { dg-error "Predefined allocator 'omp_cgroup_mem_alloc' in ALLOCATOR clause at .1., used for list item 'm6' at .2., may only be used for local static variables" }
-  !$omp allocate(m7) allocator(omp_pteam_mem_alloc)   ! { dg-error "Predefined allocator 'omp_pteam_mem_alloc' in ALLOCATOR clause at .1., used for list item 'm7' at .2., may only be used for local static variables" }
-  !$omp allocate(m8) allocator(omp_thread_mem_alloc)  ! { dg-error "Predefined allocator 'omp_thread_mem_alloc' in ALLOCATOR clause at .1., used for list item 'm8' at .2., may only be used for local static variables" }
+  !$omp allocate(m6) allocator(omp_cgroup_mem_alloc)  ! { dg-error "Predefined allocator 'omp_cgroup_mem_alloc' in ALLOCATOR clause at .1., used for list item 'm6' at .2., may not be used for static variables" }
+  !$omp allocate(m7) allocator(omp_pteam_mem_alloc)   ! { dg-error "Predefined allocator 'omp_pteam_mem_alloc' in ALLOCATOR clause at .1., used for list item 'm7' at .2., may not be used for static variables" }
+  !$omp allocate(m8) allocator(omp_thread_mem_alloc)  ! { dg-error "Predefined allocator 'omp_thread_mem_alloc' in ALLOCATOR clause at .1., used for list item 'm8' at .2., may not be used for static variables" }
 
   !$omp allocate(/b_n1/) allocator(omp_default_mem_alloc)
   !$omp allocate(/b_n2/) allocator(omp_large_cap_mem_alloc)
   !$omp allocate(/b_n3/) allocator(omp_const_mem_alloc)
   !$omp allocate(/b_n4/) allocator(omp_high_bw_mem_alloc)
   !$omp allocate(/b_n5/) allocator(omp_low_lat_mem_alloc)
-  !$omp allocate(/b_n6/) allocator(omp_cgroup_mem_alloc)  ! { dg-error "Predefined allocator 'omp_cgroup_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_n6/' at .2., may only be used for local static variables" }
-  !$omp allocate(/b_n7/) allocator(omp_pteam_mem_alloc)   ! { dg-error "Predefined allocator 'omp_pteam_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_n7/' at .2., may only be used for local static variables" }
-  !$omp allocate(/b_n8/) allocator(omp_thread_mem_alloc)  ! { dg-error "Predefined allocator 'omp_thread_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_n8/' at .2., may only be used for local static variables" }
+  !$omp allocate(/b_n6/) allocator(omp_cgroup_mem_alloc)  ! { dg-error "Predefined allocator 'omp_cgroup_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_n6/' at .2., may not be used for static variables" }
+  !$omp allocate(/b_n7/) allocator(omp_pteam_mem_alloc)   ! { dg-error "Predefined allocator 'omp_pteam_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_n7/' at .2., may not be used for static variables" }
+  !$omp allocate(/b_n8/) allocator(omp_thread_mem_alloc)  ! { dg-error "Predefined allocator 'omp_thread_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_n8/' at .2., may not be used for static variables" }
 
   block
     integer, save :: o1,o2,o3,o4,o5,o6,o7,o8
@@ -173,9 +176,9 @@ program main
     !$omp allocate(o3) allocator(omp_const_mem_alloc)
     !$omp allocate(o4) allocator(omp_high_bw_mem_alloc)
     !$omp allocate(o5) allocator(omp_low_lat_mem_alloc)
-    !$omp allocate(o6) allocator(omp_cgroup_mem_alloc)
-    !$omp allocate(o7) allocator(omp_pteam_mem_alloc)
-    !$omp allocate(o8) allocator(omp_thread_mem_alloc)
+    !$omp allocate(o6) allocator(omp_cgroup_mem_alloc)  ! { dg-error "Predefined allocator 'omp_cgroup_mem_alloc' in ALLOCATOR clause at .1., used for list item 'o6' at .2., may not be used for static variables" }
+    !$omp allocate(o7) allocator(omp_pteam_mem_alloc)   ! { dg-error "Predefined allocator 'omp_pteam_mem_alloc' in ALLOCATOR clause at .1., used for list item 'o7' at .2., may not be used for static variables" }
+    !$omp allocate(o8) allocator(omp_thread_mem_alloc)  ! { dg-error "Predefined allocator 'omp_thread_mem_alloc' in ALLOCATOR clause at .1., used for list item 'o8' at .2., may not be used for static variables" }
   end block
 end
 
@@ -199,18 +202,18 @@ subroutine sub
   !$omp allocate(s3) allocator(omp_const_mem_alloc)
   !$omp allocate(s4) allocator(omp_high_bw_mem_alloc)
   !$omp allocate(s5) allocator(omp_low_lat_mem_alloc)
-  !$omp allocate(s6) allocator(omp_cgroup_mem_alloc)
-  !$omp allocate(s7) allocator(omp_pteam_mem_alloc)
-  !$omp allocate(s8) allocator(omp_thread_mem_alloc)
+  !$omp allocate(s6) allocator(omp_cgroup_mem_alloc)  ! { dg-error "Predefined allocator 'omp_cgroup_mem_alloc' in ALLOCATOR clause at .1., used for list item 's6' at .2., may not be used for static variables" }
+  !$omp allocate(s7) allocator(omp_pteam_mem_alloc)   ! { dg-error "Predefined allocator 'omp_pteam_mem_alloc' in ALLOCATOR clause at .1., used for list item 's7' at .2., may not be used for static variables" }
+  !$omp allocate(s8) allocator(omp_thread_mem_alloc)  ! { dg-error "Predefined allocator 'omp_thread_mem_alloc' in ALLOCATOR clause at .1., used for list item 's8' at .2., may not be used for static variables" }
 
   !$omp allocate(/b_t1/) allocator(omp_default_mem_alloc)
   !$omp allocate(/b_t2/) allocator(omp_large_cap_mem_alloc)
   !$omp allocate(/b_t3/) allocator(omp_const_mem_alloc)
   !$omp allocate(/b_t4/) allocator(omp_high_bw_mem_alloc)
   !$omp allocate(/b_t5/) allocator(omp_low_lat_mem_alloc)
-  !$omp allocate(/b_t6/) allocator(omp_cgroup_mem_alloc)  ! { dg-error "Predefined allocator 'omp_cgroup_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_t6/' at .2., may only be used for local static variables" }
-  !$omp allocate(/b_t7/) allocator(omp_pteam_mem_alloc)   ! { dg-error "Predefined allocator 'omp_pteam_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_t7/' at .2., may only be used for local static variables" }
-  !$omp allocate(/b_t8/) allocator(omp_thread_mem_alloc)  ! { dg-error "Predefined allocator 'omp_thread_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_t8/' at .2., may only be used for local static variables" }
+  !$omp allocate(/b_t6/) allocator(omp_cgroup_mem_alloc)  ! { dg-error "Predefined allocator 'omp_cgroup_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_t6/' at .2., may not be used for static variables" }
+  !$omp allocate(/b_t7/) allocator(omp_pteam_mem_alloc)   ! { dg-error "Predefined allocator 'omp_pteam_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_t7/' at .2., may not be used for static variables" }
+  !$omp allocate(/b_t8/) allocator(omp_thread_mem_alloc)  ! { dg-error "Predefined allocator 'omp_thread_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_t8/' at .2., may not be used for static variables" }
 contains
   integer function func()
     integer, save :: q1,q2,q3,q4,q5,q6,q7,q8
@@ -229,17 +232,17 @@ contains
     !$omp allocate(q3) allocator(omp_const_mem_alloc)
     !$omp allocate(q4) allocator(omp_high_bw_mem_alloc)
     !$omp allocate(q5) allocator(omp_low_lat_mem_alloc)
-    !$omp allocate(q6) allocator(omp_cgroup_mem_alloc)
-    !$omp allocate(q7) allocator(omp_pteam_mem_alloc)
-    !$omp allocate(q8) allocator(omp_thread_mem_alloc)
+    !$omp allocate(q6) allocator(omp_cgroup_mem_alloc)  ! { dg-error "Predefined allocator 'omp_cgroup_mem_alloc' in ALLOCATOR clause at .1., used for list item 'q6' at .2., may not be used for static variables" }
+    !$omp allocate(q7) allocator(omp_pteam_mem_alloc)   ! { dg-error "Predefined allocator 'omp_pteam_mem_alloc' in ALLOCATOR clause at .1., used for list item 'q7' at .2., may not be used for static variables" }
+    !$omp allocate(q8) allocator(omp_thread_mem_alloc)  ! { dg-error "Predefined allocator 'omp_thread_mem_alloc' in ALLOCATOR clause at .1., used for list item 'q8' at .2., may not be used for static variables" }
 
     !$omp allocate(/b_r1/) allocator(omp_default_mem_alloc)
     !$omp allocate(/b_r2/) allocator(omp_large_cap_mem_alloc)
     !$omp allocate(/b_r3/) allocator(omp_const_mem_alloc)
     !$omp allocate(/b_r4/) allocator(omp_high_bw_mem_alloc)
     !$omp allocate(/b_r5/) allocator(omp_low_lat_mem_alloc)
-    !$omp allocate(/b_r6/) allocator(omp_cgroup_mem_alloc)  ! { dg-error "Predefined allocator 'omp_cgroup_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_r6/' at .2., may only be used for local static variables" }
-    !$omp allocate(/b_r7/) allocator(omp_pteam_mem_alloc)   ! { dg-error "Predefined allocator 'omp_pteam_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_r7/' at .2., may only be used for local static variables" }
-    !$omp allocate(/b_r8/) allocator(omp_thread_mem_alloc)  ! { dg-error "Predefined allocator 'omp_thread_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_r8/' at .2., may only be used for local static variables" }
+    !$omp allocate(/b_r6/) allocator(omp_cgroup_mem_alloc)  ! { dg-error "Predefined allocator 'omp_cgroup_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_r6/' at .2., may not be used for static variables" }
+    !$omp allocate(/b_r7/) allocator(omp_pteam_mem_alloc)   ! { dg-error "Predefined allocator 'omp_pteam_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_r7/' at .2., may not be used for static variables" }
+    !$omp allocate(/b_r8/) allocator(omp_thread_mem_alloc)  ! { dg-error "Predefined allocator 'omp_thread_mem_alloc' in ALLOCATOR clause at .1., used for list item '/b_r8/' at .2., may not be used for static variables" }
   end function
 end subroutine

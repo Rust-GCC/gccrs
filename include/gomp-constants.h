@@ -402,8 +402,10 @@ enum gomp_map_kind
 #define GOMP_OMPX_PREDEF_MEMSPACE_MIN	200
 #define GOMP_OMPX_PREDEF_MEMSPACE_MAX	200
 
-/* Predefined allocator with access == thread.  */
-#define GOMP_OMP_PREDEF_ALLOC_THREADS	8
+/* Predefined allocator with access == cgroup, pteam, and thread.  */
+#define GOMP_OMP_PREDEF_ALLOC_CGROUP	6
+#define GOMP_OMP_PREDEF_ALLOC_PTEAM	7
+#define GOMP_OMP_PREDEF_ALLOC_THREAD	8
 
 /* Flag values for OpenMP 'requires' directive features.  */
 // compiler use only: OMP_REQUIRES_ATOMIC_DEFAULT_MEM_ORDER  0xf
