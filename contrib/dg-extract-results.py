@@ -34,6 +34,16 @@ if sys.version_info >= (3, 0):
     sys.stdout = io.TextIOWrapper (sys.stdout.buffer,
                                    errors = 'surrogateescape')
 
+# Exception raised to skip a file that cannot be parsed.  Used when
+# a summary or log file is malformed (e.g. due to a DejaGnu EILSEQ
+# crash).  We will warn about the file and continue processing the
+# rest.
+class ParseError (Exception):
+    def __init__ (self, filename, message):
+        Exception.__init__ (self, filename + ': ' + message)
+        self.filename = filename
+        self.message = message
+
 class Named:
     def __init__ (self, name):
         self.name = name
@@ -205,7 +215,7 @@ class Prog:
         try:
             return int (value)
         except ValueError:
-            self.fatal (filename, 'expected an integer, got: ' + value)
+            raise ParseError (filename, 'expected an integer, got: ' + value)
 
     # Return a list that represents no test results.
     def zero_counts (self):
@@ -229,7 +239,7 @@ class Prog:
         while True:
             line = file.readline()
             if line == '':
-                self.fatal (filename, 'could not parse variation list')
+                raise ParseError (filename, 'could not parse variation list')
             if line == '\n':
                 break
             self.known_variations.add (line.strip())
@@ -264,7 +274,7 @@ class Prog:
         while True:
             line = file.readline()
             if line == '':
-                self.fatal (filename, 'no recognised summary line')
+                raise ParseError (filename, 'no recognised summary line')
             if line == end:
                 break
 
@@ -292,7 +302,7 @@ class Prog:
             match = self.result_re.match (line)
             if match and (harness or not line.startswith ('WARNING:')):
                 if not harness:
-                    self.fatal (filename, 'saw test result before harness name')
+                    raise ParseError (filename, 'saw test result before harness name')
                 name = match.group (2)
                 # Ugly hack to get the right order for gfortran.
                 if name.startswith ('gfortran.dg/g77/'):
@@ -354,7 +364,7 @@ class Prog:
                     found = True
                     break
             if not found:
-                self.fatal (filename, 'unknown test result: ' + line[:-1])
+                raise ParseError (filename, 'unknown test result: ' + line[:-1])
 
     # Parse an acats run, which uses a different format from dejagnu.
     # We have just skipped over '=== acats configuration ==='.
@@ -367,7 +377,7 @@ class Prog:
         while True:
             line = file.readline()
             if line == '':
-                self.fatal (filename, 'could not parse acats preamble')
+                raise ParseError (filename, 'could not parse acats preamble')
             if line == '\t\t=== acats tests ===\n':
                 break
             if record:
@@ -423,9 +433,9 @@ class Prog:
             if line.startswith ('Running target '):
                 name = line[len ('Running target '):-1]
                 if not tool:
-                    self.fatal (filename, 'could not parse tool name')
+                    raise ParseError (filename, 'could not parse tool name')
                 if name not in self.known_variations:
-                    self.fatal (filename, 'unknown target: ' + name)
+                    raise ParseError (filename, 'unknown target: ' + name)
                 self.parse_run (filename, file, tool,
                                 tool.get_variation (name),
                                 num_variations)
@@ -474,7 +484,7 @@ class Prog:
             # individual runs) and parse the version output.
             if tool and line == '\t\t=== ' + tool.name + ' Summary ===\n':
                 if file.readline() != '\n':
-                    self.fatal (filename, 'expected blank line after summary')
+                    raise ParseError (filename, 'expected blank line after summary')
                 self.parse_final_summary (filename, file)
                 continue
 
@@ -490,7 +500,7 @@ class Prog:
             # Sanity check to make sure that important text doesn't get
             # dropped accidentally.
             if strict and line.strip() != '':
-                self.fatal (filename, 'unrecognised line: ' + line[:-1])
+                raise ParseError (filename, 'unrecognised line: ' + line[:-1])
 
     # Output a segment of text.
     def output_segment (self, segment):
@@ -569,8 +579,18 @@ class Prog:
         try:
             # Parse the input files.
             for filename in self.files:
-                with safe_open (filename) as file:
-                    self.parse_file (filename, file)
+                try:
+                    with safe_open (filename) as file:
+                        self.parse_file (filename, file)
+                except ParseError as e:
+                    # Partial state from this file is intentionally retained.
+                    # This preserves any valid results and diagnostic ERROR
+                    # lines that were parsed before the error, which is
+                    # important for diagnosing problems like DejaGnu crashes.
+                    # The unprocessed remainder of the file is lost.
+                    sys.stderr.write ('warning: skipping ' + e.filename + ': '
+                                      + e.message
+                                      + '; results may be incomplete\n')
 
             # Decide what to output.
             if len (self.variations) == 0:
