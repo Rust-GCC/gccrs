@@ -9126,203 +9126,54 @@
   [(set_attr "length" "1")])
 
 ;; FMUL
-(define_expand "fmul"
-  [(set (reg:QI 24)
-        (match_operand:QI 1 "register_operand" ""))
-   (set (reg:QI 25)
-        (match_operand:QI 2 "register_operand" ""))
-   (parallel [(set (reg:HI 22)
-                   (unspec:HI [(reg:QI 24)
-                               (reg:QI 25)] UNSPEC_FMUL))
-              (clobber (reg:HI 24))])
-   (set (match_operand:HI 0 "register_operand" "")
-        (reg:HI 22))]
-  ""
-  {
-    if (AVR_HAVE_MUL)
-      {
-        emit_insn (gen_fmul_insn (operand0, operand1, operand2));
-        DONE;
-      }
-    avr_fix_inputs (operands, 1 << 2, regmask (QImode, 24));
-  })
-
-(define_insn_and_split "fmul_insn"
-  [(set (match_operand:HI 0 "register_operand" "=r")
-        (unspec:HI [(match_operand:QI 1 "register_operand" "a")
-                    (match_operand:QI 2 "register_operand" "a")]
-                   UNSPEC_FMUL))]
-  "AVR_HAVE_MUL"
-  "#"
-  "&& reload_completed"
-  [(scratch)]
-  { DONE_ADD_CCC })
-
-(define_insn "*fmul_insn"
-  [(set (match_operand:HI 0 "register_operand" "=r")
-        (unspec:HI [(match_operand:QI 1 "register_operand" "a")
-                    (match_operand:QI 2 "register_operand" "a")]
-                   UNSPEC_FMUL))
-   (clobber (reg:CC REG_CC))]
-  "AVR_HAVE_MUL && reload_completed"
-  "fmul %1,%2
-	movw %0,r0
-	clr __zero_reg__"
-  [(set_attr "length" "3")])
-
-(define_insn_and_split "*fmul.call_split"
-  [(set (reg:HI 22)
-        (unspec:HI [(reg:QI 24)
-                    (reg:QI 25)] UNSPEC_FMUL))
-   (clobber (reg:HI 24))]
-  "!AVR_HAVE_MUL"
-  "#"
-  "&& reload_completed"
-  [(scratch)]
-  { DONE_ADD_CCC })
-
-(define_insn "*fmul.call"
-  [(set (reg:HI 22)
-        (unspec:HI [(reg:QI 24)
-                    (reg:QI 25)] UNSPEC_FMUL))
-   (clobber (reg:HI 24))
-   (clobber (reg:CC REG_CC))]
-  "!AVR_HAVE_MUL && reload_completed"
-  "%~call __fmul"
-  [(set_attr "type" "xcall")])
-
 ;; FMULS
-(define_expand "fmuls"
-  [(set (reg:QI 24)
-        (match_operand:QI 1 "register_operand" ""))
-   (set (reg:QI 25)
-        (match_operand:QI 2 "register_operand" ""))
-   (parallel [(set (reg:HI 22)
-                   (unspec:HI [(reg:QI 24)
-                               (reg:QI 25)] UNSPEC_FMULS))
-              (clobber (reg:HI 24))])
-   (set (match_operand:HI 0 "register_operand" "")
-        (reg:HI 22))]
+;; FMULSU
+(define_int_iterator FMUL [UNSPEC_FMUL  UNSPEC_FMULS  UNSPEC_FMULSU])
+(define_int_attr fmul   [(UNSPEC_FMUL "fmul")  (UNSPEC_FMULS "fmuls") (UNSPEC_FMULSU "fmulsu")])
+(define_int_attr fmul_X [(UNSPEC_FMUL "%")     (UNSPEC_FMULS "%")     (UNSPEC_FMULSU "")])
+(define_int_attr fmul_1 [(UNSPEC_FMUL "{r25}") (UNSPEC_FMULS "{r25}") (UNSPEC_FMULSU "{r24}")])
+(define_int_attr fmul_2 [(UNSPEC_FMUL "{r24}") (UNSPEC_FMULS "{r24}") (UNSPEC_FMULSU "{r25}")])
+
+;; "fmul"  "fmuls"  "fmulsu"
+(define_insn_and_split "<fmul>"
+  [(set (match_operand:HI 0 "register_operand"                    "={r22},{r22}   ,r")
+        (unspec:HI [(match_operand:QI 1 "register_operand" "<fmul_X>{r24},<fmul_1>,a")
+                    (match_operand:QI 2 "register_operand"         "{r25},<fmul_2>,a")]
+                   FMUL))
+   (clobber (match_scratch:HI 3                                   "={r24},{r24}   ,X"))]
   ""
-  {
-    if (AVR_HAVE_MUL)
-      {
-        emit_insn (gen_fmuls_insn (operand0, operand1, operand2));
-        DONE;
-      }
-    avr_fix_inputs (operands, 1 << 2, regmask (QImode, 24));
-  })
-
-(define_insn_and_split "fmuls_insn"
-  [(set (match_operand:HI 0 "register_operand" "=r")
-        (unspec:HI [(match_operand:QI 1 "register_operand" "a")
-                    (match_operand:QI 2 "register_operand" "a")]
-                   UNSPEC_FMULS))]
-  "AVR_HAVE_MUL"
   "#"
   "&& reload_completed"
   [(scratch)]
-  { DONE_ADD_CCC })
+  { DONE_ADD_CCC }
+  [(set_attr "isa" "no_mul,no_mul,mul")])
 
-(define_insn "*fmuls_insn"
-  [(set (match_operand:HI 0 "register_operand" "=r")
-        (unspec:HI [(match_operand:QI 1 "register_operand" "a")
-                    (match_operand:QI 2 "register_operand" "a")]
-                   UNSPEC_FMULS))
-   (clobber (reg:CC REG_CC))]
-  "AVR_HAVE_MUL && reload_completed"
-  "fmuls %1,%2
-	movw %0,r0
-	clr __zero_reg__"
-  [(set_attr "length" "3")])
-
-(define_insn_and_split "*fmuls.call_split"
+;; "*fmul.call"  "*fmuls.call"  "*fmulsu.call"
+(define_insn "*<fmul>.call"
   [(set (reg:HI 22)
-        (unspec:HI [(reg:QI 24)
-                    (reg:QI 25)] UNSPEC_FMULS))
-   (clobber (reg:HI 24))]
-  "!AVR_HAVE_MUL"
-  "#"
-  "&& reload_completed"
-  [(scratch)]
-  { DONE_ADD_CCC })
-
-(define_insn "*fmuls.call"
-  [(set (reg:HI 22)
-        (unspec:HI [(reg:QI 24)
-                    (reg:QI 25)] UNSPEC_FMULS))
+        (unspec:HI [(match_operand:QI 0 "register_operand" "{r24},<fmul_1>")
+                    (match_operand:QI 1 "register_operand" "{r25},<fmul_2>")]
+                   FMUL))
    (clobber (reg:HI 24))
    (clobber (reg:CC REG_CC))]
   "!AVR_HAVE_MUL && reload_completed"
-  "%~call __fmuls"
+  "%~call __<fmul>"
   [(set_attr "type" "xcall")])
 
-;; FMULSU
-(define_expand "fmulsu"
-  [(set (reg:QI 24)
-        (match_operand:QI 1 "register_operand" ""))
-   (set (reg:QI 25)
-        (match_operand:QI 2 "register_operand" ""))
-   (parallel [(set (reg:HI 22)
-                   (unspec:HI [(reg:QI 24)
-                               (reg:QI 25)] UNSPEC_FMULSU))
-              (clobber (reg:HI 24))])
-   (set (match_operand:HI 0 "register_operand" "")
-        (reg:HI 22))]
-  ""
-  {
-    if (AVR_HAVE_MUL)
-      {
-        emit_insn (gen_fmulsu_insn (operand0, operand1, operand2));
-        DONE;
-      }
-    avr_fix_inputs (operands, 1 << 2, regmask (QImode, 24));
-  })
-
-(define_insn_and_split "fmulsu_insn"
-  [(set (match_operand:HI 0 "register_operand" "=r")
-        (unspec:HI [(match_operand:QI 1 "register_operand" "a")
-                    (match_operand:QI 2 "register_operand" "a")]
-                   UNSPEC_FMULSU))]
-  "AVR_HAVE_MUL"
-  "#"
-  "&& reload_completed"
-  [(scratch)]
-  { DONE_ADD_CCC })
-
-(define_insn "*fmulsu_insn"
-  [(set (match_operand:HI 0 "register_operand" "=r")
-        (unspec:HI [(match_operand:QI 1 "register_operand" "a")
-                    (match_operand:QI 2 "register_operand" "a")]
-                   UNSPEC_FMULSU))
+;; "*fmul_insn"  "*fmuls_insn"  "*fmulsu_insn"
+(define_insn "*<fmul>_insn"
+  [(set (match_operand:HI 0 "register_operand"                    "=r")
+        (unspec:HI [(match_operand:QI 1 "register_operand" "<fmul_X>a")
+                    (match_operand:QI 2 "register_operand"         "a")]
+                   FMUL))
+   (clobber (scratch:HI))
    (clobber (reg:CC REG_CC))]
   "AVR_HAVE_MUL && reload_completed"
-  "fmulsu %1,%2
+  "<fmul> %1,%2
 	movw %0,r0
 	clr __zero_reg__"
   [(set_attr "length" "3")])
 
-(define_insn_and_split "*fmulsu.call_split"
-  [(set (reg:HI 22)
-        (unspec:HI [(reg:QI 24)
-                    (reg:QI 25)] UNSPEC_FMULSU))
-   (clobber (reg:HI 24))]
-  "!AVR_HAVE_MUL"
-  "#"
-  "&& reload_completed"
-  [(scratch)]
-  { DONE_ADD_CCC })
-
-(define_insn "*fmulsu.call"
-  [(set (reg:HI 22)
-        (unspec:HI [(reg:QI 24)
-                    (reg:QI 25)] UNSPEC_FMULSU))
-   (clobber (reg:HI 24))
-   (clobber (reg:CC REG_CC))]
-  "!AVR_HAVE_MUL && reload_completed"
-  "%~call __fmulsu"
-  [(set_attr "type" "xcall")
-   ])
 
 
 ;; Some combiner patterns dealing with bits.
