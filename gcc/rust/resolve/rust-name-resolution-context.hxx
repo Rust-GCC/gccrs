@@ -160,28 +160,6 @@ NameResolutionContext::resolve_path (
 	      // TODO: does NonShadowable matter?
 	      return Rib::Definition::NonShadowable (id);
 	    }
-	  else
-	    {
-	      // HACK: check for a module after we check the language prelude
-	      for (auto &kv :
-		   stack.find_closest_module (starting_point.get ()).children)
-		{
-		  auto &link = kv.first;
-
-		  if (link.path.map_or (
-			[&seg] (Identifier path) {
-			  auto &path_str = path.as_string ();
-			  return path_str == seg.name;
-			},
-			false))
-		    {
-		      // FIXME: Is the NS to insert_segment_resolution valid?
-		      insert_segment_resolution (Usage (seg.node_id),
-						 Definition (kv.second.id), N);
-		      return Rib::Definition::NonShadowable (kv.second.id);
-		    }
-		}
-	    }
 	}
 
       // FIXME: Is the NS to insert_segment_resolution valid?
@@ -241,27 +219,6 @@ NameResolutionContext::resolve_path (
   // Ok we didn't find it in the rib, Lets try the prelude...
   if (!res)
     res = stack.get_lang_prelude (seg_name);
-
-  if (N == Namespace::Types && !res)
-    {
-      // HACK: check for a module after we check the language prelude
-      for (auto &kv : final_node.children)
-	{
-	  auto &link = kv.first;
-
-	  if (link.path.map_or (
-		[&seg_name] (Identifier path) {
-		  auto &path_str = path.as_string ();
-		  return path_str == seg_name;
-		},
-		false))
-	    {
-	      insert_segment_resolution (Usage (seg.node_id),
-					 Definition (kv.second.id), N);
-	      return Rib::Definition::NonShadowable (kv.second.id);
-	    }
-	}
-    }
 
   if (res && !res->is_ambiguous ())
     insert_segment_resolution (Usage (seg.node_id),
