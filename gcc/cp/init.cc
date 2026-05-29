@@ -445,6 +445,14 @@ build_value_init_noctor (tree type, tsubst_flags_t complain)
 		  && integer_zerop (DECL_SIZE (field)))
 		continue;
 
+	      /* Zero-initialize anonymous union and struct members.  The
+		 default constructor doesn't exist for those and if NSDMIs
+		 are used, the containing type's default constructor is
+		 non-trivial.  */
+	      if (ANON_AGGR_TYPE_P (ftype))
+		value = build_zero_init (ftype, NULL_TREE,
+					 /*static_storage_p=*/false);
+
 	      /* We could skip vfields and fields of types with
 		 user-defined constructors, but I think that won't improve
 		 performance at all; it should be simpler in general just
@@ -455,13 +463,16 @@ build_value_init_noctor (tree type, tsubst_flags_t complain)
 		 corresponding to base classes as well.  Thus, iterating
 		 over TYPE_FIELDs will result in correct initialization of
 		 all of the subobjects.  */
-	      value = build_value_init (ftype, complain);
-	      value = maybe_constant_init (value);
+	      else
+		{
+		  value = build_value_init (ftype, complain);
+		  value = maybe_constant_init (value);
+		}
 
 	      if (value == error_mark_node)
 		return error_mark_node;
 
-	      CONSTRUCTOR_APPEND_ELT(v, field, value);
+	      CONSTRUCTOR_APPEND_ELT (v, field, value);
 
 	      /* We shouldn't have gotten here for anything that would need
 		 non-trivial initialization, and gimplify_init_ctor_preeval
