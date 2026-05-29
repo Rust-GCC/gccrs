@@ -11504,6 +11504,10 @@ ix86_decompose_address (rtx addr, struct ix86_address *out)
       std::swap (base_reg, index_reg);
     }
 
+  /* Special case: rewrite index*1+disp into base+disp.  */
+  if (!base && index && scale == 1)
+    base = index, base_reg = index_reg, index = index_reg = NULL_RTX;
+
   /* Special case: %ebp cannot be encoded as a base without a displacement.
      Similarly %r13.  */
   if (!disp && base_reg
