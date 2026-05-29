@@ -50,6 +50,12 @@ struct CustomDeriveInfo
   std::vector<std::string> attributes;
 };
 
+struct DropCandidate
+{
+  HirId hirid;
+  location_t locus;
+};
+
 class Context
 {
 public:
@@ -101,6 +107,7 @@ public:
   {
     scope_stack.push_back (scope);
     statements.push_back ({});
+    block_drop_candidates.emplace_back ();
   }
 
   tree pop_block ()
@@ -110,6 +117,9 @@ public:
 
     auto stmts = statements.back ();
     statements.pop_back ();
+
+    rust_assert (!block_drop_candidates.empty ());
+    block_drop_candidates.pop_back ();
 
     Backend::block_add_statements (block, stmts);
 
@@ -130,6 +140,18 @@ public:
   }
 
   void add_statement (tree stmt) { statements.back ().push_back (stmt); }
+
+  std::vector<DropCandidate> &peek_block_drop_candidates ()
+  {
+    rust_assert (!block_drop_candidates.empty ());
+    return block_drop_candidates.back ();
+  }
+
+  void note_simple_drop_candidate (HirId hirid, location_t locus)
+  {
+    rust_assert (!block_drop_candidates.empty ());
+    block_drop_candidates.back ().push_back ({hirid, locus});
+  }
 
   void insert_var_decl (HirId id, ::Bvariable *decl)
   {
@@ -419,6 +441,7 @@ private:
   std::map<HirId, tree> compiled_labels;
   std::vector<::std::vector<tree>> statements;
   std::vector<tree> scope_stack;
+  std::vector<::std::vector<DropCandidate>> block_drop_candidates;
   std::vector<::Bvariable *> loop_value_stack;
   std::vector<tree> loop_begin_labels;
   std::map<DefId, std::vector<std::pair<const TyTy::BaseType *, tree>>>
