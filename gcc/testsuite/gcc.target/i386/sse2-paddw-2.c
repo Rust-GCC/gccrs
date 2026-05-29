@@ -17,4 +17,4 @@ void bar()
   uo = ui - 1;
 }
 
-/* { dg-final { scan-assembler-times "\[ \t\]paddw\[ \t\]" 2 } } */
+/* { dg-final { scan-assembler-times "\[ \t\]v?paddw\[ \t\]" 2 } } */
