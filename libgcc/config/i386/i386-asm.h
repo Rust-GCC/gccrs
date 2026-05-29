@@ -58,7 +58,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #define PASTE2(a, b) PASTE2a(a, b)
 #define PASTE2a(a, b) a ## b
 
-/* These macros currently support GNU/Linux, Solaris and Darwin.  */
+/* These macros currently support GNU/Linux, Solaris, FreeBSD, and Darwin.  */
 
 #ifdef __ELF__
 # define FN_TYPE(fn) .type fn,@function
