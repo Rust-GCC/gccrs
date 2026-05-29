@@ -318,6 +318,20 @@ TypeCheckContext::insert_associated_impl_mapping (HirId trait_id,
 }
 
 bool
+TypeCheckContext::peek_associated_impl_mapping_for_self (
+  HirId trait_id, std::vector<std::pair<TyTy::BaseType *, HirId>> *mappings)
+{
+  auto it = associated_traits_to_impls.find (trait_id);
+  if (it == associated_traits_to_impls.end ())
+    return false;
+
+  if (mappings != nullptr)
+    *mappings = it->second;
+
+  return true;
+}
+
+bool
 TypeCheckContext::lookup_associated_impl_mapping_for_self (HirId trait_id,
 							   TyTy::BaseType *self,
 							   HirId *mapping)
