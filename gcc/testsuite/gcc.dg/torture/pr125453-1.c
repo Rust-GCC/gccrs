@@ -1,5 +1,8 @@
 /* { dg-do compile } */
 /* { dg-additional-options "-fgimple" } */
+/* Disable all warnings since the code in h is undefined and could
+   invoke -Wstringop-overflow warnigns and others. */
+/* { dg-additional-options "-w" } */
 /* PR tree-optimization/125453 */
 
 int b[10];
