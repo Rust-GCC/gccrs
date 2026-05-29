@@ -1,3 +1,9 @@
+2026-05-28  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR cobol/125404
+	* symfind.cc (symbol_find): Add assertion that ancestors vector
+	is not empty.
+
 2026-05-12  Robert Dubner  <rdubner@symas.com>
 
 	* Make-lang.in: Incorporate new gcc/cobol/compare.cc file.

@@ -1,3 +1,36 @@
+2026-05-28  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* intrinsic.texi (F_C_STRING): New section.
+	* trans-intrinsic.cc (conv_trim): Delete.
+	(conv_isocbinding_function): Rewrite the F_C_STRING case.
+
+2026-05-28  Sandra Loosemore  <sloosemore@baylibre.com>
+	    Tobias Burnus  <tburnus@baylibre.com>
+
+	* check.cc (gfc_check_c_f_strpointer): New.
+	* f95-lang.cc (gfc_init_builtin_functions): Add BUILT_IN_STRNLEN.
+	* gfortran.h (enum gfc_isym_id): Add GFC_ISYM_C_F_STRPOINTER.
+	* gfortran.texi (Interoperable Subroutines and Functions): Mention
+	f_c_string and c_f_strpointer.
+	* intrinsic.cc (add_subroutines): Add c_f_strpointer.  Fix nearby
+	whitespace errors.
+	(sort_actual): Handle first argument to c_f_strpointer specially.
+	* intrinsic.h (gfc_check_c_f_strpointer): Declare.
+	* intrinsic.texi (C_F_STRPOINTER): New section.  Add entry to menu
+	and cross-references from similar functions.
+	* iso-c-binding.def: Add c_f_strpointer.
+	* trans-intrinsic.cc (conv_isocbinding_subroutine_strpointer): New.
+	(gfc_conv_intrinsic_subroutine): Call it.
+
+2026-05-28  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/125430
+	* trans-decl.cc (build_function_decl): Set TREE_PUBLIC for all
+	module-contained procedures so submodules compiled as separate
+	translation units can reach them via host association.  Also set
+	DECL_VISIBILITY to VISIBILITY_HIDDEN for PRIVATE procedures,
+	matching the existing treatment of module variables.
+
 2026-05-26  Paul-Antoine Arras  <parras@baylibre.com>
 
 	* dump-parse-tree.cc (debug): Add debug functions for gfc_omp_namelist

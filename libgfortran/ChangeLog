@@ -1,3 +1,12 @@
+2026-05-28  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/93727
+	* io/write.c (write_ex): Replace simple truncation with
+	rounding-aware logic respecting dtp round_status.  Add carry
+	propagation and integer-digit normalization.
+	* io/write_float.def: Change use of GFC_UINTEGER_8 to
+	long long unsigned.
+
 2026-05-25  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
 
 	PR fortran/93727

@@ -1,3 +1,177 @@
+2026-05-28  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* gfortran.dg/f_c_string3.f90: New.
+	* gfortran.dg/f_c_string4.f90: New.
+	* gfortran.dg/f_c_string5.f90: New.
+
+2026-05-28  Sandra Loosemore  <sloosemore@baylibre.com>
+	    Tobias Burnus  <tburnus@baylibre.com>
+
+	* gfortran.dg/c_f_strpointer-1.f90: New.
+	* gfortran.dg/c_f_strpointer-2.f90: New.
+	* gfortran.dg/c_f_strpointer-3.f90: New.
+	* gfortran.dg/c_f_strpointer-4.f90: New.
+	* gfortran.dg/c_f_strpointer-5.f90: New.
+	* gfortran.dg/c_f_strpointer-6.f90: New.
+	* gfortran.dg/c_f_strpointer-7.f90: New.
+	* gfortran.dg/c_f_strpointer-8.f90: New.
+	* gfortran.dg/c_f_strpointer-9.f90: New.
+	* gfortran.dg/c_f_strpointer-10.f90: New.
+	* gfortran.dg/pr108961.f90: Rename locally-defined c_f_strpointer.
+
+2026-05-28  Jean-Christian CÎRSTEA  <jean.christian.cirstea@gmail.com>
+
+	PR c++/120458
+	* g++.dg/README: Explain purpose of modules/ dir.
+	* g++.dg/modules/pr120458-1_a.C: Define non-ASCII module with
+	default mapper.
+	* g++.dg/modules/pr120458-1_b.C: Import non-ASCII module with
+	default mapper.
+	* g++.dg/modules/pr120458-2_a.C: Define non-ASCII module with
+	a file as mapper.
+	* g++.dg/modules/pr120458-2_b.C: Import non-ASCII module with
+	a file as mapper.
+	* g++.dg/modules/pr120458-2.map: Define mapping for pr120458-2
+	test case.
+
+2026-05-28  H.J. Lu  <hjl.tools@gmail.com>
+
+	* gcc.dg/vect/vect-early-break-no-epilog_11.c: Require
+	avx512f_runtime instead of avx512f_hw.
+
+2026-05-28  Roger Sayle  <roger@nextmovesoftware.com>
+	    Hongtao Liu  <hongtao.liu@intel.com>
+
+	* gcc.target/i386/sse4_1-ptest-7.c: New test case.
+
+2026-05-28  Roger Sayle  <roger@nextmovesoftware.com>
+	    Hongtao Liu  <hongtao.liu@intel.com>
+	    Uros Bizjak  <ubizjak@gmail.com>
+
+	* gcc.target/i386/avx512f-simd-1.c: Tweak test case.
+	* gcc.target/i386/sse2-paddb-2.c: New test case.
+	* gcc.target/i386/sse2-paddd-2.c: Likewise.
+	* gcc.target/i386/sse2-paddw-2.c: Likewise.
+	* gcc.target/i386/sse2-psubb-2.c: Likewise.
+	* gcc.target/i386/sse2-psubd-2.c: Likewise.
+	* gcc.target/i386/sse2-psubw-2.c: Likewise.
+
+2026-05-28  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125454
+	* g++.dg/other/array8.C: New test.
+
+2026-05-28  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/125430
+	* gfortran.dg/module_private_2.f90: Remove scan-tree-dump-times
+	assertion for 'priv'; PRIVATE module procedures now have global
+	linkage with hidden visibility and are no longer optimized away.
+	* gfortran.dg/public_private_module_2.f90: Add xfail markers to
+	scan-assembler-not for 'two' and 'six'; update comment to mention
+	procedures alongside variables.
+	* gfortran.dg/public_private_module_7.f90: Add xfail marker to
+	scan-assembler-not for '__m_common_attrs_MOD_other'.
+	* gfortran.dg/public_private_module_8.f90: Add xfail marker to
+	scan-assembler-not for '__m_MOD_myotherlen'.
+	* gfortran.dg/submodule_private_host.f90: New test.
+	* gfortran.dg/submodule_private_host_aux.f90: New auxiliary file.
+	* gfortran.dg/warn_unused_function_2.f90: Remove 'defined but not
+	used' expectation for s1; PRIVATE module procedures now have
+	global linkage and no longer trigger the unused-function warning.
+
+2026-05-28  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	* gcc.target/riscv/amo/a-rvwmo-store-compat-seq-cst.c: Adjust expected
+	output.
+	* gcc.target/riscv/amo/a-rvwmo-store-relaxed.c: Likewise.
+	* gcc.target/riscv/amo/a-rvwmo-store-release.c: Likewise.
+	* gcc.target/riscv/amo/a-ztso-store-compat-seq-cst.c: Likewise.
+	* gcc.target/riscv/amo/a-ztso-store-relaxed.c: Likewise.
+	* gcc.target/riscv/amo/a-ztso-store-release.c: Likewise.
+	* gcc.target/riscv/amo/zalasr-rvwmo-store-compat-seq-cst.c: Likewise.
+	* gcc.target/riscv/amo/zalasr-rvwmo-store-relaxed.c: Likewise.
+	* gcc.target/riscv/amo/zalasr-rvwmo-store-release.c: Likewise.
+	* gcc.target/riscv/amo/zalasr-ztso-store-compat-seq-cst.c: Likewise.
+	* gcc.target/riscv/amo/zalasr-ztso-store-relaxed.c: Likewise.
+	* gcc.target/riscv/amo/zalasr-ztso-store-release.c: Likewise.
+	* gcc.target/riscv/cpymem-64-ooo.c: Likewise.
+	* gcc.target/riscv/cpymem-64.c: Likewise.
+	* gcc.target/riscv/memcpy-nonoverlapping.c: Likewise.
+	* gcc.target/riscv/pr67731.c: Likewise.
+
+2026-05-28  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/106957
+	* g++.dg/cpp2a/lambda-uneval32.C: New test.
+
+2026-05-28  Jin Ma  <jinma@linux.alibaba.com>
+
+	* gcc.target/riscv/fp-reg-class.c: New test.
+
+2026-05-28  Zhongyao Chen  <chen.zhongyao@zte.com.cn>
+
+	* gcc.target/riscv/rvv/autovec/dyn-lmul-conv-1.c: Update expected LMUL counts.
+	* gcc.target/riscv/rvv/autovec/dyn-lmul-conv-2.c: Likewise.
+	* gcc.target/riscv/rvv/autovec/pr123414.c: Disable vector cost model.
+
+2026-05-28  Tamar Christina  <tamar.christina@arm.com>
+
+	* gcc.dg/vect/vect-early-break-no-epilog_11.c: Add AVX512 for x86_64.
+
+2026-05-28  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* gcc.target/aarch64/sve/vec_init_5.c: New test.
+
+2026-05-28  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* gcc.target/aarch64/sve/gather_load_10.c: Adjust testcase.
+	* gcc.target/aarch64/sve/slp_1.c: Likewise.
+	* gcc.target/aarch64/vec-init-18.c: Likewise.
+	* gcc.target/aarch64/vec-init-23.c: Likewise.
+
+2026-05-28  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* gcc.target/aarch64/ldp_stp_16.c: Adjust testcase.
+	* gcc.target/aarch64/sve/slp_1.c: Likewise.
+	* gcc.target/aarch64/vec-init-18.c: Likewise.
+	* gcc.target/aarch64/vec-init-23.c: New test.
+
+2026-05-28  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* gcc.dg/vect/complex/bb-slp-complex-add-half-float.c: Adjust testcase.
+	* gcc.dg/vect/complex/bb-slp-complex-mla-half-float.c: Likewise.
+	* gcc.dg/vect/complex/bb-slp-complex-mul-half-float.c: Likewise.
+	* gcc.target/aarch64/sve/slp_1.c: Likewise.
+
+2026-05-28  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/125469
+	* gcc.target/i386/apx-nf-pr125469.c: New test.
+
+2026-05-28  oltolm  <oleg.tolmatcev@gmail.com>
+
+	PR target/54412
+	* gcc.target/i386/pr54412-v4d-o0-aligned-locals.c: New test.
+	* gcc.target/i386/pr54412-o2-by-value-cases.c: New test.
+	* gcc.target/i386/pr54412-sret-no-args.c: New test.
+	* gcc.target/i386/pr54412-callee-byref-param.c: New test.
+	* gcc.target/i386/pr54412-avx512-aligned64.c: New test.
+
+2026-05-28  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	* gcc.target/riscv/rvv/base/pr115456-3.c: Drop compromised scan-asm
+	part of the test.
+
+2026-05-28  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/93727
+	* gfortran.dg/EXformat_3.F90: New test covering rounding for
+	KIND=4, 8, 10, and 16: clear round-up, ties-to-even (truncate
+	and round-up cases), carry propagation, and normalization.
+	* gfortran.dg/EXrounding.F90: New test checking the various
+	rounding modes for all kinds.
+
 2026-05-27  Marek Polacek  <polacek@redhat.com>
 
 	* g++.dg/warn/Winvalid-memory-model-2.C: Adjust dg-regexp.

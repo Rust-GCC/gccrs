@@ -1,3 +1,8 @@
+2026-05-28  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125454
+	* typeck.cc (cp_build_array_ref): Don't recurse for array[array].
+
 2026-05-27  Jakub Jelinek  <jakub@redhat.com>
 
 	PR c++/125412

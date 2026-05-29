@@ -1,3 +1,8 @@
+2026-05-28  Georg-Johann Lay  <avr@gjlay.de>
+
+	* libf7.h: Add "[len=...]]" notes to all non-empty inline asm's.
+	* libf7.c: Dito.
+
 2025-10-09  Georg-Johann Lay  <avr@gjlay.de>
 
 	PR target/122222

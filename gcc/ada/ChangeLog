@@ -1,3 +1,273 @@
+2026-05-28  Sebastian Poeplau  <poeplau@adacore.com>
+
+	* init.c (__gnat_alternate_stack): add alignment attribute.
+
+2026-05-28  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* sem_aggr.adb (Resolve_Array_Aggregate): Also rewrite a choice list
+	with a single choice as an iterator specification when the choice's
+	type has the GNAT Iterable aspect specified.
+
+2026-05-28  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* sem_aggr.adb (Resolve_Array_Aggregate): Analyze the choice before
+	testing whether it is the name of a subtype with a predicate.
+
+2026-05-28  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* einfo.ads (In_Package_Body): Update description.
+	(In_Private_Part): Likewise.
+	* sem_ch3.adb (Analyze_Object_Declaration): Compute In_Package_Body
+	along with In_Private_Part for the object if its scope is a package.
+	* sem_ch6.adb (Analyze_Expression_Function): Do not compute
+	In_Private_Part here.
+	(Enter_Overloaded_Entity): Compute In_Package_Body & In_Private_Part
+	for the entity if its scope is a package.
+	* sem_util.adb (Collect_Primitive_Operations): Skip the subprograms
+	declared in the body for types declared in a package specification.
+
+2026-05-28  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* sem_ch13.adb (Resolve_Aspect_Aggregate.Resolve_Operation): Add
+	missing guard for the presence of Entity on the node.
+
+2026-05-28  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* doc/gnat_rm/gnat_language_extensions.rst
+	(Generalized Finalization): Document the new restriction.
+	* sem_ch13.adb (Resolve_Finalizable_Argument): Adjust wording of
+	error message.
+	(Resolve_Finalization_Procedure.Is_Finalizable_Primitive): Require
+	the procedure to be a primitive operation.
+	* gnat_rm.texi: Regenerate.
+
+2026-05-28  Piotr Trojanek  <trojanek@adacore.com>
+
+	* libgnat/g-comlin.adb
+	(Command_Name): New routine to strip platform-specific suffix.
+	(Display_Help, Get_Opt): Use new routine.
+	(Try_Help): Remove hardcoded ".exe" suffix; use new routine.
+
+2026-05-28  Javier Miranda  <miranda@adacore.com>
+
+	* sem_util.adb (Is_Access_To_Subprogram_Wrapper): Remove useless
+	call to Can_Have_Formals. Found by Dismukes.
+
+2026-05-28  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* exp_ch3.adb (Make_Controlling_Function_Wrappers): Manually set the
+	Has_Controlling_Result flag on the wrappers.
+	* sem_disp.ads (Override_Dispatching_Operation): Move to...
+	* sem_disp.adb (Override_Dispatching_Operation): ...here.
+	(Find_Dispatching_Type): Return the (controlling) result type for a
+	controlling function wrapper.
+
+2026-05-28  Vadim Godunko  <godunko@adacore.com>
+
+	* doc/gnat_rm/implementation_of_ada_2022_features.rst: Fix casing.
+	* gnat_rm.texi: Regenerate.
+
+2026-05-28  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* exp_ch4.adb (Expand_N_Op_Eq): Do not expand an array comparison
+	for validity checking purposes when the component type is covered
+	by the suppression of validity checks.
+
+2026-05-28  Marc Poulhiès  <poulhies@adacore.com>
+
+	* vast.adb (Do_Node_Pass_2): Only check aspect/pragma consistency for pragma nodes.
+
+2026-05-28  Javier Miranda  <miranda@adacore.com>
+
+	* sem_util.ads (Is_Access_Subprogram_Wrapper): Renamed as
+	Is_Access_To_Subprogram_Wrapper.
+	* sem_util.adb (Is_Access_Subprogram_Wrapper): Ditto plus add
+	assertion.
+	* sem_disp.adb (Is_Access_To_Subprogram_Wrapper): Removed.
+	* sem_prag.adb (Find_Related_Declaration_Or_Body): Replace call to
+	Is_Access_Subprogram_Wrapper by call to Is_Access_To_Subprogram_Wrapper.
+	* exp_ch6.adb (Expand_Call): Ditto.
+	* sem_attr.adb (Analyze_Attribute [Attribute_Result]): For access to
+	subprogram wrappers, report that the expected prefix is the name of
+	the access type.
+
+2026-05-28  Marc Poulhiès  <poulhies@adacore.com>
+
+	* sem_ch13.adb (Make_Pragma_From_Boolean_Aspect): Use Decorate.
+
+2026-05-28  Bob Duff  <duff@adacore.com>
+
+	* sem_ch13.adb (Analyze_Aspect_Specifications):
+	Major rewrite.
+	* sem_ch13.ads: Minor comment improvements.
+	* aspects.ads: Change some aspects to be Never_Delay.
+	Make Boolean_Aspects include Library_Unit_Aspects.
+	* exp_ch9.adb (Build_Corresponding_Record):
+	When copying aspects, set Aspect_Rep_Item to Empty,
+	so Asp_Copy looks like an unanalyzed tree.
+	* sem_ch12.adb (Analyze_Formal_Subprogram_Declaration):
+	Skip Analyze_Aspect_Specifications in case of error.
+	* sem_ch6.adb (Analyze_Expression_Function): Likewise.
+	* sinfo.ads: Minor comment improvement.
+
+2026-05-28  Steve Baird  <baird@adacore.com>
+
+	* sem_ch6.adb (Install_Entity): If the entity to be installed is
+	already installed, assert that an error has already been flagged
+	and then return without introducing a cycle in the entity's
+	Homonyms list.
+
+2026-05-28  Viljar Indus  <indus@adacore.com>
+
+	* errout.adb (Output_Messages): use the source file name without
+	the directory path when constructing the name of the SARIF file.
+	* osint.adb (Strip_Directory): New method for extracting the file name
+	from a given path.
+	* osint.ads (Strip_Directory): Likewise.
+
+2026-05-28  Javier Miranda  <miranda@adacore.com>
+
+	* sem_ch8.adb (Find_Renamed_Entity): Protect call to First_Formal.
+
+2026-05-28  Javier Miranda  <miranda@adacore.com>
+
+	* sem_res.adb (Resolve_Declare_Expression): Do not create a
+	transient scope when expansion is disabled.
+
+2026-05-28  Javier Miranda  <miranda@adacore.com>
+
+	* sem_res.adb (Resolve_Declare_Expression): Do not create a
+	transient scope under GNATprove mode.
+
+2026-05-28  Bob Duff  <duff@adacore.com>
+
+	* vast.adb (Pass): Add a comment.
+
+2026-05-28  Marc Poulhiès  <poulhies@adacore.com>
+
+	* vast.adb (Do_Node_Pass_2): Adjust check for aspect consistency.
+
+2026-05-28  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* exp_attr.adb (Expand_N_Attribute_Reference) <Constrained>: If the
+	prefix is a non-In formal parameter of an unchecked union type, give
+	a warning and insert a raise statement for Program_Error.
+
+2026-05-28  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* exp_util.ads (Is_Distributable_Declaration): New predicate.
+	* exp_util.adb (Is_Distributable_Declaration): New predicate coming
+	from Expand_N_Case_Expression and Expand_N_If_Expression.  Return
+	False for variables of an unconstrained definite nonlimited subtype.
+	* exp_ch4.adb (Expand_N_Case_Expression): Replace calls to local
+	Is_Optimizable_Declaration by calls to Is_Distributable_Declaration.
+	(Expand_N_If_Expression): Likewise.
+	* exp_ch6.adb (Expand_Ctrl_Function_Call): Likewise.
+
+2026-05-28  Bob Duff  <duff@adacore.com>
+
+	* sem_ch13.adb (Insert_Pragma):
+	Rename to be Insert_Aitem.
+
+2026-05-28  Bob Duff  <duff@adacore.com>
+
+	* sem_ch13.adb (Analyze_Aspect_Specifications):
+	Misc cleanup.
+
+2026-05-28  Claire Dross  <dross@adacore.com>
+
+	* inline.adb (Can_Be_Inlined_In_GNATprove_Mode):
+	Do not inline subprograms with formals of an unchecked union type.
+
+2026-05-28  Marc Poulhiès  <poulhies@adacore.com>
+	    Eric Botcazou  <botcazou@adacore.com>
+
+	* sem_ch3.adb (Find_Type_Of_Object): Adjust freezing of the base
+	type of a discriminated type.
+
+2026-05-28  Ronan Desplanques  <desplanques@adacore.com>
+
+	* sem_ch3.adb (Process_Full_View): Simplify test.
+
+2026-05-28  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* accessibility.adb
+	(Apply_Accessibility_Check_For_Class_Wide_Return): Do not test if
+	accessibility checks are suppressed here but...
+	(Apply_Accessibility_Check_For_Return): ...here instead.
+
+2026-05-28  Viljar Indus  <indus@adacore.com>
+
+	* sem_ch6.adb (Check_For_Primitive_Subprogram): add the
+	check for ghost equality functions for all branches handling
+	primitive subprograms.
+
+2026-05-28  Ronan Desplanques  <desplanques@adacore.com>
+
+	* sem_aux.ads (Is_Immutably_Limited_Type, Is_Inherently_Limited_Type):
+	Improve documentation comments.
+	* sem_aux.adb (Is_Inherently_Limited_Type): Replace inline code with
+	call to Is_Immutably_Limited_Type.
+
+2026-05-28  Bob Duff  <duff@adacore.com>
+
+	* aspects.ads (Aspect_Initialize):
+	Add to Implementation_Defined_Aspect.
+	* einfo.ads (Alignment_Clause): Minor comment fix.
+	* sem.adb: Remove useless null statements.
+	* sem_ch13.ads (Rep_Item_Too_Late):
+	Minor comment fix (this IS Sem_Ch13).
+	* sem_prag.adb (Fix_Error):
+	Minor comment fix (aspects are not "abnormal").
+	* sinfo.ads: Minor comment fix.
+
+2026-05-28  Javier Miranda  <miranda@adacore.com>
+
+	* gen_il-fields.ads (Scope_Link): New field.
+	* gen_il-gen-gen_nodes.adb (N_Expression_With_Actions): Added Scope_Link.
+	* sinfo.ads (N_Expression_With_Actions): Add field Scope_Link.
+	* sem_ch4.adb (Analyze_Expression_With_Actions): Set field Scope_Link
+	* sem_ch5.ads (Has_Sec_Stack_Call): Declaration moved to the package spec.
+	* sem_ch5.adb (Has_Sec_Stack_Call): ditto.
+	* sem_res.adb (Resolve_Declare_Expression): Push/Pop internally created
+	scope to provide proper visibility of the declare_items.
+
+2026-05-28  Denis Mazzucato  <mazzucato@adacore.com>
+
+	* sem_prag.adb (Check_References): Don't call Class_Wide_Type if the
+	subprogram is a non-primitive procedure as the dispatching type may be
+	empty.
+
+2026-05-28  Piotr Trojanek  <trojanek@adacore.com>
+
+	* exp_ch9.adb (Is_Pure_Barrier): Handle unexpanded attribute Count.
+
+2026-05-28  Bob Duff  <duff@adacore.com>
+
+	* vast.adb (Check_Corresponding_Aspect):
+	New checks for aspect/pragma consistency.
+	(Check_Enum): Add documentation of the checks.
+
+2026-05-28  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* exp_ch9.ads (Build_Master_Declaration): Minor tweaks in comment.
+	(Build_Master_Entity): Likewise.
+	(Build_Master_Renaming): Likewise.
+	(Build_Master_Renaming_Declaration): New function declaration.
+	* exp_ch9.adb (Build_Master_Declaration): Move around.
+	(Build_Master_Renaming_Declaration): New function.
+	(Build_Master_Renaming): Call Build_Master_Renaming_Declaration
+	to build the renaming declaration.
+	* sem_ch6.adb (Check_Anonymous_Access_Return_With_Tasks): Remove
+	useless guard on Declarations (N).  Create a renaming declaration
+	for the current _Master variable and set is as the Master_Id of
+	the access result type.
+
+2026-05-28  Piotr Trojanek  <trojanek@adacore.com>
+
+	* exp_spark.adb (Expand_SPARK_N_Delta_Aggregate): Special case for
+	"others" clause.
+
 2026-05-27  Iain Sandoe  <iain@sandoe.co.uk>
 
 	* xsintnam.sed: Posix-ify the a, c and i commands.

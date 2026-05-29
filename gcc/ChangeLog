@@ -1,3 +1,346 @@
+2026-05-28  Roger Sayle  <roger@nextmovesoftware.com>
+
+	* tree-ssa-loop-im.cc (ref_always_accessed_p): Rename to...
+	(ref_always_stored_p): New function specialized to determine if
+	REF is a store that is always executed in LOOP.
+	(execute_sm): Use ref_always_stored_p instead of
+	ref_always_accessed_p.
+	(class ref_always_accessed): Rename to..
+	(class ref_always_stored): Remove (always true) stored_p field.
+	(ref_always_stored::operator ()): Always check for a store.
+	Move hash table lookup, get_lim_data, after store test.
+	(can_sm_ref_p): Use ref_always_stored_p insead of
+	ref_always_accessed_p.
+
+2026-05-28  Roger Sayle  <roger@nextmovesoftware.com>
+
+	* config/i386/i386-features.cc (compute_convert_gain): Tweak
+	the cost of a 128-bit rotation to be 4 (or 5) instructions.
+
+2026-05-28  Roger Sayle  <roger@nextmovesoftware.com>
+	    Hongtao Liu  <hongtao.liu@intel.com>
+
+	* config/i386/i386-features.cc (scalar_chain::add_insn): Don't
+	call analyze_register_chain if the USE is a SUBREG.
+	(scalar_chain::convert_op): Call gen_lowpart to convert
+	scalar (TImode) SUBREGs to vector (V1TImode) SUBREGs.
+	(convertible_comparison_p): We can now handle all general_operands
+	of *cmp<dwi>_doubleword.
+	(timode_remove_non_convertible_regs): We only need to check TImode
+	uses that aren't TImode SUBREGs of registers in other modes.
+
+2026-05-28  Roger Sayle  <roger@nextmovesoftware.com>
+	    Hongtao Liu  <hongtao.liu@intel.com>
+	    Uros Bizjak  <ubizjak@gmail.com>
+
+	* config/i386/i386.md (inv_insn): New define_code_attr.
+	* config/i386/sse.md (<plusminus><mode>3): Accept a CONST_VECTOR
+	as the second operand.  If the second operand is CONST1_RTX,
+	canonicalize to use CONSTM1_RTX instead.
+	(*add<mode>3_one): New define_insn_and_split to convert padd +1
+	to psub -1.
+	(*sub<mode>3_one): Likewise, a new define_insn_and_split to
+	convert psub +1 to padd -1.
+
+2026-05-28  Jin Ma  <jinma@linux.alibaba.com>
+
+	* config/riscv/riscv.cc (riscv_regno_to_class): Use the minimal
+	class containing each FP hard register: FP_REGS for f0-f7 and
+	f16-f31, RVC_FP_REGS for f8-f15.
+	(riscv_secondary_memory_needed): Use reg_class_subset_p to
+	detect FP classes.
+
+2026-05-28  Zhongyao Chen  <chen.zhongyao@zte.com.cn>
+
+	* config/riscv/riscv-vector-costs.cc (get_lmul_cost_scaling):
+	Enable scaling for all vector modes (VLA and VLS).
+
+2026-05-28  Georg-Johann Lay  <avr@gjlay.de>
+
+	* config/avr/avr.opt.urls (-masm-len-notes, -Wasm-len-notes): Add.
+
+2026-05-28  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* config/aarch64/aarch64-sve.md
+	(*aarch64_vec_duplicate_subvector<vconsv><vconq><mode>):
+	New pattern.
+	* config/aarch64/iterators.md (VCONSV): New mode attribute.
+	(vconsv): Likewise.
+
+2026-05-28  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* config/aarch64/aarch64-simd.md (*aarch64_combine_internal<mode>):
+	New insn pattern.
+	(*aarch64_combine_internal_be<mode>): Likewise.
+	(*aarch64_combinez<mode>): Likewise.
+	(*aarch64_combinez_be<mode>): Likewise.
+	(@aarch64_vec_concat<mode>): Support smaller vector and scalar modes.
+	* config/aarch64/aarch64.cc (aarch64_expand_vector_init_fallback):
+	Handle the case of two scalar elements.
+	* config/aarch64/iterators.md (SSUB64): New mode iterator.
+	(VSSUB64): Likewise.
+	(VSSUB32_I) : Likewise.
+	(VSSUB64_F): Likewise.
+	(VS32_I_SUB64_F): Likewise.
+	(single_wx): Define attribute for sub-64-bit vector and scalar modes.
+	(bitsize): Likewise.
+	(VDBL): Likewise.
+	(single_dwx): New mode attribute.
+
+2026-05-28  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* config/aarch64/aarch64-simd.md (*aarch64_simd_dup_subvector<vconq><mode>):
+	New insn pattern.
+	(*aarch64_simd_dup_subvector<vcond><mode>): Likewise.
+	(@aarch64_simd_vec_set<mode>): Likewise.
+	(vec_set<mode>): Handle 16- and 32-bit vector modes in the expander.
+	* config/aarch64/aarch64.cc (aarch64_expand_vector_init_fallback): Add
+	logic to initialize vector from starting subsequence.  Make static.
+	(scalar_move_insn_p): Consider sub-64-bit vector moves scalar.
+	* config/aarch64/iterators.md (VDDUP): New iterator.
+	(VQDUP): Likewise.
+	(elem_bits): Define attribute for sub-64-bit vector modes.
+	(Vetype): Likewise.
+	(VEL): Likewise.
+	(single_wx): Define attribute for sub-64-bit vector and scalar modes.
+	(single_type): Likewise.
+	(VCOND): Likewise.
+	(VCONQ): Likewise.
+	(Vqduptype): New mode attribute.
+	(Vdduptype): Likewise.
+	(vcond): Likewise.
+	(vconq): Likewise.
+	(vstype): Define attribute for 64-bit vector and sub-128-bit scalar
+	modes.
+
+2026-05-28  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* config/aarch64/aarch64-modes.def (VECTOR_MODE): Remove V2HF.
+	(VECTOR_MODES): Define V2QI, V4QI, V2HI, V2HF, V2BF.
+	* config/aarch64/aarch64-protos.h
+	(aarch64_advsimd_sub_dword_mode_p): Declare new predicate.
+	* config/aarch64/aarch64-simd.md (*aarch64_simd_mov<mode>): New
+	define_insn_and_split pattern.
+	(mov<mode>): Add sub-64-bit vector modes to the VALL_F16 expander.
+	Forego const vector expansion for those modes.
+	* config/aarch64/aarch64.cc (aarch64_classify_vector_mode):
+	Handle 16- and 32-bit vector modes.
+	(aarch64_advsimd_sub_dword_mode_p): Define new predicate.
+	(aarch64_vectorize_vec_perm_const): Refuse for partial vector modes.
+	* config/aarch64/constraints.md (Da): New constraint.
+	* config/aarch64/iterators.md (VSUB64): New iterator.
+	(VALL_F16_SUB64): Likewise.
+	(size): Define attribute for sub-64-bit vector modes.
+	(VSC): New mode attribute.
+	(vstype): Likewise.
+
+2026-05-28  Kewen Lin  <linkewen@hygon.cn>
+	    Xin Liu  <liulxx@hygon.cn>
+
+	* config/i386/c86-4g-m7.md (c86_4g_m7_fpu): Remove automaton.
+	(c86_4g_m7_fpu02): New automaton.
+	(c86_4g_m7_fpu13): Ditto.
+	(c86-4g-m7-fpu0): Move to c86_4g_m7_fpu02 automaton.
+	(c86-4g-m7-fpu1): Move to c86_4g_m7_fpu13 automaton.
+	(c86-4g-m7-fpu2): Move to c86_4g_m7_fpu02 automaton.
+	(c86-4g-m7-fpu3): Move to c86_4g_m7_fpu13 automaton.
+	(c86-4g-m7-fdiv): Remove cpu unit.
+	(c86-4g-m7-fdiv1): New cpu unit.
+	(c86-4g-m7-fdiv3): Ditto.
+	(c86-4g-m7-fpu_0_3): New reservation.
+	(c86-4g-m7-fpu_1_3x2): Ditto.
+	(c86-4g-m7-fpu_1_3x3): Ditto.
+	(c86-4g-m7-fpu_1_3x6): Ditto.
+	(c86-4g-m7-fpux2): Ditto.
+	(c86-4g-m7-fpux4): Ditto.
+	(c86-4g-m7-fpux6): Ditto.
+	(c86-4g-m7-fpux8): Ditto.
+	(c86-4g-m7-fpux16): Ditto.
+	(c86-4g-m7-fp1fdiv1x4): Ditto.
+	(c86-4g-m7-fp3fdiv3x4): Ditto.
+	(c86-4g-m7-fdiv13): Ditto.
+	(c86-4g-m7-fp13div13): Ditto.
+	(c86-4g-m7-fp13div13x4): Ditto.
+	(c86-4g-m7-fp1div1_fp3div3_x4x8): Ditto.
+	(c86-4g-m7-fp1div1_fp3div3_x4x9): Ditto.
+	(c86-4g-m7-fp1div1_fp3div3_x4x11): Ditto.
+	(c86-4g-m7-fp1div1_fp3div3_x4x15): Ditto.
+	(c86-4g-m7-fp1div1_fp3div3_x4x18): Ditto.
+	(c86_4g_m7_idiv): New reservation.
+	(c86_4g_m7_idiv_QI): Adjust reservation latency and unit occupancy.
+	(c86_4g_m7_idiv_load): New reservation.
+	(c86_4g_m7_idiv_QI_load): Adjust reservation latency and unit
+	occupancy.
+	(c86_4g_m7_idiv_DI): Remove reservation.
+	(c86_4g_m7_idiv_SI): Ditto.
+	(c86_4g_m7_idiv_HI): Ditto.
+	(c86_4g_m7_idiv_DI_load): Ditto.
+	(c86_4g_m7_idiv_SI_load): Ditto.
+	(c86_4g_m7_idiv_HI_load): Ditto.
+	(c86_4g_m7_sse_insertimm): Adjust reservation units and unit
+	occupancy.
+	(c86_4g_m7_sse_insert): Ditto.
+	(c86_4g_m7_fp_sqrt): Adjust reservation.
+	(c86_4g_m7_fp_div): Ditto.
+	(c86_4g_m7_fp_div_load): Ditto.
+	(c86_4g_m7_fp_idiv_load): Ditto.
+	(c86_4g_m7_sse_pinsr_reg): Adjust reservation units and unit
+	occupancy.
+	(c86_4g_m7_sse_pinsr_reg_load): Ditto.
+	(c86_4g_m7_avx_vpinsr_reg): Ditto.
+	(c86_4g_m7_avx_vpinsr_reg_load): Ditto.
+	(c86_4g_m7_avx512_perm_xmm): Delete the prefix condition.
+	(c86_4g_m7_avx512_perm_xmm_opload): Ditto.
+	(c86_4g_m7_avx512_permi2_ymm): Adjust reservation units and unit
+	occupancy.
+	(c86_4g_m7_avx512_permi2_zmm): Ditto.
+	(c86_4g_m7_avx512_permi2_ymm_load): Ditto.
+	(c86_4g_m7_avx512_permi2_zmm_load): Ditto.
+	(c86_4g_m7_avx512_perm_zmm_imm): Ditto.
+	(c86_4g_m7_avx512_perm_zmm_imm_load): Ditto.
+	(c86_4g_m7_avx512_perm_zmm_noimm): Ditto.
+	(c86_4g_m7_sse_perm_zmm_noimm_load): Ditto.
+	(c86_4g_m7_avx_perm_ymm): Remove.
+	(c86_4g_m7_avx_perm_ymem): Ditto.
+	(c86_4g_m7_avx512_shuf_zmm): Adjust reservation units and unit
+	occupancy.
+	(c86_4g_m7_avx512_shuf_zmem): Ditto.
+	(c86_4g_m7_avx512_cmpestr): Ditto.
+	(c86_4g_m7_avx512_cmpestr_load): Ditto.
+	(c86_4g_m7_avx512_vdbpsadbw_zmm): Ditto.
+	(c86_4g_m7_avx512_vdbpsadbw_zmem): Ditto.
+	(c86_4g_m7_avx_ssecomi_comi): Ditto.
+	(c86_4g_m7_avx_ssecomi_comi_load): Ditto.
+	(c86_4g_m7_avx512_expand): Ditto.
+	(c86_4g_m7_avx512_expand_load): Ditto.
+	(c86_4g_m7_avx512_expand_z): Ditto.
+	(c86_4g_m7_avx512_expand_z_load): Ditto.
+	(c86_4g_m7_sse_movnt_xy): Rename to c86_4g_m7_sse_movnt.
+	(c86_4g_m7_avx512_sseadd_xy): Adjust reservation units.
+	(c86_4g_m7_avx512_sseadd_xy_load): Ditto.
+	(c86_4g_m7_sse_sseiadd_hplus): Adjust reservation units and unit
+	occupancy.
+	(c86_4g_m7_sse_sseiadd_hplus_load): Ditto.
+	(c86_4g_m7_avx512_ssemul): Adjust reservation units.
+	(c86_4g_m7_avx512_ssemul_load): Ditto.
+	(c86_4g_m7_avx512_ssediv): Remove.
+	(c86_4g_m7_avx512_ssediv_mem): Remove.
+	(c86_4g_m7_avx512_ssediv_x): New.
+	(c86_4g_m7_avx512_ssediv_xmem): New.
+	(c86_4g_m7_avx512_ssediv_y): New.
+	(c86_4g_m7_avx512_ssediv_ymem): New.
+	(c86_4g_m7_avx512_ssediv_z): Adjust reservation units.
+	(c86_4g_m7_avx512_ssediv_zmem): Ditto.
+	(c86_4g_m7_avx512_ssecmp_z): Add reservation units and unit
+	occupancy.
+	(c86_4g_m7_avx512_ssecmp_z_load): Ditto.
+	(c86_4g_m7_avx512_ssecmp_vp_z): New reservation.
+	(c86_4g_m7_avx512_ssecmp_vp_z_load): Ditto.
+	(c86_4g_m7_avx512_ssecmp_test_z): Remove reservation.
+	(c86_4g_m7_avx512_ssecmp_test_z_load): Ditto.
+	(c86_4g_m7_avx512_muladd): Broaden matching condition.
+	(c86_4g_m7_avx512_muladd_load): Ditto.
+	(c86_4g_m7_fma_muladd): Remove reservation.
+	(c86_4g_m7_fma_muladd_load): Ditto.
+	(c86_4g_m7_avx512_sse_conflict_x): Add reservation units and unit
+	occupancy.
+	(c86_4g_m7_avx512_sse_conflict_x_load): Ditto.
+	(c86_4g_m7_avx512_sse_conflict_y): Ditto.
+	(c86_4g_m7_avx512_sse_conflict_y_load): Ditto.
+	(c86_4g_m7_avx512_sse_conflict_z): Ditto.
+	(c86_4g_m7_avx512_sse_conflict_z_load): Ditto.
+	(c86_4g_m7_avx512_sse_class_z): Add reservation units and unit
+	occupancy.
+	(c86_4g_m7_avx512_sse_class_z_load): Ditto.
+	(c86_4g_m7_avx512_sse_sqrt): Remove.
+	(c86_4g_m7_avx512_sse_sqrt_load): Remove.
+	(c86_4g_m7_avx512_sse_sqrt_sf_x): New.
+	(c86_4g_m7_avx512_sse_sqrt_sf_xload): New.
+	(c86_4g_m7_avx512_sse_sqrt_sf_y): New.
+	(c86_4g_m7_avx512_sse_sqrt_sf_yload): New.
+	(c86_4g_m7_avx512_sse_sqrt_sf_z): New.
+	(c86_4g_m7_avx512_sse_sqrt_sf_zload): New.
+	(c86_4g_m7_avx512_sse_sqrt_df_x): New.
+	(c86_4g_m7_avx512_sse_sqrt_df_xload): New.
+	(c86_4g_m7_avx512_sse_sqrt_df_y): New.
+	(c86_4g_m7_avx512_sse_sqrt_df_yload): New.
+	(c86_4g_m7_avx512_sse_sqrt_df_z): New.
+	(c86_4g_m7_avx512_sse_sqrt_df_zload): New.
+	(c86_4g_m7_avx512_msklog_vector): Add reservation units and unit
+	occupancy.
+	(c86_4g_m7_avx512_mskmov_z_k): Ditto.
+	(c86_4g_m7_avx512_mskmov_k_reg): Ditto.
+	* config/i386/c86-4g.md (c86_4g_fp): Remove automaton.
+	(c86_4g_fp024): New automaton.
+	(c86_4g_fp1): Ditto.
+	(c86-4g-fp0): Move to c86_4g_fp024 automaton.
+	(c86-4g-fp1): Move to c86_4g_fp1 automaton.
+	(c86-4g-fp2): Move to c86_4g_fp024 automaton.
+	(c86-4g-fp3): Ditto.
+	(c86-4g-fp1fdivx4): New reservation.
+	(c86_4g_fp_sqrt): Adjust reservation.
+	(c86_4g_sse_sqrt_sf): Ditto.
+	(c86_4g_sse_sqrt_sf_mem): Ditto.
+	(c86_4g_sse_sqrt_df): Ditto.
+	(c86_4g_sse_sqrt_df_mem): Ditto.
+	(c86_4g_fp_op_div): Ditto.
+	(c86_4g_fp_op_div_load): Ditto.
+	(c86_4g_fp_op_idiv_load): Adjust reservation latency.
+	(c86_4g_ssediv_ss_ps): Adjust reservation.
+	(c86_4g_ssediv_ss_ps_load): Ditto.
+	(c86_4g_ssediv_sd_pd): Ditto.
+	(c86_4g_ssediv_sd_pd_load): Ditto.
+	(c86_4g_ssediv_avx256_ps): Ditto.
+	(c86_4g_ssediv_avx256_ps_load): Ditto.
+	(c86_4g_ssediv_avx256_pd): Ditto.
+	(c86_4g_ssediv_avx256_pd_load): Ditto.
+
+2026-05-28  Zhongyao Chen  <chen.zhongyao@zte.com.cn>
+
+	* config/riscv/riscv-vector-costs.cc
+	(estimated_loop_iters): New function.
+	(compare_loop_overhead): New function.
+	(costs::better_main_loop_than_p): Compare RVV loop overhead after
+	inside-loop cost.
+
+2026-05-28  Alex Coplan  <alex.coplan@arm.com>
+
+	* config/aarch64/aarch64.cc (aarch64_strip_extend): Replace
+	(unsigned HOST_WIDE_INT) INVAL (x) with UINTVAL (x).
+	* config/aarch64/predicates.md (aarch64_shift_imm_si): Likewise.
+	(aarch64_shift_imm_di): Likewise.
+	(aarch64_shift_imm64_di): Likewise.
+	(aarch64_imm3): Likewise.
+
+2026-05-28  Georg-Johann Lay  <avr@gjlay.de>
+
+	* config/avr/avr.cc (avr_read_number, avr_length_of_asm)
+	(avr_maybe_length_of_asm): New static functions.
+	(avr_adjust_insn_length): Call avr_maybe_length_of_asm on
+	unrecognized insns.
+	* config/avr/avr.opt (-masm-len-notes, -Wasm-len-notes): New
+	options.
+	* doc/invoke.texi (AVR Options): Add -masm-len-notes,
+	-Wasm-len-notes.
+	* doc/extend.texi (Size of an asm): Add @subsubheading
+	"Specifying the size of an asm on AVR".
+
+2026-05-28  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR target/121343
+	* config/avr/avr.md (divmod<mode>4, udivmod<mode>4): Use
+	hard-reg constraints instead of explicit hard-regs.
+	(*divmodqi4_call_split, *udivmodqi4_call_split): Remove.
+	(*divmodhi4_call_split, *udivmodhi4_call_split): Remove.
+	(*divmodpsi4_call_split, *udivmodpsi4_call_split): Remove.
+	(*divmodsi4_call_split, *udivmodsi4_call_split): Remove.
+
+2026-05-28  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/125469
+	* config/i386/i386.md (*add<mode>_1<nf_name>): Don't return "#" for
+	the lea non-TARGET_APX_NDD case, instead emit a lea directly.
+
 2026-05-27  Philipp Tomsich  <philipp.tomsich@vrull.eu>
 	    Konstantinos Eleftheriou  <konstantinos.eleftheriou@vrull.eu>
 
