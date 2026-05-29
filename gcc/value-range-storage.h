@@ -46,7 +46,7 @@ private:
 // ggc_test_and_set_mark calls.  We ignore the derived classes, since
 // they don't contain any pointers.
 
-class GTY(()) vrange_storage
+class GTY((desc ("%h.m_discriminator"), tag("VR_UNKNOWN"))) vrange_storage
 {
 public:
   static vrange_storage *alloc (vrange_internal_alloc &, const vrange &);
@@ -54,14 +54,15 @@ public:
   void set_vrange (const vrange &r);
   bool fits_p (const vrange &r) const;
   bool equal_p (const vrange &r) const;
-protected:
+
   // Stack initialization disallowed.
-  vrange_storage () { }
+  vrange_storage (enum value_range_discriminator d) : m_discriminator (d) { }
+  const ENUM_BITFIELD(value_range_discriminator) m_discriminator : 4;
 };
 
 // Efficient memory storage for an irange.
 
-class irange_storage : public vrange_storage
+class GTY((tag ("VR_IRANGE"))) irange_storage: public vrange_storage
 {
 public:
   static irange_storage *alloc (vrange_internal_alloc &, const irange &);
@@ -113,15 +114,20 @@ enum prange_kind { PR_UNDEFINED,	// VR_UNDEFINED
 const unsigned int PRANGE_STORAGE_NINTS = 4;
 
 // Efficient memory storage for a prange.
-class prange_storage : public vrange_storage
+class GTY((tag ("VR_PRANGE"))) prange_storage : public vrange_storage
 {
 public:
+  friend void gt_ggc_mx_vrange_storage(void *);
+  friend void gt_pch_nx_vrange_storage(void *);
+  friend void gt_pch_p_14vrange_storage(void *, void *, gt_pointer_operator,
+					void *);
   static prange_storage *alloc (vrange_internal_alloc &, const prange &);
   void set_prange (const prange &r);
   void get_prange (prange &r, tree type) const;
   bool equal_p (const prange &r) const;
   bool fits_p (const prange &r) const;
   void dump () const;
+
 private:
   DISABLE_COPY_AND_ASSIGN (prange_storage);
   prange_storage (const prange &r);
@@ -143,7 +149,7 @@ private:
 
 // Efficient memory storage for an frange.
 
-class frange_storage : public vrange_storage
+class GTY((tag ("VR_FRANGE"))) frange_storage : public vrange_storage
 {
  public:
   static frange_storage *alloc (vrange_internal_alloc &, const frange &r);
@@ -152,7 +158,8 @@ class frange_storage : public vrange_storage
   bool equal_p (const frange &r) const;
   bool fits_p (const frange &) const;
  private:
-  frange_storage (const frange &r) { set_frange (r); }
+  frange_storage (const frange &r) : vrange_storage (VR_FRANGE)
+    { set_frange (r); }
   DISABLE_COPY_AND_ASSIGN (frange_storage);
 
   enum value_range_kind m_kind;

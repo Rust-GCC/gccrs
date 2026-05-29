@@ -296,7 +296,7 @@ irange_storage::alloc (vrange_internal_alloc &allocator, const irange &r)
 // Initialize the storage with R.
 
 irange_storage::irange_storage (const irange &r)
-  : m_max_ranges (r.num_pairs ())
+  : vrange_storage (VR_IRANGE), m_max_ranges (r.num_pairs ())
 {
   m_num_ranges = m_max_ranges;
   set_irange (r);
@@ -611,7 +611,7 @@ prange_storage::alloc (vrange_internal_alloc &allocator, const prange &r)
 
 // Initialize the storage with R.
 
-prange_storage::prange_storage (const prange &r)
+prange_storage::prange_storage (const prange &r) : vrange_storage (VR_PRANGE)
 {
   unsigned num_words;
   enum prange_kind kind = prange_format (r, num_words);
