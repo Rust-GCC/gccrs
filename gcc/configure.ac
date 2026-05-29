@@ -4479,6 +4479,8 @@ changequote([,])dnl
       gcc_cv_lto_plugin=2
     elif test "$ld_is_mold" = yes; then
       gcc_cv_lto_plugin=2
+    elif test "$ld_is_wild" = yes; then
+      gcc_cv_lto_plugin=2
     # Allow -fuse-linker-plugin to enable plugin support in GNU gold 2.20.
     elif test "$ld_is_gold" = yes -a "$ld_vers_major" -eq 2 -a "$ld_vers_minor" -eq 20; then
       gcc_cv_lto_plugin=1
