@@ -10,7 +10,7 @@
                            false "boat".
             88 germanmade  value "volkswagen", "audi",
                                  "mercedes", "bmw",
-                                 "porsche".        
+                                 "porsche".
         01  agegroup  pic 999.
             88 child  value  0 through  12.
             88 teen   value 13 through  19.

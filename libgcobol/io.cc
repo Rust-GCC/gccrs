@@ -32,11 +32,12 @@
 
 #include "io.h"
 
-#include <cstdio>
-#include <cstdlib>
+#include <cassert>
 #include <cerrno>
 #include <cstdbool>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 
 /*
  * The Cobol runtime support is responsible to set the file status
@@ -87,13 +88,90 @@ __gg__file_status_word( enum file_status_t status,
   case EWOULDBLOCK:
                file_status_register = FsOsError;      break;
   default:
-    perror("What is this? ");
-    fprintf(stderr, "__gg__file_status_word got an error_number "
-          "%d, which it doesn't know how to handle\n", error_number);
-
-    abort();
+    file_status_register = FsOsError;
     break;
   }
 
   return file_status_register;
+}
+   
+/*
+ * This function is used by libgcobol_compat_gnu.
+ * If status parameter is FsErrno, return the file_status_t for errno.
+ * If status paramter is FsSuccess, return the file_status_t for errnum parameter. 
+ * The output is byte-swapped per MF specification. 
+ */
+#include <cstring>
+extern "C"
+file_status_t
+__compat_file_status_word( enum file_status_t status, int errnum) {
+  switch( status ) {
+  case FsErrno:
+    errnum = errno;
+    break;
+  case FsSuccess:
+    break;
+  default:
+    fprintf(stderr, "status is 0x%x, (%d)\n", status, status);
+    assert( status == FsErrno || status == FsSuccess );
+    break;
+  }
+    
+  switch( errnum ) {
+  case EACCES:
+  case EPERM:
+    status = FsCobRt037; // File access denied
+    break;
+  case EBADF:
+    status = FsCobRt034; // Incorrect mode or file descriptor
+    break;
+  case EDQUOT:
+  case ENOSPC:
+    status = FsCobRt028; // No space on device
+    break;
+  case EFBIG:
+  case EOVERFLOW:
+    status = FsCobRt194; // File size too large
+    break;
+  case EINVAL:
+    status = FsCobRt181; // Invalid parameter error
+    break;
+  case EIO:
+    status = FsCobRt033; // Physical I-O error
+    break;
+  case EISDIR:
+    status = FsCobRt021; // File is a directory
+    break;
+  case EMFILE:
+    status = FsCobRt014; // Too many files open simultaneously
+    break;
+  case ENAMETOOLONG:
+    status = FsCobRt188; // Filename too large
+    break;
+  case ENOENT:
+    status = FsCobRt013; // File not found
+    break;
+  case ENOMEM:
+    status = FsCobRt105; // Memory allocation error
+    break;
+  case EPIPE:
+    status = FsCobRt042; // Attempt to write on broken pipe
+    break;
+  case EROFS:
+    status = FsCobRt030; // File system is read-only
+    break;
+  default:
+      status = FsCobRt000; // No defined mapping for errno value
+  }    
+
+  // This function returns 9x status in the FsCobRt range. 
+  assert( FsCobRt000 <= status && status <= 0x09FF );
+
+  static_assert(sizeof(status) == 4);
+
+  // Arrange little-endian output per MF definition. 
+  const char output[4] = { '9', static_cast<char>((status & 0xF)), 0, 0 };
+  memcpy( reinterpret_cast<char*>(&status), output, 4);
+  
+  return status;
 }

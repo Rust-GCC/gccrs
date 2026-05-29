@@ -1113,9 +1113,14 @@ bool need_nume_set( bool tf ) {
 
 static int datetime_format_of( const char input[] );
 
-static int symbol_function_token( const char name[] ) {
-  const auto e = symbol_function( 0, name );
-  return e ? symbol_index(e) : 0;
+static int
+symbol_function_token( const char name[] ) {
+  const auto L = symbol_function_any( 0, name );
+  if( L ) {
+    auto e = symbol_elem_of(L);
+    return symbol_index(e);
+  }
+  return 0;
 }
 
 bool in_procedure_division(void );
@@ -1131,7 +1136,7 @@ symbol_exists( const char name[] ) {
 
   if( in_procedure_division() && cache.empty() ) {
     for( auto e = symbols_begin(PROGRAM) + 1;
-         PROGRAM == e->program && e < symbols_end(); e++ ) {
+         e < symbols_end() && PROGRAM == e->program; e++ ) {
       if( e->type == SymFile ) {
         cbl_file_t *f(cbl_file_of(e));
         cbl_name_t lname;
@@ -1166,6 +1171,16 @@ typed_name( const char name[] ) {
   int token = repository_function_tok(name);
   switch(token) {
   case 0:
+    if(false) // we don't know how to do this yet. 
+    { // Functions in the symbol table may be used without the FUNCTION keyword. 
+      cbl_label_t *L = symbol_function_any(0, name);
+      if( L ) {
+        auto args = prototype_args(L->name);
+        token = args.second && args.first.empty() ? FUNCTION_UDF_0 : FUNCTION_UDF;
+        yylval.number = symbol_function_token(name);
+        return token;
+      }
+    }
     break;
   case FUNCTION_UDF_0:
     yylval.number = symbol_function_token(name);

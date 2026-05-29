@@ -42,11 +42,11 @@
             display "  .le. " with no advancing
             move "xxxx" to result
             evaluate true
-              when known equal ".lt." if aaa <= bbb 
+              when known equal ".lt." if aaa <= bbb
                  move "Good" to result else move "BAD!" to result end-if
-              when known equal ".eq." if aaa <= bbb 
+              when known equal ".eq." if aaa <= bbb
                  move "Good" to result else move "BAD!" to result end-if
-              when known equal ".gt." if aaa <= bbb 
+              when known equal ".gt." if aaa <= bbb
                  move "BAD!" to result else move "Good" to result end-if
             end-evaluate
             display space result
@@ -55,11 +55,11 @@
             display "  .eq. " with no advancing
             move "xxxx" to result
             evaluate true
-              when known equal ".lt." if aaa = bbb 
+              when known equal ".lt." if aaa = bbb
                  move "BAD!" to result else move "Good" to result end-if
-              when known equal ".eq." if aaa = bbb 
+              when known equal ".eq." if aaa = bbb
                  move "Good" to result else move "BAD!" to result end-if
-              when known equal ".gt." if aaa = bbb 
+              when known equal ".gt." if aaa = bbb
                  move "BAD!" to result else move "Good" to result end-if
             end-evaluate
             display space result
@@ -68,7 +68,7 @@
             display "  .ge. " with no advancing
             move "xxxx" to result
             evaluate true
-              when known equal ".lt." if aaa >= bbb 
+              when known equal ".lt." if aaa >= bbb
                 move "BAD!" to result else move "Good" to result end-if
               when known equal ".eq." if aaa >= bbb
                 move "Good" to result else move "BAD!" to result end-if
@@ -94,7 +94,7 @@
             display "  .ne. " with no advancing
             move "xxxx" to result
             evaluate true
-              when known equal ".lt." if aaa <> bbb 
+              when known equal ".lt." if aaa <> bbb
                 move "Good" to result else move "BAD!" to result end-if
               when known equal ".eq." if aaa <> bbb
                 move "BAD!" to result else move "Good" to result end-if

@@ -154,8 +154,8 @@ void input_file_status_notify();
   cdfval_t negate( cdfval_base_t lhs );
 
   cbl_field_t
-  cdf_literalize( const std::string& name, const cdfval_t& value );
-
+  cdf_literalize( const cbl_loc_t& loc,
+                  const std::string& name, const cdfval_t& value, bool init = true );
 }
 
 %{
@@ -359,7 +359,7 @@ cdf_define:	CDF_DEFINE cdf_constant NAME as cdf_expr[value] override
 		    YYERROR;
 		  }
                   if( symbols_begin() < symbols_end() ) {
-                    cbl_field_t field = cdf_literalize($NAME, $value);
+                    cbl_field_t field = cdf_literalize(@NAME, $NAME, $value);
                     symbol_field_add(current_program_index(), &field);                    
                   }
 

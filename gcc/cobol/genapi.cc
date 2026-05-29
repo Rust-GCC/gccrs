@@ -2081,6 +2081,12 @@ section_label(struct cbl_proc_t *procedure)
   // Go see if there was an ALTER statement targeting this procedure
   gg_append_statement(procedure->alter_switch_goto);
   // Lay down the label we will return to if there is no ALTER in play
+#if 0
+  fprintf(stderr,
+          "section_label for %s %s\n",
+          procedure->label->name,
+          label_decl_text_from_expr(procedure->no_alter_label));
+#endif
   gg_append_statement(procedure->no_alter_label);
   }
 
@@ -2159,6 +2165,12 @@ paragraph_label(struct cbl_proc_t *procedure)
   // Go see if there was an ALTER statement targeting this procedure
   gg_append_statement(procedure->alter_switch_goto);
   // Lay down the label we will return to if there is no ALTER in play
+#if 0
+  fprintf(stderr,
+          "paragraph_label for %s %s\n",
+          procedure->label->name,
+          label_decl_text_from_expr(procedure->no_alter_label));
+#endif
   gg_append_statement(procedure->no_alter_label);
   }
 
@@ -2746,14 +2758,20 @@ internal_perform_through( cbl_label_t *proc_1,
 
   size_t dispatch_index = proc2->pseudo_return_decls.size();
 
-  // We need to create the unnamed return address that we
+  // We need to create the return address that we
   // will instantiate right after the goto:
+
+  static int id = 1;
+  char *psz;
+  psz = xasprintf("_perfret%d", id++);
+
   tree return_address_decl = build_decl(  UNKNOWN_LOCATION,
                                           LABEL_DECL,
-                                          NULL_TREE,
+                                          gg_create_assembler_name(psz),
                                           void_type_node);
   DECL_CONTEXT(return_address_decl) = current_function->function_decl;
   TREE_USED(return_address_decl) = 1;
+  free(psz);
 
   tree return_label_expr = build1(LABEL_EXPR,
                                   void_type_node,
@@ -3147,8 +3165,11 @@ enter_program_common(const char *funcname, const char *funcname_)
   trace1_init();
   }
 
-/*  Creates a function for program-id 'funcname_'.  Returns 1 when funcname_
-    is "main" and the -main compiler switch is active for this moudle */
+/*  Creates a function for program-id 'funcname_'.  Returns 1 when funcname_ is
+    "main" and the -main compiler switch is active for this moudle symbol_table
+    has been initialized, and the current program has been entered into it. For
+    a top-level program, the program's program is 0, else it is the symbol
+    table index of the containing program.  */
 
 void
 parser_enter_program( const char *funcname_,
@@ -3163,7 +3184,10 @@ parser_enter_program( const char *funcname_,
 
   char *mangled_name = cobol_name_mangler(funcname_);
 
-  size_t parent_index = current_program_index();
+  size_t iprog  = current_program_index();
+  assert(iprog);
+
+  size_t parent_index = symbol_at(iprog)->program;
   char *funcname;
   if( parent_index )
     {
@@ -3398,6 +3422,13 @@ build_alter_switch(cbl_proc_t *proc, const std::vector<tree> &label_decls)
       // And follow up with a goto expression for the pseudo-return location.
       if( i == 0 )
         {
+#if 0
+        fprintf(stderr,
+                "build_alter_switch(1) for %s %s %p\n",
+                proc->label->name,
+                label_decl_text_from_expr(proc->no_alter_goto),
+                (void *)GOTO_DESTINATION(proc->no_alter_goto));
+#endif
         gg_append_statement(proc->no_alter_goto);
         }
       else
@@ -3419,8 +3450,14 @@ build_alter_switch(cbl_proc_t *proc, const std::vector<tree> &label_decls)
 
     current_function->statement_list_stack.pop_back();
     }
+#if 0
+  fprintf(stderr,
+          "build_alter_switch(2) for %s %s %p\n",
+          proc->label->name,
+          label_decl_text_from_expr(proc->no_alter_goto),
+          (void *)GOTO_DESTINATION(proc->no_alter_goto));
+#endif
   gg_append_statement(proc->no_alter_goto);
-
   }
 
 static void
@@ -5065,13 +5102,15 @@ parser_display_internal(tree file_descriptor,
     }
   else
     {
+    int flags  = advance ? 1 : 0;
+        flags |= refer.addr_of ? REFER_T_ADDRESS_OF : 0;
     if( refer_is_clean(refer) )
       {
       gg_call(VOID,
               "__gg__display_clean",
               gg_get_address_of(refer.field->var_decl_node),
               file_descriptor,
-              advance ? integer_one_node : integer_zero_node,
+              build_int_cst_type(INT, flags),
               NULL_TREE );
       }
     else
@@ -5087,7 +5126,7 @@ parser_display_internal(tree file_descriptor,
               refer_offset(refer),
               refer_size_source(  refer),
               file_descriptor,
-              advance ? integer_one_node : integer_zero_node,
+              build_int_cst_type(INT, flags),
               NULL_TREE );
       if( refer.refmod.from || refer.refmod.len )
         {
@@ -13112,6 +13151,13 @@ create_and_call(size_t narg,
 
     if( args[i].refer.field && args[i].refer.field->type == FldLiteralN )
       {
+      // Literals have to be passed by value
+      crv = by_value_e;
+      }
+
+    if( args[i].attr == address_of_e || args[i].refer.addr_of )
+      {
+      // ADDRESS OF has to be passed by value.
       crv = by_value_e;
       }
 
@@ -13232,12 +13278,20 @@ create_and_call(size_t narg,
         // For BY VALUE, we take whatever we've been given and do our best to
         // make a 64-bit value out of it, although we move to 128 bits when
         // necessary.
-        switch(args[i].attr)
+
+        cbl_ffi_arg_attr_t attr = args[i].attr;
+        if( args[i].refer.addr_of )
+          {
+          attr = address_of_e;
+          }
+
+        switch(attr)
           {
           case address_of_e:
             {
             arguments[i] = gg_define_size_t();
             gg_assign(arguments[i], gg_cast(SIZE_T, location ));
+            gg_assign(length, build_int_cst_type(SIZE_T, 8));
             break;
             }
 
@@ -13245,6 +13299,7 @@ create_and_call(size_t narg,
             {
             arguments[i] = gg_define_size_t();
             gg_assign(arguments[i], gg_cast(SIZE_T, length));
+            gg_assign(length, build_int_cst_type(SIZE_T, 8));
             break;
             }
 
@@ -13283,6 +13338,7 @@ create_and_call(size_t narg,
                                 refer_offset(args[i].refer),
                                 refer_size_source(args[i].refer),
                                 NULL_TREE)));
+              gg_assign(length, build_int_cst_type(SIZE_T, 16));
               }
             else
               {
@@ -13296,6 +13352,7 @@ create_and_call(size_t narg,
                                 refer_offset(args[i].refer),
                                 refer_size_source(args[i].refer),
                                 NULL_TREE)));
+              gg_assign(length, build_int_cst_type(SIZE_T, 8));
               }
             break;
             }
@@ -13306,7 +13363,7 @@ create_and_call(size_t narg,
     // variable.  This value is used both to handle ANY LENGTH formal
     // parameters, and to provide information to the called program when being
     // passed expressions BY VALUE and BY CONTENT
-    gg_assign(gg_array_value(var_decl_call_parameter_lengths, i),length);
+    gg_assign(gg_array_value(var_decl_call_parameter_lengths, i), length);
     }
 
   // Let the called program know how many parameters we are passing
@@ -13314,6 +13371,7 @@ create_and_call(size_t narg,
             build_int_cst_type(INT, narg));
 
   tree call_expr = NULL_TREE;
+
   if( function_pointer )
     {
     gg_assign(var_decl_call_parameter_signature,

@@ -1,0 +1,5 @@
+Checking whether /dev/null exists
+CBL_CHECK_FILE_EXIST /dev/null was successful
+Checking whether /dev/thisfiledoesnotexist exists
+Expected failure: CBL_CHECK_FILE_EXIST /dev/thisfiledoesnotexist
+

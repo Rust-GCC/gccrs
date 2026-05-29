@@ -588,5 +588,7 @@ extern void gg_insert_into_assemblerf(const char *format, ...) ATTRIBUTE_PRINTF_
 
 extern char *gg_show_type(tree type);
 extern void gg_leaving_the_source_code_file();
+extern tree gg_create_assembler_name(const char *cobol_name);
+extern const char * label_decl_text_from_expr(tree expr);
 
 #endif

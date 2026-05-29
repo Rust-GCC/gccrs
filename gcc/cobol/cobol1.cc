@@ -412,6 +412,10 @@ cobol_langhook_handle_option (size_t scode,
             }
             return true;
 
+        case OPT_ftrunc:
+            cobol_trunc_binary(cobol_trunc_bin);
+            return true;
+
         case OPT_M:
             cobol_set_pp_option('M');
             return true;

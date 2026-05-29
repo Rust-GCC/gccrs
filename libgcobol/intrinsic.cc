@@ -231,21 +231,6 @@ timespec_to_string(char *retval, struct cbl_timespec &tp)
   return retval;
   }
 
-static
-void
-string_to_dest(cblc_field_t *dest, const char *psz)
-  {
-  charmap_t *charmap = __gg__get_charmap(dest->encoding);
-
-  __gg__adjust_dest_size(dest, charmap->strlen(psz));
-
-  size_t dest_length = dest->capacity;
-  size_t source_length = charmap->strlen(psz);
-  size_t length = std::min(dest_length, source_length);
-  charmap->memset(dest->data, charmap->mapped_character(ascii_space), dest_length);
-  memcpy(dest->data, psz, length);
-  }
-
 struct input_state
   {
   size_t nsubscript;
@@ -576,9 +561,16 @@ get_all_time( const cblc_field_t *dest, // needed for the target encoding
           ctm.day_of_year,
           ctm.ZZZZ);
 
-  __gg__convert_encoding(PTRCAST(char, stime),
-                         DEFAULT_SOURCE_ENCODING,
-                         dest->encoding);
+  // Do these before the iconverter, because that routine can clobber the
+  // return value 'converted'
+  charmap_t *charmap = __gg__get_charmap(dest->encoding);
+  size_t nbytes;
+  const char *converted = __gg__iconverter(DEFAULT_SOURCE_ENCODING,
+                                           dest->encoding,
+                                           stime,
+                                           strlen(stime),
+                                           &nbytes);
+  memcpy(stime, converted, charmap->strlen(converted)+charmap->stride());
   }
 
 static
@@ -3966,10 +3958,24 @@ __gg__when_compiled(cblc_field_t *dest, size_t tv_sec, long tv_nsec)
   tp.tv_nsec = tv_nsec;
   char retval[DATE_STRING_BUFFER_SIZE];
   timespec_to_string(retval, tp);
-  __gg__convert_encoding(PTRCAST(char, retval),
-                         DEFAULT_SOURCE_ENCODING,
-                         dest->encoding);
-  string_to_dest(dest, retval);
+
+  // Do these before the iconverter, because that routine can clobber the
+  // return value 'converted'
+  charmap_t *charmap = __gg__get_charmap(dest->encoding);
+  cbl_char_t space = charmap->mapped_character(ascii_space);
+
+  size_t nbytes;
+  const char *converted = __gg__iconverter(DEFAULT_SOURCE_ENCODING,
+                                           dest->encoding,
+                                           retval,
+                                           strlen(retval),
+                                           &nbytes);
+  __gg__adjust_dest_size(dest, nbytes);
+  size_t dest_length = dest->capacity;
+  size_t source_length = nbytes;
+  size_t length = std::min(dest_length, source_length);
+  charmap->memset(dest->data, space, dest_length);
+  memcpy(dest->data, converted, length);
   }
 
 extern "C"

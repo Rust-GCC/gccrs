@@ -24,7 +24,7 @@
           05 y          pic x(4).
         procedure        division using optional x.
         set py to address of x.
-        if py is not equal to zero
+        if py is not equal to null
             display y
         else
             display "parameter omitted"

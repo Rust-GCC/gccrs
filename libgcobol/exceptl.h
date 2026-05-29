@@ -76,7 +76,7 @@ struct ec_descr_t {
   }
 };
 
-extern ec_type_t ec_type_of( const cbl_name_t name );
+ec_type_t ec_type_of( const cbl_name_t name );
 
 extern ec_descr_t __gg__exception_table[];
 extern ec_descr_t *__gg__exception_table_end;

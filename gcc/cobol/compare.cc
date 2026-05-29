@@ -301,9 +301,6 @@ total_digits_tree( tree &left_rdigits,
                                         right_side.field->data.digits)));
     }
 
-  // gg_printf("KILROY  LEFT %d\n", left_rdigits, NULL_TREE);
-  // gg_printf("KILROY RIGHT %d\n", right_rdigits, NULL_TREE);
-
   // We can reduce the two rdigits values by the common portion of both.  This
   // will leave one of them at zero
   IF( left_rdigits, gt_op, right_rdigits )
@@ -1293,11 +1290,6 @@ float_compare(tree        &left,
   get_binary_value(rightv, right_side, type);
   right = gg_define_variable(type);
   gg_assign(right, gg_cast(type, rightv));
-
-//  gg_printf("KILROY %f %f\n",
-//            gg_cast(DOUBLE, left),
-//            gg_cast(DOUBLE, right),
-//            NULL_TREE);
 
   if( right_side.field->attr & intermediate_e )
     {

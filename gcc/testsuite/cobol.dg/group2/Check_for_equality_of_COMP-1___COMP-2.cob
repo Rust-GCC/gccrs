@@ -71,6 +71,7 @@
       *-                "entical): " DST1 " - " DST2
       *         END-DISPLAY
       *     END-IF.
+      * "  <== this double-quote helps emacs resume syntax highlighting
 
            MOVE 1.1234567 TO DST1.
            MOVE 1.1234569 TO DST2.

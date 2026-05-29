@@ -165,7 +165,6 @@ cobol/scan.cc: cobol/scan.l
 	$(FLEX) -o$@ $(LFLAGS) $< 2>$@~ || { cat $@~ >&1; exit 1; }
 	awk  '! /$(FLEX_WARNING)/ {print > "/dev/stderr"; nerr++}	\
 	     END {print "$(FLEX):", NR, "messages" > "/dev/stderr"}' $@~
-	@rm $@~
 
 
 # To establish prerequisites for parse.o, cdf.o, and scan.o,
@@ -243,6 +242,14 @@ cobol/scan.o: cobol/scan.cc			\
 	config.h 				\
 	cobol/cdf.cc				\
 	cobol/parse.cc
+
+# As opposed to other objects, gcobc is a shell script and therefore
+# is only installed. In other words,no build step is necessary.
+# However, some tests rely on gcobc being available from the build tree.
+gcobc$(exeext): $(srcdir)/cobol/gcobc
+	cp $< $@
+
+cobol: gcobc$(exeext)
 
 # Update token names if the generator script is installed
 # (by a developer) and there's been a change. 

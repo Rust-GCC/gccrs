@@ -82,6 +82,7 @@ enum file_high_t {
   FhOsError = 3,
   FhLogicError = 4,
   FhImplementor = 9,
+  FhMfCompat = 0x0900, 
 };
 
 enum file_status_t {
@@ -126,7 +127,22 @@ enum file_status_t {
                     FsVsamOK      = (FhImplementor * 10) + 7,
                     FsBadEnvVar   = (FhImplementor * 10) + 8,
 
-                    FsErrno       = (1000000)                   // This means "map errno to one of the above errors"
+                    FsCobRt000    = FhMfCompat +   0, // default MF FS error
+                    FsCobRt013    = FhMfCompat +  13, // File not found
+                    FsCobRt014    = FhMfCompat +  14, // Too many files open
+                    FsCobRt021    = FhMfCompat +  21, // File is a directory
+                    FsCobRt028    = FhMfCompat +  28, // No space on device
+                    FsCobRt030    = FhMfCompat +  30, // File system is read-only
+                    FsCobRt033    = FhMfCompat +  33, // Physical I-O error
+                    FsCobRt034    = FhMfCompat +  34, // Incorrect mode or EBADF
+                    FsCobRt037    = FhMfCompat +  37, // File access denied
+                    FsCobRt042    = FhMfCompat +  42, // Attempt to write on broken pipe
+                    FsCobRt105    = FhMfCompat + 105, // Memory allocation error
+                    FsCobRt181    = FhMfCompat + 181, // Invalid parameter error
+                    FsCobRt188    = FhMfCompat + 188, // Filename too large
+                    FsCobRt194    = FhMfCompat + 194, // File size too large
+
+                    FsErrno       = (1000000)         // This means "map errno to one of the above errors"
 };
 
 #define FhNotOkay FsEofSeq  // Values less than 10 mean the data are valid

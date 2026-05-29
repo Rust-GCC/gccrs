@@ -1,8 +1,34 @@
 #! /bin/sh -e
 
 #
-# COPYRIGHT
-# The gcobc program is in public domain.
+# Copyright (c) 2021-2026 Symas Corporation
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are
+# met:
+#
+# * Redistributions of source code must retain the above copyright
+#   notice, this list of conditions and the following disclaimer.
+# * Redistributions in binary form must reproduce the above
+#   copyright notice, this list of conditions and the following disclaimer
+#   in the documentation and/or other materials provided with the
+#   distribution.
+# * Neither the name of the Symas Corporation nor the names of its
+#   contributors may be used to endorse or promote products derived from
+#   this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
 # If it breaks then you get to keep both pieces.
 #
 # This file emulates the GnuCOBOL cobc compiler to a limited degree.
@@ -207,10 +233,12 @@ do
         -echo) echo="echo"
                ;;
 
-        -fec=* | -fno-ec=*)
+        -fec=*)
             opt="$(echo "$opt" | sed -E 's/-f(no-)?ec=/-f\1cobol-exceptions=EC-/g')"
              opts="$opts $opt"
              ;;
+        -fno-ec=*)
+             ;;  # just ignore for now to work around "sorry unimplemented" errors
          -ext)
             pending_arg="-copyext "
              ;;
@@ -423,11 +451,13 @@ do
         #
         # Options that may have a space  before the argument, or not
         #
-        -I | -L | -MF | -MT )
+        # Note that -B is not supported as per cobc syntax, but it might
+        # still be required by gcc users.
+        -B | -I | -L | -MF | -MT )
             pending_arg=$opt
             ;;
         # no-space version: just concatenate
-        -I* | -L* | -MF* | -MT* )
+        -B* | -I* | -L* | -MF* | -MT* )
             opts="$opts $opt"
             ;;
         
@@ -467,7 +497,7 @@ do
         -std=mf | -std=mf-strict)  dialect=mf
                                    ;;
                       # GnuCOBOL's default and GCC's dialect for GnuCOBOL
-        -std=default) dialect=gnu  
+        -std=default) dialect="mf gnu"
                       ;;
                       # GCC COBOL targets COBOL2024 "mostly backward to COBOL85"
         -std=cobol*)  dialect="" 
@@ -497,7 +527,9 @@ do
              # opts="$opts --version"
             ;;
         # pass through, strangely -Wall is not supported
-        -w | -W | -Wextra) opts="$opts $opt"
+        # note that cobc does not support gcc's -Wl options, but they
+        # might be passed anyway for different reasons e.g.: -Wl,rpath.
+        -w | -W | -Wextra | -Wl,*) opts="$opts $opt"
              ;;
         -Wno-*) no_warn "$opt"
              ;;
@@ -549,7 +581,7 @@ fi
 
 if [ "$echo" ]
 then
-    echo $gcobol $mode $opts
+    echo $gcobol $mode $dialect $opts
     exit
 fi
 

@@ -39,7 +39,7 @@
         02 var-scomp4p  redefines       var-scomp4 pointer.
         02 var-scompu4  computational-4 pic s9v9(10) .
         02 var-scompu4p redefines       var-scompu4 pointer.
-        
+
         02 var-scomp5   comp-5          pic s9v9(10) .
         02 var-scomp5p  redefines       var-scomp5 pointer.
         02 var-scompu5  computational-5 pic s9v9(10) .
@@ -48,20 +48,20 @@
             move  0.0001193046 to var-binary var-comp var-compu
                                      var-comp4 var-compu4 var-comp5
                                      var-compu5
-            display " " var-binary "  " var-comp "  " var-compu "  " 
-                                    var-comp4 "  " var-compu4 "  " 
+            display " " var-binary "  " var-comp "  " var-compu "  "
+                                    var-comp4 "  " var-compu4 "  "
                                     var-comp5 "  " var-compu5
             move  0.0001193046 to var-sbinary var-scomp var-scompu
                                     var-scomp4 var-scompu4 var-scomp5
                                     var-scompu5
-            display var-sbinary " " var-scomp " " var-scompu " " 
+            display var-sbinary " " var-scomp " " var-scompu " "
                                     var-scomp4 " " var-scompu4 " "
                                     var-scomp5 " " var-scompu5
-            move -0.0001193046 to var-sbinary var-scomp var-scompu 
-                                    var-scomp4 var-scompu4 var-scomp5 
+            move -0.0001193046 to var-sbinary var-scomp var-scompu
+                                    var-scomp4 var-scompu4 var-scomp5
                                     var-scompu5
-            display var-sbinary " " var-scomp " " var-scompu " " 
-                                    var-scomp4 " " var-scompu4 " " 
+            display var-sbinary " " var-scomp " " var-scompu " "
+                                    var-scomp4 " " var-scompu4 " "
                                     var-scomp5 " " var-scompu5
             display var-binaryp
             display var-compp
@@ -113,7 +113,7 @@
         02 var-scomp4p  redefines       var-scomp4 pointer.
         02 var-scompu4  pic s9v9(10) computational-4 .
         02 var-scompu4p redefines       var-scompu4 pointer.
-        
+
         02 var-scomp5   pic s9v9(10) comp-5          .
         02 var-scomp5p  redefines       var-scomp5 pointer.
         02 var-scompu5  pic s9v9(10) computational-5 .
@@ -122,20 +122,20 @@
             move  0.0001193046 to var-binary var-comp var-compu
                                      var-comp4 var-compu4 var-comp5
                                      var-compu5
-            display " " var-binary "  " var-comp "  " var-compu "  " 
-                                    var-comp4 "  " var-compu4 "  " 
+            display " " var-binary "  " var-comp "  " var-compu "  "
+                                    var-comp4 "  " var-compu4 "  "
                                     var-comp5 "  " var-compu5
             move  0.0001193046 to var-sbinary var-scomp var-scompu
                                     var-scomp4 var-scompu4 var-scomp5
                                     var-scompu5
-            display var-sbinary " " var-scomp " " var-scompu " " 
+            display var-sbinary " " var-scomp " " var-scompu " "
                                     var-scomp4 " " var-scompu4 " "
                                     var-scomp5 " " var-scompu5
-            move -0.0001193046 to var-sbinary var-scomp var-scompu 
-                                    var-scomp4 var-scompu4 var-scomp5 
+            move -0.0001193046 to var-sbinary var-scomp var-scompu
+                                    var-scomp4 var-scompu4 var-scomp5
                                     var-scompu5
-            display var-sbinary " " var-scomp " " var-scompu " " 
-                                    var-scomp4 " " var-scompu4 " " 
+            display var-sbinary " " var-scomp " " var-scompu " "
+                                    var-scomp4 " " var-scompu4 " "
                                     var-scomp5 " " var-scompu5
             display var-binaryp
             display var-compp

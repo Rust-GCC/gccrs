@@ -1,0 +1,7 @@
++0001 should be +0001
++0000 should be +0000
+-0001 should be -0001
++01.21 should be +01.21
++00.21 should be +00.21
+-00.79 should be -01.79
+

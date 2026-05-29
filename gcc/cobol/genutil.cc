@@ -1694,6 +1694,12 @@ refer_has_depends(const cbl_refer_t &refer, refer_type_t refer_type)
     return false;
     }
 
+  if( refer.field && refer.field->type == FldIndex )
+    {
+    // This field can't have a DEPENDING ON
+    return false;
+    }
+
   // Check if there there is an occurs with a depending_on in the hierarchy
   bool proceed = false;
   const cbl_field_t *odo = symbol_find_odo(refer.field);

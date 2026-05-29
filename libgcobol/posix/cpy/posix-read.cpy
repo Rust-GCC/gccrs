@@ -1,0 +1,15 @@
+        Identification Division.
+        Function-id. posix-read prototype.
+        Data Division.
+        Linkage Section.
+          77 Return-Value Binary-Long.
+          01 Lk-fd PIC 9(8) Usage COMP-5.
+          01 Lk-buf PIC X ANY LENGTH.
+          01 Lk-count PIC 9(8) Usage COMP.
+        Procedure Division using
+             By Value Lk-fd,
+             By Reference Lk-buf,
+             By Value Lk-count
+             Returning Return-Value.
+
+        End Function posix-read.

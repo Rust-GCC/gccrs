@@ -69,6 +69,14 @@ int lang_specific_extra_outfiles = 0;
 #define COBOL_LIBRARY "gcobol"
 #endif
 
+#ifndef COMPAT_LIBRARY
+#define COMPAT_LIBRARY "gcobol_compat_gnu"
+#endif
+
+#ifndef POSIX_LIBRARY
+#define POSIX_LIBRARY "gcobol_posix"
+#endif
+
 #define SPEC_FILE "libgcobol.spec"
 
 /* The original argument list and related info is copied here.  */
@@ -78,6 +86,8 @@ static const struct cl_decoded_option *original_options;
 static std::vector<cl_decoded_option>new_opt;
 
 static bool need_libgcobol = true;
+static bool need_libcompat = false; // This one need for dialect mf or ibm
+static bool need_libposix = false;
 
 // #define NOISY 1
 
@@ -160,6 +170,8 @@ lang_specific_driver (struct cl_decoded_option **in_decoded_options,
 
   // Separate flags for a couple of static libraries
   bool static_libgcobol  = false;
+  bool static_libcompat  = false;
+  bool static_libposix   = false;
   bool static_in_general = false;
 
   /*  WEIRDNESS ALERT:
@@ -350,6 +362,16 @@ lang_specific_driver (struct cl_decoded_option **in_decoded_options,
            cool facility for handling --help and --verbose --help.  */
         return;
 
+      case OPT_dialect:
+        if(    strstr(decoded_options[i].arg, "ibm")
+            || strstr(decoded_options[i].arg, "mf") )
+          {
+          need_libcompat = true;
+          // libcompat depends on libposix.
+          need_libposix = true;
+          }
+        break;
+
       default:
         break;
       }
@@ -485,6 +507,11 @@ lang_specific_driver (struct cl_decoded_option **in_decoded_options,
       }
     }
 
+    char dir_separator[] = {DIR_SEPARATOR, 0},
+      *tooldir = concat (STANDARD_EXEC_PREFIX, DEFAULT_TARGET_MACHINE,
+                         dir_separator, DEFAULT_TARGET_VERSION,
+                         dir_separator, "cobol", NULL);
+
   /*  As described above, we have empirically noticed that when the command line
       explicitly specifies libgcobol.a as an input, a following -lgcobol causes
       the "on exit" functions of the library to be executed twice.  This can
@@ -514,6 +541,24 @@ lang_specific_driver (struct cl_decoded_option **in_decoded_options,
     {
     add_arg_lib(COBOL_LIBRARY, static_libgcobol);
     }
+  if( need_libcompat )
+    {
+    char *gnu = concat(tooldir, dir_separator, "compat", dir_separator, "gnu", NULL);
+    add_arg_lib(COMPAT_LIBRARY, static_libcompat);
+
+    // Inject the installation prefix paths to the libcompat copybooks.
+    // Note that these paths are inevitably leaked as append_option
+    // takes a const char *, but does not copy the string.
+    // Ideally, these paths could be constructed at preprocessor-time,
+    // but unfortunately DIR_SEPARATOR defines an integer, not a string.
+    // Maybe a DIR_SEPARATOR-like macro could be defined instead, but that
+    // can be fragile in terms of portability, and the usual practice in
+    // gcc is to dynamically define it as a 2-element array, anyway.
+    append_option(OPT_I, concat(gnu, dir_separator, "lib", NULL), 1);
+    append_option(OPT_I, concat(gnu, dir_separator, "cpy", NULL), 1);
+    append_option(OPT_I, concat(gnu, dir_separator, "udf", NULL), 1);
+    free(gnu);
+    }
   if( need_libdl )
     {
     add_arg_lib(DL_LIBRARY, false);
@@ -522,12 +567,25 @@ lang_specific_driver (struct cl_decoded_option **in_decoded_options,
     {
     add_arg_lib(STDCPP_LIBRARY, false);
     }
+  if( need_libposix )
+    {
+    char *posix = concat(tooldir, dir_separator, "posix", NULL);
+
+    add_arg_lib(POSIX_LIBRARY, static_libposix);
+    // Inject the paths to the libposix copybooks.
+    // As explained above, note that these paths are inevitably leaked.
+    append_option(OPT_I, concat(posix, dir_separator, "cpy", NULL), 1);
+    append_option(OPT_I, concat(posix, dir_separator, "udf", NULL), 1);
+    free(posix);
+    }
 
   if( prior_main )
     {
     char ach[] = "\"-main\" without a source file";
     fatal_error(input_location, "%s", ach);
     }
+
+  free(tooldir);
 
   // We now take the new_opt vector, and turn it into an array of
   // cl_decoded_option

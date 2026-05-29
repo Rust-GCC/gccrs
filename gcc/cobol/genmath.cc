@@ -45,6 +45,13 @@
 #include "../../libgcobol/charmaps.h"
 #include "show_parse.h"
 
+// These are convenience values used by the ADD 1 TO routines.  I am putting
+// them here rather than cluttering up subroutine calls with them.
+#define uchar_f_node build_int_cst_type(UCHAR, 0x0F)
+#define uchar_ten_node build_int_cst_type(UCHAR, 10)
+static tree tzero; // '0' in ascii or ebcdic
+static tree tnine;
+
 void
 set_up_on_exception_label(cbl_label_t *arithmetic_label)
   {
@@ -391,7 +398,9 @@ largest_binary_term(size_t nA, cbl_refer_t *A)
 static bool
 fast_add( size_t nC, cbl_num_result_t *C,
           size_t nA, cbl_refer_t *A,
-          cbl_arith_format_t format )
+          cbl_arith_format_t format,
+    const cbl_label_t *error,
+    const cbl_label_t *not_error)
   {
   /*  ADD A     TO D:           nC==1, nA==1,  D += A.
       ADD A B C TO D:           nC==1, nA==3,  D = (A + B + C)
@@ -400,7 +409,9 @@ fast_add( size_t nC, cbl_num_result_t *C,
       ADD A B C TO D GIVING X Y nC==2, nA==3, format==giving_e   */
   bool retval = false;
   if(    all_results_integer(nC, C)
-      && all_refers_integer(nA, A) )
+      && all_refers_integer(nA, A)
+      && !error
+      && !not_error )
     {
     Analyze();
     // All targets are non-PICTURE binaries:
@@ -409,9 +420,6 @@ fast_add( size_t nC, cbl_num_result_t *C,
       {
       tree dest_type = tree_type_from_size(C[0].refer.field->data.capacity(),
                                            0);
-//      tree dest_type2 = TREE_TYPE(C[0].refer.field->data_decl_node);
-//      gcc_assert(dest_type2 == dest_type);
-
       // All the numbers are integers without rdigits
       if(    nC == 1
           && nA == 1
@@ -580,7 +588,9 @@ static bool
 fast_subtract(size_t nC, cbl_num_result_t *C,
               size_t nA, cbl_refer_t *A,
               size_t nB, cbl_refer_t *B,
-              cbl_arith_format_t format)
+              cbl_arith_format_t format,
+        const cbl_label_t *error,
+        const cbl_label_t *not_error)
   {
   /*  SUBTRACT A FROM D:       nC==1, nA==1, nB==0:  D -= A.
       SUBTRACT A B C FROM D:   nC==1, nA==3, nB==0:  D -= (A + B + C)
@@ -590,7 +600,10 @@ fast_subtract(size_t nC, cbl_num_result_t *C,
   bool retval = false;
   if(    all_refers_integer(nA, A)
       && all_refers_integer(nB, B)
-      && all_results_integer(nC, C)  )
+      && all_results_integer(nC, C)
+      && !error
+      && !not_error
+      )
     {
     Analyze();
     // All targets are non-PICTURE binaries:
@@ -926,13 +939,1173 @@ fast_divide(size_t nC, cbl_num_result_t *C,
   return retval;
   }
 
+static bool
+add_floats( size_t nC, cbl_num_result_t *C,
+            size_t nA, cbl_refer_t *A,
+            cbl_arith_format_t format,
+            cbl_label_t *error,
+            cbl_label_t *not_error,
+            tree         compute_error )
+  {
+  bool handled = false;
+
+  bool computation_is_float =    is_somebody_float(nA, A)
+                              || is_somebody_float(nC, C);
+  // We now start deciding which arithmetic routine we are going to use:
+  if( computation_is_float )
+    {
+    switch( format )
+      {
+      case no_giving_e:
+        {
+        // Float format 1
+
+        set_up_arithmetic_error_handler(error,
+                                        not_error);
+        // Do phase 1, which calculates the subtotal and puts it into a
+        // temporary location
+        arithmetic_operation( 0, NULL,
+                              nA, A,
+                              0, NULL,
+                              format,
+                              error,
+                              not_error,
+                              compute_error,
+                              "__gg__add_float_phase1");
+
+        // Do phase 2, which accumulates the subtotal into each target location in turn
+        for(size_t i=0; i<nC; i++)
+          {
+          arithmetic_operation(1, &C[i],
+                                0, NULL,
+                                0, NULL,
+                                format,
+                                error,
+                                not_error,
+                                compute_error,
+                                "__gg__addf1_float_phase2");
+          }
+        arithmetic_error_handler( error,
+                                  not_error,
+                                  compute_error);
+
+        handled = true;
+        break;
+        }
+
+      case giving_e:
+        {
+        // Float format 2
+        set_up_arithmetic_error_handler(error,
+                                        not_error);
+        // Do phase 1, which calculates the subtotal and puts it into a
+        // temporary location
+        arithmetic_operation( 0, NULL,
+                              nA, A,
+                              0, NULL,
+                              format,
+                              error,
+                              not_error,
+                              compute_error,
+                              "__gg__add_float_phase1");
+
+        // Do phase 2, which puts the subtotal into each target location in turn
+        for(size_t i=0; i<nC; i++)
+          {
+          arithmetic_operation(1, &C[i],
+                                0, NULL,
+                                0, NULL,
+                                format,
+                                error,
+                                not_error,
+                                compute_error,
+                                "__gg__float_phase2_assign_to_c");
+          }
+        arithmetic_error_handler( error,
+                                  not_error,
+                                  compute_error);
+
+        handled = true;
+        break;
+        }
+
+      case corresponding_e:
+        {
+        // Float format 3
+        gcc_assert(nA == nC);
+
+        set_up_arithmetic_error_handler(error,
+                                        not_error);
+        arithmetic_operation(nC, C,
+                              nA, A,
+                              0, NULL,
+                              format,
+                              error,
+                              not_error,
+                              compute_error,
+                              "__gg__addf3");
+        arithmetic_error_handler( error,
+                                  not_error,
+                                  compute_error);
+
+        handled = true;
+        break;
+        }
+
+      case not_expected_e:
+        gcc_unreachable();
+        break;
+      }
+    }
+  return handled;
+  }
+
+static void
+ordinary_add_format_1( size_t nC, cbl_num_result_t *C,
+                      size_t nA, cbl_refer_t *A,
+                      cbl_arith_format_t format,
+                      cbl_label_t *error,
+                      cbl_label_t *not_error,
+                      tree         compute_error )
+  {
+  set_up_arithmetic_error_handler(error,
+                                  not_error);
+  // Do phase 1, which calculates the subtotal and puts it into a
+  // temporary location
+  arithmetic_operation( 0, NULL,
+                        nA, A,
+                        0, NULL,
+                        format,
+                        error,
+                        not_error,
+                        compute_error,
+                        "__gg__add_fixed_phase1");
+
+  // Do phase 2, which accumulates the subtotal into each target location
+  // in turn
+  for(size_t i=0; i<nC; i++)
+    {
+    arithmetic_operation(1, &C[i],
+                          0, NULL,
+                          0, NULL,
+                          format,
+                          error,
+                          not_error,
+                          compute_error,
+                          "__gg__addf1_fixed_phase2");
+    }
+  arithmetic_error_handler( error,
+                            not_error,
+                            compute_error);
+  }
+
+static void
+ordinary_subtract_format_1( size_t nC, cbl_num_result_t *C,
+                            size_t nA, cbl_refer_t *A,
+                            cbl_arith_format_t format,
+                            cbl_label_t *error,
+                            cbl_label_t *not_error,
+                            tree         compute_error )
+  {
+  set_up_arithmetic_error_handler(error,
+                                  not_error);
+  // Do phase 1, which calculates the subtotal and puts it into a
+  // temporary location
+  arithmetic_operation( 0, NULL,
+                        nA, A,
+                        0, NULL,
+                        format,
+                        error,
+                        not_error,
+                        compute_error,
+                        "__gg__add_fixed_phase1");
+
+  // Do phase 2, which subtracts the subtotal from each target in turn
+  for(size_t i=0; i<nC; i++)
+    {
+    arithmetic_operation(1, &C[i],
+                          0, NULL,
+                          0, NULL,
+                          format,
+                          error,
+                          not_error,
+                          compute_error,
+                          "__gg__subtractf1_fixed_phase2");
+    }
+  arithmetic_error_handler( error,
+                            not_error,
+                            compute_error);
+  }
+
+static void
+add_case_1( tree pointer,
+            tree tdelta,
+      const charmap_t *charmap,
+            int delta,
+            tree counter)
+  {
+  // This is Case 1: Adding a positive number to the positive target.  The
+  // target can be PIC 9999 or PIC S9999.
+
+  tree top_goto;
+  tree top_label;
+  tree break_goto;
+  tree break_label;
+  gg_create_goto_pair(&top_goto,
+                      &top_label);
+  gg_create_goto_pair(&break_goto,
+                      &break_label);
+
+  // We start off by adding tdelta to the first digit:
+  gg_assign(gg_indirect(pointer),
+            gg_add(gg_indirect(pointer), tdelta));
+  // This is our first decision point.  We added a positive value to
+  // an ASCII (or EBCDIC) digit.  If the result is less than or equal
+  // to '9', then we are done.
+  IF( gg_indirect(pointer), le_op, tnine )
+    {
+    if( charmap->is_like_ebcdic() && delta >= 7 )
+      {
+      /* EBCDIC leads to an odd situation.  The range of digits in
+         EBCDIC is xF0 though 0xF9.  That means that when DELTA is
+         >= 7 and the units digit is '9', the sum of 7 + 0xF9 is 0x100.
+         That's a carry condition, but we are working in UCHAR space,
+         so it looks to us like zero.  And, so, we need some extra
+         logic so that we notice it that the zero is actually a
+         carry condition, and not something we are supposed to ignore.
+
+         The largest possible value we might see is 9 + 0xF9, which is
+         0x102, which to us looks like 0x02, so if the result is zero,
+         one, or two, we need to enter the carry condition.  */
+      IF( gg_indirect(pointer), ge_op, build_int_cst_type(UCHAR, 3) )
+        {
+        // We are done with adding delta to C[0].
+        gg_append_statement(break_goto);
+        }
+      ELSE
+        {
+        // Fall through to carry processing
+        }
+      ENDIF
+      }
+    else
+      {
+      // We are done with adding delta to C[0].
+      gg_append_statement(break_goto);
+      }
+    }
+  ELSE
+    {
+    // Fall through to carry processing
+    }
+  ENDIF
+  // We added delta to the current digit, and the result was bigger
+  // than '9'.  Normalize that digit by subtracting ten from it
+  gg_assign(gg_indirect(pointer),
+            gg_subtract(gg_indirect(pointer),
+                        build_int_cst_type(UCHAR, 10)));
+
+  // This is the top of the carry loop:
+  gg_append_statement(top_label);
+  IF( counter, le_op, integer_one_node )
+    {
+    // We have rippled through every digit, meaning we just added
+    // 1 to 9999, yielding 0000.
+
+    set_exception_code(ec_size_truncation_e);
+
+    gg_append_statement(break_goto);
+    }
+  ELSE
+    {
+    }
+  ENDIF
+  // Move the pointer one digit to the left
+  gg_decrement(pointer);
+  // Propagate the carry
+  gg_increment(gg_indirect(pointer));
+
+  IF( gg_indirect(pointer), le_op, tnine )
+    {
+    // We are done with adding delta to C[0].
+    gg_append_statement(break_goto);
+    }
+  ELSE
+    {
+    }
+  ENDIF
+  // By incrementing this place, it went past '9'.  Wrap it back to
+  // zero
+  gg_assign(gg_indirect(pointer), tzero);
+  // And go see if there are more digits that need carry propagation:
+  gg_decrement(counter);
+  gg_append_statement(top_goto);
+
+  // That was the end of the carry propagation loop.  At this point
+  // we are done; somebody will jump to us from inside the loops:
+  gg_append_statement(break_label);
+  }
+
+static void
+add_case_2( tree pointer,
+            tree tdelta,
+            tree counter,
+            int  digits)
+  {
+  // This is Case 2: Adding a negative number to the positive target.  The
+  // target is assumed to be an unsigned PIC 9999.
+
+  /* The tricky thing about this case is when you go downward through zero.
+     The logic we use is that 0 minus 1 is negative 1, and when you move
+     negative 1 to PIC 9999, the result is 0001.  That logic is extended here,
+     and so `SUBTRACT 3 FROM FOO` where FOO is PIC 9999 and has the value 1,
+     results in FOO being 0002.
+
+     There is an edge case:  Consider the PIC 99V99 value 0.21  Adding -1 to
+     that results in -0.79, which needs to go into the PIC 99V99 as 0079. We
+     don't try to do that here; an add_case_2 can't be used to do that
+     calculation. */
+
+  tree top_goto;
+  tree top_label;
+  tree break_goto;
+  tree break_label;
+  gg_create_goto_pair(&top_goto,
+                      &top_label);
+  gg_create_goto_pair(&break_goto,
+                      &break_label);
+
+  // We start off by adding tdelta to the first digit:
+  gg_assign(gg_indirect(pointer),
+            gg_add(gg_indirect(pointer), tdelta));
+  // This is our first decision point.  We added a negative value to
+  // an ASCII (or EBCDIC) digit.  If the result is greater than or equal
+  // to '0', then we are done.
+  IF( gg_indirect(pointer), ge_op, tzero )
+    {
+    // We are done with adding delta to C[0].
+    gg_append_statement(break_goto);
+    }
+  ELSE
+    {
+    // Fall through to carry processing
+    }
+  ENDIF
+  // We added delta to the current digit, and the result was less than
+  // than '0'.  Normalize that digit by adding ten to it
+  gg_assign(gg_indirect(pointer),
+            gg_add(gg_indirect(pointer),
+                   build_int_cst_type(UCHAR, 10)));
+
+  // This is the top of the carry loop:
+  gg_append_statement(top_label);
+  IF( counter, le_op, integer_one_node )
+    {
+    // We have rippled through every digit, meaning we just added
+    // subtracted, for example, 1 from zero, yielding 9999, or we subtracted
+    // 3 from 0001, yielding 9998.  As discussed above, we need to convert the
+    // rightmost place from '8' to '2', and we have to set the other places to
+    // '0'.
+
+    // 'pointer' is still pointing to the leftmost digit.  Counter is equal to
+    // one.  'digits' was provided to us; for PIC 9999, it is four.
+
+    WHILE( counter, lt_op, build_int_cst_type(INT, digits) )
+      {
+      gg_assign(gg_indirect(pointer), tzero);
+      gg_increment(pointer);
+      gg_increment(counter);
+      }
+    WEND
+    /* 'pointer' points to the rightmost place.  When we start with, say '8',
+       we want to end up with '2'.  The formula for that is
+
+             '9' + '0' + 1 - *pointer
+
+       Don't take my word for it.  Check it.  */
+    tree sum1 = gg_add(tnine, tzero);
+    tree sum2 = gg_add(sum1, build_int_cst_type(UCHAR, 1));
+    gg_assign( gg_indirect(pointer), gg_subtract(sum2, gg_indirect(pointer)));
+
+    gg_append_statement(break_goto);
+    }
+  ELSE
+    {
+    }
+  ENDIF
+  // Move the pointer one digit to the left
+  gg_decrement(pointer);
+  // Propagate the carry
+  gg_decrement(gg_indirect(pointer));
+
+  IF( gg_indirect(pointer), ge_op, tzero )
+    {
+    // We are done with adding delta to C[0].
+    gg_append_statement(break_goto);
+    }
+  ELSE
+    {
+    }
+  ENDIF
+  // By decrementing this place, it went past '0'.  Wrap it back to
+  // nine
+  gg_assign(gg_indirect(pointer), tnine);
+  // And go see if there are more digits that need carry propagation:
+  gg_decrement(counter);
+  gg_append_statement(top_goto);
+
+  // That was the end of the carry propagation loop.  At this point
+  // we are done; somebody will jump to us from inside the loops:
+  gg_append_statement(break_label);
+  }
+
+static void
+add_case_3( tree pointer,
+            tree tdelta,
+            tree counter)
+  {
+  /* Case 3 is adding a positive N to a negative value.
+
+     Because the target is a PIC S9999, we are starting off with something like
+     "123t", which means -1234.  Adding 1 to it means going to -1233, which
+     means we have to decrement the 't' rather than incrementing it.
+
+     After doing that operation, we have to check to see if we arrived at, or
+     went past, zero.  When that happens we have to adjust that final digit,
+     and make the result positive.  */
+
+  tree break_goto;
+  tree break_label;
+  gg_create_goto_pair(&break_goto,
+                      &break_label);
+
+  // We subtract the positive value from the rightmost digit.  This will bring
+  // the negative value closer to zero.
+
+  gg_assign(gg_indirect(pointer),
+            gg_subtract(gg_indirect(pointer), tdelta));
+
+  IF( gg_bitwise_and(gg_indirect(pointer), uchar_f_node),
+      lt_op,
+      uchar_ten_node )
+    {
+    // There was no carry, so we are done.
+    }
+  ELSE
+    {
+    // We need to adjust that rightmost digit:
+    gg_assign(gg_indirect(pointer),
+              gg_subtract(gg_indirect(pointer), uchar_ten_node));
+
+    // We need to propagate the carry to the left.
+    WHILE(counter, gt_op, integer_one_node)
+      {
+      gg_decrement(pointer);
+      IF( gg_indirect(pointer), ne_op, tzero )
+        {
+        // Somebody is non-zero, so the result is a negative number whose
+        // final digit is zero.
+        gg_decrement(gg_indirect(pointer));
+        gg_append_statement(break_goto);
+        }
+      ELSE
+        {
+        // The digit is zero.  Convert it to '9', and keep going.
+        gg_assign(gg_indirect(pointer), tnine);
+        }
+      ENDIF
+      gg_decrement(counter);
+      }
+    WEND
+    }
+  ENDIF
+  gg_append_statement(break_label);
+  }
+
+static void
+add_case_4( tree pointer,
+            tree tdelta,
+            tree counter)
+  {
+  /* Case 4 is adding a negative N to a value starting off negative.
+
+     Because the target is a PIC S9999, we are starting off with something like
+     "123t", which means -1234.  Adding -1 to it means going to -1235, which
+     means we have to increment the 't' rather than decrementing it.
+
+     After doing that operation, we have to check to see if we rolled over into
+     "0000" which must be converted to a positive value.  Otherwise, if we
+     carry out, we just leave it be, and raise the ec_truncation exception. */
+
+  IF( gg_subtract(gg_bitwise_and(gg_indirect(pointer), uchar_f_node),
+                  tdelta),
+      lt_op,
+      uchar_ten_node )
+    {
+    // The digit minus tdelta is less than ten, so we can just do that
+    // operation
+    gg_assign(gg_indirect(pointer),
+              gg_subtract(gg_indirect(pointer), tdelta));
+    }
+  ELSE
+    {
+    tree break_goto;
+    tree break_label;
+    gg_create_goto_pair(&break_goto,
+                        &break_label);
+
+    // Do the operation that will require a carry.  This next instruction is
+    // equivalent to {digit-tdelta - 10}
+    gg_assign(gg_indirect(pointer),
+              gg_subtract(gg_indirect(pointer),
+                          gg_add(tdelta,
+                                 uchar_ten_node)));
+    // And now we start rippling the carry
+    WHILE( counter, gt_op, integer_one_node )
+      {
+      gg_decrement(pointer);
+      IF( gg_indirect(pointer), lt_op, tnine )
+        {
+        // The digit is less than '9', so we are done here.
+        gg_increment(gg_indirect(pointer));
+        gg_append_statement(break_goto);
+        }
+      ELSE
+        {
+        // Set that place to '0', and keep propagating the carry.
+        gg_assign(gg_indirect(pointer), tzero);
+        }
+      ENDIF
+      gg_decrement(counter);
+      }
+    WEND
+    // Arriving here means we have carried off the end, which is a truncation
+    // situation.
+    set_exception_code(ec_size_truncation_e);
+
+    gg_append_statement(break_label);
+    }
+  ENDIF
+  }
+
+static bool
+add_litN_to_numdisp(size_t nC, cbl_num_result_t *C,
+                    size_t nA, cbl_refer_t *A,
+                    cbl_arith_format_t format,
+                    cbl_label_t *error,
+                    cbl_label_t *not_error,
+                    tree         compute_error,
+                    bool         subtracting)
+  {
+  /* This routine handles adding a literal value N in the range of -9 through
+     +9 to a Numeric Display variable when the codeset is Single Byte Coded
+     ASCII or EBCDIC.
+                        */
+  bool handled = false;
+
+  if(    format == no_giving_e
+      && !error
+      && !not_error
+      && nC == 1
+      && nA == 1
+      &&   A[0].field->type == FldLiteralN
+      &&   C[0].refer.field->type == FldNumericDisplay
+      && !(C[0].refer.field->attr & scaled_e)
+      &&   C[0].refer.field->codeset.stride() == 1)
+    {
+    // We are adding a FldLiteral to a FldNumericDisplay.
+
+    // Get the integer value of the literal:
+    REAL_VALUE_TYPE val = TREE_REAL_CST(A[0].field->data.value_of());
+    int delta = (int)real_to_integer (&val);
+    val = real_value_truncate (TYPE_MODE (float_type_node), val);
+    REAL_VALUE_TYPE rival;
+    real_from_integer (&rival, VOIDmode, delta, SIGNED);
+
+    if( real_identical (&val, &rival) && delta == 0 )
+      {
+      // val has no fractional part, which means delta is the exact integer
+      // part of val.
+
+      // And delta is zero.  This is a weird degenerate case.  But adding zero
+      // to anything means we are already done.
+      handled = true;
+      return handled;
+      }
+
+    int  digits = C[0].refer.field->data.digits;
+    int rdigits = C[0].refer.field->data.rdigits;
+
+    if( digits == rdigits )
+      {
+      // This is another degenerate case.  We are being asked to add an integer
+      // to a value whose PICTURE is something like V9999.  This is beyond our
+      // capabilities.
+      if( !subtracting )
+        {
+        ordinary_add_format_1(nC, C,
+                             nA, A,
+                             format,
+                             error,
+                             not_error,
+                             compute_error );
+        }
+      else
+        {
+        ordinary_subtract_format_1(nC, C,
+                                   nA, A,
+                                   format,
+                                   error,
+                                   not_error,
+                                   compute_error );
+        }
+
+      handled = true;
+      return handled;
+      }
+
+    if( real_identical (&val, &rival)
+        && delta >= -9
+        && delta <=  9 )
+      {
+      delta = subtracting ? -delta : delta;
+
+      // delta is a non-zero integer in the range of -9 to 9.
+      tree tdelta = build_int_cst_type(UCHAR, delta);
+
+      charmap_t *charmap =
+                         __gg__get_charmap(C[0].refer.field->codeset.encoding);
+      tzero = build_int_cst_type(UCHAR,
+                                 charmap->mapped_character(ascii_zero));
+      tnine = build_int_cst_type(UCHAR,
+                                 charmap->mapped_character(ascii_nine));
+
+      // Build up an integer constant for conveniently handling the various
+      // PICTURE possibilities for a numeric display variable.
+      typedef enum
+        { UIT = 0, // unsignable, internal, trailing
+          UIL = 1, // unsignable, internal, leading  (impossible)
+          UST = 2, // unsignable, separate, trailing (impossible)
+          USL = 3, // unsignable, separate, leading  (impossible)
+          SIT = 4, // signable,   internal, trailing
+          SIL = 5, // signable,   internal, leading
+          SST = 6, // signable,   separate, trailing
+          SSL = 7, // signable,   separate, leading
+        } SIGN;
+      int the_attributes =  ((C[0].refer.field->attr & signable_e) ? 4 : 0)
+                          + ((C[0].refer.field->attr & separate_e) ? 2 : 0)
+                          + ((C[0].refer.field->attr & leading_e ) ? 1 : 0) ;
+      SIGN signbits = static_cast<SIGN>(the_attributes);
+
+      // We need a pointer to the units digit of the data.  For a PIC 999v99
+      // value of 123.45, we need a pointer to the '3':
+      int units_offset = (signbits == SSL ? 1 : 0)
+                       + C[0].refer.field->data.digits
+                       - C[0].refer.field->data.rdigits
+                       - 1;
+      tree base;
+      // Now and forever, base points to the data area of C[0]
+      get_location(base, C[0].refer);
+
+      tree units = gg_define_variable(UCHAR_P);
+      // Now and forever, units points to the units digit of C[0]
+      gg_assign(units, gg_add(base, build_int_cst_type(SIZE_T, units_offset)));
+
+      // Now and forever, signloc points to the location of the byte containing
+      // the sign information:
+      int signloc_offset=0;
+      switch(signbits)
+        {
+        case UIT:
+        case UIL:
+        case UST:
+        case USL:
+          signloc_offset = 0;
+          break;
+        case SIT:
+          signloc_offset = digits-1;
+          break;
+        case SIL:
+          signloc_offset = 0;
+          break;
+        case SST:
+          signloc_offset = digits;
+          break;
+        case SSL:
+          signloc_offset = 0;
+          break;
+        }
+      tree counter = gg_define_int(digits - rdigits);
+      tree pointer = gg_define_variable(UCHAR_P);
+      gg_assign(pointer, units);
+      if( !(C[0].refer.field->attr & signable_e) )
+        {
+        // The target is not signable
+        if( delta >= 1 )
+          {
+          // Adding a positive number to an unsignable target.
+          add_case_1(pointer,
+                     tdelta,
+                     charmap,
+                     delta,
+                     counter);
+          handled = 1;
+          }
+        else
+          {
+          // Adding a negative number to an unsignable target.
+
+          /* The edge case is when we are doing something like ADD 1 to 0.21,
+             where the computed value is -0.79, and ends up in the target as
+             0.79.  We don't try to do that, and instead pass off such
+             calculations to the ordinary arithmetic routine.   */
+          if( rdigits )
+            {
+            // When there are rdigits, we might have to call ordinary_add
+            // First, we look at the rightmost units digit.
+            IF( gg_bitwise_and(gg_indirect(pointer), uchar_f_node),
+                ge_op,
+                tdelta )
+              {
+              // There will be no carry from the lowest order digit, so it is
+              // safe to use add_case_2
+              add_case_2(pointer,
+                         tdelta,
+                         counter,
+                         digits - rdigits);
+              }
+            ELSE
+              {
+              // There will be a carry from the rightmost digit.  We have to
+              // check the other digits.  If any are non-zero, then it is safe
+              // to use add_case_2
+              tree break_goto;
+              tree break_label;
+              gg_create_goto_pair(&break_goto,
+                                  &break_label);
+              WHILE( counter, gt_op, integer_one_node )
+                {
+                gg_decrement(pointer);
+                IF( gg_indirect(pointer), ne_op, tzero )
+                  {
+                  // One of the left digits is non-zero, which means it is safe
+                  // to use add_case_2()
+                  gg_assign(counter, build_int_cst_type(INT, digits-rdigits));
+                  gg_assign(pointer, units);
+                  add_case_2(pointer,
+                             tdelta,
+                             counter,
+                             digits - rdigits);
+                  gg_append_statement(break_goto);
+                  }
+                ELSE
+                  {
+                  gg_decrement(counter);
+                  }
+                ENDIF
+                }
+              WEND
+              // If you get here, that means we are adding a negative value
+              // to something with rdigits and we have a carry from the
+              // rightmost place, and all of the other digits are zero.
+              if( !subtracting )
+                {
+                ordinary_add_format_1(nC, C,
+                                     nA, A,
+                                     format,
+                                     error,
+                                     not_error,
+                                     compute_error );
+                }
+              else
+                {
+                ordinary_subtract_format_1(nC, C,
+                                           nA, A,
+                                           format,
+                                           error,
+                                           not_error,
+                                           compute_error );
+                }
+              gg_append_statement(break_label);
+              }
+            ENDIF
+            }
+          else
+            {
+            add_case_2(pointer,
+                       tdelta,
+                       counter,
+                       digits - rdigits);
+            }
+          handled = true;
+          }
+        }
+      else if( signbits == SIT )
+        {
+        // The target is signable, and it is of the type PIC S9999, which is
+        // the most common.
+
+        tree signloc = gg_define_variable(UCHAR_P);
+        gg_assign(signloc,
+                  gg_add(base, build_int_cst_type(SIZE_T, signloc_offset)));
+        if( delta >= 1 )
+          {
+          tree break_goto;
+          tree break_label;
+          gg_create_goto_pair(&break_goto,
+                              &break_label);
+          IF( gg_indirect(signloc), ge_op, tzero )
+            {
+            IF( gg_indirect(signloc), le_op, tnine )
+              {
+              // The signloc byte is between '0' and '9'.
+
+              // We are adding a positive to a signable positive value
+              // This is the same as adding a positive value to an unsignable
+              // value:
+              add_case_1(pointer,
+                         tdelta,
+                         charmap,
+                         delta,
+                         counter);
+              gg_append_statement(break_goto);
+              }
+            ELSE
+              {
+              }
+            ENDIF
+            }
+          ELSE
+            {
+            }
+          ENDIF
+          /* We are adding a positive value to a negative value. */
+
+          IF( gg_bitwise_and(gg_indirect(pointer), uchar_f_node),
+              gt_op,
+              tdelta )
+            {
+            // The rightmost digit is bigger than tdelta, so it's safe to use
+            // the fast routine, because the result will stay negative.
+            add_case_3(pointer,
+                      tdelta,
+                      counter);
+            gg_append_statement(break_goto);
+            }
+          ELSE
+            {
+            }
+          ENDIF
+          // Either the rightmost digit is zero, or there will be a carry.
+          // If any of the remaining digits is non-zero, then the result will
+          // stay negative.
+
+          WHILE( counter, gt_op, integer_one_node )
+            {
+            gg_decrement(pointer);
+            IF( gg_indirect(pointer), ne_op, tzero )
+              {
+              // One of the remaining digits is non-zero, so we can still
+              // use the fast routine:
+              gg_assign(counter, build_int_cst_type(INT, digits-rdigits));
+              gg_assign(pointer, units);
+              add_case_3(pointer,
+                        tdelta,
+                        counter);
+              gg_append_statement(break_goto);
+              }
+            ELSE
+              {
+              }
+            ENDIF
+            gg_decrement(counter);
+            }
+          WEND
+          // since we are doing something like ADD 1 to -00.21, we need to
+          // use ordinary arithmetic to cope with the switch to +00.79
+          if( !subtracting )
+            {
+            ordinary_add_format_1(nC, C,
+                                 nA, A,
+                                 format,
+                                 error,
+                                 not_error,
+                                 compute_error );
+            }
+          else
+            {
+            ordinary_subtract_format_1(nC, C,
+                                       nA, A,
+                                       format,
+                                       error,
+                                       not_error,
+                                       compute_error );
+            }
+          gg_append_statement(break_label);
+          }
+        else
+          {
+          // We are adding a negative value to a signable value.
+
+          tree break_goto;
+          tree break_label;
+          gg_create_goto_pair(&break_goto,
+                              &break_label);
+
+          IF( gg_indirect(signloc), ge_op, tzero )
+            {
+            IF( gg_indirect(signloc), le_op, tnine )
+              {
+              // The signloc byte is between '0' and '9'.
+              // We are adding a negative value to a positive signable value.
+
+              IF( gg_bitwise_and(gg_indirect(pointer), uchar_f_node),
+                  gt_op,
+                  gg_negate(tdelta) )
+                {
+                // The units digit is non-zero, so we can use the same routine
+                // we use for unsignable positives:
+                add_case_2(pointer,
+                           tdelta,
+                           counter,
+                           digits);
+                gg_append_statement(break_goto);
+                }
+              ELSE
+                {
+                }
+              ENDIF
+
+              // The rightmost digit is zero.  Check the remaining digits of the
+              // integer part:
+              WHILE( counter, gt_op, integer_one_node )
+                {
+                gg_decrement(pointer);
+                IF( gg_indirect(pointer), ne_op, tzero )
+                  {
+                  // One of the remaining digits is non-zero, so we can still
+                  // use the fast routine:
+                  gg_assign(counter, build_int_cst_type(INT, digits-rdigits));
+                  gg_assign(pointer, units);
+                  add_case_2(pointer,
+                             tdelta,
+                             counter,
+                             digits);
+                  gg_append_statement(break_goto);
+                  }
+                ELSE
+                  {
+                  }
+                ENDIF
+                gg_decrement(counter);
+                }
+              WEND
+              // Arriving here means the integer part of the positive signable
+              // is zero.
+              // We are dealing with something like 00.21
+              if( !subtracting )
+                {
+                ordinary_add_format_1(nC, C,
+                                     nA, A,
+                                     format,
+                                     error,
+                                     not_error,
+                                     compute_error );
+                }
+              else
+                {
+                ordinary_subtract_format_1(nC, C,
+                                           nA, A,
+                                           format,
+                                           error,
+                                           not_error,
+                                           compute_error );
+                }
+              gg_append_statement(break_goto);
+              }
+            ELSE
+              {
+              }
+            ENDIF
+            }
+          ELSE
+            {
+            }
+          ENDIF
+
+          // We are adding a negative value to negative S9999
+
+          add_case_4(pointer,
+                     tdelta,
+                     counter);
+
+          // Special case:  When we do ADD -1 to -99.00, add_case_4 actually
+          // comes back with -00.00.  So, we have to check the digits; when
+          // they are all zero, we make the value positive.
+          //if( rdigits )
+            {
+            gg_assign(units, gg_add(units, build_int_cst_type(SIZE_T, rdigits)));
+            gg_assign(pointer, units);
+            IF( gg_bitwise_and(gg_indirect(pointer), uchar_f_node),
+                ne_op,
+                build_int_cst_type(UCHAR, 0) )
+              {
+              gg_append_statement(break_goto);
+              }
+            ELSE
+              {
+              }
+            ENDIF
+            gg_assign(counter, build_int_cst_type(INT, digits));
+            WHILE( counter, gt_op, integer_one_node )
+              {
+              gg_decrement(pointer);
+              IF( gg_indirect(pointer),
+                  ne_op,
+                  tzero )
+                {
+                gg_append_statement(break_goto);
+                }
+              ELSE
+                {
+                }
+              ENDIF
+              gg_decrement(counter);
+              }
+            WEND
+            // Getting here means that we are looking at -negative zero.  Make
+            // it positive
+            gg_assign(gg_indirect(units), tzero);
+            }
+          gg_append_statement(break_label);
+          }
+        handled = true;
+        }
+      }
+    }
+  return handled;
+  }
+
+static bool
+add_format_1( size_t nC, cbl_num_result_t *C,
+              size_t nA, cbl_refer_t *A,
+              cbl_arith_format_t format,
+              cbl_label_t *error,
+              cbl_label_t *not_error,
+              tree         compute_error )
+  {
+  bool handled = false;
+  if( format == no_giving_e )
+    {
+    // Fixed format 1
+    handled = add_litN_to_numdisp( nC, C,
+                                   nA, A,
+                                   format,
+                                   error,
+                                   not_error,
+                                   compute_error,
+                                   false); // false means adding
+    if( !handled )
+      {
+      ordinary_add_format_1(nC, C,
+                           nA, A,
+                           format,
+                           error,
+                           not_error,
+                           compute_error );
+      handled = true;
+      }
+    }
+
+  return handled;
+  }
+
+static bool
+add_format_2( size_t nC, cbl_num_result_t *C,
+              size_t nA, cbl_refer_t *A,
+              cbl_arith_format_t format,
+              cbl_label_t *error,
+              cbl_label_t *not_error,
+              tree         compute_error )
+  {
+  bool handled = false;
+  if( format == giving_e )
+    {
+    // Fixed format 2
+
+    set_up_arithmetic_error_handler(error,
+                                    not_error);
+    // Do phase 1, which calculates the subtotal and puts it into a
+    // temporary location
+    arithmetic_operation( 0, NULL,
+                          nA, A,
+                          0, NULL,
+                          format,
+                          error,
+                          not_error,
+                          compute_error,
+                          "__gg__add_fixed_phase1");
+
+    // Do phase 2, which puts the subtotal into each target location in turn
+    for(size_t i=0; i<nC; i++)
+      {
+      arithmetic_operation( 1, &C[i],
+                            0, NULL,
+                            0, NULL,
+                            format,
+                            error,
+                            not_error,
+                            compute_error,
+                            "__gg__fixed_phase2_assign_to_c");
+      }
+    arithmetic_error_handler( error,
+                              not_error,
+                              compute_error);
+
+    handled = true;
+    }
+  return handled;
+  }
+
+static bool
+add_format_3( size_t nC, cbl_num_result_t *C,
+              size_t nA, cbl_refer_t *A,
+              cbl_arith_format_t format,
+              cbl_label_t *error,
+              cbl_label_t *not_error,
+              tree         compute_error )
+  {
+  bool handled = false;
+  if( format == corresponding_e )
+    {
+    // Fixed format 3
+    gcc_assert(nA == nC);
+
+    set_up_arithmetic_error_handler(error,
+                                    not_error);
+    arithmetic_operation(nC, C,
+                          nA, A,
+                          0, NULL,
+                          format,
+                          error,
+                          not_error,
+                          compute_error,
+                          "__gg__addf3");
+    arithmetic_error_handler( error,
+                              not_error,
+                              compute_error);
+    handled = true;
+    }
+  return handled;
+  }
+
 void
 parser_add( size_t nC, cbl_num_result_t *C,
             size_t nA, cbl_refer_t *A,
             cbl_arith_format_t format,
             cbl_label_t *error,
             cbl_label_t *not_error,
-            void        *compute_error_p ) // Cast this to a tree / int *
+            void        *compute_error_p ) // Cast this to a tree INT *
   {
   Analyze();
   SHOW_PARSE
@@ -969,240 +2142,58 @@ parser_add( size_t nC, cbl_num_result_t *C,
     TRACE1_END
     }
 
-  bool handled = false;
+  bool handled = fast_add(nC, C, nA, A, format, error, not_error) ;
 
-  if( !error && !not_error && fast_add(nC, C,
-                                       nA, A,
-                                       format) )
+  tree compute_error = (tree)compute_error_p;
+
+  if( !handled )
     {
-    handled = true;
-    }
-  else
-    {
-    tree compute_error = (tree)compute_error_p;
     if( compute_error == NULL )
       {
       gg_assign(var_decl_default_compute_error, integer_zero_node);
       compute_error = gg_get_address_of(var_decl_default_compute_error);
       }
 
-    bool computation_is_float =    is_somebody_float(nA, A)
-                                || is_somebody_float(nC, C);
-    // We now start deciding which arithmetic routine we are going to use:
-    if( computation_is_float )
-      {
-      switch( format )
-        {
-        case no_giving_e:
-          {
-          // Float format 1
-
-          set_up_arithmetic_error_handler(error,
-                                          not_error);
-          // Do phase 1, which calculates the subtotal and puts it into a
-          // temporary location
-          arithmetic_operation( 0, NULL,
-                                nA, A,
-                                0, NULL,
-                                format,
-                                error,
-                                not_error,
-                                compute_error,
-                                "__gg__add_float_phase1");
-
-          // Do phase 2, which accumulates the subtotal into each target location in turn
-          for(size_t i=0; i<nC; i++)
-            {
-            arithmetic_operation(1, &C[i],
-                                  0, NULL,
-                                  0, NULL,
-                                  format,
-                                  error,
-                                  not_error,
-                                  compute_error,
-                                  "__gg__addf1_float_phase2");
-            }
-          arithmetic_error_handler( error,
-                                    not_error,
-                                    compute_error);
-
-          handled = true;
-          break;
-          }
-
-        case giving_e:
-          {
-          // Float format 2
-          set_up_arithmetic_error_handler(error,
-                                          not_error);
-          // Do phase 1, which calculates the subtotal and puts it into a
-          // temporary location
-          arithmetic_operation( 0, NULL,
-                                nA, A,
-                                0, NULL,
-                                format,
-                                error,
-                                not_error,
-                                compute_error,
-                                "__gg__add_float_phase1");
-
-          // Do phase 2, which puts the subtotal into each target location in turn
-          for(size_t i=0; i<nC; i++)
-            {
-            arithmetic_operation(1, &C[i],
-                                  0, NULL,
-                                  0, NULL,
-                                  format,
-                                  error,
-                                  not_error,
-                                  compute_error,
-                                  "__gg__float_phase2_assign_to_c");
-            }
-          arithmetic_error_handler( error,
-                                    not_error,
-                                    compute_error);
-
-          handled = true;
-          break;
-          }
-
-        case corresponding_e:
-          {
-          // Float format 3
-          gcc_assert(nA == nC);
-
-          set_up_arithmetic_error_handler(error,
-                                          not_error);
-          arithmetic_operation(nC, C,
-                                nA, A,
-                                0, NULL,
-                                format,
-                                error,
-                                not_error,
-                                compute_error,
-                                "__gg__addf3");
-          arithmetic_error_handler( error,
-                                    not_error,
-                                    compute_error);
-
-          handled = true;
-          break;
-          }
-
-        case not_expected_e:
-          gcc_unreachable();
-          break;
-        }
-      }
-    else
-      {
-      switch( format )
-        {
-        case no_giving_e:
-          {
-          // Fixed format 1
-
-          set_up_arithmetic_error_handler(error,
-                                          not_error);
-          // Do phase 1, which calculates the subtotal and puts it into a
-          // temporary location
-          arithmetic_operation( 0, NULL,
-                                nA, A,
-                                0, NULL,
-                                format,
-                                error,
-                                not_error,
-                                compute_error,
-                                "__gg__add_fixed_phase1");
-
-          // Do phase 2, which accumulates the subtotal into each target location in turn
-          for(size_t i=0; i<nC; i++)
-            {
-            arithmetic_operation(1, &C[i],
-                                  0, NULL,
-                                  0, NULL,
-                                  format,
-                                  error,
-                                  not_error,
-                                  compute_error,
-                                  "__gg__addf1_fixed_phase2");
-            }
-          arithmetic_error_handler( error,
-                                    not_error,
-                                    compute_error);
-
-          handled = true;
-          break;
-          }
-
-        case giving_e:
-          {
-          // Fixed format 2
-
-          set_up_arithmetic_error_handler(error,
-                                          not_error);
-          // Do phase 1, which calculates the subtotal and puts it into a
-          // temporary location
-          arithmetic_operation( 0, NULL,
-                                nA, A,
-                                0, NULL,
-                                format,
-                                error,
-                                not_error,
-                                compute_error,
-                                "__gg__add_fixed_phase1");
-
-          // Do phase 2, which puts the subtotal into each target location in turn
-          for(size_t i=0; i<nC; i++)
-            {
-            arithmetic_operation( 1, &C[i],
-                                  0, NULL,
-                                  0, NULL,
-                                  format,
-                                  error,
-                                  not_error,
-                                  compute_error,
-                                  "__gg__fixed_phase2_assign_to_c");
-            }
-          arithmetic_error_handler( error,
-                                    not_error,
-                                    compute_error);
-
-          handled = true;
-          break;
-          }
-
-        case corresponding_e:
-          {
-          // Fixed format 3
-          gcc_assert(nA == nC);
-
-          set_up_arithmetic_error_handler(error,
-                                          not_error);
-          arithmetic_operation(nC, C,
-                                nA, A,
-                                0, NULL,
-                                format,
-                                error,
-                                not_error,
-                                compute_error,
-                                "__gg__addf3");
-          arithmetic_error_handler( error,
-                                    not_error,
-                                    compute_error);
-
-          handled = true;
-          break;
-          }
-
-        case not_expected_e:
-          gcc_unreachable();
-          break;
-        }
-      }
+    // See if somebody in the addition is a float:
+    handled = add_floats( nC, C,
+                          nA, A,
+                          format,
+                          error,
+                          not_error,
+                          compute_error );
     }
 
-  assert( handled );
+  if( !handled )
+    {
+    handled = add_format_1(nC, C,
+                           nA, A,
+                           format,
+                           error,
+                           not_error,
+                           compute_error );
+    }
+
+  if( !handled )
+    {
+    handled = add_format_2(nC, C,
+                           nA, A,
+                           format,
+                           error,
+                           not_error,
+                           compute_error );
+    }
+
+  if( !handled )
+    {
+    handled = add_format_3(nC, C,
+                           nA, A,
+                           format,
+                           error,
+                           not_error,
+                           compute_error );
+    }
+
+  gcc_assert( handled );
   }
 
 void
@@ -1613,6 +2604,249 @@ parser_op( struct cbl_refer_t cref,
     }
   }
 
+static bool
+subtract_floats( size_t nC, cbl_num_result_t *C,
+            size_t nA, cbl_refer_t *A,
+            size_t nB, cbl_refer_t *B,
+            cbl_arith_format_t format,
+            cbl_label_t *error,
+            cbl_label_t *not_error,
+            tree         compute_error )
+  {
+  bool handled = false;
+
+  bool computation_is_float =    is_somebody_float(nA, A)
+                              || is_somebody_float(nC, C);
+
+  // We now start deciding which arithmetic routine we are going to use:
+
+  if( computation_is_float )
+    {
+    switch( format )
+      {
+      case no_giving_e:
+        {
+        // Float format 1
+
+        set_up_arithmetic_error_handler(error,
+                                        not_error);
+        // Do phase 1, which calculates the subtotal and puts it into a
+        // temporary location
+        arithmetic_operation( 0, NULL,
+                              nA, A,
+                              0, NULL,
+                              format,
+                              error,
+                              not_error,
+                              compute_error,
+                              "__gg__add_float_phase1");
+
+        // Do phase 2, which subtracts the subtotal from each target in turn
+        for(size_t i=0; i<nC; i++)
+          {
+          arithmetic_operation(1, &C[i],
+                                0, NULL,
+                                0, NULL,
+                                format,
+                                error,
+                                not_error,
+                                compute_error,
+                                "__gg__subtractf1_float_phase2");
+          }
+        arithmetic_error_handler( error,
+                                  not_error,
+                                  compute_error);
+
+        handled = true;
+
+        break;
+        }
+
+      case giving_e:
+        {
+        // Float SUBTRACT Format 2
+
+        gcc_assert(nB == 1);
+        set_up_arithmetic_error_handler(error,
+                                        not_error);
+        // Do phase 1, which calculates the subtotal and puts it into a
+        // temporary location
+        arithmetic_operation( 0, NULL,
+                              nA, A,
+                              nB, B,
+                              format,
+                              error,
+                              not_error,
+                              compute_error,
+                              "__gg__subtractf2_float_phase1");
+
+        // Do phase 2, which puts the subtotal into each target location in turn
+        for(size_t i=0; i<nC; i++)
+          {
+          arithmetic_operation(1, &C[i],
+                                0, NULL,
+                                0, NULL,
+                                format,
+                                error,
+                                not_error,
+                                compute_error,
+                                "__gg__float_phase2_assign_to_c");
+          }
+        arithmetic_error_handler( error,
+                                  not_error,
+                                  compute_error);
+
+        handled = true;
+        break;
+        }
+
+      case corresponding_e:
+        {
+        // Float format 3
+        gcc_assert(nA == nC);
+
+        set_up_arithmetic_error_handler(error,
+                                        not_error);
+        arithmetic_operation(nC, C,
+                              nA, A,
+                              0, NULL,
+                              format,
+                              error,
+                              not_error,
+                              compute_error,
+                              "__gg__subtractf3");
+        arithmetic_error_handler( error,
+                                  not_error,
+                                  compute_error);
+
+        handled = true;
+
+        break;
+        }
+
+      case not_expected_e:
+        gcc_unreachable();
+        break;
+      }
+    }
+  return handled;
+  }
+
+static bool
+subtract_format_1(size_t nC, cbl_num_result_t *C,
+                  size_t nA, cbl_refer_t *A,
+                  cbl_arith_format_t format,
+                  cbl_label_t *error,
+                  cbl_label_t *not_error,
+                  tree         compute_error )
+  {
+  bool handled = false;
+  if(format == no_giving_e)
+    {
+    // Fixed format 1
+    handled = add_litN_to_numdisp( nC, C,
+                                   nA, A,
+                                   format,
+                                   error,
+                                   not_error,
+                                   compute_error,
+                                   true); // false means subtraction
+    if( !handled )
+      {
+      ordinary_subtract_format_1(nC, C,
+                                 nA, A,
+                                 format,
+                                 error,
+                                 not_error,
+                                 compute_error );
+      handled = true;
+      }
+    }
+  return handled;
+  }
+
+static bool
+subtract_format_2(size_t nC, cbl_num_result_t *C,
+                  size_t nA, cbl_refer_t *A,
+                  size_t nB, cbl_refer_t *B,
+                  cbl_arith_format_t format,
+                  cbl_label_t *error,
+                  cbl_label_t *not_error,
+                  tree         compute_error )
+  {
+  bool handled = false;
+  if(format == giving_e)
+    {
+    // Fixed SUBTRACT Format 2
+
+    gcc_assert(nB == 1);
+    set_up_arithmetic_error_handler(error,
+                                    not_error);
+    // Do phase 1, which calculates the subtotal and puts it into a
+    // temporary location
+    arithmetic_operation( 0, NULL,
+                          nA, A,
+                          nB, B,
+                          format,
+                          error,
+                          not_error,
+                          compute_error,
+                          "__gg__subtractf2_fixed_phase1");
+
+    // Do phase 2, which puts the subtotal into each target location in turn
+    for(size_t i=0; i<nC; i++)
+      {
+      arithmetic_operation( 1, &C[i],
+                            0, NULL,
+                            0, NULL,
+                            format,
+                            error,
+                            not_error,
+                            compute_error,
+                            "__gg__fixed_phase2_assign_to_c");
+      }
+    arithmetic_error_handler( error,
+                              not_error,
+                              compute_error);
+
+    handled = true;
+    }
+  return handled;
+  }
+
+static bool
+subtract_format_3(size_t nC, cbl_num_result_t *C,
+                  size_t nA, cbl_refer_t *A,
+                  cbl_arith_format_t format,
+                  cbl_label_t *error,
+                  cbl_label_t *not_error,
+                  tree         compute_error )
+  {
+  bool handled = false;
+  if( format == corresponding_e )
+    {
+    // Fixed format 3
+    gcc_assert(nA == nC);
+
+    set_up_arithmetic_error_handler(error,
+                                    not_error);
+    arithmetic_operation(nC, C,
+                          nA, A,
+                          0, NULL,
+                          format,
+                          error,
+                          not_error,
+                          compute_error,
+                          "__gg__subtractf3");
+    arithmetic_error_handler( error,
+                              not_error,
+                              compute_error);
+
+    handled = true;
+    }
+  return handled;
+  }
+
 void
 parser_subtract(size_t nC, cbl_num_result_t *C, // C = B - A
                 size_t nA, cbl_refer_t *A,
@@ -1662,253 +2896,62 @@ parser_subtract(size_t nC, cbl_num_result_t *C, // C = B - A
   //  We are going to look for configurations that allow us to do binary
   //  arithmetic and quickly assign the results:
 
-  //  no_giving_e is format 1; giving_e is format 2.
-
-  bool handled = false;
-
-  if( !error && !not_error && fast_subtract(nC, C,
-                                            nA, A,
-                                            nB, B,
-                                            format) )
+  bool handled = fast_subtract( nC, C,
+                                nA, A,
+                                nB, B,
+                                format,
+                                error,
+                                not_error) ;
+  tree compute_error = (tree)compute_error_p;
+  if( !handled )
     {
-    handled = true;
-    }
-  else
-    {
-    tree compute_error = (tree)compute_error_p;
     if( compute_error == NULL )
       {
       gg_assign(var_decl_default_compute_error, integer_zero_node);
       compute_error = gg_get_address_of(var_decl_default_compute_error);
       }
-    bool computation_is_float =    is_somebody_float(nA, A)
-                                || is_somebody_float(nC, C);
-
-    // We now start deciding which arithmetic routine we are going to use:
-
-    if( computation_is_float )
-      {
-      switch( format )
-        {
-        case no_giving_e:
-          {
-          // Float format 1
-
-          set_up_arithmetic_error_handler(error,
-                                          not_error);
-          // Do phase 1, which calculates the subtotal and puts it into a
-          // temporary location
-          arithmetic_operation( 0, NULL,
-                                nA, A,
-                                0, NULL,
-                                format,
-                                error,
-                                not_error,
-                                compute_error,
-                                "__gg__add_float_phase1");
-
-          // Do phase 2, which subtracts the subtotal from each target in turn
-          for(size_t i=0; i<nC; i++)
-            {
-            arithmetic_operation(1, &C[i],
-                                  0, NULL,
-                                  0, NULL,
-                                  format,
-                                  error,
-                                  not_error,
-                                  compute_error,
-                                  "__gg__subtractf1_float_phase2");
-            }
-          arithmetic_error_handler( error,
-                                    not_error,
-                                    compute_error);
-
-          handled = true;
-
-          break;
-          }
-
-        case giving_e:
-          {
-          // Float SUBTRACT Format 2
-
-          gcc_assert(nB == 1);
-          set_up_arithmetic_error_handler(error,
-                                          not_error);
-          // Do phase 1, which calculates the subtotal and puts it into a
-          // temporary location
-          arithmetic_operation( 0, NULL,
-                                nA, A,
-                                nB, B,
-                                format,
-                                error,
-                                not_error,
-                                compute_error,
-                                "__gg__subtractf2_float_phase1");
-
-          // Do phase 2, which puts the subtotal into each target location in turn
-          for(size_t i=0; i<nC; i++)
-            {
-            arithmetic_operation(1, &C[i],
-                                  0, NULL,
-                                  0, NULL,
-                                  format,
-                                  error,
-                                  not_error,
-                                  compute_error,
-                                  "__gg__float_phase2_assign_to_c");
-            }
-          arithmetic_error_handler( error,
-                                    not_error,
-                                    compute_error);
-
-          handled = true;
-          break;
-          }
-
-        case corresponding_e:
-          {
-          // Float format 3
-          gcc_assert(nA == nC);
-
-          set_up_arithmetic_error_handler(error,
-                                          not_error);
-          arithmetic_operation(nC, C,
-                                nA, A,
-                                0, NULL,
-                                format,
-                                error,
-                                not_error,
-                                compute_error,
-                                "__gg__subtractf3");
-          arithmetic_error_handler( error,
-                                    not_error,
-                                    compute_error);
-
-          handled = true;
-
-          break;
-          }
-
-        case not_expected_e:
-          gcc_unreachable();
-          break;
-        }
-      }
-    else
-      {
-      switch( format )
-        {
-        case no_giving_e:
-          {
-          // Fixed format 1
-
-          set_up_arithmetic_error_handler(error,
-                                          not_error);
-          // Do phase 1, which calculates the subtotal and puts it into a
-          // temporary location
-          arithmetic_operation( 0, NULL,
-                                nA, A,
-                                0, NULL,
-                                format,
-                                error,
-                                not_error,
-                                compute_error,
-                                "__gg__add_fixed_phase1");
-
-          // Do phase 2, which subtracts the subtotal from each target in turn
-          for(size_t i=0; i<nC; i++)
-            {
-            arithmetic_operation(1, &C[i],
-                                  0, NULL,
-                                  0, NULL,
-                                  format,
-                                  error,
-                                  not_error,
-                                  compute_error,
-                                  "__gg__subtractf1_fixed_phase2");
-            }
-          arithmetic_error_handler( error,
-                                    not_error,
-                                    compute_error);
-
-          handled = true;
-
-          break;
-          }
-
-        case giving_e:
-          {
-          // Fixed SUBTRACT Format 2
-
-          gcc_assert(nB == 1);
-          set_up_arithmetic_error_handler(error,
-                                          not_error);
-          // Do phase 1, which calculates the subtotal and puts it into a
-          // temporary location
-          arithmetic_operation( 0, NULL,
-                                nA, A,
-                                nB, B,
-                                format,
-                                error,
-                                not_error,
-                                compute_error,
-                                "__gg__subtractf2_fixed_phase1");
-
-          // Do phase 2, which puts the subtotal into each target location in turn
-          for(size_t i=0; i<nC; i++)
-            {
-            arithmetic_operation( 1, &C[i],
-                                  0, NULL,
-                                  0, NULL,
-                                  format,
-                                  error,
-                                  not_error,
-                                  compute_error,
-                                  "__gg__fixed_phase2_assign_to_c");
-            }
-          arithmetic_error_handler( error,
-                                    not_error,
-                                    compute_error);
-
-          handled = true;
-          break;
-          }
-
-        case corresponding_e:
-          {
-          // Fixed format 3
-          gcc_assert(nA == nC);
-
-          set_up_arithmetic_error_handler(error,
-                                          not_error);
-          arithmetic_operation(nC, C,
-                                nA, A,
-                                0, NULL,
-                                format,
-                                error,
-                                not_error,
-                                compute_error,
-                                "__gg__subtractf3");
-          arithmetic_error_handler( error,
-                                    not_error,
-                                    compute_error);
-
-          handled = true;
-          break;
-          }
-
-        case not_expected_e:
-          gcc_unreachable();
-          break;
-        }
-      }
+    handled = subtract_floats(nC, C,
+                              nA, A,
+                              nB, B,
+                              format,
+                              error,
+                              not_error,
+                              compute_error );
     }
 
-  if( !handled )
+  if(!handled)
     {
-    abort();
+    handled = subtract_format_1( nC, C,
+                                 nA, A,
+                                 format,
+                                 error,
+                                 not_error,
+                                 compute_error );
     }
+
+  if(!handled)
+    {
+    handled = subtract_format_2( nC, C,
+                                 nA, A,
+                                 nB, B,
+                                 format,
+                                 error,
+                                 not_error,
+                                 compute_error );
+    }
+
+  if(!handled)
+    {
+    handled = subtract_format_3( nC, C,
+                                 nA, A,
+                                 format,
+                                 error,
+                                 not_error,
+                                 compute_error );
+    }
+
+  gcc_assert(handled);
+
   TRACE1
     {
     TRACE1_HEADER

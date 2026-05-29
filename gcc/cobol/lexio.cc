@@ -1605,7 +1605,8 @@ int
 cdftext::open_input( const char filename[] ) {
   int fd = open(filename, O_RDONLY);
   if( fd == -1 ) {
-    dbgmsg( "could not open '%s': %s", filename, xstrerror(errno) );
+    auto erc(errno);
+    dbgmsg( "could not open '%s': %s", filename, xstrerror(erc) );
   }
 
   verbose_file_reader = NULL != getenv("GCOBOL_TEMPDIR");

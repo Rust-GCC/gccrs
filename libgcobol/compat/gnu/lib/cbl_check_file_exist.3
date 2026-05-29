@@ -1,0 +1,94 @@
+.ds lang COBOL
+.ds gcobol GCC\ \*[lang]\ Front-end
+.Dd \& March 2026
+.Dt CBL_CHECK_FILE_EXIST 3\& "\&GNU Compatibility Library"
+.Os Linux
+.Sh NAME
+.Nm CBL_CHECK_FILE_EXIST
+.Nd Verify a file exists and when it was last modified.
+.Sh LIBRARY
+libgcobol_compat_gnu
+.
+.Sh SYNOPSIS
+.Ic COPY CBL_CHECK_FILE_EXIST
+.Pp
+.Ic call Dq "CBL_CHECK_FILE_EXIST"
+using
+.Ar filename
+.Ar details
+returning
+.Ar status
+.
+.Sh DESCRIPTION
+Parameters:
+.Pp
+.Bl -tag -compact -width filename
+.It Ar filename
+is an OS filename.
+.Ar filename
+is interpreted verbatim, relative to the current working directory
+unless it is an absolute pathname.  No filename globbing is applied.
+.Ar filename
+may contain spaces.  
+.It Ar details
+an instance of type
+.Ar cblt-fileexist-buf ,
+defined in the
+.Ar cbltypes
+copybook as:
+.Bd -literal
+       01  cblt-fileexist-buf    typedef.
+         03  cblte-fe-filesize   PIC X(8) COMP-X.
+         03  cblte-fe-date.
+           05 cblte-fe-day       PIC X COMP-X.
+           05 cblte-fe-month     PIC X COMP-X.
+           05 cblte-fe-year      PIC X(2) comp-x.
+         03  cblte-fe-time.
+           05 cblte-fe-hours     PIC X COMP-X.
+           05 cblte-fe-minutes   PIC X COMP-X.
+           05 cblte-fe-seconds   PIC X COMP-X.
+           05 cblte-fe-hundreths PIC X COMP-X.
+.Sh RETURN STATUS
+.Nm
+returns
+.Sy "PIC X(2) COMP-5" .
+The return status is 0 on success, else nonzero.  
+.
+.Sh SEE ALSO
+.Xr CBL_CLOSE_FILE
+.Xr CBL_CREATE_FILE
+.Xr CBL_DELETE_FILE
+.Xr CBL_OPEN_FILE
+.Xr CBL_READ_FILE
+.Xr CBL_WRITE_FILE
+.
+.Sh COPYRIGHT
+.Bd -unfilled -indent
+Copyright (c) 2021-2026 Symas Corporation
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+* Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+* Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+* Neither the name of the Symas Corporation nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+.Ed

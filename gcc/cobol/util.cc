@@ -233,6 +233,50 @@ cdf_dictionary() {
   return cdf_directives.dictionary.value();
 }
 
+// elements permitted in a program or function prototype
+static const std::set<dspc_t> prototype_elements {
+  dspc_identification_div_e,
+  dspc_options_para_e, 
+  ////_arithmetic_clause_e, disallowed
+  dspc_default_rounded_clause_e, 
+  dspc_entry_convention_clause_e, 
+  dspc_float_binary_clause_e, 
+  dspc_float_decimal_clause_e, 
+  dspc_initialize_clause_e, 
+  dspc_intermediate_rounding_clause_e, 
+
+  dspc_environment_div_e,
+  dspc_configuration_section_e, 
+  dspc_source_computer_paragraph_e, 
+  ////_object_computer_paragraph_e, disallowed
+  
+  // permitted special names clauses
+  dspc_special_names_paragraph_e, 
+  dspc_alphabet_name_clause_e, 
+  dspc_currency_sign_clause_e, 
+  dspc_decimal_point_is_comma_clause_e, 
+  dspc_locale_clause_e, 
+  dspc_symbolic_characters_clause_e, 
+
+  // no i-o section, and we assume no repository paragraph
+
+  dspc_data_div_e,
+  dspc_linkage_section_e,
+  
+  dspc_procedure_div_e, // only header is allowed
+  dspc_procedure_header_e,
+};
+
+bool
+cbl_prototype_ok( const cbl_loc_t& loc, size_t iprog, dspc_t clause ) {
+  bool prototyping = cbl_label_of(symbol_at(iprog))->prototype;
+  if( prototyping && 0 == prototype_elements.count(clause) ) {
+    error_msg( loc, "syntax not allowed for PROTOTYPE" ); 
+    return false;
+  }
+  return true;
+}
+
 void
 cobol_set_indicator_column( int column ) {
   cdf_directives.source_format.value().indicator_column_set(column);
@@ -274,7 +318,9 @@ void cdf_pop_source_format() {
  * Construct a cbl_field_t from a CDF literal, to be installed in the symbol table.
  */
 cbl_field_t
-cdf_literalize( const std::string& name, const cdfval_t& value ) {
+cdf_literalize( const cbl_loc_t& loc,
+                const std::string& name, const cdfval_t& value,
+                bool set_initial ) {
     cbl_field_t field;
 
     if( value.is_numeric() ) {
@@ -283,15 +329,19 @@ cdf_literalize( const std::string& name, const cdfval_t& value ) {
       cbl_field_data_t data(len, len, len,0, initial); // digits == len, no rdigits
       data.valify();
       field = cbl_field_t{ FldLiteralN, constant_e, data, 0, name.c_str()};
+      field.codeset.set();
     } else {
       auto len = strlen(value.string);
       cbl_field_data_t data(len, len);
       data.original(xstrdup(value.string));
       field = cbl_field_t{ FldLiteralA, constant_e, data, 0, name.c_str() };
       field.set_attr(quoted_e);
+      field.codeset.set();
+      if( set_initial ) {
+        field.set_initial(loc);
+      }
     }
 
-    field.codeset.set();
     return field;
 }
 
@@ -304,7 +354,7 @@ cdf_literalize() {
     std::string name(elem.first);
     const cdfval_t& value(elem.second);
 
-    fields.push_back(cdf_literalize(name, value));
+    fields.push_back(cdf_literalize(cbl_loc_t(), name, value, false));
   }
   return fields;
 }
@@ -2139,9 +2189,20 @@ move_corresponding( cbl_refer_t& tgt, cbl_refer_t& src )
   return true;
 }
 
+static cbl_field_type_t
+effective_type( const cbl_refer_t& r ) {
+  auto type = r.field->type;
+  if( type == FldNumericDisplay && r.is_refmod_reference() ) {
+    type = FldAlphanumeric;
+  }
+  return type;
+}
+
 bool
-valid_move( const struct cbl_field_t *tgt, const struct cbl_field_t *src )
+valid_move( const cbl_refer_t& tgt_ref, const cbl_refer_t& src_ref )
 {
+  const cbl_field_t *tgt = tgt_ref.field, *src = src_ref.field;
+
     // This is the base matrix of allowable moves.  Moves from Alphanumeric are
     // modified based on the attribute bit all_alpha_e, and moves from Numeric
     // types to Alphanumeric and AlphanumericEdited are allowable when the
@@ -2194,6 +2255,21 @@ valid_move( const struct cbl_field_t *tgt, const struct cbl_field_t *src )
   assert(tgt->type < sizeof(matrix[0]));
   assert(src->type < sizeof(matrix[0]));
 
+  /*
+   * 8.4.3.3.3 Syntax rules
+   * A refmod may apply to: 
+   * "a numeric data item of usage display or national that is not subordinate
+   * to a strongly-typed group item,"
+   * 
+   * 8.4.3.3.4 General rules
+   *
+   * "If the data item referenced by identifier-1 is explicitly or implicitly
+   * described as usage DISPLAY and its category is other than alphanumeric,
+   * identifier-1 is operated upon for purposes of reference modification as if
+   * it were redefined as a data item of class and category alphanumeric of the
+   * same size as the data item referenced by identifier-1."
+   */
+
   // A value of zero  means the move is prohibited.
   // The 1 bit means the move is allowed
   // The 2 bit means the move is allowed if the source has zero rdigits,
@@ -2206,7 +2282,7 @@ valid_move( const struct cbl_field_t *tgt, const struct cbl_field_t *src )
   bool alphabetic = tgt->has_attr(all_alpha_e);
   bool src_alpha =  src->has_attr(all_alpha_e);
 
-  switch( matrix[src->type][tgt->type] )
+  switch( matrix[ effective_type(src_ref) ] [ effective_type(tgt_ref) ] )
     {
     case 0:
       if( src->type == FldLiteralA && is_numericish(tgt) && !is_literal(tgt) ) {
@@ -2905,6 +2981,15 @@ void cobol_set_pp_option(int opt) {
   input_filenames.option_m = true;
 }
 
+static bool trunc_binary;
+
+bool cobol_trunc_binary() {
+  return trunc_binary;
+}
+void cobol_trunc_binary( int cobol_trunc_binary ) {
+  trunc_binary = cobol_trunc_binary != 0;
+}
+
 /*
  * Maintain a stack of input filenames.  Ensure the files are unique (by
  * inode), to prevent copybook cycles. Before pushing a new name, Record the
@@ -3315,6 +3400,8 @@ operator-( const cbl_timespec& now, const cbl_timespec& then ) {
 }
 #endif
 
+void parse_error_reset();
+
 static int
 parse_file( const char filename[] )
 {
@@ -3342,8 +3429,7 @@ parse_file( const char filename[] )
 #endif
 
   parser_leave_file();
-
-
+  
   fclose (yyin);
 
   if( erc ) {

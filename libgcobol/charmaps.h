@@ -31,6 +31,7 @@
 #ifndef CHARMAPS_H
 #define CHARMAPS_H
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -301,9 +302,94 @@ char * __gg__miconverter(cbl_encoding_t from,
 
 
 #define DEFAULT_SOURCE_ENCODING (iconv_CP1252_e)
+
+#if __FreeBSD__
+#define DEFAULT_32_ENCODING (iconv_UTF_32LE_e)
+#else
 #define DEFAULT_32_ENCODING (iconv_UTF32LE_e)
+#endif
+
+#ifndef IN_TARGET_LIBS
+void error_msg_direct( const char gmsgid[], ... );
+  //// ATTRIBUTE_GCOBOL_DIAG(1, 2);  can't appear here?
+#endif
 
 class charmap_t;
+
+/*
+ * cbl_iconv_t calls iconv_open(3) using either names or cbl_encoding_t pairs.
+ * If used in the compiler, failure results in a compiler error message.  If
+ * used in libgcobol, failure raises EC-IMP-ICONV-OPEN.
+ *
+ * The destructor closes all handles successfully opened. 
+ */
+class cbl_iconv_t {
+  struct iconv_key_t {
+    cbl_encoding_t to, from;
+    const char *tocode, *fromcode; // these are the names used by iconv_open(3)
+    iconv_key_t() : to(no_encoding_e),
+                    from(no_encoding_e),
+                    tocode(NULL),
+                    fromcode(NULL) {}
+    iconv_key_t( cbl_encoding_t to, cbl_encoding_t from )
+      : to(to), from(from)
+      , tocode(__gg__encoding_iconv_name(to))
+      , fromcode(__gg__encoding_iconv_name(from))
+    
+    {}
+    iconv_key_t( const char *tocode, const char *fromcode )
+      : to(__gg__encoding_iconv_type(tocode))
+      , from(__gg__encoding_iconv_type(fromcode))
+      , tocode(tocode)
+      , fromcode(fromcode)
+    {}
+    bool operator<( const iconv_key_t& that ) const {
+      if( from == that.from ) {
+        return to < that.to;
+      }
+      return from < that.from;
+    }
+  };
+  std::map<iconv_key_t, iconv_t> cds;
+ protected:
+  void close_all() {
+    for( auto elem : cds ) {
+      iconv_t cd = elem.second;
+      if( valid(cd) ) {
+        iconv_close(cd);
+      }
+    }
+  }
+
+  template <typename T> // T may be const char* or cbl_encoding_t
+  iconv_t open_impl( T tocode, T fromcode ) {
+    iconv_key_t key(tocode, fromcode);
+    auto p = cds.find(key);
+    if( p != cds.end() ) return p->second;
+
+    iconv_t cd = iconv_open(key.tocode, key.fromcode);
+    cds[key] = cd; // whether or not failed
+
+    if( ! valid(cd) ) {
+#ifdef IN_TARGET_LIBS
+      exception_raise(ec_imp_iconv_open_e);
+#else
+      error_msg_direct( "%s: cannot convert to %qs from %qs",
+                        "iconv_open", key.tocode, key.fromcode );
+#endif
+    }
+    return cd;
+  }
+ public:
+  ~cbl_iconv_t() { close_all(); }
+  static bool valid( iconv_t cd ) { return cd != iconv_t(-1); }
+  iconv_t open( const char *tocode, const char *fromcode ) {
+    return open_impl(tocode, fromcode);
+  }
+  iconv_t open( cbl_encoding_t to, cbl_encoding_t from ) {
+    return open_impl(to, from);
+  }
+};
 
 charmap_t *__gg__get_charmap(cbl_encoding_t encoding);
 
@@ -329,7 +415,13 @@ class charmap_t
     std::unordered_map<cbl_char_t, cbl_char_t>m_map_of_encodings;
 
   public:
-    explicit charmap_t(cbl_encoding_t e) : m_encoding(e)
+    explicit charmap_t(cbl_encoding_t e)
+      : m_encoding(e)
+      , m_is_valid(false)
+      , m_is_big_endian(false)
+      , m_has_bom (false)
+      , m_is_like_utf8(false)
+      , m_stride(1)
       {
       // We are constructing a new charmap_t from an arbitrary encoding.  We
       // need to figure out how wide it is, its endianness, whether or not
@@ -341,10 +433,12 @@ class charmap_t
       size_t outlength = 0;
       char challenge[] = "0";
       char response_[8];
+      cbl_iconv_t cbl_iconv;
 
-      iconv_t cd = iconv_open(
-                          __gg__encoding_iconv_name(m_encoding),
-                          __gg__encoding_iconv_name(DEFAULT_SOURCE_ENCODING));
+      iconv_t cd = cbl_iconv.open(m_encoding, DEFAULT_SOURCE_ENCODING);
+      if( ! cbl_iconv.valid(cd) ) {
+        return;  // Abandon all hope ye who enter. 
+      }
       char *inbuf  = challenge;
       char *outbuf = response_;
       size_t inbytesleft = 1;
@@ -353,17 +447,11 @@ class charmap_t
                             &inbuf,  &inbytesleft,
                             &outbuf, &outbytesleft);
       outlength = sizeof(response_) - outbytesleft;
-      iconv_close(cd);
       
       const unsigned char *response = 
                                   reinterpret_cast<unsigned char *>(response_);
       
       unsigned char char_0 = 0x00;
-
-      m_is_valid = false;
-      m_has_bom  = false;
-      m_is_big_endian = false;
-      m_is_like_utf8 = false;
 
       if( outlength == 1 )
         {
@@ -441,9 +529,10 @@ class charmap_t
 
       // Let's see if this encoding is UTF-8.  We will do that by converting
       // the single-byte CP1252 code for the Euro symbol to our encoding.
-      cd = iconv_open(
-                    __gg__encoding_iconv_name(iconv_CP1252_e),
-                    __gg__encoding_iconv_name(m_encoding));
+      cd = cbl_iconv.open(iconv_CP1252_e, m_encoding);
+      if( ! cbl_iconv.valid(cd) ) {
+        return;  // Abandon all hope ye who enter. 
+      }
       challenge[0] = static_cast<char>(0x80);// This is the CP1252 Euro symbol.
       inbuf  = challenge;
       outbuf = response_;
@@ -453,7 +542,6 @@ class charmap_t
             &inbuf,  &inbytesleft,
             &outbuf, &outbytesleft);
       outlength = sizeof(response_) - outbytesleft;
-      iconv_close(cd);
       m_is_like_utf8 = (outlength == 3);
       }
 

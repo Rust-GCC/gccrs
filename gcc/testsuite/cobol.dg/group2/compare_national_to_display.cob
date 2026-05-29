@@ -8,7 +8,7 @@
             locale greek is "cyrillic"
             locale unicode is "utf16le".
         object-computer.
-            xerox-parc-star 
+            xerox-parc-star
             character classification
                 for alphanumeric is greek
                 for national is unicode.

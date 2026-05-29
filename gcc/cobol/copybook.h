@@ -83,7 +83,7 @@ class copybook_elem_t {
   void clear() {
     suppress = false;
     nsubexpr = 0;
-    if( fd ) close(fd);
+    if( fd >= 0 ) close(fd);
     fd = -1;
     // TODO: free src & tgt
     replacements.clear();

@@ -217,13 +217,18 @@ create_cblc_file_t()
     /*
 typedef struct cblc_file_t
     {
+    // This structure must match the code in structs.cc
     char                *name;             // This is the name of the structure; might be the name of an environment variable
-    uint64_t             symbol_index;     // The symbol table index of the related cbl_file_t structure
+    size_t               symbol_table_index;  // of the related cbl_field_t structure
     char                *filename;         // The name of the file to be opened
     FILE                *file_pointer;     // The FILE *pointer
+    size_t               file_fpos;        // Calculated file position
+    char                *buffer;           // read buffer
+    size_t               buffer_pos;       // next character from the buffer
+    size_t               buffer_len;       // number of characters in the buffer
     cblc_field_t        *default_record;   // The record_area
-    size_t               record_area_min;  // The size of the smallest 01 record in the FD, in characters
-    size_t               record_area_max;  // The size of the largest  01 record in the FD, in characters
+    size_t               record_area_min;  // The size of the smallest 01 record in the FD
+    size_t               record_area_max;  // The size of the largest  01 record in the FD
     cblc_field_t       **keys;             // For relative and indexed files.  The first is the primary key. Null-terminated.
     int                 *key_numbers;      // One per key -- each key has a number. This table is key_number + 1
     int                 *uniques;          // One per key
@@ -242,15 +247,14 @@ typedef struct cblc_file_t
     int                  errnum;           // most recent errno; can't reuse "errno" as the name
     file_status_t        io_status;        // See 2014 standard, section 9.1.12
     int                  padding;          // Actually a char
-    cbl_char_t           delimiter;        // ends a record; defaults to '\n'.
-    int                  stride();         // width of a character
+    uint32_t             delimiter;        // ends a record; defaults to '\n'.
+    int                  stride;           // Width of a character
     int                  flags;            // cblc_file_flags_t
-    int                  recent_char;      // This is the most recent char sent to the file
+    uint32_t             recent_char;      // This is the most recent char sent to the file
     int                  recent_key;
-    cblc_file_prior_op_t prior_op;
-    int                  encoding;         // Actually cbl_encoding_t
+    cblc_file_prior_op_t prior_op;         // run-time type is INT
+    cbl_encoding_t       encoding;         // We assume size int
     int                  alphabet;         // Actually cbl_encoding_t
-    int                  dummy             // We need an even number of INT
     } cblc_file_t;
     */
     tree retval = gg_get_structure_type_decl("cblc_file_t",
@@ -258,6 +262,10 @@ typedef struct cblc_file_t
                                              ULONGLONG, "symbol_table_index",
                                              CHAR_P,    "filename",
                                              FILE_P,    "file_pointer",
+                                             SIZE_T,    "file_fpos",
+                                             CHAR_P,    "buffer",
+                                             SIZE_T,    "buffer_pos",
+                                             SIZE_T,    "buffer_len",
                                              cblc_field_p_type_node, "default_record",
                                              SIZE_T,    "record_area_min",
                                              SIZE_T,    "record_area_max",

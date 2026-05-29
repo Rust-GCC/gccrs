@@ -117,6 +117,10 @@ typedef struct cblc_file_t
     size_t               symbol_table_index;  // of the related cbl_field_t structure
     char                *filename;         // The name of the file to be opened
     FILE                *file_pointer;     // The FILE *pointer
+    size_t               file_fpos;        // Calculated file position
+    char                *buffer;           // read buffer
+    size_t               buffer_pos;       // next character from the buffer
+    size_t               buffer_len;       // number of characters in the buffer
     cblc_field_t        *default_record;   // The record_area
     size_t               record_area_min;  // The size of the smallest 01 record in the FD
     size_t               record_area_max;  // The size of the largest  01 record in the FD
@@ -147,5 +151,7 @@ typedef struct cblc_file_t
     cbl_encoding_t       encoding;         // We assume size int
     int                  alphabet;         // Actually cbl_encoding_t
     } cblc_file_t;
+
+#define FILE_BUFFER_SIZE (64 * 1024)
 
 #endif

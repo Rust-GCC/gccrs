@@ -365,6 +365,11 @@ __gg__file_init(
     file->symbol_table_index  = symbol_table_index;
     file->filename            = NULL ;
     file->file_pointer        = NULL ;
+    file->file_fpos           = 0;
+    file->buffer              = static_cast<char *>(malloc(FILE_BUFFER_SIZE));
+    massert(file->buffer);
+    file->buffer_pos          = 0;
+    file->buffer_len          = 0;
     file->keys                = keys;
     file->key_numbers         = key_numbers;
     file->uniques             = uniques;
@@ -2688,20 +2693,20 @@ sequential_file_write(cblc_file_t    *file,
     {
     // If file-sequential, then trailing spaces are removed:
     while(bytes_to_write > 0
-           && charmap->getch(location, bytes_to_write-stride) 
+           && charmap->getch(location, bytes_to_write-stride)
                                   == charmap->mapped_character(ascii_space) )
       {
       bytes_to_write -= stride;
       }
     }
 
-  if( after && file->org == file_line_sequential_e 
+  if( after && file->org == file_line_sequential_e
                            && ch == charmap->mapped_character(ascii_newline) )
     {
     // In general, we terminate every line with a newline.  Because this
     // line is supposed to start with a newline, we decrement the line
     // counter by one if we had already sent one.
-    if( lcount && 
+    if( lcount &&
             (   file->recent_char == charmap->mapped_character(ascii_newline)
                 || file->recent_char == charmap->mapped_character(ascii_ff)) )
       {
@@ -3097,12 +3102,11 @@ done:
   }
 
 static void
-line_sequential_file_read(  cblc_file_t *file)
+line_sequential_file_read_sbc(cblc_file_t *file, char space)
   {
   file->errnum = 0;
   file->io_status = FsErrno;
   size_t bytes_read = 0;
-  bool hit_eof;
 
   // According to IBM:
 
@@ -3121,101 +3125,346 @@ line_sequential_file_read(  cblc_file_t *file)
   // characters to the right as undefined.  I'm going with IBM,
   // it makes more sense to me.
 
-  charmap_t *charmap = __gg__get_charmap(file->encoding);
-  int stride = charmap->stride();
+  long fpos = static_cast<long>(file->file_fpos);
 
-  // We first stage the data into the record area.
-  cbl_char_t ch;
-
-  long fpos = ftell(file->file_pointer);
-  if( handle_ferror(file, __func__, "ftell() error") )
-    {
-    fpos = -1;
-    goto done;
-    }
-
-  hit_eof = false;
+  const char *pstart = NULL;
+  const char *pnewline = NULL;
   while( bytes_read < file->record_area_max )
     {
-    ch = 0;
-    fread(&ch, 1, stride, file->file_pointer);
-    file->errnum = ferror(file->file_pointer);
-    if( ch == file->delimiter )
+    // We need more characters from file->buffer:
+    if( file->buffer_pos >= file->buffer_len )
       {
-      break;
-      }
-    if( feof(file->file_pointer) )
-      {
-      hit_eof = true;
-      clearerr(file->file_pointer);
-      break;
-      }
-    if( handle_ferror(file, __func__, "fgetc() error") )
-      {
-      fpos = -1;
-      goto done;
-      }
-    memcpy(file->default_record->data+bytes_read, &ch, stride);
-    bytes_read += stride;
-    }
-  // Space fill shorty records
-    charmap->memset(file->default_record->data+bytes_read,
-                    charmap->mapped_character(ascii_space),
-                    file->record_area_max  - bytes_read);
-
-  if( hit_eof && !bytes_read)
-    {
-    // We got an end-of-file without characters
-    file->io_status = FsEofSeq; // "10"
-    file->prior_read_location = -1;
-    }
-  else if( hit_eof )
-    {
-    // We got an end-of-file whilst reading characters
-    // Override the FsEofSeq.  We'll get an actual EOF if the programmer
-    // does another READ:
-    file->io_status = FsErrno;
-    }
-  else if (bytes_read < file->record_area_max )
-    {
-    // Just discard an early record delimiter
-    file->io_status = FsRecordLength;   // "04"
-    }
-  else // We filled the whole record area.  Look ahead one character
-    {
-#ifdef POSSIBLY_IBM
-    // In this code, unread characters before the newline
-    // are read next time.  See page 133 of the IBM Language Reference
-    // Manual: "If the first unread character is the record delimiter, it
-    // is discarded. Otherwise, the first unread character becomes the first
-    // character read by the next READ statement."
-#else
-    // In this code, extra characters before the newline
-    // are read next time are discarded.  GnuCOBOL works this way, and
-    // the Michael Coughlin "Beginning COBOL" examples require this mode.
-    // The ISO/IEC 2014 standard is silent on the question of LINE
-    // SEQUENTIAL; it describes only SEQUENTIAL.
-    for(;;)
-      {
-      ch = 0;
-      fread(&ch, 1, stride, file->file_pointer);
+      // file->buffer has been exhausted; it's time to read another buffer
+      file->buffer_len = fread( file->buffer,
+                                1,
+                                FILE_BUFFER_SIZE,
+                                file->file_pointer);
+      file->buffer_pos = 0;
       file->errnum = ferror(file->file_pointer);
-      // We can't use handle_ferror() directly, because an EOF is
-      // a legitimate way to end the last line.
-      if( ch == file->delimiter || feof(file->file_pointer) )
+      if( feof(file->file_pointer) )
         {
         clearerr(file->file_pointer);
-        break;
         }
-      if(     ferror(file->file_pointer)
-          &&  handle_ferror(file, __func__, "fgetc() error") )
+      else if( handle_ferror(file, __func__, "fread() error") )
         {
         fpos = -1;
         goto done;
         }
+      }
+    // Much hinges on where the next newline is to be found:
+    pstart = file->buffer+file->buffer_pos;
+    pnewline = reinterpret_cast<const char *>(memchr(pstart,
+                      static_cast<char>(file->delimiter),
+                      file->buffer_len - file->buffer_pos));
+    if( file->buffer_pos >= file->buffer_len )
+      {
+      // There no more characters in the file->buffer, but we are trying to
+      // fill the record_area.
+      if( !bytes_read)
+        {
+        // We hit an EOF without reading any characters.  This is an ordinary
+        // end-of-file condition.
+        file->io_status = FsEofSeq; // "10"
+        file->prior_read_location = -1;
+        goto done;
+        }
+      // We have a partially-filled record_area that was ended by running out
+      // of characters.  That is, the final line of the file was not terminated
+      // by a line delimiter.  We break out of the loop here, and that
+      // gets handled below.
+      break;
+      }
+
+    size_t len;
+    if( !pnewline )
+      {
+      // There is no newline in the input buffer.  Copy over what we need, or
+      // what we have, whichever is smaller:
+      len = std::min(file->record_area_max - bytes_read,
+                     file->buffer_len - file->buffer_pos);
+      memcpy( file->default_record->data+bytes_read,
+              pstart,
+              len);
+      pstart           += len;
+      bytes_read       += len;
+      file->file_fpos  += len;
+      file->buffer_pos += len;
+      continue;
+      }
+    else
+      {
+      // There is a newline in the input buffer.  Copy over what we need, or
+      // the characters preceding the newline, whichever is smaller:
+      len = std::min(file->record_area_max - bytes_read,
+                     static_cast<size_t>(pnewline - pstart));
+      memcpy( file->default_record->data+bytes_read,
+              pstart,
+              len);
+      bytes_read       += len;
+      pstart           += len;
+      file->file_fpos  += len;
+      file->buffer_pos += len;
+      break;
+      }
+    }
+
+  // Space fill shorty records when bytes_read didn't fill the record area.
+  memset(file->default_record->data+bytes_read,
+         space,
+         file->record_area_max - bytes_read);
+
+  if( bytes_read < file->record_area_max )
+    {
+    // This means we encountered a line-delimiter before the record_are was
+    // completely filled.
+    file->io_status = FsRecordLength;   // "04"
+    }
+
+  // In this implementation, excess characters after length of the record_area
+  // are discarded.  This matches what the Coughlan examples expect, and how
+  // GnuCOBOL works.
+
+  // The ISO/IEC 2014 standard is silent on the question of LINE
+  // SEQUENTIAL; it describes only SEQUENTIAL.
+
+  // Strict IBM may work differently, as noted above.
+
+  // So we discard characters up to and including the next line-delimiter,
+  // or until we hit an EOF.
+
+  if( pnewline )
+    {
+    size_t discarded = (pnewline - pstart) + 1;
+    if( discarded > 1)
+      {
+      // Set the status to indicate characters were discarded.
       file->io_status = FsRecordLength;   // "04"
       }
-#endif
+    file->file_fpos  += discarded;
+    file->buffer_pos += discarded;
+    }
+  else
+    {
+    // There is no newline in the current buffer.  Throw out the remainder of
+    // the buffer.
+    size_t discarded = file->buffer_len - file->buffer_pos;
+    if( discarded > 1)
+      {
+      // Set the status to indicate characters were discarded.
+      file->io_status = FsRecordLength;   // "04"
+      }
+    file->file_fpos  += discarded;
+    file->buffer_pos += discarded;
+    for(;;)
+      {
+      // Just keep reading until we hit a newline or the EOF
+      if( file->buffer_pos >= file->buffer_len )
+        {
+        // file->buffer has been exhausted; it's time to read another buffer
+        file->buffer_len = fread( file->buffer,
+                                  1,
+                                  FILE_BUFFER_SIZE,
+                                  file->file_pointer);
+        file->buffer_pos = 0;
+        file->errnum = ferror(file->file_pointer);
+        if( feof(file->file_pointer) )
+          {
+          clearerr(file->file_pointer);
+          break;
+          }
+        if( handle_ferror(file, __func__, "fread() error") )
+          {
+          fpos = -1;
+          goto done;
+          }
+        }
+      pstart = file->buffer+file->buffer_pos;
+      pnewline = reinterpret_cast<const char *>(memchr(pstart,
+                        static_cast<char>(file->delimiter),
+                        file->buffer_len - file->buffer_pos));
+      if( pnewline )
+        {
+        discarded = (pnewline - pstart) +1 ;
+        file->file_fpos  += discarded;
+        file->buffer_pos += discarded;
+        break;
+        }
+      else
+        {
+        discarded = file->buffer_len - file->buffer_pos ;
+        file->file_fpos  += discarded;
+        file->buffer_pos += discarded;
+        }
+      }
+    }
+
+  if( file->record_length )
+    {
+    __gg__int128_to_field(file->record_length,
+                                    bytes_read,
+                                    0,
+                                    truncation_e,
+                                    NULL);
+    }
+done:
+  file->prior_op = file_op_read;
+  establish_status(file, fpos);
+  }
+
+static void
+line_sequential_file_read(  cblc_file_t *file)
+  {
+  charmap_t *charmap = __gg__get_charmap(file->encoding);
+  int stride = charmap->stride();
+  if( stride == 1 )
+    {
+    line_sequential_file_read_sbc(
+                  file,
+                  static_cast<char>(charmap->mapped_character(ascii_space)));
+    return;
+    }
+
+  file->errnum = 0;
+  file->io_status = FsErrno;
+  size_t bytes_read = 0;
+
+  // According to IBM:
+
+  // Characters are read one at a time until:
+  // - A delimiter is reached.  It is discarded, and the
+  //   record area is filled with spaces.
+  // - The entire record area is filled.  If the next unread
+  //   character is the delimiter, it is discarded.  Otherwise,
+  //   it becomes the first character read by the next READ
+  // - EOF is encountered; the remainder of the record area
+  //   is filled with spaces.
+
+  // This contradicts the ISO/IEC 2014 standard, which says
+  // in section 14.9.29.3, paragraph 14) on page 554 that excess
+  // characters are discarded, and too-short records have
+  // characters to the right as undefined.  I'm going with IBM,
+  // it makes more sense to me.
+
+  // We first stage the data into the record area.
+  cbl_char_t ch;
+
+  long fpos = static_cast<long>(file->file_fpos);
+
+  while( bytes_read < file->record_area_max )
+    {
+    // We need more characters from file->buffer:
+    if( file->buffer_pos >= file->buffer_len )
+      {
+      // file->buffer has been exhausted; it's time to read another buffer
+      file->buffer_len = fread( file->buffer,
+                                1,
+                                FILE_BUFFER_SIZE,
+                                file->file_pointer);
+      file->buffer_pos = 0;
+      file->errnum = ferror(file->file_pointer);
+      if( feof(file->file_pointer) )
+        {
+        clearerr(file->file_pointer);
+        }
+      else if( handle_ferror(file, __func__, "fread() error") )
+        {
+        fpos = -1;
+        goto done;
+        }
+      }
+    if( file->buffer_pos >= file->buffer_len )
+      {
+      // There no more characters in the file->buffer, but we are trying to
+      // fill the record_area
+      if( !bytes_read)
+        {
+        // We hit an EOF without reading any characters.  This is an ordinary
+        // end-of-file condition.
+        file->io_status = FsEofSeq; // "10"
+        file->prior_read_location = -1;
+        goto done;
+        }
+      // We have a partially-filled record_area that was ended by running out
+      // of characters.  That is, the final line of the file was not terminated
+      // by a line delimiter.  We break out of the loop here, and that
+      // gets handled below.
+      break;
+      }
+
+    // There are still characters in the file->buffer, and we are still looking
+    // to fill the record_area, and we are still looking for a end-of-line.
+    ch = 0;
+    memcpy(&ch, file->buffer+file->buffer_pos, stride);
+    file->buffer_pos += stride;
+    file->file_fpos += stride;
+    if( ch == file->delimiter )
+      {
+      break;
+      }
+    memcpy(file->default_record->data+bytes_read, &ch, stride);
+    bytes_read += stride;
+    }
+
+  // Space fill shorty records when bytes_read didn't fill the record area.
+  charmap->memset(file->default_record->data+bytes_read,
+                  charmap->mapped_character(ascii_space),
+                  file->record_area_max - bytes_read);
+
+  if( bytes_read < file->record_area_max )
+    {
+    // This means we encountered a line-delimiter before the record_are was
+    // completely filled.
+    file->io_status = FsRecordLength;   // "04"
+    }
+  else // We filled the whole record area.
+    {
+    // In this implementation, any excess characters after the record_area is
+    // filled until the line-delimiter are discarded.  This matches what the
+    // Coughlan examples expect, and how GnuCOBOL works.
+
+    // The ISO/IEC 2014 standard is silent on the question of LINE
+    // SEQUENTIAL; it describes only SEQUENTIAL.
+
+    // Strict IBM may work differently, as noted above.
+
+    // So we discard characters up to and including the next line-delimiter,
+    // or until we hit an EOF.
+    for(;;)
+      {
+      if( file->buffer_pos >= file->buffer_len )
+        {
+        // file->buffer has been exhausted; it's time to read another buffer
+        file->buffer_len = fread( file->buffer,
+                                  1,
+                                  FILE_BUFFER_SIZE,
+                                  file->file_pointer);
+        file->buffer_pos = 0;
+        file->errnum = ferror(file->file_pointer);
+        if( feof(file->file_pointer) )
+          {
+          clearerr(file->file_pointer);
+          break;
+          }
+        if( handle_ferror(file, __func__, "fread() error") )
+          {
+          fpos = -1;
+          goto done;
+          }
+        }
+      ch = 0;
+      memcpy(&ch, file->buffer+file->buffer_pos, stride);
+      file->buffer_pos += stride;
+      file->file_fpos += stride;
+      // We can't use handle_ferror() directly, because an EOF is
+      // a legitimate way to end the last line.
+      if( ch == file->delimiter )
+        {
+        clearerr(file->file_pointer);
+        break;
+        }
+      // Set the status to indicate characters were discarded.
+      file->io_status = FsRecordLength;   // "04"
+      }
     }
 
   if( file->record_length )

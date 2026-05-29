@@ -131,6 +131,80 @@ enum cbl_division_t {
   procedure_div_e,
 };
 
+/*
+ * The term "dspc" stands for Division, Section, Paragraph, or Clause because
+ * there is no official overarching term for them. We don't use the cbl prefix
+ * because this enum is used only by the parser.
+ *
+ * These represent all possible standard titles in a COBOL program.  Those that
+ * are allowed in a prototype are in a set, which the parser tests for
+ * validity.
+ */
+enum dspc_t {
+  dspc_identification_div_e,
+  dspc_options_para_e, 
+  dspc_arithmetic_clause_e, 
+  dspc_default_rounded_clause_e, 
+  dspc_entry_convention_clause_e, 
+  dspc_float_binary_clause_e, 
+  dspc_float_decimal_clause_e, 
+  dspc_initialize_clause_e, 
+  dspc_intermediate_rounding_clause_e, 
+
+  dspc_environment_div_e,
+  dspc_configuration_section_e, 
+  dspc_source_computer_paragraph_e, 
+  dspc_object_computer_paragraph_e,
+  
+  dspc_i_o_section_e, 
+
+  // special names clauses
+  dspc_special_names_paragraph_e, 
+  dspc_alphabet_name_clause_e, 
+  dspc_class_clause_e,
+  dspc_crt_status_clause_e,
+  dspc_currency_sign_clause_e, 
+  dspc_cursor_clause_e,
+  dspc_decimal_point_is_comma_clause_e, 
+  dspc_device_clause_e, 
+  dspc_dynamic_length_structure_clause_e,
+  dspc_feature_clause_e, 
+  dspc_locale_clause_e, 
+  dspc_order_table_clause_e,
+  dspc_switch_clause_e, 
+  dspc_symbolic_characters_clause_e, 
+
+  dspc_repository_paragraph_e, 
+  dspc_input_output_section_e,
+  dspc_file_control_paragraph_e, 
+  dspc_i_o_control_paragraph_e, 
+
+  dspc_data_div_e, // sorted by alphabetically by section and clause
+  dspc_linkage_section_e, 
+
+  dspc_file_section_e, 
+  dspc_local_storage_section_e, 
+  dspc_report_section_e, 
+  dspc_screen_section_e, 
+  dspc_working_storage_section_e, 
+
+  // not used: parser checks only the Data Division Section.
+  dspc_77_level_description_entry_e, 
+  dspc_constant_entry_e, 
+  dspc_file_description_entry_e, 
+  dspc_record_description_entry_e, 
+  dspc_report_group_description_entry_e, 
+  dspc_screen_description_entry_e, 
+  dspc_sort_merge_file_description_entry_e, 
+  dspc_type_declaration_entry_e, 
+
+  dspc_procedure_div_e,
+  dspc_procedure_header_e,
+  dspc_procedure_body_e,
+};
+
+bool cbl_prototype_ok( const cbl_loc_t& loc, size_t program, dspc_t clause );
+
 void mode_syntax_only( cbl_division_t division );
 bool mode_syntax_only();
 
@@ -465,7 +539,7 @@ public:
     REAL_VALUE_TYPE r;
     real_from_string (&r, input.c_str());
     r = real_value_truncate (TYPE_MODE (float128_type_node), r);
-    etc.value = build_real (float128_type_node, r);
+    *this = build_real (float128_type_node, r);
     return *this;
   }
   cbl_field_data_t& valify( const char *input ) {
@@ -1097,7 +1171,7 @@ struct field_key_t {
   }
 };
 
-bool valid_move( const cbl_field_t *tgt, const cbl_field_t *src );
+bool valid_move( const cbl_refer_t& tgt, const cbl_refer_t& src );
 
 #define record_area_name_stem "_ra_"
 
@@ -1295,6 +1369,25 @@ struct cbl_num_result_t {
   }
 };
 
+struct parameter_t {
+  bool optional;
+  cbl_ffi_crv_t crv; // by content not applicable
+  cbl_field_t field;
+  parameter_t( const cbl_field_t& field, // cppcheck-suppress noExplicitConstructor
+               cbl_ffi_crv_t crv = by_default_e,
+               bool optional = false )
+    : optional(optional)
+    , crv(crv)
+    , field(field)
+  {}
+};
+
+/*
+ * Map symbol table index of procedure/function to formal parameters.
+ * Index may refer to definition or prototype. 
+ */
+typedef std::map<size_t, std::vector<parameter_t>> parameter_map;
+
 void parser_symbol_add( struct cbl_field_t *new_var );
 void parser_local_add( struct cbl_field_t *new_var );
 
@@ -1311,6 +1404,8 @@ struct cbl_ffi_arg_t {
                  cbl_refer_t* refer,
                  cbl_ffi_arg_attr_t attr = none_of_e );
   cbl_field_t *field() { return refer.field; }
+  const cbl_field_t *field() const { return refer.field; }
+  bool matches( const cbl_ffi_arg_t& that ) const;
   void validate() const {
     if( refer.is_reference() ) {
       yyerror("%s is a reference", refer.field->name);
@@ -1415,7 +1510,7 @@ struct cbl_label_t {
   enum cbl_label_type_t type;
   size_t parent;
   int line, used, lain;
-  bool common, initial, recursive;
+  bool common, initial, recursive, prototype;
   size_t initial_section, returning;
   cbl_name_t name;
   const char *os_name, *mangled_name;
@@ -1686,15 +1781,17 @@ struct function_descr_t {
   cbl_field_type_t ret_type;  // When the ret_type is FldInvalid, that
                               // indicates the function takes on the type of
                               // the first argument.
-  static function_descr_t init( const char name[] ) {
+  bool prototype;
+  static function_descr_t init( const char name[], bool prototype = false ) {
     function_descr_t descr = {};
     if( -1 == snprintf( descr.name, sizeof(descr.name), "%s", name ) ) {
       dbgmsg("name truncated to '%s' (max " HOST_SIZE_T_PRINT_UNSIGNED
              " characters)", name, (fmt_size_t)sizeof(descr.name));
     }
+    descr.prototype = prototype;
     return descr;  // truncation also reported elsewhere ?
   }
-  static function_descr_t init( int isym );
+  static function_descr_t init( int isym, bool prototype = false );
 
   static char
   parameter_type( const cbl_field_t& field ) {
@@ -1728,10 +1825,12 @@ struct function_descr_t {
   }
 
   bool operator<( const function_descr_t& that ) const {
-    return strcasecmp(name, that.name) < 0;
+    return strcasecmp(name, that.name) < 0
+        || prototype != that.prototype;
   }
   bool operator==( const function_descr_t& that ) const {
-    return strcasecmp(name, that.name) == 0;
+    return strcasecmp(name, that.name) == 0
+        && prototype == that.prototype;
   }
   bool operator==( const char *name ) const {
     return strcasecmp(this->name, name) == 0;
@@ -1889,7 +1988,7 @@ struct cbl_alphabet_t {
 
   void also( const YYLTYPE& loc, size_t ch );
   bool assign( const YYLTYPE& loc, unsigned char ch, unsigned char value );
-  void reencode();
+  bool reencode( const cbl_loc_t& loc );
 
   static const char *
   encoding_str( cbl_encoding_t encoding ) {
@@ -2068,6 +2167,12 @@ struct cbl_file_t {
       : encoding(encoding), alphabet(alphabet)
     {}
   } codeset;
+  struct linage_t {
+    cbl_refer_t *nline, *footing, *top, *bottom;
+    linage_t()
+      : nline(nullptr), footing(nullptr), top(nullptr), bottom(nullptr)
+    {}           
+  } linage;
   int line;
   cbl_name_t name;
   cbl_sortreturn_t *addresses; // Used during parser_return_start, et al.
@@ -2310,6 +2415,13 @@ symbol_find( size_t program, std::list<const char *> names );
 symbol_elem_t * symbol_find_of( size_t program,
                                 std::list<const char *> names, size_t group );
 
+std::pair<std::vector<cbl_ffi_arg_t>, bool>
+prototype_args( const cbl_label_t *L, size_t esym );
+
+std::pair<std::vector<cbl_ffi_arg_t>, bool>
+prototype_args( const char *name,
+                size_t esym = symbols_end() - symbols_begin());
+
 struct cbl_field_t *symbol_find_odo( const cbl_field_t * field );
 size_t dimensions( const cbl_field_t *field );
 
@@ -2407,6 +2519,9 @@ cbl_file_of( const symbol_elem_t *e ) {
   assert(e && e->type == SymFile);
   return &e->elem.file;
 }
+
+// does the element part of a prototype ?
+bool is_prototypical( size_t isym ); 
 
 static inline bool
 is_program( const symbol_elem_t& e ) {
@@ -2653,6 +2768,15 @@ is_numeric( const cbl_field_t *field ) {
   return is_zero || is_numeric(field->type);
 }
 
+static inline bool
+is_numeric( const cbl_refer_t& r ) {
+  assert( r.field );
+  if( r.field->type == FldNumericDisplay && r.is_refmod_reference() ) {
+    return false;
+  }
+  return is_numeric(r.field);
+}
+
 /*
  * Public functions
  */
@@ -2761,11 +2885,14 @@ struct symbol_elem_t * symbol_typedef( size_t program, std::list<const char *> n
 struct symbol_elem_t * symbol_typedef( size_t program, const char name[] );
 struct symbol_elem_t * symbol_field( size_t program,
                                      size_t parent, const char name[] );
-struct cbl_label_t *   symbol_program( size_t parent, const char name[] );
 struct cbl_label_t *   symbol_label( size_t program, cbl_label_type_t type,
                                      size_t section, const char name[],
                                      const char os_name[] = NULL );
-struct symbol_elem_t * symbol_function( size_t parent, const char name[] );
+struct symbol_elem_t * symbol_function( size_t parent,
+                                        const char name[], bool prototype = false );
+struct cbl_label_t *   symbol_function_any( size_t parent, const char name[] );
+struct cbl_label_t *   symbol_program( size_t parent,
+                                       const char name[], bool prototype = false );
 
 struct symbol_elem_t * symbol_literalA( size_t program, const char name[] );
 

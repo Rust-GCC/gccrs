@@ -78,7 +78,6 @@ static std::map<size_t, YYLTYPE> field_locs;
 
 void
 symbol_field_location( size_t ifield, const YYLTYPE& loc ) {
-  gcc_assert(field_at(ifield));
   field_locs[ifield] = loc;
 }
 YYLTYPE
@@ -187,7 +186,6 @@ symbol_table_extend() {
   symbols.elems = static_cast<struct symbol_elem_t*>(mem);
 
   symbols.save(); // add new mapping to list of mappings
-
   return symbols;
 }
 
@@ -209,6 +207,17 @@ symbol_at_impl( size_t index, bool internal = true ) {
 struct symbol_elem_t *
 symbol_at( size_t index ) {
   return symbol_at_impl(index, false);
+}
+
+bool // does the element part of a prototype ?
+is_prototypical( size_t isym ) {
+  auto e = symbol_at(isym);
+  if( e->type != SymLabel ) {
+    if( e->program == 0 ) return false;
+    e = symbol_at( e->program );
+  }
+  const cbl_label_t *L = cbl_label_of(e);
+  return L->prototype;
 }
 
 static char decimal_point = '.';
@@ -498,6 +507,8 @@ symbol_elem_cmp( const void *K, const void *E )
 
       switch(key.type) {
       case LblProgram: // There are no forward program labels
+      case LblFunction:
+        if( key.prototype != elem.prototype ) return 1;
         if( key.parent > 0 && key.parent != elem.parent ) return 1;
         assert(key.parent == elem.parent || key.parent == 0);
         break;
@@ -624,11 +635,12 @@ symbol_label_id( const cbl_label_t *label ) {
 }
 
 struct cbl_label_t *
-symbol_program( size_t parent, const char name[] )
+symbol_program( size_t parent, const char name[], bool prototype )
 {
   cbl_label_t label = {};
   label.type = LblProgram;
   label.parent = parent;
+  label.prototype = prototype;
   assert(strlen(name) < sizeof label.name);
   strcpy(label.name, name);
 
@@ -646,14 +658,27 @@ extern int yydebug;
 static size_t
 symbols_dump( size_t first, bool header );
 
-struct symbol_elem_t *
-symbol_function( size_t parent, const char name[] )
+enum protoreq_t {
+  proto_required_e,
+  proto_allowed_e,
+  proto_disallowed_e, 
+};
+
+static struct symbol_elem_t *
+symbol_function_impl( size_t parent, const char name[], protoreq_t protoreq )
 {
   auto p = std::find_if( symbols_begin(), symbols_end(),
-                         [parent, name]( const auto& elem ) {
+                         [parent, name, protoreq]( const auto& elem ) {
                            if( elem.type == SymLabel ) {
                              auto L = cbl_label_of(&elem);
                              if( L->type == LblFunction ) {
+                               if( protoreq == proto_required_e && !L->prototype ) {
+                                 return false;
+                               }
+                               if( protoreq == proto_disallowed_e && L->prototype ) {
+                                 return false;
+                               }
+                               // allowed or meets above requirement
                                return 0 == strcasecmp(L->name, name);
                              }
                            }
@@ -663,20 +688,18 @@ symbol_function( size_t parent, const char name[] )
   if( yydebug && p == symbols_end() ) symbols_dump( symbols.first_program, true);
 
   return p == symbols_end()? NULL : p;
+}
 
-  cbl_label_t label = {};
-  label.type = LblFunction;
-  label.parent = parent;
-  assert(strlen(name) < sizeof label.name);
-  strcpy(label.name, name);
+struct symbol_elem_t *
+symbol_function( size_t parent, const char name[], bool prototype ) {
+  protoreq_t need = prototype? proto_required_e : proto_disallowed_e;
+  return symbol_function_impl(parent, name, need);
+}
 
-  struct symbol_elem_t key(SymLabel, 0), *e;
-  key.elem.label = label;
-
-  e = static_cast<struct symbol_elem_t *>(lfind( &key, symbols.elems,
-                                                 &symbols.nelem, sizeof(key),
-                                                 symbol_elem_cmp ) );
-  return e;
+struct cbl_label_t *
+symbol_function_any( size_t parent, const char name[] ) {
+  auto e = symbol_function_impl(parent, name, proto_allowed_e);
+  return e? cbl_label_of(e) : nullptr;
 }
 
 struct symbol_elem_t *
@@ -1128,6 +1151,16 @@ symbols_dump( size_t first, bool header ) {
           free(base);
         }
       }
+      if( LblFunction == cbl_label_of(e)->type ) {
+        const auto& L = *cbl_label_of(e);
+        auto p = prototype_args(L.name);
+        unsigned long narg = p.second? p.first.size() : 0;
+        char *base = s;
+        s = xasprintf("%s (%s%zu args)",  base, 
+                      L.prototype? "prototype, " : "", 
+                      narg);
+        free(base);
+      }
       break;
     case SymSpecial:
       s = xasprintf("%4" GCC_PRISZ "u %-18s id=%2d, %s", (fmt_size_t)e->program,
@@ -1514,10 +1547,12 @@ cbl_field_t::attr_str( const std::vector<cbl_field_attr_t>& attrs ) const
 {
   const char *sep = "";
   char *out = NULL;
-
+  uint64_t mask = cbl_field_attr_t(-1);
+  
   for( auto attr_l : attrs ) {
     char *part = out;
-    if( has_attr(attr_l) ) {
+    if( has_attr(attr_l) && (attr_l & mask) == attr_l) {
+      mask &= ~attr_l; // prevent re-using e.g. intermediate_e for strong_e
       int erc = asprintf(&out, "%s%s%s",
                          part? part : "", sep, cbl_field_attr_str(attr_l));
       if( -1 == erc ) return part;
@@ -1536,7 +1571,7 @@ field_str( const cbl_field_t *field ) {
   char name[2*sizeof(cbl_name_t)] = "";
   if( true ) {
     if( field->occurs.ntimes() == 0 ) {
-      snprintf(name, sizeof(name), "%s", field->name);
+      snprintf(name, sizeof(name), "%-20s", field->name);
     } else {
       std::vector <char> updown(1 + field->occurs.nkey, '\0');
       for( size_t i=0; i < field->occurs.nkey; i++ ) {
@@ -1564,7 +1599,7 @@ field_str( const cbl_field_t *field ) {
   char parredef =
     parent_of(field) != NULL && parent_of(field)->level == field->level? 'r' : 'P';
   if( 'r' == parredef && field->level == 0 ) parredef = 'p';
-  if( field->has_attr(typedef_e) ) parredef = 'T';
+  if( field->has_attr(typedef_e) ) parredef = field->parent? '^' : 'T';
 
   const char *init = field->data.original();
   if( init ) {
@@ -1618,6 +1653,7 @@ field_str( const cbl_field_t *field ) {
   if( field->attr & local_e )   storage_type = 'w'; // because 'l' hard to read
 
   static const std::vector<cbl_field_attr_t> attrs {
+    strongdef_e, typedef_e, 
     figconst_1_e, figconst_2_e, figconst_4_e, rjust_e, ljust_e,
     zeros_e, signable_e, constant_e, function_e, quoted_e, filler_e,
     intermediate_e, embiggened_e, all_alpha_e, all_x_e,
@@ -1625,7 +1661,7 @@ field_str( const cbl_field_t *field ) {
     /* global_e, external_e, */ blank_zero_e, /* linkage_e, local_e, */ leading_e,
     separate_e, envar_e, encoded_e, bool_encoded_e, hex_encoded_e,
     depends_on_e, /* initialized_e, */ has_value_e, ieeedec_e, big_endian_e,
-    same_as_e, record_key_e, typedef_e, strongdef_e,
+    same_as_e, record_key_e, 
   };
 
   pend += snprintf(pend, string + sizeof(string) - pend,
@@ -1808,6 +1844,7 @@ symbols_update( size_t first, bool parsed_ok ) {
     if( field->type == FldForward ) continue;
     if( field->type == FldSwitch ) continue;
     if( is_literal(field) && field->var_decl_node != NULL ) continue;
+    if( field->has_attr(typedef_e) ) continue;
 
     switch(field->level) {
     case 0:
@@ -1860,6 +1897,7 @@ symbols_update( size_t first, bool parsed_ok ) {
       const cbl_field_t * redefined = symbol_redefines(field);
       size_invalid = ! is_record_area(redefined);
     }
+
     if( !field->is_valid() || size_invalid )
     {
       size_t isym = p - symbols_begin();
@@ -2034,6 +2072,17 @@ symbols_update( size_t first, bool parsed_ok ) {
         continue;
       }
     if( parsed_ok ) parser_file_add(&file);
+    } else {
+      if( p->type == SymField ) {
+        auto f = cbl_field_of(p);
+        if( ! mode_syntax_only() ) {
+          if( ! f->var_decl_node ) {
+            dbgmsg("%s:%d: #%lu %s has no var_decl_node",
+                   __func__, __LINE__,
+                   (unsigned long)symbol_index(p), f->name);
+          }
+        }
+      }
     }
   }
 
@@ -2590,29 +2639,29 @@ symbol_registers_add() {
 
   static const cbl_field_t ibm_registers[] = {
 #if COBOL_JSON_READY    
-    { FldNumericBin5,  glosig,    {4,4,5,0, zero    }, 1, "JSON-CODE", cp1252 },
-    { FldNumericBin5,  glosig,    {4,4,5,0, zero    }, 1, "JSON-STATUS", cp1252 },
+    { FldNumericBin5,  glosig,    {4,4,5,0, zero    }, 0, "JSON-CODE", cp1252 },
+    { FldNumericBin5,  glosig,    {4,4,5,0, zero    }, 0, "JSON-STATUS", cp1252 },
 #endif
     { FldNumericBin5,  glosig,    {2,2,4,0, zero    }, 0, "RETURN-CODE", cp1252 },
-    { FldAlphanumeric, glosig,    {160,160,0,0, spc }, 1, "SORT-CONTROL", cp1252 },
-    { FldNumericBin5,  glosig,    {4,4,5,0, zero    }, 1, "SORT-CORE-SIZE", cp1252 },
-    { FldNumericBin5,  glosig,    {4,4,5,0, zero    }, 1, "SORT-FILE-SIZE", cp1252 },
-    { FldAlphanumeric, global_e,  {8,8,0,0, spc     }, 1, "SORT-MESSAGE", cp1252 },
-    { FldNumericBin5,  glosig,    {4,4,5,0, zero    }, 1, "SORT-MODE-SIZE", cp1252 },
-    { FldNumericBin5,  glosig,    {4,4,5,0, zero    }, 1, "SORT-RETURN", cp1252 },
+    { FldAlphanumeric, glosig,    {160,160,0,0, spc }, 0, "SORT-CONTROL", cp1252 },
+    { FldNumericBin5,  glosig,    {4,4,5,0, zero    }, 0, "SORT-CORE-SIZE", cp1252 },
+    { FldNumericBin5,  glosig,    {4,4,5,0, zero    }, 0, "SORT-FILE-SIZE", cp1252 },
+    { FldAlphanumeric, global_e,  {8,8,0,0, spc     }, 0, "SORT-MESSAGE", cp1252 },
+    { FldNumericBin5,  glosig,    {4,4,5,0, zero    }, 0, "SORT-MODE-SIZE", cp1252 },
+    { FldNumericBin5,  glosig,    {4,4,5,0, zero    }, 0, "SORT-RETURN", cp1252 },
     // 01  TALLY GLOBAL PICTURE 9(5) USAGE BINARY VALUE ZERO.
-    { FldNumericBin5,  global_e,  {4,4,5,0, zero    }, 1, "_TALLY", cp1252 },
-    { FldAlphanumeric, global_e,  {16,16,0,0, spc   }, 1, "WHEN-COMPILED", cp1252 },
+    { FldNumericBin5,  global_e,  {4,4,5,0, zero    }, 0, "_TALLY", cp1252 },
+    { FldAlphanumeric, global_e,  {16,16,0,0, spc   }, 0, "WHEN-COMPILED", cp1252 },
     // xml registers
-    { FldNumericBin5,  glosig,    {4,4,9,0, zero    }, 1, "XML-CODE", cp1252 },
-    { FldAlphanumeric, global_e,  {30,30,0,0, spc   }, 1, "XML-EVENT", cp1252 },
-    { FldNumericBin5,  glosig,    {4,4,9,0, zero    }, 1, "XML-INFORMATION", cp1252 },
-    { FldAlphanumeric, based_any, {1,1,0,0, nullptr }, 1, "XML-NAMESPACE", cp1252 },
-    { FldAlphanumeric, based_any, {1,1,0,0, nullptr }, 1, "XML-NNAMESPACE", cp1252 },
-    { FldAlphanumeric, based_any, {1,1,0,0, nullptr }, 1, "XML-NAMESPACE-PREFIX", cp1252 },
-    { FldAlphanumeric, based_any, {1,1,0,0, nullptr }, 1, "XML-NNAMESPACE-PREFIX", cp1252 },
-    { FldAlphanumeric, based_any, {1,1,0,0, nullptr }, 1, "XML-TEXT", cp1252 },
-    { FldAlphanumeric, based_any, {1,1,0,0, nullptr }, 1, "XML-NTEXT", cp1252 },
+    { FldNumericBin5,  glosig,    {4,4,9,0, zero    }, 0, "XML-CODE", cp1252 },
+    { FldAlphanumeric, global_e,  {30,30,0,0, spc   }, 0, "XML-EVENT", cp1252 },
+    { FldNumericBin5,  glosig,    {4,4,9,0, zero    }, 0, "XML-INFORMATION", cp1252 },
+    { FldAlphanumeric, based_any, {1,1,0,0, nullptr }, 0, "XML-NAMESPACE", cp1252 },
+    { FldAlphanumeric, based_any, {1,1,0,0, nullptr }, 0, "XML-NNAMESPACE", cp1252 },
+    { FldAlphanumeric, based_any, {1,1,0,0, nullptr }, 0, "XML-NAMESPACE-PREFIX", cp1252 },
+    { FldAlphanumeric, based_any, {1,1,0,0, nullptr }, 0, "XML-NNAMESPACE-PREFIX", cp1252 },
+    { FldAlphanumeric, based_any, {1,1,0,0, nullptr }, 0, "XML-TEXT", cp1252 },
+    { FldAlphanumeric, based_any, {1,1,0,0, nullptr }, 0, "XML-NTEXT", cp1252 },
   };
 
   size_t program = symbols.nelem - 1;
@@ -2768,6 +2817,7 @@ symbol_field_add( size_t program, struct cbl_field_t *field )
     static const size_t inherit = global_e | external_e | local_e | linkage_e;
     field->attr = inherit & parent->attr;
     field->attr |= numeric_group_attrs(parent);
+    field->attr |= (typedef_e & parent->attr);
     field->usage = parent->usage;
     if( field->level == 66 || field->level == 88 ) {
       field->codeset = parent->codeset;
@@ -3105,6 +3155,7 @@ symbol_field_same_as( cbl_field_t *tgt, const cbl_field_t *src ) {
   }
   auto last_elem = symbol_at(field_index(tgt));
   tgt->same_as(*src, src->is_typedef());
+  size_t inherit_attr = ((linkage_e | local_e) & tgt->attr);
 
   size_t isrc = field_index(src);
 
@@ -3125,6 +3176,7 @@ symbol_field_same_as( cbl_field_t *tgt, const cbl_field_t *src ) {
   }
 
   cbl_field_t dup = {};
+  dup.attr |= inherit_attr;
   dup.parent = field_index(tgt);
   dup.line = tgt->line;
   dup.codeset = tgt->codeset;
@@ -3385,8 +3437,8 @@ cbl_alphabet_t::cbl_alphabet_t(const YYLTYPE& loc, size_t locale, cbl_name_t nam
  * we don't attempt to avoid re-encoding.  "Conversion" of ASCII to ASCII is at
  * most 256 calls to iconv(3).
  */
-void
-cbl_alphabet_t::reencode()  {
+bool
+cbl_alphabet_t::reencode( const cbl_loc_t& loc )  {
 
   const unsigned char * const pend = collation_sequence + sizeof(collation_sequence);
   std::vector<char> tgt(256, (char)0xFF);
@@ -3407,6 +3459,11 @@ cbl_alphabet_t::reencode()  {
   const char *tocode =
               __gg__encoding_iconv_name(current_encoding(display_encoding_e));
   iconv_t cd = iconv_open(tocode, fromcode);
+  if( cd == iconv_t(-1) ) {
+    error_msg(loc, "cannot convert from %qs to %qs: %s",
+              fromcode, tocode, xstrerror(errno));
+    return false;
+  }
 
   const charmap_t *charmap_disp =
               __gg__get_charmap(current_encoding(display_encoding_e));
@@ -3467,6 +3524,7 @@ cbl_alphabet_t::reencode()  {
   }
 
   std::copy(tgt.begin(), tgt.end(), collation_sequence);
+  return true;
 }
 
 bool
@@ -4519,7 +4577,9 @@ symbol_program_add( size_t program, cbl_label_t *input )
                       if( elem.type == SymLabel ) {
                         if( program == elem.program ) {
                           auto L = cbl_label_of(&elem);
-                          if( 0 == strcasecmp(name, L->name) ) return true;
+                          if( ! L->prototype ) { // prototypes don't count
+                            return 0 == strcasecmp(name, L->name);
+                          }
                         }
                       }
                       return false;

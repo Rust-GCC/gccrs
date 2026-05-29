@@ -1,3 +1,34 @@
+       >>PUSH SOURCE FORMAT
+       >>SOURCE FIXED
+      * Copyright (c) 2021-2026 Symas Corporation
+      *
+      * Redistribution and use in source and binary forms, with or without
+      * modification, are permitted provided that the following conditions are
+      * met:
+      *
+      * * Redistributions of source code must retain the above copyright
+      *   notice, this list of conditions and the following disclaimer.
+      * * Redistributions in binary form must reproduce the above
+      *   copyright notice, this list of conditions and the following disclaimer
+      *   in the documentation and/or other materials provided with the
+      *   distribution.
+      * * Neither the name of the Symas Corporation nor the names of its
+      *   contributors may be used to endorse or promote products derived from
+      *   this software without specific prior written permission.
+      *
+      * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+      * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+      * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+      * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+      * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+      * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+      * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+      * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+      * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+      * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+      * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+        Copy "posix-localtime.cpy".
       *  int  stat(const char *  pathname,  struct stat *  statbuf)
         Identification Division.
         Function-ID. posix-localtime.
@@ -9,19 +40,19 @@
           COPY tm.
         Linkage Section.
           77 Return-Value Usage Binary-Long.
-          01 Lk-timep Usage Binary-Long.
+          01 Lk-timep Usage Pointer.
           01 Lk-tm.
           COPY tm.
-          
+
         Procedure Division using
-             By Reference Lk-timep,
-             By Reference Lk-tm, 
+             By Value Lk-timep,
+             By Reference Lk-tm,
              Returning Return-Value.
 
           Move Function Length(Lk-tm-posix) to bufsize.
           Call "posix_localtime" using
-             By Reference Lk-timep,
-             By Value     bufsize, 
+             By Value Lk-timep,
+             By Value bufsize,
              Returning tm-pointer.
 
           If tm-pointer = NULL
@@ -30,6 +61,7 @@
              move 0 to Return-Value
              set address of lk-tm-posix to tm-pointer
              move lk-tm-posix to lk-tm.
-             
+
           Goback.
         End Function posix-localtime.
+        >> POP SOURCE FORMAT

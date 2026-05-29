@@ -1534,6 +1534,9 @@ __gg__iconverter( cbl_encoding_t from,
   static size_t retsize = 1;
   static char *retval = static_cast<char *>(malloc(retsize));
 
+  if( outlength_p ) *outlength_p = 0;
+  if( iconv_retval_p ) *iconv_retval_p = 0;
+
   size_t needed = 4*(length+1);
   if( retsize < needed )
     {
@@ -1555,8 +1558,10 @@ __gg__iconverter( cbl_encoding_t from,
     }
   else
     {
-    // We attempt to minimize overhead by using a map to call
-    // iconv_open but once for each from/to pairing.
+    // We minimize overhead by using a map to call iconv_open but once for
+    // each from/to pairing.  Do not remove this map.  It was once removed, and
+    // the execution time for Coughlan Listion17-3 went from half a second to
+    // one-and-a-half seconds.
 
     iconv_t cd;
 
@@ -1568,10 +1573,17 @@ __gg__iconverter( cbl_encoding_t from,
     if( it == pairings.end() )
       {
       // This pairing is new to us.
+      static cbl_iconv_t cbl_iconv;
+
       assert(to   > custom_encoding_e);
       assert(from > custom_encoding_e);
-      cd = iconv_open(__gg__encoding_iconv_name(to),
-                      __gg__encoding_iconv_name(from));
+
+      cd = cbl_iconv.open(to, from);
+
+      if( ! cbl_iconv.valid(cd) )
+        {
+        return retval;
+        }
       pairings[pairing] = cd;
       }
     else
@@ -1726,8 +1738,11 @@ __gg__miconverter( cbl_encoding_t from,
   return retval;
   }
 
+typedef std::unordered_map<cbl_encoding_t, charmap_t *, cbl_encoding_t_hash>
+cbl_encoding_charmap_map;
+
 static
-std::unordered_map<cbl_encoding_t, charmap_t *>map_of_encodings;
+cbl_encoding_charmap_map map_of_encodings;
 
 charmap_t *
 __gg__get_charmap(cbl_encoding_t encoding)
@@ -1749,8 +1764,7 @@ __gg__get_charmap(cbl_encoding_t encoding)
     }
 
   charmap_t *retval;
-  std::unordered_map<cbl_encoding_t, charmap_t *>::const_iterator it
-                          = map_of_encodings.find(encoding);
+  cbl_encoding_charmap_map::const_iterator it = map_of_encodings.find(encoding);
   if( it != map_of_encodings.end() )
     {
     retval = it->second;

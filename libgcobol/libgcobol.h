@@ -131,17 +131,6 @@ void __gg__abort(const char *msg);
 
 int __gg__fc_char(const cblc_field_t *field);
 
-extern "C"
-void __gg__convert_encoding(char *psz,
-                            cbl_encoding_t from,
-                            cbl_encoding_t to );
-
-extern "C"
-void __gg__convert_encoding_length(char *pch,
-                                   size_t length,
-                                   cbl_encoding_t from,
-                                   cbl_encoding_t to );
-
 const unsigned short *__gg__current_collation();
 
 // Warning:  field_from_string uses charmap_t, so you can't safely feed it

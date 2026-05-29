@@ -5203,17 +5203,6 @@ init_var_both(cblc_field_t  *var,
   //fprintf(stderr, "__gg__initialize_variable %s setting initialize_e\n", var->name);
   var->attr |= initialized_e;
 
-  // We need to make sure that the program_states vector has at least one
-  // entry in it.  This happens when we are the very first PROGRAM-ID called
-  // in this module.
-
-  // When there is no DATA DIVISION, program_states will be empty the first time
-  // we arrive here.
-  if( program_states.empty() )
-    {
-    initialize_program_state();
-    }
-
   const char *local_initial = as_initial(var->initial);
 
   // Next order of business: When the variable was allocated in
@@ -6455,11 +6444,15 @@ __gg__move( cblc_field_t        *fdest,
             int fc_char = __gg__fc_char(fsource);
             if( fc_char != NOT_A_CHARACTER )
               {
+              size_t nbytes;
               memset(display_string, fc_char, dest_size);
-              __gg__convert_encoding_length(display_string,
-                                            dest_size,
-                                            fsource->encoding,
-                                            fdest->encoding );
+              const char *converted = __gg__iconverter(fsource->encoding,
+                                                       fdest->encoding,
+                                                       display_string,
+                                                       display_string_length,
+                                                       &nbytes);
+              size_t len = std::min(dest_size, nbytes);
+              memcpy(display_string, converted, len);
               }
             else
               {
@@ -6470,7 +6463,7 @@ __gg__move( cblc_field_t        *fdest,
                               reinterpret_cast<unsigned char *>
                                                  (fsource->data+source_offset),
                               source_size,
-                              source_flags && REFER_T_ADDRESS_OF);
+                              source_flags & REFER_T_ADDRESS_OF);
               display_string_length = strlen(display_string);
               }
             __gg__string_to_alpha_edited( reinterpret_cast<char *>
@@ -7463,12 +7456,14 @@ void
 display_both(cblc_field_t  *field,
              unsigned char *qual_data,
              size_t         qual_size,
-             int            flags,
              int            file_descriptor,
-             int            advance )
+             int            flags )
   {
   static size_t display_string_size = MINIMUM_ALLOCATION_SIZE;
   static char *display_string = static_cast<char *>(malloc(display_string_size));
+
+  bool advance = !!(flags & 1);
+  bool address_of = !!(flags & REFER_T_ADDRESS_OF);
 
   if( field->type == FldLiteralA && field->encoding == custom_encoding_e )
     {
@@ -7482,7 +7477,7 @@ display_both(cblc_field_t  *field,
                                             field,
                                             qual_data,
                                             qual_size,
-                                            !!(flags & REFER_T_ADDRESS_OF) );
+                                            address_of );
 
   cbl_encoding_t encout = __gg__console_encoding;
 
@@ -7548,28 +7543,26 @@ __gg__display(    cblc_field_t *field,
                   size_t offset,
                   size_t size,
                   int file_descriptor,
-                  int advance )
+                  int flags )
   {
   display_both( field,
                 field->data + offset,
                 size,
-                0,
                 file_descriptor,
-                advance);
+                flags);
   }
 
 extern "C"
 void
 __gg__display_clean(cblc_field_t *field,
                     int file_descriptor,
-                    int advance )
+                    int flags )
   {
   display_both( field,
                 field->data,
                 field->capacity,
-                0,
                 file_descriptor,
-                advance);
+                flags);
   }
 
 #pragma GCC diagnostic push
@@ -7847,6 +7840,11 @@ we_are_done:
                                       NULL);
       break;
       }
+
+    case FldLiteralN:
+      // It is a quirk of the parser that for ACCEPT OMITTED, it passes us
+      // a FldLiteralN.
+      break;
 
     default:
       {
@@ -8648,48 +8646,6 @@ __gg__classify( classify_t type,
     }
 
   return retval;
-  }
-
-extern "C"
-void
-__gg__convert_encoding( char *psz,
-                        cbl_encoding_t from,
-                        cbl_encoding_t to )
-  {
-  // This does an in-place conversion of psz
-  charmap_t *charmap_from = __gg__get_charmap(from);
-  const charmap_t *charmap = __gg__get_charmap(to);
-  if( from > custom_encoding_e )
-    {
-    size_t charsout;
-    const char *converted  = __gg__iconverter(from,
-                                              to,
-                                              psz,
-                                              charmap_from->strlen(psz),
-                                              &charsout);
-    // Copy over the converted string, including the final NUL
-    memcpy(psz, converted, charsout + charmap->stride());
-    }
-  }
-
-extern "C"
-void
-__gg__convert_encoding_length(char *pch,
-                              size_t length,
-                              cbl_encoding_t from,
-                              cbl_encoding_t to )
-  {
-  // This does an in-place conversion of length characters at pch
-  if( from > custom_encoding_e )
-    {
-    size_t charsout;
-    const char *converted  = __gg__iconverter(from,
-                                              to,
-                                              pch,
-                                              length,
-                                              &charsout);
-    memcpy(pch, converted, length);
-    }
   }
 
 static
@@ -9813,10 +9769,9 @@ default_exception_handler( ec_type_t ec )
     }
     /*
      * An enabled, unhandled fatal EC normally results in termination. But
-     * EC-I-O is a special case:
-     *   OPEN and CLOSE never result in termination.
-     *   A SELECT statement with FILE STATUS indicates the user will handle the error.
-     *   Only I/O statements are considered.
+     * EC-I-O is a special case becase a SELECT statement with FILE STATUS
+     * indicates the user will handle the error.  
+     * 
      * Declaratives are handled first.  We are in the default handler here,
      * which is reached only if no Declarative was matched.
      */
@@ -9829,9 +9784,7 @@ default_exception_handler( ec_type_t ec )
       case file_op_none:   // not an I/O statement
         break;
       case file_op_open:
-      case file_op_close:  // No OPEN/CLOSE results in a fatal error.
-        disposition = ec_category_none_e;
-        break;
+      case file_op_close:
       default:
         if( file.user_status ) {
           // Not fatal if FILE STATUS is part of the file's SELECT statement.
@@ -9884,6 +9837,40 @@ default_exception_handler( ec_type_t ec )
 
     ec_status.clear();
   }
+}
+
+static const ec_descr_t *
+ec_type_descr( ec_type_t type ) {
+  auto p = std::find( __gg__exception_table, __gg__exception_table_end, type );
+  return p == __gg__exception_table_end ? nullptr : &*p;
+}
+
+static ec_disposition_t
+ec_type_disposition( ec_type_t type ) {
+  auto p = ec_type_descr(type);
+  return p?  p->disposition : ec_category_none_e;
+}
+
+static bool
+ec_is_fatal( ec_type_t type ) {
+  ec_disposition_t disp = ec_type_disposition(type);
+  
+  switch(disp) {
+  case ec_category_nonfatal_e:
+  case uc_category_nonfatal_e:
+    return false;
+  case ec_category_none_e:  // should be unreachable
+  case ec_category_fatal_e:
+  case ec_category_implementor_e:
+    break;
+  case uc_category_none_e:
+  case uc_category_fatal_e:
+  case uc_category_implementor_e:
+    if( MATCH_DECLARATIVE )
+      warnx("%s: %s is unimplemented", __func__, local_ec_type_str(type));
+    break;    
+  }
+  return true;
 }
 
 /*
@@ -9965,16 +9952,20 @@ __gg__check_fatal_exception()
     case file_op_none:
       assert(false);
       abort();
-    case file_op_open: // implicit, no Declarative, no FILE STATUS, but ok
+    case file_op_open:
     case file_op_close:
-      ec_status.clear();
-      return;
     case file_op_start:
     case file_op_read:
     case file_op_write:
     case file_op_rewrite:
     case file_op_delete:
     case file_op_remove:
+      if( !ec_status.is_enabled() && !ec_is_fatal(ec) ) {
+        if( MATCH_DECLARATIVE )
+          warnx("%s: %s is not enabled and nonfatal", __func__, local_ec_type_str(ec));
+        ec_status.clear();
+        return;
+      }
       break;
     }
   } else {
@@ -11819,31 +11810,19 @@ __gg__set_env_value(const cblc_field_t *value,
                     size_t              length )
   {
   // implements DISPLAY UPON ENVIRONMENT-VALUE
-  size_t value_length = length;
-
-  static size_t  val_length = 0;
-  static char   *val        = nullptr;
-  if( val_length < length+1 )
-    {
-    val_length = length+1;
-    val = static_cast<char *>(realloc(val, val_length));
-    }
-  massert(val);
-
-  memcpy(val, value->data+offset, value_length);
-  val[value_length] = '\0';
-
-  __gg__convert_encoding( val,
-                          value->encoding,
-                          __gg__console_encoding);
-
-
-  // Get rid of leading and trailing space characters
-  char *trimmed_val = brute_force_trim(val, __gg__console_encoding);
-
-  // And now, anticlimactically, set the variable:
   if( sv_envname )
     {
+    size_t nbytes;
+    char *val = __gg__iconverter(value->encoding,
+                                __gg__console_encoding,
+                                reinterpret_cast<char *>(value->data) + offset,
+                                length,
+                                &nbytes);
+
+    // Get rid of leading and trailing space characters
+    char *trimmed_val = brute_force_trim(val, __gg__console_encoding);
+
+    // And now, anticlimactically, set the variable:
     setenv(sv_envname, trimmed_val, 1);
     }
   }

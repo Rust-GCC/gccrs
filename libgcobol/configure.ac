@@ -26,6 +26,8 @@ AC_INIT(package-unused, version-unused,,libgcobol)
 AC_CONFIG_SRCDIR(Makefile.am)
 AC_CONFIG_HEADER(config.h)
 
+AC_CONFIG_MACRO_DIRS([m4])
+
 # Do not delete or change the following two lines.  For why, see
 # http://gcc.gnu.org/ml/libstdc++/2003-07/msg00451.html
 AC_CANONICAL_SYSTEM
@@ -95,9 +97,12 @@ AC_LANG([C++])
 m4_rename([_AC_ARG_VAR_PRECIOUS],[real_PRECIOUS])
 m4_define([_AC_ARG_VAR_PRECIOUS],[])
 AC_PROG_CXX
+AC_PROG_COBOL
+
 m4_rename_force([real_PRECIOUS],[_AC_ARG_VAR_PRECIOUS])
 
 AC_SUBST(CXXFLAGS)
+AC_SUBST(COBC)
 
 GCC_WITH_TOOLEXECLIBDIR
 

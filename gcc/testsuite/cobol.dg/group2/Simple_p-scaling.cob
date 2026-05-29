@@ -18,16 +18,16 @@
          05 vary04    picture ppp99   COMP-5         value 0.00078 .
          05 vary05    picture ppp99   PACKED-DECIMAL value 0.00078 .
         procedure           division.
-        display vars01 
-        display vars02 
-        display vars03 
-        display vars04 
-        display vars05 
-        display vary01 
-        display vary02 
-        display vary03 
-        display vary04 
-        display vary05 
+        display vars01
+        display vars02
+        display vars03
+        display vars04
+        display vars05
+        display vary01
+        display vary02
+        display vary03
+        display vary04
+        display vary05
         goback.
         end program         prog.
 

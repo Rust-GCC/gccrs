@@ -81,6 +81,10 @@ fexec-national-charset=
 Cobol Joined Var(cobol_national_charset) RejectNegative
 Set the default execution character set for NATIONAL data items.
 
+ftrunc
+Cobol Var(cobol_trunc_bin, 1) Init(1)
+Truncate BINARY PIC 9(n) to n digits.
+
 ;; warnings
 
 ; Par78CdfDefinedW
