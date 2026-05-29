@@ -2673,6 +2673,16 @@ build_function_decl (gfc_symbol * sym, bool global)
   if (attr.ext_attr & (1 << EXT_ATTR_NOINLINE))
     DECL_UNINLINABLE (fndecl) = 1;
 
+  /* Mark inline functions.  Fortran has no 'inline' keyword, so both INLINE
+     and ALWAYS_INLINE set DECL_DECLARED_INLINE_P explicitly.  ALWAYS_INLINE
+     additionally disregards the inliner's size limits.  Setting only that
+     would make the middle-end warn that the always-inline function "might
+     not be inlinable".  */
+  if (attr.ext_attr & ((1 << EXT_ATTR_INLINE) | (1 << EXT_ATTR_ALWAYS_INLINE)))
+    DECL_DECLARED_INLINE_P (fndecl) = 1;
+  if (attr.ext_attr & (1 << EXT_ATTR_ALWAYS_INLINE))
+    DECL_DISREGARD_INLINE_LIMITS (fndecl) = 1;
+
   /* Mark noreturn functions.  */
   if (attr.ext_attr & (1 << EXT_ATTR_NORETURN))
     TREE_THIS_VOLATILE (fndecl) = 1;

@@ -12844,11 +12844,13 @@ const ext_attr_t ext_attr_list[] = {
   { "cdecl",        EXT_ATTR_CDECL,        "cdecl"     },
   { "stdcall",      EXT_ATTR_STDCALL,      "stdcall"   },
   { "fastcall",     EXT_ATTR_FASTCALL,     "fastcall"  },
-  { "no_arg_check", EXT_ATTR_NO_ARG_CHECK, NULL        },
+  { "no_arg_check", EXT_ATTR_NO_ARG_CHECK, NULL	       },
   { "deprecated",   EXT_ATTR_DEPRECATED,   NULL	       },
   { "noinline",     EXT_ATTR_NOINLINE,     NULL	       },
   { "noreturn",     EXT_ATTR_NORETURN,     NULL	       },
   { "weak",	    EXT_ATTR_WEAK,	   NULL	       },
+  { "inline",       EXT_ATTR_INLINE,       NULL	       },
+  { "always_inline",EXT_ATTR_ALWAYS_INLINE,NULL	       },
   { NULL,           EXT_ATTR_LAST,         NULL        }
 };
 
@@ -12924,6 +12926,27 @@ gfc_match_gcc_attributes (void)
 	return MATCH_ERROR;
 
       sym->attr.ext_attr |= attr.ext_attr;
+
+      /* INLINE and ALWAYS_INLINE are incompatible with NOINLINE.  In the
+	 middle-end the DECL_UNINLINABLE flag set by NOINLINE always wins, so
+	 the inline request would be silently ignored.  Warn and drop it.  */
+      if (sym->attr.ext_attr & (1 << EXT_ATTR_NOINLINE))
+	{
+	  if (sym->attr.ext_attr & (1 << EXT_ATTR_ALWAYS_INLINE))
+	    {
+	      gfc_warning (0, "Attribute %<ALWAYS_INLINE%> at %C is "
+			   "incompatible with %<NOINLINE%> for %qs and will "
+			   "be ignored", sym->name);
+	      sym->attr.ext_attr &= ~(1 << EXT_ATTR_ALWAYS_INLINE);
+	    }
+	  if (sym->attr.ext_attr & (1 << EXT_ATTR_INLINE))
+	    {
+	      gfc_warning (0, "Attribute %<INLINE%> at %C is incompatible "
+			   "with %<NOINLINE%> for %qs and will be ignored",
+			   sym->name);
+	      sym->attr.ext_attr &= ~(1 << EXT_ATTR_INLINE);
+	    }
+	}
 
       if (gfc_match_eos () == MATCH_YES)
 	break;

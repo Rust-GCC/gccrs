@@ -877,7 +877,13 @@ enum gfc_omp_at_type
   OMP_AT_EXECUTION
 };
 
-/* Structure and list of supported extension attributes.  */
+/* Structure and list of supported extension attributes.
+
+   The bitmask formed from these values (symbol_attribute.ext_attr) is
+   written to and read from module files, see mio_symbol_attribute.  New
+   attributes must therefore be appended at the end (before EXT_ATTR_LAST)
+   so that the existing bit positions, and thus module compatibility, are
+   preserved.  */
 typedef enum
 {
   EXT_ATTR_DLLIMPORT = 0,
@@ -890,6 +896,8 @@ typedef enum
   EXT_ATTR_NOINLINE,
   EXT_ATTR_NORETURN,
   EXT_ATTR_WEAK,
+  EXT_ATTR_INLINE,
+  EXT_ATTR_ALWAYS_INLINE,
   EXT_ATTR_LAST, EXT_ATTR_NUM = EXT_ATTR_LAST
 }
 ext_attr_id_t;

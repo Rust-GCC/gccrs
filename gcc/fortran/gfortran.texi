@@ -3404,6 +3404,14 @@ requires an explicit interface.
 deprecated procedure, variable or parameter; the warning can be suppressed
 with @option{-Wno-deprecated-declarations}.
 @item @code{NOINLINE} -- prevent inlining given function.
+@item @code{INLINE} -- hint that the given function should be inlined, while
+still respecting the inlining size limits, corresponding to the C @code{inline}
+keyword.
+@item @code{ALWAYS_INLINE} -- force inlining of a given function, ignoring the
+inlining size limits.  This is the counterpart of @code{NOINLINE} and
+corresponds to the C @code{always_inline} attribute.  @code{INLINE} and
+@code{ALWAYS_INLINE} are incompatible with @code{NOINLINE}.  Specifying both
+for the same procedure makes the inline attribute ignored with a warning.
 @item @code{NORETURN} -- add a hint that a given function cannot return.
 @item @code{WEAK} -- emit the declaration of an external symbol as a weak
 symbol rather than a global.  This is primarily useful in defining library
