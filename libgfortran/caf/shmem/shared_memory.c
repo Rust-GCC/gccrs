@@ -234,8 +234,8 @@ shared_memory_init (shared_memory_act *mem, size_t size)
     }
 #elif defined(WIN32)
   mem->glbl.base
-    = (LPTSTR) MapViewOfFileExNuma (mem->shm_fd, FILE_MAP_ALL_ACCESS, 0, 0,
-				    size, base_ptr, NUMA_NO_PREFERRED_NODE);
+    = (LPTSTR) MapViewOfFileEx (mem->shm_fd, FILE_MAP_ALL_ACCESS, 0, 0,
+				size, base_ptr);
   if (mem->glbl.base == NULL)
     {
       perror ("MapViewOfFile failed");
