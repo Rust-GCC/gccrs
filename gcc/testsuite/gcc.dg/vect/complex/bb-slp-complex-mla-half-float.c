@@ -11,4 +11,4 @@
 /* { dg-final { scan-tree-dump-times "add new stmt:\[^\n\r]*COMPLEX_FMA" 1 "slp1" { xfail *-*-* } } } */
 
 /* { dg-final { scan-tree-dump "Found COMPLEX_FMA_CONJ" "slp1" { xfail *-*-* } } } */
-/* { dg-final { scan-tree-dump "Found COMPLEX_FMA" "slp1" { xfail arm*-*-* } } */
+/* { dg-final { scan-tree-dump "Found COMPLEX_FMA" "slp1" { xfail arm*-*-* } } } */
