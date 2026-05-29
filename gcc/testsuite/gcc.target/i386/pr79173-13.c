@@ -1,6 +1,6 @@
 /* PR middle-end/79173 */
 /* { dg-do compile { target { ! ia32 } } } */
-/* { dg-options "-O2 -fno-stack-protector -masm=att -mapxf" } */
+/* { dg-options "-O2 -fno-stack-protector -masm=att -mapxf -mtune-ctrl=enable_ndd_mem" } */
 /* { dg-final { scan-assembler-times "addq\t%r\[^\n\r]*, \\\(%rdi\\\)" 1 { target lp64 } } } */
 /* { dg-final { scan-assembler-times "adcq\t%r\[^\n\r]*, 8\\\(%rdi\\\)" 1 { target lp64 } } } */
 /* { dg-final { scan-assembler-times "adcq\t%r\[^\n\r]*, 16\\\(%rdi\\\)" 1 { target lp64 } } } */

@@ -1,6 +1,6 @@
 /* PR target/113711 */
 /* { dg-do assemble { target { apxf && { ! ia32 } } } } */
-/* { dg-options "-mapxf -O2" } */
+/* { dg-options "-mapxf -mtune-ctrl=enable_ndd_mem -O2" } */
 
 #include <stdint.h>
 

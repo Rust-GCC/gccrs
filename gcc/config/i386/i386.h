@@ -513,6 +513,8 @@ extern unsigned char ix86_tune_features[X86_TUNE_LAST];
 	ix86_tune_features[X86_TUNE_SSE_REDUCTION_PREFER_PSHUF]
 #define TARGET_DISABLE_SETZUCC \
 	ix86_tune_features[X86_TUNE_DISABLE_SETZUCC]
+#define TARGET_ENABLE_NDD_MEM \
+	ix86_tune_features[X86_TUNE_ENABLE_NDD_MEM]
 
 /* Feature tests against the various architecture variations.  */
 enum ix86_arch_indices {

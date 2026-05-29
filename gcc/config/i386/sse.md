@@ -2520,14 +2520,14 @@
    (set_attr "mode" "QI")])
 
 (define_insn_and_split "*kortest_cmp<SWI1248_AVX512BWDQ_64:mode>_mov<SWI248:mode>cc"
-   [(set (match_operand:SWI248 0 "register_operand" "=r,r,r,r,r,r,r,r")
+   [(set (match_operand:SWI248 0 "register_operand" "=r,r,r,r,r,r,r,r,r,r")
       (if_then_else:SWI248
 	(match_operator 1 "bt_comparison_operator"
 	  [(match_operand:SWI1248_AVX512BWDQ_64 4 "register_operand"
-	  "?k,<SWI1248_AVX512BWDQ_64:r>,?k, <SWI1248_AVX512BWDQ_64:r>,?k,r,?k, r")
+	  "?k,<SWI1248_AVX512BWDQ_64:r>,?k, <SWI1248_AVX512BWDQ_64:r>,?k,?k,r,r,?k, r")
 	   (const_int -1)])
-	(match_operand:SWI248 2 "nonimmediate_operand" "rm,rm, 0, 0,rm,rm, r, r")
-	(match_operand:SWI248 3 "nonimmediate_operand" " 0, 0,rm,rm, r, r,rm,rm")))
+	(match_operand:SWI248 2 "nonimmediate_operand" "rm,rm, 0, 0,r,m,r,m, r, r")
+	(match_operand:SWI248 3 "nonimmediate_operand" " 0, 0,rm,rm,r,r,r,r,m,m")))
     (clobber (reg:CC FLAGS_REG))]
   "TARGET_AVX512BW && TARGET_CMOVE
    && !(MEM_P (operands[2]) && MEM_P (operands[3]))"
@@ -2556,7 +2556,11 @@
   operands[5] = gen_rtx_fmt_ee (GET_CODE (operands[1]), VOIDmode,
 				flag_reg,const0_rtx);
 }
-  [(set_attr "isa" "*,*,*,*,apx_ndd,apx_ndd,apx_ndd,apx_ndd")
+  [(set_attr "isa" "*,*,*,*,apx_ndd,apx_ndd,apx_ndd,apx_ndd,apx_ndd,apx_ndd")
+   (set (attr "preferred_for_speed")
+     (cond [(eq_attr "alternative" "5,7,8,9")
+	      (symbol_ref "TARGET_ENABLE_NDD_MEM")]
+	   (symbol_ref "true")))
    (set_attr "type" "icmov")
    (set_attr "mode" "<SWI248:MODE>")])
 

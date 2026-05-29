@@ -1,5 +1,5 @@
 /* { dg-do compile { target { int128 && { ! ia32 } } } } */
-/* { dg-options "-mapxf -O2" } */
+/* { dg-options "-mapxf -mtune-ctrl=enable_ndd_mem -O2" } */
 
 #include "pr91681-1.c"
 // *addti3_doubleword

@@ -1,5 +1,5 @@
 /* { dg-do assemble { target { apxf && { ! ia32 } } } } */
-/* { dg-options "-mapxf -O3 -w" } */
+/* { dg-options "-mapxf -mtune-ctrl=enable_ndd_mem -O3 -w" } */
 
 long a;
 int b, d, e;

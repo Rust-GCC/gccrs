@@ -1,7 +1,7 @@
 /* PR target/113711 */
 /* { dg-do assemble { target { apxf && { ! ia32 } } } } */
 /* { dg-require-effective-target maybe_x32 } */
-/* { dg-options "-mapxf -O2 -mx32" } */
+/* { dg-options "-mapxf -mtune-ctrl=enable_ndd_mem -O2 -mx32" } */
 
 typedef long long int64_t;
 

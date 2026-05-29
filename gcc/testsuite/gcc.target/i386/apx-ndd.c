@@ -1,5 +1,5 @@
 /* { dg-do compile { target { ! ia32 } } } */
-/* { dg-options "-mapx-features=egpr,push2pop2,ndd,ppx -march=x86-64 -O2" } */
+/* { dg-options "-mapx-features=egpr,push2pop2,ndd,ppx -march=x86-64 -O2 -mtune-ctrl=enable_ndd_mem" } */
 /* { dg-final { scan-assembler-not "movl"} } */
 
 #include <stdint.h>

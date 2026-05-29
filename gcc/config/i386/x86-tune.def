@@ -405,6 +405,9 @@ DEF_TUNE (X86_TUNE_EXPAND_ABS, "expand_abs",
 DEF_TUNE (X86_TUNE_DISABLE_SETZUCC, "disable_setzucc",
 	  m_DIAMONDRAPIDS | m_NOVALAKE)
 
+/* X86_TUNE_ENABLE_NDD_MEM: Enable memory form of NDD instructions.  */
+DEF_TUNE (X86_TUNE_ENABLE_NDD_MEM, "enable_ndd_mem", m_NONE)
+
 /*****************************************************************************/
 /* 387 instruction selection tuning                                          */
 /*****************************************************************************/

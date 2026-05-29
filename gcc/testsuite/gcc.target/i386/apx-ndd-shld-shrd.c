@@ -1,5 +1,5 @@
 /* { dg-do compile { target { ! ia32 } } } */
-/* { dg-options "-O2 -Wno-shift-count-overflow -m64 -mapxf" } */
+/* { dg-options "-O2 -Wno-shift-count-overflow -m64 -mapxf -mtune-ctrl=enable_ndd_mem" } */
 /* { dg-final { scan-assembler-times {(?n)shld[ql]?[\t ]*\$2} 4 } } */
 /* { dg-final { scan-assembler-times {(?n)shrd[ql]?[\t ]*\$2} 4 } } */
 

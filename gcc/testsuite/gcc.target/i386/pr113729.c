@@ -1,5 +1,5 @@
 /* { dg-do compile { target { ! ia32 } } } */
-/* { dg-options "-mapx-features=ndd -march=x86-64 -O2" } */
+/* { dg-options "-mapx-features=ndd -march=x86-64 -O2 -mtune-ctrl=enable_ndd_mem" } */
 /* { dg-final { scan-assembler-not "movz"} } */
 
 #include <stdint.h>

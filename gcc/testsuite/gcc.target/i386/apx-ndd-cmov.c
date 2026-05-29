@@ -1,5 +1,5 @@
 /* { dg-do compile { target { ! ia32 } } } */
-/* { dg-options "-O2 -m64 -mapxf" } */
+/* { dg-options "-O2 -m64 -mapxf -mtune-ctrl=enable_ndd_mem" } */
 /* { dg-final { scan-assembler-times "cmov(l\.)?e\[^\n\r]*, %eax" 1 } } */
 /* { dg-final { scan-assembler-times "cmov(l\.)?ge\[^\n\r]*, %eax" 1 } } */
 
