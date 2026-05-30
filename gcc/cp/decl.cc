@@ -9887,9 +9887,7 @@ cp_finish_decl (tree decl, tree init, bool init_const_expr_p,
 	 require a guard variable, and since the mangled name of the
 	 guard variable will depend on the mangled name of this
 	 variable.  */
-      if (DECL_FUNCTION_SCOPE_P (decl)
-	  && TREE_STATIC (decl)
-	  && !DECL_ARTIFICIAL (decl))
+      if (DECL_FUNCTION_SCOPE_P (decl) && TREE_STATIC (decl))
 	{
 	  /* The variable holding an anonymous union will have had its
 	     discriminator set in finish_anon_union, after which it's

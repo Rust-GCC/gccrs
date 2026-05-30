@@ -16063,6 +16063,7 @@ cp_build_range_for_decls (location_t loc, tree range_expr, tree *end_p,
 		  DECL_INTERFACE_KNOWN (range_temp) = 1;
 		  DECL_DECLARED_CONSTEXPR_P (range_temp) = 1;
 		  TREE_READONLY (range_temp) = 1;
+		  DECL_IGNORED_P (range_temp) = 1;
 		}
 	    }
 	  else
@@ -16092,6 +16093,7 @@ cp_build_range_for_decls (location_t loc, tree range_expr, tree *end_p,
       TREE_STATIC (begin) = 1;
       DECL_DECLARED_CONSTEXPR_P (begin) = 1;
       TREE_READONLY (begin) = 1;
+      DECL_IGNORED_P (begin) = 1;
     }
   pushdecl (begin);
   cp_finish_decl (begin, begin_expr,

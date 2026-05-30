@@ -33704,6 +33704,7 @@ finish_expansion_stmt (tree expansion_stmt, tree args,
 	      TREE_STATIC (iter) = 1;
 	      DECL_DECLARED_CONSTEXPR_P (iter) = 1;
 	      TREE_READONLY (iter) = 1;
+	      DECL_IGNORED_P (iter) = 1;
 	    }
 	  pushdecl (iter);
 	  cp_finish_decl (iter, iter_init, /*is_constant_init*/false,
