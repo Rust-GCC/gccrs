@@ -13,7 +13,7 @@ extern "C" {
 
 /*
 ** test1:
-**	mov	x0, 31 
+**	mov	w0, 31 
 **	ret
 */
 uint64_t
@@ -49,7 +49,7 @@ test3 ()
 
 /*
 ** test4:
-**	mov	x0, 31 
+**	mov	w0, 31 
 **	ret
 */
 uint64_t
@@ -64,7 +64,7 @@ test4 ()
 
 /*
 ** test5:
-**	mov	x0, 15 
+**	mov	w0, 15 
 **	ret
 */
 uint64_t
@@ -100,7 +100,7 @@ test7 ()
 
 /*
 ** test8:
-**	mov	x0, 15 
+**	mov	w0, 15 
 **	ret
 */
 uint64_t
@@ -113,7 +113,7 @@ test8 ()
 
 /*
 ** test9:
-**	mov	x0, 7 
+**	mov	w0, 7 
 **	ret
 */
 uint64_t
@@ -149,7 +149,7 @@ test11 ()
 
 /*
 ** test12:
-**	mov	x0, 7 
+**	mov	w0, 7 
 **	ret
 */
 uint64_t
@@ -161,7 +161,7 @@ test12 ()
 
 /*
 ** test13:
-**	mov	x0, 3 
+**	mov	w0, 3 
 **	ret
 */
 uint64_t
@@ -197,7 +197,7 @@ test15 ()
 
 /*
 ** test16:
-**	mov	x0, 3
+**	mov	w0, 3
 **	ret
 */
 uint64_t
