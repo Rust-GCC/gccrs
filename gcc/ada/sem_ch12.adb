@@ -4605,10 +4605,13 @@ package body Sem_Ch12 is
       End_Package_Scope (Id);
       Exit_Generic_Scope (Id);
 
-      --  If the generic appears within a package unit, the body of that unit
-      --  has to be present for instantiation and inlining.
+      --  If the generic appears directly within a package unit and requires a
+      --  body, the package body of that unit has to be present for inlining.
 
-      if Nkind (Unit (Cunit (Current_Sem_Unit))) = N_Package_Declaration then
+      if Nkind (Unit (Cunit (Current_Sem_Unit))) = N_Package_Declaration
+        and then not In_Instance
+        and then Unit_Requires_Body (Id)
+      then
          Set_Body_Needed_For_Inlining
            (Defining_Entity (Unit (Cunit (Current_Sem_Unit))));
       end if;
@@ -4806,10 +4809,11 @@ package body Sem_Ch12 is
          Set_Body_Required (Parent (N), Unit_Requires_Body (Id));
       end if;
 
-      --  If the generic appears within a package unit, the body of that unit
-      --  has to be present for instantiation and inlining.
+      --  If the generic appears directly within a package unit and requires a
+      --  body, the package body of that unit has to be present for inlining.
 
       if Nkind (Unit (Cunit (Current_Sem_Unit))) = N_Package_Declaration
+        and then not In_Instance
         and then Unit_Requires_Body (Id)
       then
          Set_Body_Needed_For_Inlining
