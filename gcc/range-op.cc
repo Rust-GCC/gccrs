@@ -2387,6 +2387,25 @@ operator_mult::wi_fold (irange &r, tree type,
     }
 }
 
+bool
+operator_mult::op1_op2_relation_effect (irange &lhs_range, tree type,
+					const irange &,
+					const irange &,
+					relation_kind rel) const
+{
+  // a*a is nonnegative without overflow.
+  // tree_binary_nonnegative_p handles this in a similar way.
+  if (rel == VREL_EQ
+      && TYPE_OVERFLOW_UNDEFINED (type))
+    {
+      int_range<2> nonnegative;
+      nonnegative.set_nonnegative (type);
+      lhs_range.intersect (nonnegative);
+      return true;
+    }
+  return false;
+}
+
 class operator_widen_mult_signed : public range_operator
 {
 public:

@@ -734,6 +734,7 @@ public:
   using range_operator::op1_range;
   using range_operator::op2_range;
   using range_operator::update_bitmask;
+  using range_operator::op1_op2_relation_effect;
   bool op1_range (irange &r, tree type,
 		  const irange &lhs, const irange &op2,
 		  relation_trio) const final override;
@@ -756,6 +757,10 @@ public:
 		const wide_int &rh_ub) const final override;
   bool wi_op_overflows (wide_int &res, tree type, const wide_int &w0,
 			const wide_int &w1) const final override;
+  bool op1_op2_relation_effect (irange &lhs_range, tree type,
+				const irange &op1_range,
+				const irange &op2_range,
+				relation_kind rel) const final override;
 
   void rv_fold (frange &r, tree type,
 		const REAL_VALUE_TYPE &lh_lb, const REAL_VALUE_TYPE &lh_ub,
