@@ -1,3 +1,8 @@
+2026-05-29  Kevin Buettner  <kevinb@redhat.com>
+
+	* dg-extract-results.py: Show warnings instead of erroring out
+	when encountering an unparseable file.
+
 2026-05-27  Richard Earnshaw  <rearnsha@arm.com>
 
 	* check-MAINTAINERS.py (get_surname): Rename to ...

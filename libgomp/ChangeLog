@@ -1,3 +1,9 @@
+2026-05-29  Tobias Burnus  <tburnus@baylibre.com>
+
+	PR c/122892
+	* allocator.c (_Static_assert): Add asserts for the values of
+	GOMP_OMP_PREDEF_ALLOC_CGROUP and GOMP_OMP_PREDEF_ALLOC_PTEAM.
+
 2026-05-27  Tobias Burnus  <tburnus@baylibre.com>
 
 	* libgomp.texi (Foreign-runtime support for AMD GPUs,

@@ -1,3 +1,341 @@
+2026-05-29  Marc Poulhiès  <poulhies@adacore.com>
+
+	* sysdep.c (getc_immediate_common): Read character as unsigned
+	value.
+
+2026-05-29  Bob Duff  <duff@adacore.com>
+
+	* sem_ch13.adb (Delay_Aspect): Remove the side effect.
+	(Decorate): Rename to be Decorate_Aspect_Links.
+	Generalize.
+	(Insert_Aitem): Call Decorate_Aspect_Links.
+	* aspects.ads: Minor comment improvement: we don't need to worry;
+	we just need to do it.
+	* einfo.ads: Minor comment improvement.
+
+2026-05-29  Gary Dismukes  <dismukes@adacore.com>
+
+	* sem_ch6.adb (New_Overloaded_Entity): Add missing call to
+	Check_For_Primitive_Subprogram (Is_Primitive must be set).
+	* sem_ch13.ads (Check_Function_For_Indexing_Aspect): Move declaration
+	to package body.
+	* sem_ch13.adb (Check_Indexing_Functions): Remove early return for
+	derived types. Pass appropriate values for the new Boolean parameters
+	on existing calls to Check_Function_For_Indexing_Aspect. Perform a
+	second interpretation loop, calling Check_Function_For_Indexing_Aspect
+	and passing Indexing_Found for the Has_Eligible_Func parameter and True
+	for the Error_On_Ineligible parameter, and remove the existing call
+	to Error_Msg_NE that was flagging nonlocal entities (a similar error
+	is now reported inside procedure Check_Function_For_Indexing_Aspect).
+	Suppress call to Check_Inherited_Indexing in derived type cases.
+	(Check_Nonoverridable_Aspect_Subprograms): Remove early return when
+	the aspect spec does not come from source, so aspects of derived types
+	will also go through this procedure. Check restrictions of AI22-0159/01
+	for derived types and inheritance of aspects. Replace iteration over
+	overloaded interpretations with iteration over Aspect_Subprograms (and
+	only do that for indexing aspects). Condition Sloc for existing error
+	check for nonprimitive operations based on whether the aspect comes
+	from source, posting the error on the entity rather than the aspect
+	if the aspect is not given explicitly.
+	(Analyze_Aspects_At_Freeze_Point): Split off a new case alternative
+	for iterator aspects, and specialize treatment for indexing aspects
+	by forcing a search for new indexing functions. When none are found,
+	issue an error only in the case where the type has no inherited
+	indexing functions. Test that the version is at least Ada_2012 rather
+	than Ada_2022 for calling Check_Nonoverridable_Aspect_Subprograms.
+	(Check_Function_For_Indexing_Aspect): Move declaration from the package
+	spec to the body. Add Has_Eligible_Func and Error_On_Ineligible formals
+	and update spec comment.
+	Return early if the candidate subprogram was already inherited (present
+	in Aspect_Subprograms).
+	For a scope mismatch on Subp, report error only when Has_Eligible_Func
+	is False and Error_On_Ineligible is True (and never a warning).
+	Add "<<" in several calls to Report_Ineligible_Indexing_Function
+	(formerly Illegal_Indexing) to allow either warnings or errors.
+	Return without adding subprogram to Aspect_Subprograms when
+	Error_On_Ineligible is False.
+	(Report_Ineligible_Indexing_Function): Name changed from
+	Illegal_Indexing.
+	Return early when only a warning can be issued and the ineligible
+	subprogram is inherited, or if its first formal (if any) does not match
+	the aspect's associated type (to reduce false-positive warnings).
+	Set Error_Msg_Warn based on Error_On_Ineligible formal.
+	Report a continuation message identifying the ineligible entity.
+	Remove comment preceding body that has been obviated by AI22-0154.
+	* sem_util.adb (Inherit_Nonoverridable_Aspect): Remove the loop over
+	primitives that was checking and adding eligible primitives. That code
+	was incomplete, and collection of new indexing functions for derived
+	types is now handled by Check_Indexing_Functions. Also remove the
+	associated "???" comment.
+
+2026-05-29  Tonu Naks  <naks@adacore.com>
+
+	* doc/gnat_rm.rst: update toctree
+	* doc/gnat_rm/about_this_guide.rst: add reference
+	* doc/gnat_rm/gnat_implementation_mode.rst: new file
+	* opt.ads: remove redundant comment
+	* gnat_rm.texi: Regenerate.
+
+2026-05-29  Marc Poulhiès  <poulhies@adacore.com>
+
+	* doc/gnat_rm/gnat_language_extensions.rst (Destructors): fix
+	typo.
+	* gnat_rm.texi: Regenerate.
+
+2026-05-29  Ronan Desplanques  <desplanques@adacore.com>
+
+	* argv.c: Remove unused include directive.
+
+2026-05-29  Viljar Indus  <indus@adacore.com>
+
+	* erroutc.ads (Warnings_Suppressed): New Boolean overload.
+	* errout.adb (Error_Msg_Internal): Use Boolean Warnings_Suppressed.
+	* errutil.adb (Error_Msg): Likewise.
+
+2026-05-29  Viljar Indus  <indus@adacore.com>
+
+	* errout.adb (Is_Before): New helper function.
+	(Find_Msg_Insertion_Point): New procedure.
+	(Error_Msg_Internal): Use Find_Msg_Insertion_Point and Insert_Error_Msg.
+	(Finalize): Remove call to Set_Prev_Pointers.
+	(Set_Prev_Pointers): Removed.
+	* erroutc.adb (Insert_Error_Msg): New procedure.
+	* erroutc.ads (Insert_Error_Msg): New declaration.
+
+2026-05-29  Andres Toom  <toom@adacore.com>
+
+	* gnat1drv.adb (Adjust_Global_Switches): Do not set
+	Global_Discard_Names in GNATprove_Mode.
+
+2026-05-29  Ronan Desplanques  <desplanques@adacore.com>
+
+	* argv.c (__gnat_env_count) (__gnat_len_env) (__gnat_fill_env): Move
+	to...
+	* env.c (__gnat_env_count) (__gnat_len_env) (__gnat_fill_env):
+	...here. Tweak comment.
+
+2026-05-29  Bob Duff  <duff@adacore.com>
+
+	* sem_ch6.adb (Subprogram_Subtypes_Have_Same_Declaration):
+	Remove tests for In_Internal_Unit and GNAT_Mode.
+
+2026-05-29  Marc Poulhiès  <poulhies@adacore.com>
+
+	* vast.adb (Check_Enum)<Check_Entity_Chain>: Add.
+	(Status)<Check_Entity_Chain>: Set to Print_And_Continue.
+	(Check_Entity_Chain): New.
+	(Check_Scope): Call Check_Entity_Chain.
+
+2026-05-29  Viljar Indus  <indus@adacore.com>
+
+	* errout.adb (Delete_Warning_And_Continuations): use
+	Delete_Error_And_Continuation_Msgs.
+	(Output_Messages): Call new refactored subprograms.
+	(Delete_Specifically_Suppressed_Warnings): New
+	procedure.
+	* (Set_Prev_Pointers): New procedure.
+	* (Finalize): use Delete_Specifically_Suppressed_Warnigns and
+	Set_Prev_Pointers.
+	(Finalize): use Delete_Error_And_Continuation_Msgs.
+	* erroutc.adb (Delete_Error_And_Continuation_Msgs): New procedure.
+	(Remove_Duplicate_Errors): New_Function.
+	(Write_All_Errors_In_Brief_Format): New function.
+	(Write_All_Errors_In_Verbose_Format): New function.
+	(Write_Error_Summary): New function.
+	* erroutc.ads (Delete_Error_And_Continuation_Msgs): Likewise.
+	(Remove_Duplicate_Errors): Likewise.
+	(Write_All_Errors_In_Brief_Format): Likewise.
+	(Write_All_Errors_In_Verbose_Format): Likewise.
+	(Write_Error_Summary): Likewise.
+	* errutil.adb (Finalize): Call new refactored subprograms.
+
+2026-05-29  Viljar Indus  <indus@adacore.com>
+
+	* errout.adb (Remove_Warning_Messages): Use
+	Filter_And_Delete_Errors.
+	* errout.ads (Purge_Messages): Renamed to
+	Delete_Error_Msgs_In_Range.
+	* erroutc.adb (Filter_And_Delete_Errors): New procedure.
+	(Purge_Messages): Renamed to Delete_Error_Msgs_In_Range.
+	* erroutc.ads (Filter_And_Delete_Errors): New procedure.
+	(Purge_Messages): Renamed to Delete_Error_Msgs_In_Range.
+	* par-ch5.adb (Missing_Begin): call Delete_Error_Msgs_In_Range.
+
+2026-05-29  Viljar Indus  <indus@adacore.com>
+
+	* errout.adb (Finalize): use Warning_Is_Suppressed.
+	* erroutc.adb (Warning_Is_Suppressed): New subprogram.
+	* erroutc.ads (Warning_Is_Suppressed): Likewise.
+
+2026-05-29  Viljar Indus  <indus@adacore.com>
+
+	* errout.adb: Use Delete_Error_Msg.
+	* erroutc.adb (Delete_Error_Msg): New subprogram.
+	* erroutc.ads (Delete_Error_Msg): Likewise.
+
+2026-05-29  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* exp_unst.adb (Note_Uplevel_Bound_Trav): Do not register an uplevel
+	reference for a package.  Use a single if_statement in the body.
+
+2026-05-29  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* sem_ch6.adb (Analyze_Function_Return): Remove obsolete code that
+	wraps the return in a block when the expression is an aggregate.
+
+2026-05-29  Viljar Indus  <indus@adacore.com>
+
+	* errout.adb (Error_Msg): Add new function
+	In_Loop_With_Suppressed_Warnings.
+
+2026-05-29  Viljar Indus  <indus@adacore.com>
+
+	* errout.adb (Error_Msg_N): Simplify code.
+
+2026-05-29  Viljar Indus  <indus@adacore.com>
+
+	* erroutc-pretty_emitter.adb (To_String): Relocated to erroutc.
+	(To_File_Name): Likewise.
+	(Line_To_String): Likewise.
+	(Column_To_String): Likewise.
+	* erroutc.adb (dedit): New function for debugging edits.
+	(dfix): New function for debuging fixes.
+	(dloc): New function for debugging locations.
+	(dmsg): Print missing Error_Msg_Object attributes.
+	(To_String): New function for printing spans
+	(To_String): Relocated from erroutc-pretty_emitter.adb
+	(To_File_Name): Likewise.
+	* erroutc.ads: Likewise.
+
+2026-05-29  Ronan Desplanques  <desplanques@adacore.com>
+
+	* argv-lynxos178-raven-cert.c: Update comments.
+	* argv.c (gnat_envp): Add comment about it being unused.
+	(__gnat_env_count, __gnat_len_env, __gnat_fill_env): Use
+	__gnat_environ instead of gnat_envp.
+	* bindgen.adb (Command_Line_Used): Update comment.
+	(Gen_Main): Remove gnat_envp assignment generation. Remove generated
+	envp parameter.
+	(Gen_Output_File_Ada): Remove generated envp parameter.
+	* env.h: Make usable as C++.
+	* libgnat/a-colien.ads: Remove comment.
+	* libgnat/a-comlin.ads: Update comment.
+	* targparm.ads: Update comment.
+
+2026-05-29  Piotr Trojanek  <trojanek@adacore.com>
+
+	* par-ch10.adb (P_Compilation_Unit): Require no indentation.
+
+2026-05-29  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/93702
+	* exp_ch3.adb (Make_Controlling_Function_Wrappers): Do not set the
+	Was_Expression_Function flag on the body.
+	* sem_ch6.adb (Analyze_Subprogram_Body_Helper): Avoid freezing the
+	profile only for wrapper functions.
+
+2026-05-29  Piotr Trojanek  <trojanek@adacore.com>
+
+	* sprint.adb (Sprint_Node_Actual): Print filter in loop parameter
+	specification.
+
+2026-05-29  Piotr Trojanek  <trojanek@adacore.com>
+
+	* sem_ch4.adb (Analyze_Quantified_Expression): If there is a filter,
+	then suppress the warning.
+
+2026-05-29  Piotr Trojanek  <trojanek@adacore.com>
+
+	* sem_ch4.adb (Analyze_Quantified_Expression): Suppress warning for
+	trivial conditions.
+
+2026-05-29  Viljar Indus  <indus@adacore.com>
+
+	* inline.adb (Adjust_Node): Renamed from Adjust_Sloc and
+	additionally unset Comes_From_Source.
+
+2026-05-29  Javier Miranda  <miranda@adacore.com>
+
+	* checks.adb (Apply_Scalar_Range_Check): When the type of the expression
+	is Universal Integer we cannot statically determine if the expression
+	is in the range of the target type.
+	* sem_eval.adb (In_Subrange_Of): Do not consider T2 in the range of
+	Universal Integer (since theoretically they are not).
+	(Test_In_Range): Do not consider Universal type expressions in range
+	of subtype Typ.
+
+2026-05-29  Marc Poulhiès  <poulhies@adacore.com>
+
+	* treepr.ads (pech, rpech): New.
+	(Print_Entity_Chain): Adjust signature and comment to handle
+	printing only header and doing the simple check.
+	* treepr.adb (pech, rpech): New.
+	(Print_Entity_Chain): Support for printing only headers and doing
+	simple check.
+
+2026-05-29  Claire Dross  <dross@adacore.com>
+
+	* sem_ch13.adb (Resolve_Iterable_Operation): Handle Previous and Last
+	like Next and First.
+
+2026-05-29  Claire Dross  <dross@adacore.com>
+
+	* libgnat/i-cstrin.ads: New C_Addresses volatile state to use as
+	input of the New_String and New_Char_Array.
+
+2026-05-29  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* sem_util.adb (Statically_Names_Object) <N_Selected_Component>:
+	Return False if the selector is neither component nor discriminant.
+
+2026-05-29  Javier Miranda  <miranda@adacore.com>
+
+	* sem_ch3.adb (Build_Derived_Record_Type): Record type derivations
+	inherit Is_Unchecked_Union and Has_Unchecked_Union flags.
+	(Inherit_Component): Add discriminals to the associations list.
+	* exp_ch3.adb (Build_Record_Init_Proc): Derivations of Unchecked_Union
+	types don't need an initialization procedure; they reuse the init proc
+	of their parent type.
+
+2026-05-29  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* exp_ch4.adb (Expand_N_Case_Expression): Deal with initialization
+	expression of return object.
+	(Expand_N_If_Expression): Likewise.
+	(Insert_Conditional_Object_Declaration): Likewise.
+	* exp_util.adb (Is_Distributable_Declaration): Lift limitation for
+	return objects, including those with a class-wide type.
+	* sem_ch3.adb (Analyze_Object_Declaration): Set Return_Applies_To
+	on artificial return objects created from within a transient scope.
+	Remove test on Expander_Active for better error recovery.
+
+2026-05-29  Ronan Desplanques  <desplanques@adacore.com>
+
+	* doc/gnat_ugn/building_executable_programs_with_gnat.rst: Fix
+	markup.
+	* gnat_ugn.texi: Regenerate.
+
+2026-05-29  Piotr Trojanek  <trojanek@adacore.com>
+
+	* sem_ch4.adb (Analyze_Quantified_Expression): Suppress warning for
+	variables with junk names.
+
+2026-05-29  Viljar Indus  <indus@adacore.com>
+
+	* inline.adb (Inline_Static_Function_Call): Reduce source code nesting.
+	* inline.ads (Inline_Static_Function_Call): Likewise.
+
+2026-05-29  Viljar Indus  <indus@adacore.com>
+
+	* inline.adb (Inline_Static_Function_Call): Add a Source File Index
+	entry for the call and apply the necessary sloc adjustment values
+	for all of the inlined nodes.
+
+2026-05-29  Tonu Naks  <naks@adacore.com>
+
+	* adaint.c (__gnat_copy_attribs): use GetFileAttributesEx to
+	to fetch attributes.
+
 2026-05-28  Sebastian Poeplau  <poeplau@adacore.com>
 
 	* init.c (__gnat_alternate_stack): add alignment attribute.

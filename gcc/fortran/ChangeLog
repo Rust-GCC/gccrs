@@ -1,3 +1,18 @@
+2026-05-29  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/125393
+	* interface.cc (get_expr_storage_size): Additionally return
+	character length.
+	(gfc_compare_actual_formal): When the formal is a scalar character
+	variable, use character lengths, not array storage size for check.
+
+2026-05-29  Tobias Burnus  <tburnus@baylibre.com>
+
+	PR c/122892
+	* openmp.cc (gfc_resolve_omp_allocate): Reject
+	omp_{cgroup,pteam,thread}_mem_alloc also for local static
+	variables.
+
 2026-05-28  Sandra Loosemore  <sloosemore@baylibre.com>
 
 	* intrinsic.texi (F_C_STRING): New section.

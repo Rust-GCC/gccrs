@@ -1,3 +1,8 @@
+2026-05-29  Jakub Jelinek  <jakub@redhat.com>
+
+	* init.cc (build_value_init_noctor): Zero initialize anonymous
+	union/struct subobjects.  Formatting fix.
+
 2026-05-28  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/125454

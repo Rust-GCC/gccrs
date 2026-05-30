@@ -1,3 +1,9 @@
+2026-05-29  Marc Poulhiès  <dkm@kataplop.net>
+	    Andreas Schwab  <schwab@linux-m68k.org>
+
+	PR tree-optimization/114385
+	* lex/rust-token.cc (Token::as_string): split concatenation.
+
 2026-04-14  jayant chauhan  <0001jayant@gmail.com>
 
 	* backend/rust-compile-item.cc (CompileItem::visit): Do not insert

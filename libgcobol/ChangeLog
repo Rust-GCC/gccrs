@@ -1,3 +1,124 @@
+2026-05-29  Robert Dubner  <rdubner@symas.com>
+	    James K. Lowden  <jklowden@cobolworx.com>
+	    Xavier Del Campo  <xdelcampo@symas.com>
+
+	* Makefile.am: Add AM_COBC and AM_COBFLAGS; update
+	toolexeclib_LTLIBRARIES with libgcobol_posix.la and
+	libgcobol_compat_gnu.la.
+	* Makefile.in: POSIX compatibility support.
+	* aclocal.m4: Regenerate.
+	* charmaps.cc (__gg__iconverter): Restore map of encoding pairs.
+	(__gg__get_charmap): Change how encodings are mapped.
+	* charmaps.h (CHARMAPS_H): Include #include <map>.
+	(DEFAULT_32_ENCODING): Wrap in __FreeBSD__ conditional.
+	(error_msg_direct): Wrap in IN_TARGET_LIBS.
+	(class cbl_iconv_t): Wrapper for iconv() calls.
+	(class charmap_t): Explicit constructor.
+	* compat/README.md: POSIX compatibility layer.
+	* compat/gnu/lib/CBL_ALLOC_MEM.cbl: Likewise.
+	* compat/gnu/lib/CBL_CHECK_FILE_EXIST.cbl: Likewise.
+	* compat/gnu/lib/CBL_DELETE_FILE.cbl: Likewise.
+	* compat/gnu/lib/CBL_FREE_MEM.cbl: Likewise.
+	* compat/gnu/udf/stored-char-length.cbl: Likewise.
+	* compat/t/Makefile: Likewise.
+	* compat/t/smoke.cbl: Likewise.
+	* configure: Regenerate.
+	* configure.ac: New macros
+	* configure.tgt: Likewise.
+	* ec.h (enum ec_type_t): New implementor-defined ec_imp_iconv_open_e
+	exception.
+	* encodings.h (_ENCODINGS_H_): #include <type_traits> for mapping
+	the cbl_encoding_t values.
+	(struct cbl_encoding_t_hash): Likewise.
+	* exceptl.h (ec_type_of): Remove "extern" from declaration.
+	* gcobolio.h (FILE_BUFFER_SIZE): READ FILE buffer size.
+	* gfileio.cc (sequential_file_write): Honor non-ascii encodings.
+	(line_sequential_file_read): Buffered FILE READ.
+	(line_sequential_file_read_sbc): Buffered FILE READ.
+	* intrinsic.cc (string_to_dest): Eliminate function.
+	(get_all_time): Replace __gg__convert_encoding() with
+	__gg__iconverter().
+	(__gg__when_compiled): Likewise.
+	* io.cc (__compat_file_status_word): POSIX compatibility layer.
+	* io.h (enum file_high_t): Likewise.
+	(enum file_status_t): Likewise.
+	* libgcobol.cc (init_var_both): Eliminate call to
+	initialize_program_state().
+	(__gg__move): Eliminate call to __gg__convert_encoding_length;
+	handle REFER_T_ADDRESS_OF.
+	(display_both): Handle REFER_T_ADDRESS_OF.
+	(__gg__display_clean): Likewise.
+	(__gg__convert_encoding): Eliminate function.
+	(__gg__convert_encoding_length): Likewise.
+	(default_exception_handler): Improve exception handling.
+	(ec_type_descr): Likewise.
+	(ec_type_disposition): Likewise.
+	(ec_is_fatal): Likewise.
+	(__gg__check_fatal_exception): Likewise.
+	(__gg__set_env_value): Remove call to __gg__convert_encoding.
+	* libgcobol.h (__gg__convert_encoding): Eliminate.
+	(__gg__convert_encoding_length): Eliminate.
+	* posix/bin/udf-gen: POSIX compatibility.
+	* posix/cpy/posix-errno.cbl: Likewise.
+	* posix/cpy/psx-lseek.cpy: Likewise.
+	* posix/cpy/psx-open.cpy: Likewise.
+	* posix/cpy/statbuf.cpy: Likewise.
+	* posix/cpy/tm.cpy: Likewise.
+	* posix/shim/lseek.cc (offsetof): Likewise.
+	(posix_lseek): Likewise.
+	* posix/shim/open.cc (posix_open): Likewise.
+	* posix/t/errno.cbl: Likewise.
+	* posix/t/exit.cbl: Likewise.
+	* posix/t/localtime.cbl: Likewise.
+	* posix/t/stat.cbl: Likewise.
+	* posix/udf/posix-exit.cbl: Likewise.
+	* posix/udf/posix-ftruncate.cbl: Likewise.
+	* posix/udf/posix-localtime.cbl: Likewise.
+	* posix/udf/posix-lseek.cbl: Likewise.
+	* posix/udf/posix-mkdir.cbl: Likewise.
+	* posix/udf/posix-open.cbl: Likewise.
+	* posix/udf/posix-read.cbl: Likewise.
+	* posix/udf/posix-stat.cbl: Likewise.
+	* posix/udf/posix-unlink.cbl: Likewise.
+	* posix/udf/posix-write.cbl: Likewise.
+	* valconv.cc: New exceptions.
+	* compat/gnu/cpy/cblproto.cpy: New file.
+	* compat/gnu/cpy/cbltypes.cpy: New file.
+	* compat/gnu/cpy/stored-char-length.cpy: New file.
+	* compat/gnu/lib/CBL_CLOSE_FILE.cbl: New file.
+	* compat/gnu/lib/CBL_CREATE_FILE.cbl: New file.
+	* compat/gnu/lib/CBL_OPEN_FILE.cbl: New file.
+	* compat/gnu/lib/CBL_READ_FILE.cbl: New file.
+	* compat/gnu/lib/CBL_WRITE_FILE.cbl: New file.
+	* compat/gnu/lib/cbl_alloc_mem.3: New file.
+	* compat/gnu/lib/cbl_alloc_mem.cbl3: New file.
+	* compat/gnu/lib/cbl_check_file_exist.3: New file.
+	* compat/gnu/lib/cbl_close_file.3: New file.
+	* compat/gnu/lib/cbl_create_file.3: New file.
+	* compat/gnu/lib/cbl_delete_file.3: New file.
+	* compat/gnu/lib/cbl_free_mem.3: New file.
+	* compat/gnu/lib/cbl_open_file.3: New file.
+	* compat/gnu/lib/cbl_read_file.3: New file.
+	* compat/gnu/lib/cbl_write_file.3: New file.
+	* compat/gnu/udf/cobrt-file-status.cbl: New file.
+	* posix/cpy/posix-close.cpy: New file.
+	* posix/cpy/posix-errno.cpy: New file.
+	* posix/cpy/posix-exit.cpy: New file.
+	* posix/cpy/posix-fstat.cpy: New file.
+	* posix/cpy/posix-ftruncate.cpy: New file.
+	* posix/cpy/posix-localtime.cpy: New file.
+	* posix/cpy/posix-lseek.cpy: New file.
+	* posix/cpy/posix-mkdir.cpy: New file.
+	* posix/cpy/posix-open.cpy: New file.
+	* posix/cpy/posix-read.cpy: New file.
+	* posix/cpy/posix-stat.cpy: New file.
+	* posix/cpy/posix-unlink.cpy: New file.
+	* posix/cpy/posix-write.cpy: New file.
+	* posix/shim/fstat.cc: New file.
+	* posix/udf/posix-close.cbl: New file.
+	* posix/udf/posix-errno.cbl: New file.
+	* posix/udf/posix-fstat.cbl: New file.
+
 2026-05-12  Robert Dubner  <rdubner@symas.com>
 
 	* charmaps.h (class charmap_t): Remove an abort().

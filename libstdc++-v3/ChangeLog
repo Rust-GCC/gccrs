@@ -1,3 +1,16 @@
+2026-05-29  Patrick Palka  <ppalka@redhat.com>
+
+	* include/std/flat_set (_Flat_set_impl::swap): Swap _M_cont
+	first.
+
+2026-05-29  Nathan Myers  <ncm@cantrip.org>
+
+	* include/bits/new_allocator.h (allocate_at_least): Reduce
+	allocation to match what is reported.
+	* testsuite/20_util/allocator/allocate_at_least2.cc: Add tests.
+	* testsuite/23_containers/vector/modifiers/insert_vs_emplace.cc:
+	Fix, for -m32 and new allocation results.
+
 2026-05-28  Patrick Palka  <ppalka@redhat.com>
 
 	* testsuite/util/testsuite_allocator.h

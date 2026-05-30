@@ -1,3 +1,136 @@
+2026-05-29  Robert Dubner  <rdubner@symas.com>
+	    James K. Lowden  <jklowden@cobolworx.com>
+	    Xavier Del Campo  <xdelcampo@symas.com>
+
+	* Make-lang.in: Include gcobc script.
+	* cdf.y: Change formal parameters of cdf_literalize().
+	* cobol1.cc (cobol_langhook_handle_option): Add OPT_ftrunc option.
+	* compare.cc (total_digits_tree): Remove debugging statements.
+	(float_compare): Likewise.
+	* copybook.h (class copybook_elem_t): Update conditional close().
+	* dts.h: Change copyright notice.
+	* gcobc: Likewise.
+	* gcobol.1: Likewise.
+	* gcobol.3: Likewise.
+	* gcobolspec.cc (COMPAT_LIBRARY): POSIX compatibility.
+	(POSIX_LIBRARY): Likewise.
+	(lang_specific_driver): Likewise.
+	* genapi.cc (section_label): Missing LABEL_EXPR detection.
+	(paragraph_label): Likewise.
+	(internal_perform_through): Likewise.
+	(enter_program_common): Add comment.
+	(parser_enter_program): Change current_program_index() handling.
+	(build_alter_switch): Missing LABEL_EXPR detection.
+	(parser_display_internal): Handle REFER_T_ADDRESS_OF flag.
+	(create_and_call): ADDRESS OF is passed BY VALUE.
+	* gengen.cc (LOOK_FOR_MISSING_LABELS_not): Missing LABEL_EXPR
+	detection.
+	(dump_missing_labels): Likewise.
+	(gg_append_statement): Likewise.
+	(gg_struct_field_ref): Likewise.
+	(LABEL_ROOT): Likewise.
+	(gg_create_goto_pair): Likewise.
+	(scm_dump_generic_nodes): Forward declaration.
+	(gg_leaving_the_source_code_file): Missing LABEL_EXPR detection.
+	(label_decl_text_from_expr): New function.
+	* gengen.h (gg_create_assembler_name): New declaration.
+	(label_decl_text_from_expr): New declaration.
+	* genmath.cc (uchar_f_node): Fast ADD N TO NUMERIC-DISPLAY.
+	(uchar_ten_node): Likewise.
+	(fast_add): Likewise.
+	(fast_subtract): Likewise.
+	(parser_add): Likewise.
+	(add_floats): Likewise.
+	(ordinary_add_format_1): Likewise.
+	(ordinary_subtract_format_1): Likewise.
+	(add_case_1): Likewise.
+	(add_case_2): Likewise.
+	(add_case_3): Likewise.
+	(parser_multiply): Likewise.
+	(add_case_4): Likewise.
+	(add_litN_to_numdisp): Likewise.
+	(add_format_1): Likewise.
+	(add_format_2): Likewise.
+	(add_format_3): Likewise.
+	(subtract_floats): Likewise.
+	(subtract_format_1): Likewise.
+	(subtract_format_2): Likewise.
+	(subtract_format_3): Likewise.
+	(parser_subtract): Likewise.
+	* genutil.cc (refer_has_depends): False when type == FldIndex.
+	* lang-specs.h: Add fdefaultbyte, fstatic-call, ftrunc.
+	* lang.opt: Add ftrunc.
+	* lexio.cc (cdftext::open_input): Improved error message.
+	* parse.y: CDF support, POSIX support.
+	* parse_ante.h (cbl_division_t): Different enum.
+	(mode_syntax_only): New implementation of syntax_only.
+	(parse_error_inc): Likewise.
+	(resume_parsing): Likewise.
+	(successful_parse): Likewise.
+	(name_of): Formal parameter is now const.
+	(nice_name_of): Likewise.
+	(ast_op): Chanage formal parameters.
+	(prototype_ok): COBOL function prototypes.
+	(struct prototype_type_t): Likewise.
+	(is_allowed_name): Likewise.
+	(prototype_add): Likewise.
+	(prototype_args): Likewise.
+	(verify_args): Likewise.
+	(valid_pointer_relop): New function.
+	(field_value_all): Eliminate.
+	(current_field): COBOL function prototypes.
+	(ast_enter_exit_section): Improved error messages.
+	(data_division_ready): Improved mode_syntax_only.
+	(file_section_fd_set): Change "return false" to "return 0".
+	(ast_end_program): Improved mode_syntax_only.
+	* scan_ante.h (symbol_function_token): Use symbol_function_any().
+	(symbol_exists): Change for() loop termination.
+	(typed_name): COBOL function prototypes.
+	* structs.cc: Support for buffered FILE READ.
+	* symbols.cc (symbol_field_location): Use field_locs[] map.
+	(symbol_table_extend): Likewise.
+	(is_prototypical): COBOL function prototypes.
+	(symbol_elem_cmp): Likewise.
+	(symbol_program): Likewise.
+	(struct symbol_elem_t): Likewise.
+	(symbol_function): Likewise.
+	(enum protoreq_t): Likewise.
+	(symbol_function_impl): Likewise.
+	(struct cbl_label_t): Likewise.
+	(symbol_function_any): Likewise.
+	(symbols_dump): Likewise.
+	(cbl_field_t::attr_str): Likewise.
+	(field_str): Likewise.
+	(symbols_update): Likewise.
+	(symbol_field_add): Likewise.
+	(symbol_field_same_as): Likewise.
+	(cbl_alphabet_t::reencode): Detect iconv() errors.
+	(symbol_program_add): COBOL function prototypes.
+	* symbols.h (enum dspc_t): Enum for Division, Section, Paragraph,
+	Clause.
+	(cbl_prototype_ok): COBOL function prototypes.
+	(valid_move): Handle strong typing.
+	(struct parameter_t): Improved function parameter handling.
+	(struct cbl_ffi_arg_t): Likewise.
+	(struct cbl_label_t): COBOL function prototypes.
+	(struct function_descr_t): Likewise.
+	(struct cbl_alphabet_t): Detect iconv() errors.
+	(struct cbl_file_t): Support for LINAGE and the like.
+	(prototype_args):COBOL function prototypes.
+	(is_prototypical):COBOL function prototypes.
+	(is_numeric): Refmods are not numeric.
+	(struct symbol_elem_t): Additional declarations.
+	* symfind.cc (update_symbol_map2): Use symbols map.
+	* token_names.h: New comment.
+	* util.cc (cbl_prototype_ok): COBOL function prototypes.
+	(cdf_literalize): New formal parameters.
+	(effective_type): New function.
+	(valid_move): Handle strong typing.
+	(cobol_trunc_binary): Handle new ftrunc option.
+	(parse_error_reset): Forward declaration.
+	(parse_file): Formatting.
+	* util.h (cobol_trunc_binary): New declaration.
+
 2026-05-28  Jonathan Wakely  <jwakely@redhat.com>
 
 	PR cobol/125404

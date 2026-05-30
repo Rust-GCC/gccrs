@@ -1,3 +1,16 @@
+2026-05-29  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* config.host <i[34567]86-*-freebsd*> (tmake_file): Add
+	i386/t-msabi.
+	<x86_64-*-freebsd*>: Likewise.
+	* config/i386/i386-asm.h: Update comment.
+	* config/i386/resms64.h: Use .note.GNU-stack on FreeBSD, too.
+	* config/i386/resms64f.h: Likewise.
+	* config/i386/resms64fx.h: Likewise.
+	* config/i386/resms64x.h: Likewise.
+	* config/i386/savms64.h: Likewise.
+	* config/i386/savms64f.h: Likewise.
+
 2026-05-21  Christoph Müllner  <christoph.muellner@vrull.eu>
 
 	* config/riscv/feature_bits.c (ZICFISS_GROUPID,

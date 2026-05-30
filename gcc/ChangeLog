@@ -1,3 +1,227 @@
+2026-05-29  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/125475
+	* gimple-range-fold.cc (fold_using_range::fold_stmt): Don't call
+	gimple_stmt_nonnegative_p. Instead set the varying range to
+	`[type_min, type_max]` if not the same as the precision.
+
+2026-05-29  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR target/121343
+	* config/avr/avr.md (FMUL): New int iterator.
+	(fmul, fmul_X, fmul_1, fmul_2): New int attributes.
+	(fmul, fmuls, fmulsu): Turn from expander to insn_and_split.
+	(fmul_insn, fmuls_insn, fmulsu_insn): Remove.
+
+2026-05-29  Tobias Burnus  <tburnus@baylibre.com>
+
+	PR c/122892
+	* gimplify.cc (gimplify_scan_omp_clauses): Update for removed
+	plural -S in GOMP_OMP_PREDEF_ALLOC_THREAD.
+
+2026-05-29  Nathan Sidwell  <nathan@acm.org>
+
+	* config/riscv/sync.md: Move & rename atomic unspec enums to unspecv
+	enum. Use renamed UNSPECV_$NAME enums.
+	* config/riscv/sync-rvwmo.md: Use renamed UNSPECV_$NAME enums.
+	* config/riscv/sync-ztso.md: Use renamed UNSPECV_$NAME enums.
+
+2026-05-29  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* config/aarch64/aarch64-c.cc (aarch64_update_cpp_builtins):
+	Emit definitions for __ARM_FEATURE_{SVE,SME}2p2.
+
+2026-05-29  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* config/aarch64/aarch64-sve-builtins-sve2.def (svmul): Define new
+	SVE function variant.
+	* config/aarch64/aarch64-sve2.md (@aarch64_sve_<optab><mode>): New
+	instruction pattern.
+	(@aarch64_sve_<optab><mode>_single): Likewise.
+	* config/aarch64/aarch64.h (TARGET_STREAMING_SME2p2): New macro.
+
+2026-05-29  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* config/aarch64/aarch64-sve-builtins-base.cc (class svexpand_impl):
+	Define new SVE function base.
+	* config/aarch64/aarch64-sve-builtins-base.def (svcompact): Allow
+	execution in streaming mode when SME2p2 is enabled.
+	* config/aarch64/aarch64-sve-builtins-base.h (svexpand): Declare
+	new SVE function base.
+	* config/aarch64/aarch64-sve-builtins-sve2.def (svcompact): Define
+	new SVE function.
+	(svexpand): Likewise.
+	* config/aarch64/aarch64-sve.md (@aarch64_sve_compact<mode>):
+	Enable 32- and 64-bit element variants under SME2p2.  New
+	insn pattern for 8- and 16-bit elements.
+	(@aarch64_sve_expand<mode>): New insn pattern.
+	* config/aarch64/aarch64.h (TARGET_SVE_OR_SME2p2): New macro.
+	* config/aarch64/aarch64.md (UNSPEC_SVE_EXPAND): New UNSPEC.
+
+2026-05-29  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* config/aarch64/aarch64-sve-builtins-sve2.cc
+	(class svfirst_lastp_impl): Define new SVE function base class.
+	(svfirstp): Define new SVE function base.
+	(svlastp): Likewise.
+	* config/aarch64/aarch64-sve-builtins-sve2.def (svfirstp): Define
+	new SVE function.
+	(svlastp): Likewise.
+	* config/aarch64/aarch64-sve-builtins-sve2.h (svfirstp): Declare
+	new SVE function base.
+	* config/aarch64/aarch64-sve2.md (@aarch64_pred_firstp<mode>): New
+	insn pattern.
+	(@aarch64_pred_lastp<mode>): Likewise.
+	* config/aarch64/iterators.md (UNSPEC_FIRSTP): New UNSPEC.
+	(UNSPEC_LASTP): Likewise.
+
+2026-05-29  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* config/aarch64/aarch64-sve-builtins-sve2.cc (svrint32x): Define
+	new function base.
+	(svrint32z): Likewise.
+	(svrint64x): Likewise.
+	(svrint64z): Likewise.
+	* config/aarch64/aarch64-sve-builtins-sve2.def (svrint32x):
+	Define new SVE function.
+	(svrint32z): Likewise.
+	(svrint64x): Likewise.
+	(svrint64z): Likewise.
+	* config/aarch64/aarch64-sve-builtins-sve2.h (svrint32x): Declare
+	new function base.
+	(svrint32z): Likewise.
+	(svrint64x): Likewise.
+	(svrint32z): Likewise.
+	* config/aarch64/aarch64-sve-builtins.cc (TYPES_sd_float): New
+	type set.
+	(sd_float): New SVE type array.
+	* config/aarch64/aarch64-sve2.md (@cond_<frintnzs_op><mode>): New
+	insn pattern.
+
+2026-05-29  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* config/aarch64/aarch64-sve-builtins-base.cc (class svcvtnt_impl):
+	Remove.
+	(svcvtnt): Redefine using narrowing_top_convert.
+	* config/aarch64/aarch64-sve-builtins-functions.h
+	(class narrowing_top_convert): New SVE function base class.
+	(NARROWING_TOP_CONVERT0): New function-like macro for specializing
+	narrowing_top_convert.
+	(NARROWING_TOP_CONVERT1): Likewise.
+	* config/aarch64/aarch64-sve-builtins-sve2.cc (class svcvtxnt_impl):
+	Remove.
+	(svcvtxnt): Redefine using narrowing_top_convert.
+	* config/aarch64/aarch64-sve-builtins-sve2.def (svcvtlt): Allow
+	zeroing predication.
+	(svcvtnt): Likewise.
+	(svcvtxnt): Likewise.
+	* config/aarch64/aarch64-sve.md (@aarch64_sve_cvtnt<mode>):
+	Convert to compact syntax. Add operand 4 for values of
+	inactive lanes.  New alternative for zeroing predication.
+	* config/aarch64/aarch64-sve2.md
+	(*cond_<sve_fp_op><mode>_relaxed): Convert to compact syntax.
+	New alternative for zeroing predication.
+	(*cond_<sve_fp_op><mode>_strict): Likewise.
+	(@aarch64_sve_cvtnt<mode>): Convert to compact syntax. Add
+	operand 4 for values of inactive lanes.  New alternative for
+	zeroing predication.
+
+2026-05-29  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* config/aarch64/aarch64-sve.md
+	(*cond_<optab>_nonextend<SVE_FULL_HSDI:mode><SVE_FULL_F:mode>_relaxed):
+	New alternative for zeroing predication.  Add `arch` attribute
+	to every alternative.
+	(*cond_<optab>_nonextend<SVE_HSDI:mode><SVE_PARTIAL_F:mode>_relaxed):
+	Likewise.
+	(*cond_<optab>_nonextend<SVE_FULL_HSDI:mode><SVE_FULL_F:mode>_strict):
+	Likewise.
+	(*cond_<optab>_extend<VNx4SI_ONLY:mode><VNx2DF_ONLY:mode>):
+	Likewise.
+	(*cond_<optab>_trunc<SVE_FULL_SDF:mode><SVE_FULL_HSF:mode>):
+	Likewise.
+	(*cond_<optab>_trunc<SVE_SDF:mode><SVE_PARTIAL_HSF:mode>):
+	Likewise.
+	(*cond_<optab>_trunc<VNx4SF_ONLY:mode><VNx8BF_ONLY:mode>):
+	Likewise.
+	(*cond_<optab>_nontrunc<SVE_FULL_HSF:mode><SVE_FULL_SDF:mode>):
+	Likewise.
+	(*cond_<optab>_nontrunc<SVE_PARTIAL_HSF:mode><SVE_SDF:mode>_relaxed):
+	Likewise.
+	* config/aarch64/aarch64-sve2.md
+	(*cond_<sve_fp_op><mode>_any_relaxed): Likewise.
+	(*cond_<sve_fp_op><mode>_any_strict): Likewise.
+
+2026-05-29  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* config/aarch64/aarch64-sve.md
+	(*cond_<optab>_nontrunc<SVE_FULL_F:mode><SVE_FULL_HSDI:mode>_relaxed):
+	New alternative for zeroing predication.  Add `arch` attribute
+	to every alternative.
+	(*cond_<optab>_nontrunc<SVE_PARTIAL_F:mode><SVE_HSDI:mode>_relaxed):
+	Likewise.
+	(*cond_<optab>_nontrunc<SVE_FULL_F:mode><SVE_FULL_HSDI:mode>_strict):
+	Likewise.
+	(*cond_<optab>_trunc<VNx2DF_ONLY:mode><VNx4SI_ONLY:mode>):
+	Likewise.
+	(*cond_<optab>_trunc<VNx2DF_ONLY:mode><VNx2SI_ONLY:mode>_relaxed):
+	Likewise.
+
+2026-05-29  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* config/aarch64/aarch64-sve.md (*cond_<optab><mode>_any_relaxed):
+	New alternative for zeroing predication.  Add `arch` attribute
+	to every alternative.
+	(*cond_<optab><mode>_any_strict): Likewise.
+	* config/aarch64/aarch64-sve2.md (*cond_<sve_fp_op><mode>):
+	Likewise.
+	(*cond_<sve_fp_op><mode>_strict): Likewise.
+
+2026-05-29  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* config/aarch64/aarch64-sve.md (@cond_<optab><mode>):
+	New alternative for zeroing predication.  Add `arch` attribute
+	to every alternative.
+	* config/aarch64/aarch64-sve2.md (@aarch64_pred_<optab><mode>):
+	Use zeroing predication variant for PRED_X.
+	(@cond_<optab><mode>): Accept constant zero as operand 3.  New
+	alternative for zeroing predication.  Add `arch` attribute to
+	every alternative.
+	* config/aarch64/predicates.md (aarch64_simd_reg_or_direct_zero):
+	New predicate.
+
+2026-05-29  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* config/aarch64/aarch64-sve.md
+	(@aarch64_cond_sxt<SVE_FULL_HSDI:mode><SVE_PARTIAL_I:mode>):
+	New alternative for zeroing predication.  Add `arch` attribute
+	to every alternative.
+	(*cond_uxt<mode>_any): Likewise.
+
+2026-05-29  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* config/aarch64/aarch64-sve.md (*cond_<optab><mode>_any):
+	New alternative for zeroing predication.  Add `arch` attribute
+	to every alternative.
+	(*cond_cnot<mode>_any): Likewise.
+	* config/aarch64/aarch64-sve2.md: (*cond_<sve_int_op><mode>):
+	Likewise.
+
+2026-05-29  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* config/aarch64/aarch64.h (TARGET_SVE2p2): New macro.
+	(TARGET_SME2p2): Likewise.
+	(TARGET_SVE2p2_OR_SME2p2): Likewise.
+	* config/aarch64/aarch64.md (arches): Add sve2p2_or_sme2p2 enum
+	constant.
+	(arch): Add test for sve2p2_or_sme2p2.
+	* doc/invoke.texi: Document sve2p2 and sme2p2 extensions.
+
+2026-05-29  LIU Hao  <lh_mouse@126.com>
+
+	* config/i386/i386.cc (ix86_decompose_address): Add a special case where
+	there's no base, there's an index, and the scale is 1.
+
 2026-05-28  Roger Sayle  <roger@nextmovesoftware.com>
 
 	* tree-ssa-loop-im.cc (ref_always_accessed_p): Rename to...

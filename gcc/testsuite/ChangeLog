@@ -1,3 +1,347 @@
+2026-05-29  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* gcc.dg/torture/pr125453-1.c: Add -w to the options.
+
+2026-05-29  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/125393
+	* gfortran.dg/argument_checking_28.f90: New test.
+
+2026-05-29  Robert Dubner  <rdubner@symas.com>
+	    James K. Lowden  <jklowden@cobolworx.com>
+	    Xavier Del Campo  <xdelcampo@symas.com>
+
+	* cobol.dg/group2/37-digit_Initialization_of_fundamental_types.cob:
+	Updated compiler error message.
+	* cobol.dg/group2/BINARY_and_COMP-5.cob:
+	Likewise.
+	* cobol.dg/group2/Check_for_equality_of_COMP-1___COMP-2.cob:
+	Likewise.
+	* cobol.dg/group2/Multi-target_MOVE_with_subscript_re-evaluation.cob:
+	Likewise.
+	* cobol.dg/group2/Named_conditionals_-_fixed__float__and_alphabetic.cob:
+	Likewise.
+	* cobol.dg/group2/Simple_p-scaling.cob:
+	Likewise.
+	* cobol.dg/group2/access_to_OPTIONAL_LINKAGE_item_not_passed.cob:
+	Likewise.
+	* cobol.dg/group2/compare_national_to_display.cob:
+	Likewise.
+	* cobol.dg/group2/comprensive_compare_comp-1_comp-5.cob:
+	Likewise.
+	* cobol.dg/group2/CBL_ALLOC_MEM___CBL_FREE_MEM.cob: New test.
+	* cobol.dg/group2/CBL_ALLOC_MEM___CBL_FREE_MEM.out: New test.
+	* cobol.dg/group2/CBL_CHECK_FILE_EXIST.cob: New test.
+	* cobol.dg/group2/CBL_CHECK_FILE_EXIST.out: New test.
+	* cobol.dg/group2/CBL_CREATE_FILE___CBL_WRITE_FILE___CBL_CLOSE_FILE.cob: New test.
+	* cobol.dg/group2/CBL_DELETE_FILE.cob: New test.
+	* cobol.dg/group2/CBL_DELETE_FILE.out: New test.
+	* cobol.dg/group2/CBL_OPEN_FILE___CBL_CLOSE_FILE.cob: New test.
+	* cobol.dg/group2/CBL_OPEN_FILE___CBL_CLOSE_FILE.out: New test.
+	* cobol.dg/group2/CBL_OPEN_FILE___CBL_READ_FILE___CBL_CLOSE_FILE.cob: New test.
+	* cobol.dg/group2/CBL_OPEN_FILE___CBL_READ_FILE___CBL_CLOSE_FILE.out: New test.
+	* cobol.dg/group2/CBL_READ_FILE__check_file_size_with_flags___128.cob: New test.
+	* cobol.dg/group2/Complex_HEX__VALUE_and_MOVE_-_UTF-16.cob: New test.
+	* cobol.dg/group2/Complex_HEX__VALUE_and_MOVE_-_UTF-16.out: New test.
+	* cobol.dg/group2/MOVE_LEVEL_78.cob: New test.
+	* cobol.dg/group2/MOVE_LEVEL_78.out: New test.
+	* cobol.dg/group2/add_-1_to_negative_pic_S9999.cob: New test.
+	* cobol.dg/group2/add_-1_to_negative_pic_S9999.out: New test.
+	* cobol.dg/group2/add_-1_to_pic_9999.cob: New test.
+	* cobol.dg/group2/add_-1_to_pic_9999.out: New test.
+	* cobol.dg/group2/add_-1_to_positive_pic_S9999.cob: New test.
+	* cobol.dg/group2/add_-1_to_positive_pic_S9999.out: New test.
+	* cobol.dg/group2/add_1_to_pic_9999.cob: New test.
+	* cobol.dg/group2/add_1_to_pic_9999.out: New test.
+	* cobol.dg/group2/add_1_to_positive_pic_S9999.cob: New test.
+	* cobol.dg/group2/add_1_to_positive_pic_S9999.out: New test.
+	* cobol.dg/group2/add__1_to_negative_pic_S9999.cob: New test.
+	* cobol.dg/group2/add__1_to_negative_pic_S9999.out: New test.
+	* cobol.dg/group2/ambiguous_PERFORM.cob: New test.
+	* cobol.dg/group2/ambiguous_PERFORM.out: New test.
+	* cobol.dg/group2/cbltypes.cpy: New test.
+	* cobol.dg/group2/compare_float_to_other_types.cob: New test.
+	* cobol.dg/group2/compare_float_to_other_types.out: New test.
+	* cobol.dg/group2/move_numeric_to_alphanumeric.cob: New test.
+	* cobol.dg/group2/move_numeric_to_alphanumeric.out: New test.
+
+2026-05-29  Tobias Burnus  <tburnus@baylibre.com>
+
+	PR c/122892
+	* gfortran.dg/gomp/allocate-static-3.f90: Modify to also
+	disallow local static variables.
+	* c-c++-common/gomp/allocate-20.c: New test.
+
+2026-05-29  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* gcc.target/aarch64/pragma_cpp_predefs_3.c: Add SVE2p2 tests.
+	* gcc.target/aarch64/pragma_cpp_predefs_4.c: Add SME2p2 test.
+
+2026-05-29  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* gcc.target/aarch64/sme2/acle-asm/mul_f16_x2.c: New test.
+	* gcc.target/aarch64/sme2/acle-asm/mul_f16_x4.c: Likewise.
+	* gcc.target/aarch64/sme2/acle-asm/mul_f32_x2.c: Likewise.
+	* gcc.target/aarch64/sme2/acle-asm/mul_f32_x4.c: Likewise.
+	* gcc.target/aarch64/sme2/acle-asm/mul_f64_x2.c: Likewise.
+	* gcc.target/aarch64/sme2/acle-asm/mul_f64_x4.c: Likewise.
+
+2026-05-29  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* g++.target/aarch64/sve/aarch64-ssve.exp: Add sve2p2 to the
+	target string.  Move svcompact from $nonstreaming_only to
+	$streaming_ok.
+	* gcc.target/aarch64/sve2/acle/asm/compact_bf16.c: New test.
+	* gcc.target/aarch64/sve2/acle/asm/compact_f32.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/compact_f64.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/compact_mf8.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/compact_s16.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/compact_s32.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/compact_s64.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/compact_s8.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/compact_u16.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/compact_u32.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/compact_u64.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/compact_u8.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/expand_bf16.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/expand_f32.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/expand_f64.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/expand_mf8.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/expand_s16.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/expand_s32.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/expand_s64.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/expand_s8.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/expand_u16.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/expand_u32.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/expand_u64.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/expand_u8.c: Likewise.
+
+2026-05-29  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* gcc.target/aarch64/sve2/acle/asm/firstp_b16.c: New test.
+	* gcc.target/aarch64/sve2/acle/asm/firstp_b32.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/firstp_b64.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/firstp_b8.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/lastp_b16.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/lastp_b32.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/lastp_b64.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/lastp_b8.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/general/firstp.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/general/lastp.c: Likewise.
+
+2026-05-29  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* gcc.target/aarch64/sve2/acle/asm/rint32x_f32.c: New test.
+	* gcc.target/aarch64/sve2/acle/asm/rint32x_f64.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rint32z_f32.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rint32z_f64.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rint64x_f32.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rint64x_f64.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rint64z_f32.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rint64z_f64.c: Likewise.
+
+2026-05-29  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* gcc.target/aarch64/sve2/acle/asm/cvtlt_f32_z.c: New test.
+	* gcc.target/aarch64/sve2/acle/asm/cvtlt_f64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cvtnt_bf16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cvtnt_f16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cvtnt_f32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cvtxnt_f32_z.c: Likewise.
+
+2026-05-29  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* gcc.target/aarch64/sve2/acle/asm/cvt_bf16_z.c: New test.
+	* gcc.target/aarch64/sve2/acle/asm/cvt_f16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cvt_f32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cvt_f64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cvtx_f32_z.c: Likewise.
+
+2026-05-29  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* gcc.target/aarch64/sve2/acle/asm/cvt_s16_z.c: New test.
+	* gcc.target/aarch64/sve2/acle/asm/cvt_s32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cvt_s64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cvt_u16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cvt_u32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cvt_u64_z.c: Likewise.
+
+2026-05-29  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* gcc.target/aarch64/sve2/acle/asm/abs_f16_z.c: New test.
+	* gcc.target/aarch64/sve2/acle/asm/abs_f32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/abs_f64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/logb_f16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/logb_f32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/logb_f64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/neg_f16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/neg_f32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/neg_f64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/recpx_f16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/recpx_f32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/recpx_f64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rinta_f16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rinta_f32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rinta_f64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rinti_f16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rinti_f32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rinti_f64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rintm_f16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rintm_f32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rintm_f64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rintn_f16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rintn_f32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rintn_f64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rintp_f16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rintp_f32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rintp_f64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rintx_f16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rintx_f32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rintx_f64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rintz_f16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rintz_f32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rintz_f64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/sqrt_f16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/sqrt_f32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/sqrt_f64_z.c: Likewise.
+
+2026-05-29  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* gcc.target/aarch64/sve2/acle/asm/revb_s16_z.c: New test.
+	* gcc.target/aarch64/sve2/acle/asm/revb_s32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revb_s64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revb_u16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revb_u32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revb_u64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revd_bf16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revd_f16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revd_f32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revd_f64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revd_s16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revd_s32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revd_s64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revd_s8_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revd_u16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revd_u32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revd_u64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revd_u8_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revh_s32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revh_s64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revh_u32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revh_u64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revw_s64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/revw_u64_z.c: Likewise.
+
+2026-05-29  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* gcc.target/aarch64/sve2/acle/asm/extb_s16_z.c: New test.
+	* gcc.target/aarch64/sve2/acle/asm/extb_s32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/extb_s64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/extb_u16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/extb_u32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/extb_u64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/exth_s32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/exth_s64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/exth_u32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/exth_u64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/extw_s64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/extw_u64_z.c: Likewise.
+
+2026-05-29  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* gcc.target/aarch64/sve2/acle/asm/abs_s16_z.c: New test.
+	* gcc.target/aarch64/sve2/acle/asm/abs_s32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/abs_s64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/abs_s8_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cls_s16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cls_s32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cls_s64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cls_s8_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/clz_s16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/clz_s32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/clz_s64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/clz_s8_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/clz_u16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/clz_u32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/clz_u64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/clz_u8_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cnot_s16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cnot_s32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cnot_s64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cnot_s8_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cnot_u16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cnot_u32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cnot_u64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cnot_u8_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cnt_s16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cnt_s32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cnt_s64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cnt_s8_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cnt_u16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cnt_u32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cnt_u64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cnt_u8_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/neg_s16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/neg_s32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/neg_s64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/neg_s8_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/not_s16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/not_s32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/not_s64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/not_s8_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/not_u16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/not_u32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/not_u64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/not_u8_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/qabs_s16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/qabs_s32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/qabs_s64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/qabs_s8_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/qneg_s16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/qneg_s32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/qneg_s64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/qneg_s8_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rbit_s16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rbit_s32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rbit_s64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rbit_s8_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rbit_u16_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rbit_u32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rbit_u64_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rbit_u8_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/recpe_u32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/rsqrte_u32_z.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/cnt_bf16_z.c: New file.
+	* gcc.target/aarch64/sve2/acle/asm/cnt_f16_z.c: New file.
+	* gcc.target/aarch64/sve2/acle/asm/cnt_f32_z.c: New file.
+	* gcc.target/aarch64/sve2/acle/asm/cnt_f64_z.c: New file.
+
+2026-05-29  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* lib/target-supports.exp
+	(check_effective_target_aarch64_sve2p2_hw): New target check.
+	(check_effective_target_aarch64_sve2p2_ok): New target check.
+	(exts_sve2): Add sme2p2.
+
+2026-05-29  LIU Hao  <lh_mouse@126.com>
+
+	* gcc.target/i386/rewrite-sib-without-base.c: New test.
+
+2026-05-29  Roger Sayle  <roger@nextmovesoftware.com>
+
+	* gcc.target/i386/sse2-paddb-2.c: Support -march=cascadelake.
+	* gcc.target/i386/sse2-paddd-2.c: Likewise.
+	* gcc.target/i386/sse2-paddw-2.c: Likewise.
+	* gcc.target/i386/sse2-psubb-2.c: Likewise.
+	* gcc.target/i386/sse2-psubd-2.c: Likewise.
+	* gcc.target/i386/sse2-psubw-2.c: Likewise.
+
+2026-05-29  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR testsuite/125489
+	* gcc.dg/vect/complex/bb-slp-complex-mla-half-float.c: Add the
+	missing end brace.
+
 2026-05-28  Sandra Loosemore  <sloosemore@baylibre.com>
 
 	* gfortran.dg/f_c_string3.f90: New.
