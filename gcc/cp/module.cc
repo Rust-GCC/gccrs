@@ -17247,6 +17247,7 @@ module_state_config::get_dialect ()
 		       ? "/coroutines" : ""),
 		      flag_module_implicit_inline ? "/implicit-inline" : "",
 		      flag_contracts ? "/contracts" : "",
+		      flag_reflection ? "/reflection" : "",
 		      NULL);
 
   return dialect;
