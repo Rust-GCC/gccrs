@@ -97,7 +97,7 @@ is_vlmax_len_p (machine_mode mode, rtx len)
 
 /* Helper functions for insn_flags && insn_types */
 
-/* Return true if caller need pass mask operand for insn pattern with
+/* Return true if caller needs to pass mask operand for insn pattern with
    INSN_FLAGS. */
 
 static bool
@@ -304,7 +304,7 @@ public:
 	machine_mode mode = insn_data[(int) icode].operand[m_opno].mode;
 	/* 'create_input_operand doesn't allow VOIDmode.
 	   According to vector.md, we may have some patterns that do not have
-	   explicit machine mode specifying the operand. Such operands are
+	   explicit machine mode specifying the operand.  Such operands are
 	   always Pmode.  */
 	if (mode == VOIDmode)
 	  mode = Pmode;
@@ -406,9 +406,9 @@ private:
    vector mode.  For VLA modes this corresponds to VLMAX.
 
    Unless the vector length can be encoded in the vsetivl[i] instruction this
-   function must only be used as long as we can create pseudo registers. This is
-   because it will set a pseudo register to VLMAX using vsetvl and use this as
-   definition for the vector length.  */
+   function must only be used as long as we can create pseudo registers.  This
+   is because it will set a pseudo register to VLMAX using vsetvl and use this
+   as definition for the vector length.  */
 void
 emit_vlmax_insn (unsigned icode, unsigned insn_flags, rtx *ops)
 {
@@ -702,7 +702,7 @@ rvv_builder::single_step_npatterns_p () const
 }
 
 /* Return true if the diff between const vector and vid sequence
-   is repeated. For example as below cases:
+   is repeated.  For example as below cases:
    The diff means the const vector - vid.
      CASE 1:
      CONST VECTOR: {3, 2, 1, 0, 7, 6, 5, 4, ... }
@@ -928,8 +928,8 @@ autovec_use_vlmax_p (void)
 	  || rvv_vector_bits == RVV_VECTOR_BITS_ZVL;
 }
 
-/* This function emits VLMAX vrgather instruction. Emit vrgather.vx/vi when sel
-   is a const duplicate vector. Otherwise, emit vrgather.vv.  */
+/* This function emits VLMAX vrgather instruction.  Emit vrgather.vx/vi when sel
+   is a const duplicate vector.  Otherwise, emit vrgather.vv.  */
 static void
 emit_vlmax_gather_insn (rtx target, rtx op, rtx sel)
 {
@@ -2070,8 +2070,8 @@ get_nf (machine_mode mode)
   return mode_vtype_infos.nf[mode];
 }
 
-/* Return the subpart mode of the tuple mode. For RVVM2x2SImode,
-   the subpart mode is RVVM2SImode. This will help to build
+/* Return the subpart mode of the tuple mode.  For RVVM2x2SImode,
+   the subpart mode is RVVM2SImode.  This will help to build
    array/struct type in builtins.  */
 machine_mode
 get_subpart_mode (machine_mode mode)
@@ -2131,7 +2131,7 @@ get_ma (rtx ma)
   return INTVAL (ma);
 }
 
-/* Get prefer tail policy.  */
+/* Get preferred tail policy.  */
 enum tail_policy
 get_prefer_tail_policy ()
 {
@@ -2140,7 +2140,7 @@ get_prefer_tail_policy ()
   return TAIL_ANY;
 }
 
-/* Get prefer mask policy.  */
+/* Get preferred mask policy.  */
 enum mask_policy
 get_prefer_mask_policy ()
 {
@@ -2936,7 +2936,7 @@ expand_vec_init (rtx target, rtx vals)
   /* Optimize trailing same elements sequence:
       v = {y, y2, y3, y4, y5, x, x, x, x, x, x, x, x, x, x, x};  */
   if (!expand_vector_init_trailing_same_elem (target, v, nelts))
-    /* Handle common situation by vslide1down. This function can handle any
+    /* Handle common situation by vslide1down.  This function can handle any
        situation of vec_init<mode>. Only the cases that are not optimized above
        will fall through here.  */
     expand_vector_init_insert_elems (target, v, nelts);
@@ -3298,9 +3298,9 @@ expand_vec_perm (rtx target, rtx op0, rtx op1, rtx sel)
   machine_mode sel_mode = GET_MODE (sel);
   poly_uint64 nunits = GET_MODE_NUNITS (sel_mode);
 
-  /* Check if the sel only references the first values vector. If each select
+  /* Check if the sel only references the first values vector.  If each select
      index is in range of [0, nunits - 1]. A single vrgather instructions is
-     enough. Since we will use vrgatherei16.vv for variable-length vector,
+     enough.  Since we will use vrgatherei16.vv for variable-length vector,
      it is never out of range and we don't need to modulo the index.  */
   if (nunits.is_constant () && const_vec_all_in_range_p (sel, 0, nunits - 1))
     {
@@ -3418,7 +3418,7 @@ get_gather_index_mode (struct expand_vec_perm_d *d)
 }
 
 /* Recognize the patterns that we can use merge operation to shuffle the
-   vectors. The value of Each element (index i) in selector can only be
+   vectors.  The value of Each element (index i) in selector can only be
    either i or nunits + i.  We will check the pattern is actually monotonic.
 
    E.g.
@@ -3615,7 +3615,7 @@ shuffle_consecutive_patterns (struct expand_vec_perm_d *d)
 }
 
 /* Recognize the patterns that we can use compress operation to shuffle the
-   vectors. The perm selector of compress pattern is divided into 2 part:
+   vectors.  The perm selector of compress pattern is divided into 2 part:
    The first part is the random index number < NUNITS.
    The second part is consecutive last N index number >= NUNITS.
 
@@ -4156,7 +4156,7 @@ shuffle_bswap_pattern (struct expand_vec_perm_d *d)
     case 32:
     case 64:
       /* We will have VEC_PERM_EXPR after rtl expand when invoking
-	 __builtin_bswap. It will generate about 9 instructions in
+	 __builtin_bswap.  It will generate about 9 instructions in
 	 loop as below, no matter it is bswap16, bswap32 or bswap64.
 	   .L2:
 	 1 vle16.v v4,0(a0)
@@ -4170,7 +4170,7 @@ shuffle_bswap_pattern (struct expand_vec_perm_d *d)
 	 9 add     a3,a3,a2
 	   bne     a4,zero,.L2
 
-	 But for bswap16 we may have a even simple code gen, which
+	 But for bswap16 we may have an even simple code gen, which
 	 has only 7 instructions in loop as below.
 	   .L5
 	 1 vle8.v  v2,0(a5)
@@ -4483,7 +4483,7 @@ expand_vec_perm_const (machine_mode vmode, machine_mode op_mode, rtx target,
 		       rtx op0, rtx op1, const vec_perm_indices &sel)
 {
   /* RVV doesn't have Mask type pack/unpack instructions and we don't use
-     mask to do the iteration loop control. Just disable it directly.  */
+     mask to do the iteration loop control.  Just disable it directly.  */
   if (GET_MODE_CLASS (vmode) == MODE_VECTOR_BOOL)
     return false;
 
@@ -4543,7 +4543,7 @@ expand_select_vl (rtx *ops)
       return;
     }
   /* We arbitrary picked QImode as inner scalar mode to get vector mode.
-     since vsetvl only demand ratio. We let VSETVL PASS to optimize it.  */
+     since vsetvl only demand ratio.  We let VSETVL PASS to optimize it.  */
   scalar_int_mode mode = QImode;
   machine_mode rvv_mode = get_vector_mode (mode, nunits).require ();
   emit_insn (gen_no_side_effects_vsetvl_rtx (rvv_mode, ops[0], ops[1]));
@@ -5203,7 +5203,7 @@ cmp_lmul_gt_one (machine_mode mode)
   return false;
 }
 
-/* Return true if the VLS mode is legal. There are 2 cases here.
+/* Return true if the VLS mode is legal.  There are 2 cases here.
 
    1. Enable VLS modes for VLA vectorization since fixed length VLMAX mode
       is the highest priority choice and should not conflict with VLS modes.
@@ -5753,8 +5753,8 @@ expand_vec_ssadd (rtx op_0, rtx op_1, rtx op_2, machine_mode vec_mode)
   emit_vec_binary_alu (op_0, op_1, op_2, SS_PLUS, vec_mode);
 }
 
-/* Expand the standard name usadd<mode>3 for vector mode,  we can leverage
-   the vector fixed point vector single-width saturating add directly.  */
+/* Expand the standard name ussub<mode>3 for vector mode,  we can leverage
+   the vector fixed point vector single-width saturating subtract directly.  */
 
 void
 expand_vec_ussub (rtx op_0, rtx op_1, rtx op_2, machine_mode vec_mode)
@@ -5803,7 +5803,7 @@ expand_vec_double_sstrunc (rtx op_0, rtx op_1, machine_mode vec_mode)
   emit_vlmax_insn (icode, BINARY_OP_VXRM_RNU, ops);
 }
 
-/* Expand the standard name ustrunc<m><n>2 for double vector mode,  like
+/* Expand the standard name ustrunc<m><n>2 for quad vector mode,  like
    DI => HI.  we can leverage the vector fixed point vector narrowing
    fixed-point clip directly.  */
 
@@ -6142,7 +6142,7 @@ vlmax_avl_type_p (rtx_insn *rinsn)
   return INTVAL (avl_type) == VLMAX;
 }
 
-/* Return true if it is an RVV instruction depends on VL global
+/* Return true if it is an RVV instruction that depends on VL global
    status register.  */
 bool
 has_vl_op (rtx_insn *rinsn)
@@ -6154,8 +6154,9 @@ has_vl_op (rtx_insn *rinsn)
 static bool
 get_default_ta ()
 {
-  /* For the instruction that doesn't require TA, we still need a default value
-     to emit vsetvl. We pick up the default value according to prefer policy. */
+  /* For the instruction that does not require TA, we still need a default
+     value to emit vsetvl.  We pick up the default value according to
+     preferred policy.  */
   return (bool) (get_prefer_tail_policy () & 0x1
 		 || (get_prefer_tail_policy () >> 1 & 0x1));
 }
@@ -6200,7 +6201,7 @@ vlmax_avl_p (rtx x)
   return x && rtx_equal_p (x, RVV_VLMAX);
 }
 
-/* Helper function to get SEW operand. We always have SEW value for
+/* Helper function to get SEW operand.  We always have SEW value for
    all RVV instructions that have VTYPE OP.  */
 uint8_t
 get_sew (rtx_insn *rinsn)
@@ -6208,7 +6209,7 @@ get_sew (rtx_insn *rinsn)
   return get_attr_sew (rinsn);
 }
 
-/* Helper function to get VLMUL operand. We always have VLMUL value for
+/* Helper function to get VLMUL operand.  We always have VLMUL value for
    all RVV instructions that have VTYPE OP. */
 enum vlmul_type
 get_vlmul (rtx_insn *rinsn)

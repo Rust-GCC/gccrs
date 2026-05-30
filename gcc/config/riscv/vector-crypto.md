@@ -141,7 +141,7 @@
   [(set_attr "type" "vandn")
    (set_attr "mode" "<MODE>")])
 
-;; Handle GET_MODE_INNER (mode) = DImode. We need to split them since
+;; Handle GET_MODE_INNER (mode) = DImode.  We need to split them since
 ;; we need to deal with SEW = 64 in RV32 system.
 (define_expand "@pred_vandn<mode>_scalar"
   [(set (match_operand:V_VLSI_D 0 "register_operand")

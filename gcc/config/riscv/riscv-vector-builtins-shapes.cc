@@ -105,7 +105,7 @@ supports_vectype_p (const function_group_info &group, unsigned int vec_type_idx)
 /* Add a function instance for every operand && predicate && args
    combination in GROUP.  Take the function base name from GROUP && operand
    suffix from operand_suffixes && mode suffix from type_suffixes && predication
-   suffix from predication_suffixes. Use apply_predication to add in
+   suffix from predication_suffixes.  Use apply_predication to add in
    the predicate.  */
 static void
 build_all (function_builder &b, const function_group_info &group)
@@ -608,7 +608,7 @@ struct reduc_alu_frm_def : public build_frm_base
   }
 };
 
-/* widen_alu_def class. Handle vwadd/vwsub. Unlike
+/* widen_alu_def class.  Handle vwadd/vwsub.  Unlike
    vadd.vx/vadd.vv/vwmul.vv/vwmul.vx, vwadd.vv/vwadd.vx/vwadd.wv/vwadd.wx has
    'OP' suffix in overloaded API.  */
 struct widen_alu_def : public build_base
@@ -634,7 +634,7 @@ struct widen_alu_def : public build_base
   }
 };
 
-/* no_mask_policy_def class. Such instructions belong to this class
+/* no_mask_policy_def class.  Such instructions belong to this class
    doesn't need mask policy.  */
 struct no_mask_policy_def : public build_base
 {
@@ -655,7 +655,7 @@ struct no_mask_policy_def : public build_base
   }
 };
 
-/* return_mask_def class. Such instructions belong to this class
+/* return_mask_def class.  Such instructions belong to this class
    is returning mask value.  */
 struct return_mask_def : public build_base
 {
@@ -683,7 +683,7 @@ struct return_mask_def : public build_base
   }
 };
 
-/* narrow_alu_def class. Handle narrowing instructions like vnsrl.wv.  */
+/* narrow_alu_def class.  Handle narrowing instructions like vnsrl.wv.  */
 struct narrow_alu_def : public build_base
 {
   char *get_name (function_builder &b, const function_instance &instance,
@@ -726,7 +726,7 @@ struct narrow_alu_def : public build_base
   }
 };
 
-/* move_def class. Handle vmv.v.v/vmv.v.x.  */
+/* move_def class.  Handle vmv.v.v/vmv.v.x.  */
 struct move_def : public build_base
 {
   char *get_name (function_builder &b, const function_instance &instance,
@@ -1320,7 +1320,7 @@ struct sf_vqmacc_def : public build_base
   }
 };
 
-/* sf_vfnrclip_def class. Handle instructions like vfnrclip.  */
+/* sf_vfnrclip_def class.  Handle instructions like vfnrclip.  */
 struct sf_vfnrclip_def : public build_base
 {
   char *get_name (function_builder &b, const function_instance &instance,

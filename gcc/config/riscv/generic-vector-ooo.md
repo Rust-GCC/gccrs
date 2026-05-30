@@ -17,7 +17,7 @@
 ;; <http://www.gnu.org/licenses/>.
 ;; Vector load/store
 
-;; The insn reservations include "generic" as we won't have a in-order
+;; The insn reservations include "generic" as we won't have an in-order
 ;; generic definition for vector instructions.
 
 (define_automaton "vector_ooo")

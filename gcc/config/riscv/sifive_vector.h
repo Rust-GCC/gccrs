@@ -31,7 +31,7 @@
 #define __riscv_intrinsic_xsfvqmaccqoq 1
 
 /* TODO: This should have a separate pragma to include only the SiFive
-         vector intrinsics. For now, we are including riscv_vector.h. */
+	vector intrinsics.  For now, we are including riscv_vector.h.  */
 #include <riscv_vector.h>
 
 #endif // __SIFIVE_VECTOR_H

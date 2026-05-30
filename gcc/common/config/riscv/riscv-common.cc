@@ -352,7 +352,7 @@ riscv_subset_list::~riscv_subset_list ()
     }
 }
 
-/* Compute the match score of two arch string, return 0 if incompatible.  */
+/* Compute the match score of two arch strings, return 0 if incompatible.  */
 int
 riscv_subset_list::match_score (riscv_subset_list *list) const
 {
@@ -497,7 +497,7 @@ subset_cmp (const std::string &a, const std::string &b)
       int rank_a = multi_letter_subset_rank (a);
       int rank_b = multi_letter_subset_rank (b);
 
-      /* Using alphabetical/lexicographical order if they have same rank.  */
+      /* Use alphabetical/lexicographical order if they have the same rank.  */
       if (rank_a == rank_b)
 	/* The return value of strcmp has opposite meaning.  */
 	return -strcmp (a.c_str (), b.c_str ());
@@ -528,7 +528,7 @@ riscv_subset_list::add (const char *subset, int major_version,
     {
       if (ext->implied_p)
 	{
-	  /* We won't add implied `ext` if it already in list. */
+	  /* We won't add implied `ext` if it is already in list.  */
 	  gcc_assert (!implied_p);
 	  ext->implied_p = implied_p;
 	  ext->major_version = major_version;
@@ -1150,7 +1150,7 @@ riscv_subset_list::check_conflict_ext ()
   if (lookup ("zcf") && m_xlen == 64)
     error_at (*m_loc, "%<-march=%s%>: zcf extension supports in rv32 only",
 	      m_arch);
-  
+
   if (lookup ("zilsd") && m_xlen == 64)
     error_at (*m_loc, "%<-march=%s%>: zilsd extension supports in rv32 only",
 	      m_arch);
@@ -2108,7 +2108,7 @@ riscv_compute_multilib (
     return multilib_dir;
 
   /* Parsing MULTILIB_SELECT, ignore MULTILIB_REUSE here, we have our own rules.
-     TODO: most codes are grab from gcc.c, maybe we should refine that?  */
+     TODO: most code is grabbed from gcc.c, maybe we should refine that?  */
   p = multilib_select;
 
   while (*p != '\0')

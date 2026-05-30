@@ -4742,7 +4742,7 @@
 ;; Due to we cannot define a mode_attr mapping one HF to both
 ;; the SI and DI, we use 2 different mode_atter to cover all
 ;; the combination as above, as well as the different iterator
-;; for the lrint<m><n> patterns. Aka:
+;; for the lrint<m><n> patterns.  Aka:
 ;;
 ;; V_F2SI_CONVERT: (HF, SF, DF) => SI
 ;; V_F2DI_CONVERT: (HF, SF, DF) => DI

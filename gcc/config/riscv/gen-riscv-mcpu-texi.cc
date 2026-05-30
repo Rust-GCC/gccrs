@@ -20,7 +20,7 @@ main ()
   puts ("@opindex mcpu");
   puts ("@item -mcpu=@var{processor-string}");
   puts ("Use architecture of and optimize the output for the given processor, specified");
-  puts ("by particular CPU name. Permissible values for this option are:");
+  puts ("by particular CPU name.  Permissible values for this option are:");
   puts ("");
   puts ("");
 

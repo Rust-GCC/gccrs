@@ -34,7 +34,7 @@
    Why not use peephole2?
    ----------------------
    An alternative approach would be to use a peephole2 pattern to perform this
-   optimization. However, between "li a0, 0" and "cm.popret", there can be
+   optimization.  However, between "li a0, 0" and "cm.popret", there can be
    STACK_TIE and other instructions that make it difficult to write a robust
    peephole pattern that handles all cases.
 
@@ -132,7 +132,7 @@ riscv_popret_insn_p (int code)
 
 /* Convert a cm.popret instruction code to its corresponding cm.popretz code.
    Given an instruction code for gpr_multi_popret, returns the equivalent
-   gpr_multi_popretz instruction code. Returns CODE_FOR_nothing if the
+   gpr_multi_popretz instruction code.  Returns CODE_FOR_nothing if the
    input is not a valid popret instruction.  */
 static int
 riscv_code_for_popretz (int code)

@@ -470,7 +470,7 @@ riscv_expand_strcmp_scalar (rtx result, rtx src1, rtx src2,
    The result will be stored in RESULT.
    The strings are referenced by SRC1 and SRC2.
    The argument BYTES_RTX either holds the number of characters to
-   compare, or is NULL_RTX. The argument ALIGN_RTX holds the alignment.
+   compare, or is NULL_RTX.  The argument ALIGN_RTX holds the alignment.
 
    Return true if expansion was successful, or false otherwise.  */
 
@@ -707,7 +707,7 @@ emit_memcmp_scalar_result_calculation (rtx result, rtx data1, rtx data2)
   do_ior3 (result, result, const1_rtx);
 }
 
-/* Expand memcmp using scalar instructions (incl. Zbb).
+/* Expand memcmp using scalar instructions (including Zbb).
 
    RESULT is the register where the return value will be stored.
    The source pointers are SRC1 and SRC2 (NBYTES bytes to compare).  */

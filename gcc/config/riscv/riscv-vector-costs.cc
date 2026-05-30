@@ -515,7 +515,7 @@ compute_nregs_for_mode (loop_vec_info loop_vinfo, machine_mode mode,
 }
 
 /* This function helps to determine whether current LMUL will cause
-   potential vector register (V_REG) spillings according to live range
+   potential vector register (V_REG) spilling according to live range
    information.
 
      - First, compute how many variable are alive of each program point
@@ -965,7 +965,7 @@ costs::has_unexpected_spills_p (loop_vec_info loop_vinfo)
 	    = (*program_points_per_bb.get (bb)).length () + 1;
 	  if ((*iter).second.is_empty ())
 	    continue;
-	  /* We prefer larger LMUL unless it causes register spillings.  */
+	  /* We prefer larger LMUL unless it causes register spilling.  */
 	  unsigned int nregs
 	    = max_number_of_live_regs (loop_vinfo, bb, (*iter).second,
 				       max_point, biggest_mode, lmul);

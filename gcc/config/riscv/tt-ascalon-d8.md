@@ -94,7 +94,7 @@
 
 ;; Integer division is not pipelined.  Do not block the unit for more than
 ;; three cycles so the DFA does not get too large.  Similar for other
-;; non-pipelined instructions. Division is variable cycles so pick a value
+;; non-pipelined instructions.  Division is variable cycles so pick a value
 ;; in the middle.
 (define_insn_reservation "tt_ascalon_d8_idiv" 15
   (and (eq_attr "tune" "tt_ascalon_d8")

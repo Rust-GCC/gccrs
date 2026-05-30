@@ -11,11 +11,11 @@ any later version.
 
 GCC is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING3. If not see
+along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>. */
 
 /* Use "DEF_RVV_FUNCTION" macro to define RVV intrinsic functions.
@@ -106,7 +106,7 @@ DEF_RVV_FUNCTION (vlenb, vlenb, none_preds, ul_none_void_ops)
 DEF_RVV_FUNCTION (vsetvl, vsetvl, none_preds, i_none_size_size_ops)
 DEF_RVV_FUNCTION (vsetvlmax, vsetvlmax, none_preds, i_none_size_void_ops)
 
-/* 7. Vector Loads and Stores. */
+/* 7.  Vector Loads and Stores.  */
 
 // 7.4. Vector Unit-Stride Instructions
 DEF_RVV_FUNCTION (vle, loadstore, full_preds, all_v_scalar_const_ptr_ops)
@@ -299,7 +299,7 @@ DEF_RVV_FUNCTION (vmerge, no_mask_policy, none_tu_preds, iu_vvxm_ops)
 DEF_RVV_FUNCTION (vmv_v, move, none_tu_preds, all_v_ops)
 DEF_RVV_FUNCTION (vmv_v, move, none_tu_preds, iu_x_ops)
 
-/* 12. Vector Fixed-Point Arithmetic Instructions. */
+/* 12.  Vector Fixed-Point Arithmetic Instructions.  */
 
 // 12.1. Vector Single-Width Saturating Add and Subtract
 DEF_RVV_FUNCTION (vsaddu, alu, full_preds, u_vvv_ops)

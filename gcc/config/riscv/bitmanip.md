@@ -58,7 +58,7 @@
 
 ; Zba does not provide W-forms of sh[123]add(.uw)?, which leads to an
 ; interesting irregularity: we can generate a signed 32-bit result
-; using slli(.uw)?+ addw, but a unsigned 32-bit result can be more
+; using slli(.uw)?+ addw, but an unsigned 32-bit result can be more
 ; efficiently be generated as sh[123]add+zext.w (the .uw can be
 ; dropped, if we zero-extend the output anyway).
 ;
@@ -1159,7 +1159,7 @@
    && riscv_const_insns (operands[2], false) != 1
    /* We need the upper half to be zero.  */
    && (INTVAL (operands[2]) & HOST_WIDE_INT_C (0xffffffff00000000)) == 0
-   /* And the the adjusted constant must either be something we can
+   /* And the adjusted constant must either be something we can
       implement with andi or bclri.  */
    && ((SMALL_OPERAND (sext_hwi (INTVAL (operands[2]), 32))
         || (TARGET_ZBS && popcount_hwi (INTVAL (operands[2])) == 31))
@@ -1326,7 +1326,7 @@
   DONE;
 })
 
-;; If we have an XOR/IOR with a constant operand (C) and the we can
+;; If we have an XOR/IOR with a constant operand (C) and we can
 ;; synthesize ~C more efficiently than C, then synthesize ~C and use
 ;; xnor/orn instead.
 ;;

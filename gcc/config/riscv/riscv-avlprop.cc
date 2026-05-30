@@ -6,7 +6,7 @@ This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 3, or(at your option)
+the Free Software Foundation; either version 3, or (at your option)
 any later version.
 
 GCC is distributed in the hope that it will be useful,
@@ -23,7 +23,7 @@ along with GCC; see the file COPYING3.  If not see
 
      - Better code maintain:
        Current LCM-based VSETVL pass is so complicated that codes
-       there will become even harder to maintain. A straight forward
+       there will become even harder to maintain.  A straight forward
        AVL propagation PASS is much easier to maintain.
 
      - Reduce scalar register pressure:
@@ -313,13 +313,13 @@ pass_avlprop::get_preferred_avl (
      - Few code changes in Loop Vectorizer.
      - Reuse the current clean flow of partial vectorization, That is, apply
        predicate LEN or MASK into LOAD/STORE operations and other special
-       arithmetic operations (e.d. DIV), then do the whole vector register
+       arithmetic operations (e.g., DIV), then do the whole vector register
        operation if it DON'T affect the correctness.
        Such flow is used by all other targets like x86, sve, s390, ... etc.
      - PLUS_EXPR has better gimple optimizations than COND_LEN_ADD.
 
    We propagate AVL from NON-VLMAX to VLMAX for gimple IR like PLUS_EXPR which
-   generates the VLMAX instruction due to missed LEN information. The later
+   generates the VLMAX instruction due to missed LEN information.  The later
    VSETVL PASS will elided the redundant vsetvls.
 */
 
@@ -340,7 +340,7 @@ pass_avlprop::get_vlmax_ta_preferred_avl (insn_info *insn) const
       const auto *set = dyn_cast<set_info *> (def);
 
       /* FIXME: Stop AVL propagation if any USE is not a RVV real
-	 instruction. It should be totally enough for vectorized codes since
+	 instruction.  It should be totally enough for vectorized codes since
 	 they always locate at extended blocks.
 
 	 TODO: We can extend PHI checking for intrinsic codes if it

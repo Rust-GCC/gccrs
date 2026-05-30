@@ -194,7 +194,7 @@
        (match_test "known_eq (rtx_to_poly_int64 (op), BYTES_PER_RISCV_VECTOR)")))
 
 (define_constraint "vu"
-  "A undefined vector value."
+  "An undefined vector value."
   (and (match_code "unspec")
        (match_test "XINT (op, 1) == UNSPEC_VUNDEF")))
 

@@ -188,7 +188,7 @@ check_for_no_return_call (rtx_insn *prologue)
      NOTE_INSN_PROLOGUE_END
      A no-return call instruction
 
-     If we do, then we can remove the prologue instruction safely. Remember
+     If we do, then we can remove the prologue instruction safely.  Remember
      that we've already confirmed by this point that the prologue is a call
      to riscv_save_0.  */
 

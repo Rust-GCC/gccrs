@@ -479,8 +479,8 @@ riscv_process_target_attr (tree args,
 
 /* Implement TARGET_OPTION_VALID_ATTRIBUTE_P.
    This is used to process attribute ((target ("..."))).
-   Note, that riscv_set_current_function() has not been called before,
-   so we need must not mess with the current global_options, which
+   Note that riscv_set_current_function () has not been called before,
+   so we must not mess with the current global_options, which
    likely belong to another function.  */
 
 bool

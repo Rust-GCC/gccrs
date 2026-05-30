@@ -336,10 +336,10 @@ struct cpu_vector_cost
   /* Cost of a not-taken branch.  */
   const int cond_not_taken_branch_cost;
 
-  /* Cost of an VLS modes operations.  */
+  /* Cost of a VLS modes operations.  */
   const common_vector_cost *vls;
 
-  /* Cost of an VLA modes operations.  */
+  /* Cost of a VLA modes operations.  */
   const scalable_vector_cost *vla;
 
   /* Cost of vector register move operations.  */
@@ -360,7 +360,7 @@ namespace riscv_vector {
 
 /* These flags describe how to pass the operands to a rvv insn pattern.
    e.g.:
-     If a insn has this flags:
+     If an insn has this flags:
        HAS_DEST_P | HAS_MASK_P | USE_VUNDEF_MERGE_P
 	 | TU_POLICY_P | BINARY_OP_P | FRM_DYN_P
      that means:
@@ -373,16 +373,16 @@ namespace riscv_vector {
        operands[7] is the mask policy operands
        operands[8] is the rounding mode operands
 
-     Then you can call `emit_vlmax_insn (flags, icode, ops)` to emit a insn.
+     Then you can call `emit_vlmax_insn (flags, icode, ops)` to emit an insn.
      and ops[0] is the dest operand (operands[0]), ops[1] is the mask
      operand (operands[1]), ops[2] and ops[3] is the two
-     operands (operands[3], operands[4]) to do the operation. Other operands
+     operands (operands[3], operands[4]) to do the operation.  Other operands
      will be created by emit_vlmax_insn according to the flags information.
 */
 enum insn_flags : unsigned int
 {
   /* flags for dest, mask, merge operands.  */
-  /* Means INSN has dest operand. False for STORE insn.  */
+  /* Means INSN has dest operand.  False for STORE insn.  */
   HAS_DEST_P = 1 << 0,
   /* Means INSN has mask operand.  */
   HAS_MASK_P = 1 << 1,
@@ -510,7 +510,7 @@ enum insn_type : unsigned int
   BINARY_OP_VXRM_RDN = BINARY_OP | VXRM_RDN_P,
   BINARY_OP_VXRM_ROD = BINARY_OP | VXRM_ROD_P,
 
-  /* Ternary operator. Always have real merge operand.  */
+  /* Ternary operator.  Always have real merge operand.  */
   TERNARY_OP = HAS_DEST_P | HAS_MASK_P | USE_ALL_TRUES_MASK_P | HAS_MERGE_P
 	       | TDEFAULT_POLICY_P | MDEFAULT_POLICY_P | TERNARY_OP_P,
   TERNARY_OP_FRM_DYN = TERNARY_OP | FRM_DYN_P,

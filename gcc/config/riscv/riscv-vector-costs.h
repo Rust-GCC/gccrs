@@ -71,7 +71,7 @@ private:
 
   /* On some CPUs, VLA and VLS provide the same theoretical vector
      throughput, such as 4x128 VLS vs. 2x256 VLA.  In those
-     situations, we try to predict whether an VLS implementation
+     situations, we try to predict whether a VLS implementation
      of the loop could be completely unrolled and become straight-line code.
      If so, it is generally better to use the VLS version rather
      than length-agnostic VLA, since the VLA loop would execute an unknown

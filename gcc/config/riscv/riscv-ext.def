@@ -710,7 +710,7 @@ DEFINE_RISCV_EXT(
       return true;
     }
 
-  /* Do nothing for future RV128 specification. Behaviour
+  /* Do nothing for future RV128 specification.  Behaviour
      for this case is not yet well defined.  */
   return false;
 

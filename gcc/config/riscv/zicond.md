@@ -126,7 +126,7 @@
 })
 
 ;; In some cases gimple can give us a sequence with a logical and
-;; of two sCC insns.  This can be implemented an sCC feeding a
+;; of two sCC insns.  This can be implemented with an sCC feeding a
 ;; conditional zero.
 ;;
 ;; AND is commutative, so every form has two variants
@@ -224,7 +224,7 @@
 				      (match_dup 5)))]
   { PUT_CODE (operands[1], GET_CODE (operands[1]) == EQ ? NE : EQ); })
 
-;; We can splat the sign bit across a GPR with a arithmetic right shift
+;; We can splat the sign bit across a GPR with an arithmetic right shift
 ;; which gives us a 0, -1 result.  We then turn on bit #0 unconditionally
 ;; which results in 1, -1.  There's probably other cases that could be
 ;; handled, this seems particularly important though.
@@ -245,7 +245,7 @@
 ;; Similarly, but the condition and true/false values are reversed
 ;;
 ;; Note the case where the condition is reversed, but not the true/false
-;; values.  Or vice-versa is not handled because we don't support 4->3
+;; values.  Or vice versa is not handled because we don't support 4->3
 ;; splits.
 (define_split
   [(set (match_operand:X 0 "register_operand")
@@ -288,7 +288,7 @@
 ;; in the two arms.
 
 ;; Simple rv32 or rv64 ops where we can zero either operand to make
-;; it neutral.  Two as the the common and potentially neutral op in
+;; it neutral.  Two as the common and potentially neutral op in
 ;; the 2nd if-then-else can be swapped.
 (define_split
   [(set (match_operand:X 0 "register_operand")

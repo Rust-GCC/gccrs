@@ -27,7 +27,7 @@ main ()
   puts ("; License for more details.");
   puts (";");
   puts ("; You should have received a copy of the GNU General Public License");
-  puts ("; along with GCC; see the file COPYING3.  If not see ");
+  puts ("; along with GCC; see the file COPYING3.  If not see");
   puts ("; <http://www.gnu.org/licenses/>.");
 
   puts ("; This file is generated automatically using");

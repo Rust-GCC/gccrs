@@ -684,7 +684,7 @@
 }
 [(set_attr "type" "viwalu")])
 
-;; This combine pattern does not correspond to an single instruction,
+;; This combine pattern does not correspond to a single instruction,
 ;; i.e. there is no vwmul.wv instruction. This is a temporary pattern
 ;; produced by a combine pass and if there is no further combine into
 ;; vwmul.vv pattern, then fall back to extend pattern and vmul.vv pattern.
@@ -825,7 +825,7 @@
 }
 [(set_attr "type" "vector")])
 
-;; This combine pattern does not correspond to an single instruction,
+;; This combine pattern does not correspond to a single instruction,
 ;; i.e. there is no vfwmul.wv instruction. This is a temporary pattern
 ;; produced by a combine pass and if there is no further combine into
 ;; vfwmul.vv pattern, then fall back to extend pattern and vfmul.vv pattern.
@@ -1014,7 +1014,7 @@
   }
   [(set_attr "type" "viwmuladd")])
 
-;; This combine pattern does not correspond to an single instruction.
+;; This combine pattern does not correspond to a single instruction.
 ;; This is a temporary pattern produced by a combine pass and if there
 ;; is no further combine into widen pattern, then fall back to extend
 ;; pattern and non-widen fma pattern.
@@ -1067,7 +1067,7 @@
   }
   [(set_attr "type" "vfwmuladd")])
 
-;; This combine pattern does not correspond to an single instruction.
+;; This combine pattern does not correspond to a single instruction.
 ;; This is a temporary pattern produced by a combine pass and if there
 ;; is no further combine into widen pattern, then fall back to extend
 ;; pattern and non-widen fma pattern.
@@ -1119,7 +1119,7 @@
   }
   [(set_attr "type" "vfwmuladd")])
 
-;; This combine pattern does not correspond to an single instruction.
+;; This combine pattern does not correspond to a single instruction.
 ;; This is a temporary pattern produced by a combine pass and if there
 ;; is no further combine into widen pattern, then fall back to extend
 ;; pattern and non-widen fnma pattern.
@@ -1171,7 +1171,7 @@
   }
   [(set_attr "type" "vfwmuladd")])
 
-;; This combine pattern does not correspond to an single instruction.
+;; This combine pattern does not correspond to a single instruction.
 ;; This is a temporary pattern produced by a combine pass and if there
 ;; is no further combine into widen pattern, then fall back to extend
 ;; pattern and non-widen fms pattern.
@@ -1224,7 +1224,7 @@
   }
   [(set_attr "type" "vfwmuladd")])
 
-;; This combine pattern does not correspond to an single instruction.
+;; This combine pattern does not correspond to a single instruction.
 ;; This is a temporary pattern produced by a combine pass and if there
 ;; is no further combine into widen pattern, then fall back to extend
 ;; pattern and non-widen fnms pattern.

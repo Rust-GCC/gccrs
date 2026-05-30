@@ -109,7 +109,7 @@ along with GCC; see the file COPYING3.  If not see
 /* Extract the backup dynamic frm rtl.  */
 #define DYNAMIC_FRM_RTL(c) ((c)->machine->mode_sw_info.dynamic_frm)
 
-/* True the mode switching has static frm, or false.  */
+/* True if the mode switching has static frm, or false.  */
 #define STATIC_FRM_P(c) ((c)->machine->mode_sw_info.static_frm_p)
 
 #define CFUN_IN_CALL(c) ((c)->machine->mode_sw_info.cfun_call)
@@ -141,11 +141,11 @@ struct GTY(())  riscv_frame_info {
   /* How much the GPR save/restore routines adjust sp (or 0 if unused).  */
   unsigned save_libcall_adjustment;
 
-  /* the minimum number of bytes, in multiples of 16-byte address increments,
+  /* The minimum number of bytes, in multiples of 16-byte address increments,
      required to cover the registers in a multi push & pop.  */
   unsigned multi_push_adj_base;
 
-  /* the number of additional 16-byte address increments allocated for the stack
+  /* The number of additional 16-byte address increments allocated for the stack
      frame in a multi push & pop.  */
   unsigned multi_push_adj_addi;
 
@@ -916,7 +916,7 @@ static const attribute_spec riscv_gnu_attributes[] =
   {"RVV sizeless type", 4, 4, false, true, false, true, NULL, NULL},
   {"RVV type", 0, 0, false, true, false, true, NULL, NULL},
   /* This attribute is used to declare a function, forcing it to use the
-    standard vector calling convention variant. Syntax:
+    standard vector calling convention variant.  Syntax:
     __attribute__((riscv_vector_cc)). */
   {"riscv_vector_cc", 0, 0, false, true, true, true, NULL, NULL},
   {"riscv_vls_cc", 0, 1, false, true, true, true,
@@ -926,13 +926,13 @@ static const attribute_spec riscv_gnu_attributes[] =
 
      typedef vint8m1_t f_vint8m1_t __attribute__((riscv_rvv_vector_bits(256)));
 
-     The new created type f_vint8m1_t will be exactly 256 bits.  It can be
+     The new created type f_vint8m1_t will be exactly 256 bits.  It can
      be used in globals, structs, unions, and arrays instead of sizeless
      types.  */
   {"riscv_rvv_vector_bits", 1, 1, false, true, false, true,
    riscv_handle_rvv_vector_bits_attribute, NULL},
   /* This attribute is used to declare a function, forcing it to use the
-    standard vector calling convention variant. Syntax:
+    standard vector calling convention variant.  Syntax:
     __attribute__((norelax)). */
   {"norelax", 0, 0, true, false, false, false, NULL, NULL},
 };
@@ -945,7 +945,7 @@ static const scoped_attribute_specs riscv_gnu_attribute_table  =
 static const attribute_spec riscv_attributes[] =
 {
   /* This attribute is used to declare a function, forcing it to use the
-     standard vector calling convention variant. Syntax:
+     standard vector calling convention variant.  Syntax:
      [[riscv::vector_cc]]. */
   {"vector_cc", 0, 0, false, true, true, true, NULL, NULL},
   {"vls_cc", 0, 1, false, true, true, true, riscv_handle_rvv_vls_cc_attribute,
@@ -955,7 +955,7 @@ static const attribute_spec riscv_attributes[] =
 
      typedef vint8m1_t f_vint8m1_t __attribute__((riscv_rvv_vector_bits(256)));
 
-     The new created type f_vint8m1_t will be exactly 256 bits.  It can be
+     The new created type f_vint8m1_t will be exactly 256 bits.  It can
      be used in globals, structs, unions, and arrays instead of sizeless
      types.  */
   {"rvv_vector_bits", 1, 1, false, true, false, true,
@@ -1122,7 +1122,7 @@ get_tune_str (const T *opts)
 }
 
 /* Return the riscv_tune_info entry for the given name string, return nullptr
-   if NULL_P is true, otherwise return an placeholder and report error.  */
+   if NULL_P is true, otherwise return a placeholder and report error.  */
 
 const struct riscv_tune_info *
 riscv_parse_tune (const char *tune_string, bool null_p)
@@ -1457,7 +1457,7 @@ riscv_build_integer_1 (struct riscv_integer_op codes[RISCV_MAX_INTEGER_OPS],
 /* Fill CODES with a sequence of rtl operations to load VALUE.
    Return the number of operations needed.
 
-   ALLOW_NEW_PSEUDOS indicates if or caller wants to allow new pseudo
+   ALLOW_NEW_PSEUDOS indicates if the caller wants to allow new pseudo
    registers or not.  This is needed for cases where the integer synthesis and
    costing code are used in insn conditions, we can't have costing allow
    recognition at some points and reject at others.  */
@@ -1989,7 +1989,7 @@ static int riscv_symbol_insns (enum riscv_symbol_type type)
 }
 
 /* Immediate values loaded by the FLI.S instruction in Chapter 25 of the latest RISC-V ISA
-   Manual draft. For details, please see:
+   Manual draft.  For details, please see:
    https://github.com/riscv/riscv-isa-manual/releases/tag/isa-449cd0c  */
 
 static const unsigned HOST_WIDE_INT fli_value_hf[32] =
@@ -2049,8 +2049,9 @@ const char *fli_value_print[32] =
   "8.0", "16.0", "128.0", "256.0", "32768.0", "65536.0", "inf", "nan"
 };
 
-/* Return index of the FLI instruction table if rtx X is an immediate constant that can
-   be moved using a single FLI instruction in zfa extension. Return -1 if not found.  */
+/* Return index of the FLI instruction table if rtx X is an immediate constant
+   that can be moved using a single FLI instruction in zfa extension.  Return -1
+   if not found.  */
 
 int
 riscv_float_const_rtx_index_for_fli (rtx x)
@@ -2448,7 +2449,7 @@ riscv_v_vls_to_gpr_mode (unsigned vls_mode_size)
     }
 }
 
-/* Call from ADJUST_NUNITS in riscv-modes.def. Return the correct
+/* Call from ADJUST_NUNITS in riscv-modes.def.  Return the correct
    NUNITS size for corresponding machine_mode.  */
 
 poly_int64
@@ -2464,7 +2465,7 @@ riscv_v_adjust_nunits (machine_mode mode, int scale)
   return scale;
 }
 
-/* Call from ADJUST_NUNITS in riscv-modes.def. Return the correct
+/* Call from ADJUST_NUNITS in riscv-modes.def.  Return the correct
    NUNITS size for corresponding machine_mode.  */
 
 poly_int64
@@ -2692,7 +2693,7 @@ riscv_address_insns (rtx x, machine_mode mode, bool might_split_p)
    Return 0 if X isn't a valid constant.
 
    ALLOW_NEW_PSEUDOS controls whether or not we're going to be allowed
-   to create new pseduos.  It must be FALSE for any call directly or
+   to create new pseudos.  It must be FALSE for any call directly or
    indirectly from a pattern's condition.  */
 
 int
@@ -2849,7 +2850,7 @@ riscv_const_insns (rtx x, bool allow_new_pseudos)
 
     /* TODO: In RVV, we get CONST_POLY_INT by using csrr VLENB
        instruction and several scalar shift or mult instructions,
-       it is so far unknown. We set it to 4 temporarily.  */
+       it is so far unknown.  We set it to 4 temporarily.  */
     case CONST_POLY_INT:
       return 4;
 
@@ -3293,7 +3294,7 @@ riscv_shorten_lw_offset (rtx base, HOST_WIDE_INT offset)
   return addr;
 }
 
-/* Helper for riscv_legitimize_address. Given X, return true if it
+/* Helper for riscv_legitimize_address.  Given X, return true if it
    is a left shift by 1, 2 or 3 positions or a multiply by 2, 4 or 8.
 
    This respectively represent canonical shift-add rtxs or scaled
@@ -3558,7 +3559,7 @@ riscv_legitimize_const_move (machine_mode mode, rtx dest, rtx src)
 }
 
 /* Report when we try to do something that requires vector when vector is
-   disabled. This is an error of last resort and isn't very high-quality.  It
+   disabled.  This is an error of last resort and isn't very high-quality.  It
    usually involves attempts to measure the vector length in some way.  */
 
 static void
@@ -4376,7 +4377,7 @@ riscv_rtx_costs (rtx x, machine_mode mode, int outer_code, int opno ATTRIBUTE_UN
     case LABEL_REF:
     case CONST_DOUBLE:
       /* With TARGET_SUPPORTS_WIDE_INT const int can't be in CONST_DOUBLE
-	 rtl object. Weird recheck due to switch-case fall through above.  */
+	 rtl object.  Weird recheck due to switch-case fall through above.  */
       if (GET_CODE (x) == CONST_DOUBLE)
 	gcc_assert (GET_MODE (x) != VOIDmode);
       /* Fall through.  */
@@ -5579,7 +5580,7 @@ riscv_extend_comparands (rtx_code code, rtx *op0, rtx *op1)
   if (GET_MODE_SIZE (word_mode) > GET_MODE_SIZE (GET_MODE (*op0)).to_constant ())
     {
       /* It is more profitable to zero-extend QImode values.  But not if the
-	 first operand has already been sign-extended, and the second one is
+	 first operand has already been sign-extended, and the second one
 	 is a constant or has already been sign-extended also.  */
       if (unsigned_condition (code) == code
 	  && (GET_MODE (*op0) == QImode
@@ -6550,8 +6551,8 @@ riscv_pass_aggregate_in_fpr_pair_p (const_tree type,
        float f;
      };
 
-     This case we will got 1, but legacy ABI will got -1, however legacy ABI
-     will got 1 in later logic, so we should consider this case as compatible.
+     This case we will get 1, but legacy ABI will get -1, however legacy ABI
+     will get 1 in later logic, so we should consider this case as compatible.
   */
   bool compatible_p = n_new2 == 1 && n_new == -1 && num_fpr == 1;
 
@@ -6811,8 +6812,8 @@ riscv_get_vector_arg (struct riscv_arg_info *info, const CUMULATIVE_ARGS *cum,
     }
 
   /* The number and alignment of vector registers need for this scalable vector
-     argument. When the mode size is less than a full vector, we use 1 vector
-     register to pass. Just call TARGET_HARD_REGNO_NREGS for the number
+     argument.  When the mode size is less than a full vector, we use 1 vector
+     register to pass.  Just call TARGET_HARD_REGNO_NREGS for the number
      information.  */
   int nregs = riscv_hard_regno_nregs (V_ARG_FIRST, mode);
   int LMUL = riscv_tuple_mode_p (mode)
@@ -7080,7 +7081,7 @@ riscv_pass_aggregate_in_vr (struct riscv_arg_info *info,
 }
 
 /* Fill INFO with information about a single argument, and return an RTL
-   pattern to pass or return the argument. Return NULL_RTX if argument cannot
+   pattern to pass or return the argument.  Return NULL_RTX if argument cannot
    pass or return in registers, then the argument may be passed by reference
    or through the stack.  CUM is the cumulative state for earlier arguments.
    MODE is the mode of this argument and TYPE is its type (if known).
@@ -10072,7 +10073,7 @@ riscv_expand_prologue (void)
   if (need_shadow_stack_push_pop_p ())
     emit_insn (gen_sspush (Pmode, gen_rtx_REG (Pmode, RETURN_ADDR_REGNUM)));
 
-  /* prefer multi-push to save-restore libcall.  */
+  /* Prefer multi-push to save-restore libcall.  */
   if (riscv_use_multi_push (frame))
     {
       remaining_size -= frame->multi_push_adj_base;
@@ -11329,7 +11330,7 @@ riscv_sched_variable_issue (FILE *, int, rtx_insn *insn, int more)
 }
 
 /* Implement TARGET_SCHED_REORDER.  The goal here is to look at the ready
-   queue and reorder it ever so slightly to encourage issing an insn with
+   queue and reorder it ever so slightly to encourage issuing an insn with
    the same vector configuration as the most recently issued vector
    instruction.  That will reduce vsetvl instructions.  */
 static int
@@ -11464,7 +11465,7 @@ riscv_sched_adjust_cost (rtx_insn *, int, rtx_insn *insn, int cost,
   return new_cost;
 }
 
-/* Implement TARGET_SCHED_CAN_SPECULATE_INSN hook.  Return true if insn can
+/* Implement TARGET_SCHED_CAN_SPECULATE_INSN hook.  Return true if insn
    can be scheduled for speculative execution.  Reject vsetvl instructions to
    prevent the scheduler from hoisting them out of basic blocks without
    checking for data dependencies PR117974.  */
@@ -11763,7 +11764,7 @@ riscv_convert_vector_chunks (struct gcc_options *opts)
   if (min_vlen > 32)
     {
       /* When targeting minimum VLEN > 32, we should use 64-bit chunk size.
-	 Otherwise we can not include SEW = 64bits.
+	 Otherwise we can not include SEW = 64 bits.
 	 Runtime invariant: The single indeterminate represent the
 	 number of 64-bit chunks in a vector beyond minimum length of 64 bits.
 	 Thus the number of bytes in a vector is 8 + 8 * x1 which is
@@ -11783,7 +11784,7 @@ riscv_convert_vector_chunks (struct gcc_options *opts)
   else
     {
       /* When targeting minimum VLEN = 32, we should use 32-bit
-	 chunk size. Runtime invariant: The single indeterminate represent the
+	 chunk size.  Runtime invariant: The single indeterminate represent the
 	 number of 32-bit chunks in a vector beyond minimum length of 32 bits.
 	 Thus the number of bytes in a vector is 4 + 4 * x1 which is
 	 riscv_vector_chunks * 4 = poly_int (4, 4).  */
@@ -11792,10 +11793,10 @@ riscv_convert_vector_chunks (struct gcc_options *opts)
     }
 
   /* Set riscv_vector_chunks as poly (1, 1) run-time constant if TARGET_VECTOR
-     is enabled. Set riscv_vector_chunks as 1 compile-time constant if
+     is enabled.  Set riscv_vector_chunks as 1 compile-time constant if
      TARGET_VECTOR is disabled. riscv_vector_chunks is used in "riscv-modes.def"
-     to set RVV mode size. The RVV machine modes size are run-time constant if
-     TARGET_VECTOR is enabled. The RVV machine modes size remains default
+     to set RVV mode size.  The RVV machine modes size are run-time constant if
+     TARGET_VECTOR is enabled.  The RVV machine modes size remains default
      compile-time constant if TARGET_VECTOR is disabled.  */
   if (TARGET_VECTOR_OPTS_P (opts))
     {
@@ -12487,7 +12488,7 @@ riscv_function_ok_for_sibcall (tree decl ATTRIBUTE_UNUSED,
     return false;
 
   /* Don't use sibcalls in the large model, because a sibcall instruction
-     expanding and a epilogue expanding both use RISCV_PROLOGUE_TEMP
+     expanding and an epilogue expanding both use RISCV_PROLOGUE_TEMP
      register.  */
   if (riscv_cmodel == CM_LARGE)
     return false;
@@ -12814,10 +12815,10 @@ zcmp_additional_adj (HOST_WIDE_INT total, int regs_num)
 bool
 riscv_zcmp_valid_stack_adj_bytes_p (HOST_WIDE_INT total, int regs_num)
 {
-  HOST_WIDE_INT additioanl_bytes = zcmp_additional_adj (total, regs_num);
-  return additioanl_bytes == 0 || additioanl_bytes == 1 * ZCMP_SP_INC_STEP
-	 || additioanl_bytes == 2 * ZCMP_SP_INC_STEP
-	 || additioanl_bytes == ZCMP_MAX_SPIMM * ZCMP_SP_INC_STEP;
+  HOST_WIDE_INT additional_bytes = zcmp_additional_adj (total, regs_num);
+  return additional_bytes == 0 || additional_bytes == 1 * ZCMP_SP_INC_STEP
+	 || additional_bytes == 2 * ZCMP_SP_INC_STEP
+	 || additional_bytes == ZCMP_MAX_SPIMM * ZCMP_SP_INC_STEP;
 }
 
 /* Return true if it's valid gpr_save pattern.  */
@@ -13106,7 +13107,7 @@ riscv_regmode_natural_size (machine_mode mode)
 	return BYTES_PER_RISCV_VECTOR;
       else if (!riscv_vls_mode_p (mode))
 	/* For -march=rv64gc_zve32f, the natural vector register size
-	   is 32bits which is smaller than scalar register size, so we
+	   is 32 bits which is smaller than scalar register size, so we
 	   return minimum size between vector register size and scalar
 	   register size.  */
 	return MIN (size.to_constant (), UNITS_PER_WORD);
@@ -13603,7 +13604,7 @@ vxrm_unknown_p (rtx_insn *insn)
   if (reg_set_p (gen_rtx_REG (SImode, VXRM_REGNUM), insn))
     return true;
 
-  /* Return true for all assembly since users may hardcode a assembly
+  /* Return true for all assembly since users may hardcode an assembly
      like this: asm volatile ("csrwi vxrm, 0").  */
   if (asm_insn_p (insn))
     return true;
@@ -15460,7 +15461,7 @@ synthesize_ior_xor (rtx_code code, rtx operands[3])
 
   /* The number of instructions to synthesize the constant is a good
      estimate of the budget.  That does not account for out of order
-     execution an fusion in the constant synthesis those would naturally
+     execution and fusion in the constant synthesis those would naturally
      decrease the budget.  It also does not account for the IOR/XOR at
      the end of the sequence which would increase the budget.  */
   int budget = (TARGET_ZBS ? riscv_const_insns (operands[2], true) : -1);
@@ -15479,7 +15480,7 @@ synthesize_ior_xor (rtx_code code, rtx operands[3])
       budget--;
     }
 
-  /* Check for bseti cases. For each remaining bit in ival,
+  /* Check for bseti cases.  For each remaining bit in ival,
      decrease the budget by one. */
   while (ival)
     {
@@ -15697,7 +15698,7 @@ synthesize_and (rtx operands[3])
 
   /* The number of instructions to synthesize the constant is a good
      estimate of the budget.  That does not account for out of order
-     execution an fusion in the constant synthesis those would naturally
+     execution and fusion in the constant synthesis those would naturally
      decrease the budget.  It also does not account for the AND at
      the end of the sequence which would increase the budget. */
   int budget = riscv_const_insns (operands[2], true);

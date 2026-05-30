@@ -6,7 +6,7 @@ This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 3, or(at your option)
+the Free Software Foundation; either version 3, or (at your option)
 any later version.
 
 GCC is distributed in the hope that it will be useful,
@@ -19,21 +19,22 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 /* The values of the vl and vtype registers will affect the behavior of RVV
-   insns. That is, when we need to execute an RVV instruction, we need to set
+   insns.  That is, when we need to execute an RVV instruction, we need to set
    the correct vl and vtype values by executing the vsetvl instruction before.
    Executing the fewest number of vsetvl instructions while keeping the behavior
-   the same is the problem this pass is trying to solve. This vsetvl pass is
+   the same is the problem this pass is trying to solve.  This vsetvl pass is
    divided into 5 phases:
 
      - Phase 1 (fuse local vsetvl infos): traverses each Basic Block, parses
        each instruction in it that affects vl and vtype state and generates an
-       array of vsetvl_info objects. Then traverse the vsetvl_info array from
-       front to back and perform fusion according to the fusion rules. The fused
-       vsetvl infos are stored in the vsetvl_block_info object's `infos` field.
+       array of vsetvl_info objects.  Then traverse the vsetvl_info array from
+       front to back and perform fusion according to the fusion rules.  The
+       fused vsetvl infos are stored in the vsetvl_block_info object's `infos`
+       field.
 
      - Phase 2 (earliest fuse global vsetvl infos): The header_info and
        footer_info of vsetvl_block_info are used as expressions, and the
-       earliest of each expression is computed. Based on the earliest
+       earliest of each expression is computed.  Based on the earliest
        information, try to lift up the corresponding vsetvl info to the src
        basic block of the edge (mainly to reduce the total number of vsetvl
        instructions, this uplift will cause some execution paths to execute
@@ -51,9 +52,9 @@ along with GCC; see the file COPYING3.  If not see
      - Phase 5 (cleanup): Clean up the avl operand in the RVV operator
        instruction and cleanup the unused dest operand of the vsetvl insn.
 
-     After the Phase 1 a virtual CFG of vsetvl_info is generated. The virtual
+     After the Phase 1 a virtual CFG of vsetvl_info is generated.  The virtual
      basic block is represented by vsetvl_block_info, and the virtual vsetvl
-     statements inside are represented by vsetvl_info. The later phases 2 and 3
+     statements inside are represented by vsetvl_info.  The later phases 2 and 3
      are constantly modifying and adjusting this virtual CFG. Phase 4 performs
      insertion, modification and deletion of vsetvl instructions based on the
      optimized virtual CFG. The Phase 1, 2 and 3 do not involve modifications to
@@ -93,10 +94,10 @@ using namespace riscv_vector;
 
 /* Set the bitmap DST to the union of SRC of predecessors of
    basic block B.
-   It's a bit different from bitmap_union_of_preds in cfganal.cc. This function
-   takes into account the case where pred is ENTRY basic block. The main reason
+   It's a bit different from bitmap_union_of_preds in cfganal.cc.  This function
+   takes into account the case where pred is ENTRY basic block.  The main reason
    for this difference is to make it easier to insert some special value into
-   the ENTRY base block. For example, vsetvl_info with a status of UNKNOWN.  */
+   the ENTRY base block.  For example, vsetvl_info with a status of UNKNOWN.  */
 static void
 bitmap_union_of_preds_with_entry (sbitmap dst, sbitmap *src, basic_block b)
 {
@@ -256,7 +257,7 @@ policy_to_str (bool agnostic_p)
   return agnostic_p ? "agnostic" : "undisturbed";
 }
 
-/* Return true if it is an RVV instruction depends on VTYPE global
+/* Return true if it is an RVV instruction that depends on VTYPE global
    status register.  */
 bool
 has_vtype_op (rtx_insn *rinsn)
@@ -485,8 +486,9 @@ get_avl (rtx_insn *rinsn)
 static bool
 get_default_ma ()
 {
-  /* For the instruction that doesn't require MA, we still need a default value
-     to emit vsetvl. We pick up the default value according to prefer policy. */
+  /* For the instruction that does not require MA, we still need a default
+     value to emit vsetvl.  We pick up the default value according to
+     preferred policy.  */
   return (bool) (get_prefer_mask_policy () & 0x1
 		 || (get_prefer_mask_policy () >> 1 & 0x1));
 }
@@ -558,7 +560,7 @@ enum def_type
   BB_END_SET = 1 << 3,
   /* ??? TODO: In RTL_SSA framework, we have REAL_SET,
      PHI_SET, BB_HEAD_SET, BB_END_SET and
-     CLOBBER_DEF def_info types. Currently,
+     CLOBBER_DEF def_info types.  Currently,
      we conservatively do not optimize clobber
      def since we don't see the case that we
      need to optimize it.  */
@@ -617,7 +619,7 @@ get_all_real_uses (insn_info *insn, unsigned regno)
   return uses;
 }
 
-/* Recursively find all define instructions. The kind of instruction is
+/* Recursively find all define instructions.  The kind of instruction is
    specified by the DEF_TYPE.  */
 static hash_set<set_info *>
 get_all_sets (phi_info *phi, unsigned int types)
@@ -795,7 +797,7 @@ get_all_predecessors (basic_block bb)
 }
 
 /* This flags indicates the minimum demand of the vl and vtype values by the
-   RVV instruction. For example, DEMAND_RATIO_P indicates that this RVV
+   RVV instruction.  For example, DEMAND_RATIO_P indicates that this RVV
    instruction only needs the SEW/LMUL ratio to remain the same, and does not
    require SEW and LMUL to be fixed.
    Therefore, if the former RVV instruction needs DEMAND_RATIO_P and the latter
@@ -819,12 +821,12 @@ enum demand_flags : unsigned
   DEMAND_NON_ZERO_AVL_P = 1 << 7,
 };
 
-/* We split the demand information into three parts. They are sew and lmul
+/* We split the demand information into three parts.  They are sew and lmul
    related (sew_lmul_demand_type), tail and mask policy related
    (policy_demand_type) and avl related (avl_demand_type). Then we define three
    interfaces available_p, compatible_p and merge. available_p is
    used to determine whether the two vsetvl infos prev_info and next_info are
-   available or not. If prev_info is available for next_info, it means that the
+   available or not.  If prev_info is available for next_info, it means that the
    RVV insn corresponding to next_info on the path from prev_info to next_info
    can be used without inserting a separate vsetvl instruction. compatible_p
    is used to determine whether prev_info is compatible with next_info, and if
@@ -1122,7 +1124,8 @@ public:
     if (insn->is_debug_insn ())
       return;
 
-    /* We set it as unknown since we don't what will happen in CALL or ASM.  */
+    /* We set it as unknown since we don't know what will happen in CALL
+       or ASM.  */
     if (insn->is_call () || insn->is_asm ())
       {
 	set_unknown ();
@@ -1162,7 +1165,7 @@ public:
     m_vlmul = ::get_vlmul (insn->rtl ());
     m_ratio = get_attr_ratio (insn->rtl ());
     /* when get_attr_ratio is invalid, this kind of instructions
-       doesn't care about ratio. However, we still need this value
+       doesn't care about ratio.  However, we still need this value
        in demand info backward analysis.  */
     if (m_ratio == INVALID_ATTRIBUTE)
       m_ratio = calculate_ratio (m_sew, m_vlmul);
@@ -1303,8 +1306,8 @@ public:
      if we fuse the VL modification from OTHER into THIS.  */
   bool vl_modify_non_avl_op_p (const vsetvl_info &other) const
   {
-    /* We don't need to worry about any operands from THIS be
-       modified by OTHER vsetvl since we OTHER vsetvl doesn't
+    /* We don't need to worry about any operands from THIS being
+       modified by OTHER vsetvl since OTHER vsetvl doesn't
        modify any operand.  */
     if (!other.has_vl ())
       return false;
@@ -2467,8 +2470,8 @@ private:
 	  continue;
 	else
 	  /* We pick the highest probability among those incompatible VSETVL
-	     infos. When all incompatible VSETVL infos have same probability, we
-	     don't pick any of them.  */
+	     infos.  When all incompatible VSETVL infos have same probability,
+	     we don't pick any of them.  */
 	  return false;
       }
     return true;
@@ -2835,7 +2838,7 @@ pre_vsetvl::compute_lcm_local_properties ()
   bitmap_vector_ones (m_transp, last_basic_block_for_fn (cfun));
 
   /* -  If T is locally available at the end of a block, then T' must be
-	available at the end of the same block. Since some optimization has
+	available at the end of the same block.  Since some optimization has
 	occurred earlier, T' might not be locally available, however, it must
 	have been previously computed on all paths. As a formula, T at AVLOC(B)
 	implies that T' at AVOUT(B).
@@ -3880,7 +3883,7 @@ pass_vsetvl::execute (function *)
     return 0;
 
   /* The RVV instruction may change after split which is not a stable
-     instruction. We need to split it here to avoid potential issue
+     instruction.  We need to split it here to avoid potential issue
      since the VSETVL PASS is insert before split PASS.  */
   split_all_insns ();
 

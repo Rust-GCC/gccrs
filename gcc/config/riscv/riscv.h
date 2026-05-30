@@ -177,7 +177,8 @@ ARCH_UNSET_CLEANUP_SPECS \
 
 /* The `Q' extension is not yet supported.  */
 #define UNITS_PER_FP_REG (TARGET_DOUBLE_FLOAT ? 8 : 4)
-/* Size per vector register. For VLEN = 32, size = poly (4, 4). Otherwise, size = poly (8, 8). */
+/* Size per vector register.  For VLEN = 32, size = poly (4, 4).
+   Otherwise, size = poly (8, 8).  */
 #define UNITS_PER_V_REG (riscv_vector_chunks * riscv_bytes_per_vector_chunk)
 
 /* The largest type that can be passed in floating-point registers.  */
@@ -1328,7 +1329,7 @@ extern void riscv_remove_unneeded_save_restore_calls (void);
 		STACK_BOUNDARY / BITS_PER_UNIT)		   \
     : (crtl->outgoing_args_size + STACK_POINTER_OFFSET))
 
-/* According to the RISC-V C API, the arch string may contains ','. To avoid
+/* According to the RISC-V C API, the arch string may contain ','.  To avoid
    the conflict with the default separator, we choose '#' as the separator for
    the target attribute.  */
 #define TARGET_CLONES_ATTR_SEPARATOR '#'

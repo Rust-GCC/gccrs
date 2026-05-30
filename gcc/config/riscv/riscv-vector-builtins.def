@@ -19,22 +19,22 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 /* Use "DEF_RVV_TYPE" macro to define RVV datatype builtins.
-   1.The 'NAME' argument is the name exposed to users.
+   1.  The 'NAME' argument is the name exposed to users.
      For example, "vint32m1_t".
-   2.The 'NCHARS' argument is the length of ABI-name.
+   2.  The 'NCHARS' argument is the length of ABI-name.
      For example, length of "__rvv_int32m1_t" is 15.
-   3.The 'ABI_NAME' argument is the ABI-name. For example, "__rvv_int32m1_t".
-   4.The 'SCALAR_TYPE' argument is associated scalar type which is used in
-     "build_vector_type_for_mode". For "vint32m1_t", we use "intSI_type_node" in
-     RV64. Otherwise, we use "long_integer_type_node".
-   5.The 'VECTOR_MODE' is the machine modes of corresponding RVV type used
+   3.  The 'ABI_NAME' argument is the ABI-name.  For example, "__rvv_int32m1_t".
+   4.  The 'SCALAR_TYPE' argument is associated scalar type which is used in
+     "build_vector_type_for_mode".  For "vint32m1_t", we use "intSI_type_node"
+     in RV64.  Otherwise, we use "long_integer_type_node".
+   5.  The 'VECTOR_MODE' is the machine modes of corresponding RVV type used
      in "build_vector_type_for_mode".
      For example: VECTOR_MODE = RVVM1SImode for "vint32m1_t".
-   6.The 'VECTOR_SUFFIX' define mode suffix for vector type.
+   6.  The 'VECTOR_SUFFIX' define mode suffix for vector type.
      For example: type_suffixes[VECTOR_TYPE_vin32m1_t].vector = i32m1.
-   7.The 'SCALAR_SUFFIX' define mode suffix for scalar type.
+   7.  The 'SCALAR_SUFFIX' define mode suffix for scalar type.
      For example: type_suffixes[VECTOR_TYPE_vin32m1_t].scalar = i32.
-   8.The 'VSETVL_SUFFIX' define mode suffix for vsetvli instruction.
+   8.  The 'VSETVL_SUFFIX' define mode suffix for vsetvli instruction.
      For example: type_suffixes[VECTOR_TYPE_vin32m1_t].vsetvl = e32m1.
 */
 

@@ -1071,7 +1071,7 @@
 [(set_attr "type" "vfncvtitof")])
 
 ;; This operation can be performed in the loop vectorizer but unfortunately
-;; not applicable for now. We can remove this pattern after loop vectorizer
+;; not applicable for now.  We can remove this pattern after loop vectorizer
 ;; is able to take care of INT64 to FP16 conversion.
 (define_expand "<float_cvt><mode><vnnconvert>2"
   [(set (match_operand:<VNNCONVERT>  0 "register_operand")
@@ -1369,7 +1369,7 @@
    (match_operand	     2 "nonmemory_operand")]
   "TARGET_VECTOR"
 {
-  /* If we set the first element, emit an v(f)mv.s.[xf].  */
+  /* If we set the first element, emit a v(f)mv.s.[xf].  */
   if (operands[2] == const0_rtx)
     {
       rtx ops[] = {operands[0], operands[0], operands[1]};

@@ -29,7 +29,7 @@ ADJUST_FLOAT_FORMAT (BF, &arm_bfloat_half_format);
 
 /* Vector modes.  */
 
-/* Encode the ratio of SEW/LMUL into the mask types. There are the following
+/* Encode the ratio of SEW/LMUL into the mask types.  There are the following
  * mask types.  */
 
 /* Encode the ratio of SEW/LMUL into the mask types.
@@ -342,7 +342,7 @@ RVV_NF4_MODES (4)
 
 RVV_NF2_MODES (2)
 
-/* VLS modes used as SIMD auto-vectorization for epilogue. We know the
+/* VLS modes used as SIMD auto-vectorization for epilogue.  We know the
    return type of GET_MODE_BITSIZE is poly_uint16 or unsigned short.
    The maximum bitsize of all vector modes is 65536 = (8192 (LMUL1) * 8),
    even though RISC-V 'V' ISA spec allow maximum bitsize = 65536 * 8.
@@ -434,8 +434,8 @@ VLS_MODES (4096); /* V4096QI V2048HI V1024SI V512DI V2048HF V2048BF V1024SF V512
    be 65536 for a single vector register which means the vector mode in
    GCC can be maximum = 65536 * 8 bits (LMUL=8).
    However, 'GET_MODE_SIZE' is using poly_uint16/unsigned short which will
-   overflow if we specify vector-length = 65536. To support this feature,
-   we need to change the codes outside the RISC-V port. We will support it in
+   overflow if we specify vector-length = 65536.  To support this feature,
+   we need to change the codes outside the RISC-V port.  We will support it in
    the future.  */
 #define MAX_BITSIZE_MODE_ANY_MODE (4096 * 8)
 

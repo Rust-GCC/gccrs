@@ -24,7 +24,7 @@
 ;; 2*alu + 2*lsu + 1*fpalu + 1*fdivsqrt + 1*vxu
 ;;
 ;; There's actually two VXU units and ops get split across them
-;; to give the illusion of a single wider unit with higher 
+;; to give the illusion of a single wider unit with higher
 ;; performance.  There are a few ops that can only be fed into
 ;; one of the two units.  For the purposes of this scheduling
 ;; model, the VXU is treated as a single unit.

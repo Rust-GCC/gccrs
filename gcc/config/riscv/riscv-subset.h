@@ -45,7 +45,7 @@ class riscv_subset_list
 {
 public:
   /* Because the parse method is called in several places, to prevent repeated
-     errors, use this flag to prevent it from repeating parse. */
+     errors, use this flag to prevent it from repeating the parse.  */
   static bool parse_failed;
 
 private:

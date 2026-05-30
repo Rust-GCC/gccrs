@@ -46,7 +46,7 @@
    predication suffix stay the same.
 
    - The function_instance class describes contains all properties of each
-     individual function. Such these information will be used by
+     individual function.  Such these information will be used by
      function_builder, function_base, function_shape, gimple_folder,
      function_expander, etc.
 
@@ -414,7 +414,7 @@ struct function_group_info
      The function supports every combination of the two.
      The list of predication is terminated by two NUM_PRED_TYPES,
      while the list of operand info is terminated by NUM_BASE_TYPES.
-     The list of these type suffix is lexicographically ordered based
+     The list of these type suffixes is lexicographically ordered based
      on the index value.  */
   const predication_type_index *preds;
   const rvv_op_info ops_infos;
@@ -732,7 +732,7 @@ function_expander::add_output_operand (machine_mode mode, rtx target)
   create_output_operand (&m_ops[opno++], target, mode);
 }
 
-/* Since we may normalize vop/vop_tu/vop_m/vop_tumu.. into a single patter.
+/* Since we may normalize vop/vop_tu/vop_m/vop_tumu.. into a single pattern.
    We add a fake all true mask for the intrinsics that don't need a real mask.
  */
 inline void
@@ -860,7 +860,7 @@ function_base::has_merge_operand_p () const
   return true;
 }
 
-/* We choose to return false by default since most of the intrinsics does
+/* We choose to return false by default since most of the intrinsics do
    not have rounding mode operand.  */
 inline bool
 function_base::has_rounding_mode_operand_p () const
@@ -868,7 +868,7 @@ function_base::has_rounding_mode_operand_p () const
   return false;
 }
 
-/* We choose to return false by default since most of the intrinsics does
+/* We choose to return false by default since most of the intrinsics do
    not need frm operand.  */
 inline bool
 function_base::may_require_frm_p () const
@@ -876,7 +876,7 @@ function_base::may_require_frm_p () const
   return false;
 }
 
-/* We choose to return false by default since most of the intrinsics does
+/* We choose to return false by default since most of the intrinsics do
    not need vxrm operand.  */
 inline bool
 function_base::may_require_vxrm_p () const

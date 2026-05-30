@@ -90,7 +90,7 @@ public:
       }
     else
       {
-	/* Normalize same RATO (SEW/LMUL) into same vsetvl instruction.
+	/* Normalize same RATIO (SEW/LMUL) into same vsetvl instruction.
 
 	     - e8,mf8/e16,mf4/e32,mf2/e64,m1 --> e8mf8
 	     - e8,mf4/e16,mf2/e32,m1/e64,m2  --> e8mf4

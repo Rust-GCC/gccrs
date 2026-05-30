@@ -268,8 +268,8 @@ run_const_vector_selftests (void)
 	      emit_move_insn (dest, dup);
 	      rtx_insn *insn = get_last_insn ();
 	      rtx src = SET_SRC (PATTERN (insn));
-	      /* 1. Should be vmv.v.i for in rang of -16 ~ 15.
-		 2. Should be vmv.v.x for exceed -16 ~ 15.  */
+	      /* 1.  Should be vmv.v.i for in range of -16 ~ 15.
+		 2.  Should be vmv.v.x for exceed -16 ~ 15.  */
 	      if (IN_RANGE (val, -16, 15))
 		ASSERT_TRUE (
 		  rtx_equal_p (XEXP (SET_SRC (PATTERN (insn)), 1), dup));

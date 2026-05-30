@@ -143,7 +143,7 @@ th_mempair_output_move (rtx operands[4], bool load_p,
 /* Analyze if a pair of loads/stores MEM1 and MEM2 with given MODE
    are consecutive so they can be merged into a mempair instruction.
    RESERVED will be set to true, if a reversal of the accesses is
-   required (false otherwise). Returns true if the accesses can be
+   required (false otherwise).  Returns true if the accesses can be
    merged (even if reversing is necessary) and false if not.  */
 
 static bool
@@ -291,7 +291,7 @@ th_mempair_operands_p (rtx operands[4], bool load_p,
   if (!th_mempair_check_consecutive_mems (mode, &mem_1, &mem_2, &reversed))
     return false;
 
-  /* If necessary, reverse the local copy of the operands to simplify	
+  /* If necessary, reverse the local copy of the operands to simplify
      testing of alignments and mempair operand.  */
   if (reversed)
     {
@@ -372,7 +372,7 @@ th_mempair_restore_regs (rtx operands[4])
 }
 
 /* Prepare the OPERANDS array to emit a mempair instruction using the
-   provided information. No checks are performed, the resulting array
+   provided information.  No checks are performed, the resulting array
    should be validated using th_mempair_operands_p().  */
 
 void
@@ -535,8 +535,8 @@ th_memidx_legitimate_modify_p (rtx x, bool post)
 }
 
 /* Provide a buffer for a th.lXia/th.lXib/th.sXia/th.sXib instruction
-   for the given MODE. If LOAD is true, a load instruction will be
-   provided (otherwise, a store instruction). If X is not suitable
+   for the given MODE.  If LOAD is true, a load instruction will be
+   provided (otherwise, a store instruction).  If X is not suitable
    return NULL.  */
 
 static const char *
@@ -789,8 +789,8 @@ th_memidx_legitimate_index_p (rtx x, bool uindex)
 }
 
 /* Provide a buffer for a th.lrX/th.lurX/th.srX/th.surX instruction
-   for the given MODE. If LOAD is true, a load instruction will be
-   provided (otherwise, a store instruction). If X is not suitable
+   for the given MODE.  If LOAD is true, a load instruction will be
+   provided (otherwise, a store instruction).  If X is not suitable
    return NULL.  */
 
 static const char *
@@ -831,8 +831,8 @@ th_memidx_output_index (rtx dest, rtx src, machine_mode mode, bool load)
 }
 
 /* Provide a buffer for a th.flX/th.fluX/th.fsX/th.fsuX instruction
-   for the given MODE. If LOAD is true, a load instruction will be
-   provided (otherwise, a store instruction). If X is not suitable
+   for the given MODE.  If LOAD is true, a load instruction will be
+   provided (otherwise, a store instruction).  If X is not suitable
    return NULL.  */
 
 static const char *
@@ -899,7 +899,7 @@ th_classify_address (struct riscv_address_info *info, rtx x,
 /* Provide a string containing a XTheadMemIdx instruction for the given
    MODE from the provided SRC to the provided DEST.
    A pointer to a NULL-terminated string containing the instruction will
-   be returned if a suitable instruction is available. Otherwise, this
+   be returned if a suitable instruction is available.  Otherwise, this
    function returns NULL.  */
 
 const char *

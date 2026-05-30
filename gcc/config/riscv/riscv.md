@@ -748,7 +748,7 @@
 	  || (TARGET_64BIT && synthesize_add_extended (operands))))
     DONE;
 
-  /* Constants have already been handled already.  */
+  /* Constants have already been handled.  */
   if (TARGET_64BIT)
     {
       rtx tdest = gen_reg_rtx (DImode);
@@ -3148,7 +3148,7 @@
   [(set_attr "type" "shift")
    (set_attr "mode" "SI")])
 
-;; Canonical form for a extend of a logical shift right (sign/zero extraction).
+;; Canonical form for an extend of a logical shift right (sign/zero extraction).
 ;; Special cases, that are ignored (handled elsewhere):
 ;; * Single-bit extraction (Zbs/XTheadBs)
 ;; * Single-bit extraction (Zicondops/XVentanaCondops)
@@ -3245,7 +3245,7 @@
   unsigned HOST_WIDE_INT mask = INTVAL (operands[3]);
   int leading  = clz_hwi (mask);
   int trailing = ctz_hwi (mask);
- 
+
   operands[5] = GEN_INT (leading + trailing);
   operands[6] = GEN_INT (leading);
 })
@@ -4786,7 +4786,7 @@
     FAIL;
 })
 
-; Split (A<<1) | (A>=0) into a rotate + xor. Using two’s-complement identities:
+; Split (A<<1) | (A>=0) into a rotate + xor.  Using two’s-complement identities:
 ; (A>=0) == ((A >> (W-1)) ^ 1) and (A<<1) | (A>>(W-1)) == ROL1 (A), so the whole
 ; expression equals ROL1 (A) ^ 1.
 (define_split
@@ -4814,7 +4814,7 @@
   [(set_attr "type" "load")
    (set (attr "length") (const_int 8))])
 
-;; The AND is redundant here.  It always turns off the high 32 bits  and the
+;; The AND is redundant here.  It always turns off the high 32 bits and the
 ;; low number of bits equal to the shift count.  Those upper 32 bits will be
 ;; reset by the SIGN_EXTEND at the end.
 ;;

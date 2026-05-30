@@ -6,7 +6,7 @@ This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 3, or(at your option)
+the Free Software Foundation; either version 3, or (at your option)
 any later version.
 
 GCC is distributed in the hope that it will be useful,
@@ -22,11 +22,11 @@ along with GCC; see the file COPYING3.  If not see
    available_p, fuse)
        prev_demand: the prev vector insn's sew_lmul_type
        next_demand: the next vector insn's sew_lmul_type
-       fused_demand: if them are compatible, change prev_info demand to the
+       fused_demand: if they are compatible, change prev_info demand to the
 		     fused_demand after fuse prev_info and next_info
        compatible_p: check if prev_demand and next_demand are compatible
        available_p: check if prev_demand is available for next_demand
-       fuse: if them are compatible, how to modify prev_info  */
+       fuse: if they are compatible, how to modify prev_info.  */
 
 #ifndef DEF_SEW_LMUL_RULE
 #define DEF_SEW_LMUL_RULE(prev_demand, next_demand, fused_demand,              \

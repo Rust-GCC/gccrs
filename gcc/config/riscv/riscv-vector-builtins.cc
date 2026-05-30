@@ -62,10 +62,10 @@ namespace riscv_vector {
 struct vector_type_info
 {
   /* The name of the type as declared by riscv_vector.h
-     which is recommend to use. For example: 'vint32m1_t'.  */
+     which is recommended to use.  For example: 'vint32m1_t'.  */
   const char *name;
 
-  /* ABI name of vector type. The type is always available
+  /* ABI name of vector type.  The type is always available
      under this name, even when riscv_vector.h isn't included.
      For example:  '__rvv_int32m1_t'.  */
   const char *abi_name;
@@ -84,25 +84,25 @@ public:
   tree GTY ((skip)) decl;
 
   /* The overload hash of non-overloaded intrinsic is determined by
-     the overload name and argument list. Adding the overload name to
+     the overload name and argument list.  Adding the overload name to
      the hash is also to address the following situations:
      vint16mf4_t  __riscv_vreinterpret_i16mf4 (vfloat16mf4_t src);
      vuint16mf4_t __riscv_vreinterpret_u16mf4 (vfloat16mf4_t src);
      The base, shape and argument list of the vreinterpret instance are
-     the same, only the overload name is different. Therefore, it is
-     enough to add overload_name and argument list to the hash value.*/
+     the same, only the overload name is different.  Therefore, it is
+     enough to add overload_name and argument list to the hash value.  */
   const char *overload_name;
 
-  /* The argument list part of the hash value. Add the unsigned/signed type
-     and machine mode of each argument to the hash value. */
+  /* The argument list part of the hash value.  Add the unsigned/signed type
+     and machine mode of each argument to the hash value.  */
   vec<tree> GTY ((skip)) argument_types;
 
   /* True if the decl represents an overloaded function that needs to be
-     resolved. */
+     resolved.  */
   bool overloaded_p;
 
-  /* The hash value to indicate the non-overloaded function. Generate hash value
-     based on overload_name and argument_types. */
+  /* The hash value to indicate the non-overloaded function.  Generate hash
+     value based on overload_name and argument_types.  */
   hashval_t overloaded_hash () const;
 
   /* Generate hash value based on the overload_name and the argument list passed
@@ -3699,7 +3699,7 @@ struct pragma_intrinsic_flags
 static void
 riscv_pragma_intrinsic_flags_pollute (struct pragma_intrinsic_flags *flags)
 {
-  /* We already defer the required extension checking to expantion time, so we
+  /* We already defer the required extension checking to expansion time, so we
      only need to pollute those flags that might affect the type registration.
 
      e.g. zvfbmin and zvfhmin are required to define the vector bf16 and f16,
@@ -3754,10 +3754,10 @@ riscv_pragma_intrinsic_flags_restore (struct pragma_intrinsic_flags *flags)
 /* RAII class for enabling enough RVV features to define the built-in
    types and implement the riscv_vector.h pragma.
 
-   Note: According to 'TYPE_MODE' macro implementation, we need set
+   Note: According to 'TYPE_MODE' macro implementation, we need to set
    have_regs_of_mode[mode] to be true if we want to get the exact mode
-   from 'TYPE_MODE'. However, have_regs_of_mode has not been set yet in
-   targetm.init_builtins (). We need rvv_switcher to set have_regs_of_mode
+   from 'TYPE_MODE'.  However, have_regs_of_mode has not been set yet in
+   targetm.init_builtins ().  We need rvv_switcher to set have_regs_of_mode
    before targetm.init_builtins () and recover back have_regs_of_mode
    after targetm.init_builtins ().  */
 class rvv_switcher
@@ -3884,7 +3884,7 @@ register_builtin_type (vector_type_index type, tree eltype, machine_mode mode)
   builtin_types[type].scalar_const_ptr = build_const_pointer (eltype);
   /* TODO: We currently just skip the register of the illegal RVV type.
      Ideally, we should report error message more friendly instead of
-     reporting "unknown" type. Support more friendly error message in
+     reporting "unknown" type.  Support more friendly error message in
      the future.  */
   if (!riscv_vla_mode_p (mode))
     return;
@@ -3912,7 +3912,7 @@ register_tuple_type (vector_type_index type, vector_type_index subpart_type,
 {
   /* TODO: We currently just skip the register of the illegal RVV type.
     Ideally, we should report error message more friendly instead of
-    reporting "unknown" type. Support more friendly error message in
+    reporting "unknown" type.  Support more friendly error message in
     the future.  */
   if (!abi_vector_types[subpart_type])
     return;
@@ -4024,7 +4024,7 @@ register_vector_type (vector_type_index type)
      is disabled according to '-march'.  */
   /* TODO: We currently just skip the register of the illegal RVV type.
      Ideally, we should report error message more friendly instead of
-     reporting "unknown" type. Support more friendly error message in
+     reporting "unknown" type.  Support more friendly error message in
      the future.  */
   if (!vectype)
     return;
@@ -4095,7 +4095,7 @@ required_extensions_p (enum rvv_base_type type)
 
 /* Check whether all the RVV_REQUIRE_* values in REQUIRED_EXTENSIONS are
    enabled.
-   TODO: We defer the required extensions to expantion time, this function is
+   TODO: We defer the required extensions to expansion time, this function is
 	 only doing the legality now, and we may rename this function and moving
 	 to another layer.  */
 static bool
@@ -4141,8 +4141,8 @@ use_real_merge_p (enum predication_type_index pred)
 	 || pred == PRED_TYPE_mu;
 }
 
-/* Get TAIL policy for predication. If predication indicates TU, return the TU.
-   Otherwise, return the prefer default configuration.  */
+/* Get TAIL policy for predication.  If predication indicates TU, return the TU.
+   Otherwise, return the preferred default configuration.  */
 static rtx
 get_tail_policy_for_pred (enum predication_type_index pred)
 {
@@ -4151,8 +4151,8 @@ get_tail_policy_for_pred (enum predication_type_index pred)
   return gen_int_mode (get_prefer_tail_policy (), Pmode);
 }
 
-/* Get MASK policy for predication. If predication indicates MU, return the MU.
-   Otherwise, return the prefer default configuration.  */
+/* Get MASK policy for predication.  If predication indicates MU, return the MU.
+   Otherwise, return the preferred default configuration.  */
 static rtx
 get_mask_policy_for_pred (enum predication_type_index pred)
 {
@@ -4227,8 +4227,8 @@ tree
 rvv_arg_type_info::get_tree_type (vector_type_index type_idx) const
 {
   /* If the builtin type is not registered means '-march' doesn't
-     satisfy the require extension of the type. For example,
-     vfloat32m1_t require floating-point extension. In this case,
+     satisfy the require extension of the type.  For example,
+     vfloat32m1_t require floating-point extension.  In this case,
      just return NULL_TREE.  */
   if (type_idx != VECTOR_TYPE_INVALID && !builtin_types[type_idx].vector)
     return NULL_TREE;
@@ -4580,11 +4580,11 @@ function_builder::add_function (const function_instance &instance,
 
      Currently, tree-streamer-in.c:unpack_ts_function_decl_value_fields
      validates that tree nodes returned by TARGET_BUILTIN_DECL are non-NULL and
-     some node other than error_mark_node. This is a holdover from when builtin
+     some node other than error_mark_node.  This is a holdover from when builtin
      decls were streamed by code rather than by value.
 
      Ultimately, we should be able to remove this validation of BUILT_IN_MD
-     nodes and remove the target hook. For now, however, we need to appease the
+     nodes and remove the target hook.  For now, however, we need to appease the
      validation and return a non-NULL, non-error_mark_node node, so we
      arbitrarily choose integer_zero_node.  */
   tree decl = in_lto_p
@@ -4612,9 +4612,9 @@ function_builder::add_function (const function_instance &instance,
 }
 
 /* Add a built-in function for INSTANCE, with the argument types given
-   by ARGUMENT_TYPES and the return type given by RETURN_TYPE. NAME is
-   the "full" name for C function. OVERLOAD_NAME is the "short" name for
-   C++ overloaded function. OVERLOAD_NAME can be nullptr because some
+   by ARGUMENT_TYPES and the return type given by RETURN_TYPE.  NAME is
+   the "full" name for C function.  OVERLOAD_NAME is the "short" name for
+   C++ overloaded function.  OVERLOAD_NAME can be nullptr because some
    instance doesn't have C++ overloaded function.  */
 void
 function_builder::add_unique_function (const function_instance &instance,
@@ -4757,8 +4757,8 @@ function_expander::add_input_operand (unsigned argno)
   add_input_operand (TYPE_MODE (TREE_TYPE (arg)), x);
 }
 
-/* Since we may normalize vop/vop_tu/vop_m/vop_tumu.. into a single patter.
-   We add a undef for the intrinsics that don't need a real merge.  */
+/* Since we may normalize vop/vop_tu/vop_m/vop_tumu.. into a single pattern.
+   We add an undef for the intrinsics that don't need a real merge.  */
 void
 function_expander::add_vundef_operand (machine_mode mode)
 {

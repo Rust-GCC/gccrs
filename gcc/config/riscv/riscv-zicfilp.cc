@@ -44,16 +44,16 @@
 #include "cgraph.h"
 #include "output.h"
 
-/* This pass implements forward-CFI landing pad checks for RISCV. This is
+/* This pass implements forward-CFI landing pad checks for RISCV.  This is
    a security feature similar to BTI (branch target identification) in
-   AArch64 and IBT (indirect branch tracking)in X86. A LPAD (landing-pad
+   AArch64 and IBT (indirect branch tracking) in X86.  A LPAD (landing-pad
    check) instruction is used to guard against the execution of
    instructions which are not the intended target of an indirect branch.
 
    When forward-CFI is disabled or unimplemented in the CPU, the
-   landing-pad check label instructions behave as NOP. When implemented in
+   landing-pad check label instructions behave as NOP.  When implemented in
    the CPU, and enabled, the destination of an indirect branch must be
-   LPAD insn. Otherwise, the CPU raises an exception.
+   LPAD insn.  Otherwise, the CPU raises an exception.
 
    In order to enable this mechanism, this pass iterates through the
    control flow of the code and adds appropriate LPAD instructions at the
