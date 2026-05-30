@@ -777,7 +777,7 @@ __transfer_from_trampoline ()					\
 #define ASM_PREFERRED_EH_DATA_FORMAT(CODE, GLOBAL)			   \
   (flag_pic								   \
    && !((TARGET_ID_SHARED_LIBRARY || TARGET_SEP_DATA)			   \
-	&& ((GLOBAL) || (CODE)))					   \
+	&& ((GLOBAL) || (!!CODE)))					   \
    ? ((GLOBAL) ? DW_EH_PE_indirect : 0) | DW_EH_PE_pcrel | DW_EH_PE_sdata4 \
    : DW_EH_PE_absptr)
 
