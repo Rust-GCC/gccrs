@@ -704,6 +704,12 @@ convert_to_integer_1 (tree type, tree expr, bool dofold)
 	  return maybe_fold_build1_loc (dofold, loc, code, type, expr);
 	}
 
+      else if (TREE_CODE (type) == ENUMERAL_TYPE && BITINT_TYPE_P (type))
+	{
+	  expr = convert_to_integer_1 (TREE_TYPE (type), expr, dofold);
+	  return maybe_fold_build1_loc (dofold, loc, NOP_EXPR, type, expr);
+	}
+
       /* If TYPE is an enumeral type or a type with a precision less
 	 than the number of bits in its mode, do the conversion to the
 	 type corresponding to its mode, then do a nop conversion

@@ -968,8 +968,7 @@ create_access (tree expr, gimple *stmt, bool write)
       disqualify_candidate (base, "Encountered an access beyond the base.");
       return NULL;
     }
-  if (TREE_CODE (TREE_TYPE (expr)) == BITINT_TYPE
-      && size > WIDE_INT_MAX_PRECISION - 1)
+  if (BITINT_TYPE_P (TREE_TYPE (expr)) && size > WIDE_INT_MAX_PRECISION - 1)
     {
       disqualify_candidate (base, "Encountered too large _BitInt access.");
       return NULL;
@@ -2951,7 +2950,7 @@ analyze_access_subtree (struct access *root, struct access *parent,
 	  tree rt = root->type;
 	  gcc_assert ((root->offset % BITS_PER_UNIT) == 0
 		      && (root->size % BITS_PER_UNIT) == 0);
-	  if (TREE_CODE (root->type) == BITINT_TYPE)
+	  if (BITINT_TYPE_P (root->type))
 	    root->type = build_bitint_type (root->size, TYPE_UNSIGNED (rt));
 	  else
 	    root->type = build_nonstandard_integer_type (root->size,

@@ -39,6 +39,8 @@ enum c_language_kind c_language = clk_c;
 #define LANG_HOOKS_INIT c_objc_common_init
 #undef LANG_HOOKS_INIT_TS
 #define LANG_HOOKS_INIT_TS c_common_init_ts
+#undef LANG_HOOKS_ENUM_UNDERLYING_BASE_TYPE
+#define LANG_HOOKS_ENUM_UNDERLYING_BASE_TYPE c_enum_underlying_base_type
 
 #if CHECKING_P
 #undef LANG_HOOKS_RUN_LANG_SELFTESTS

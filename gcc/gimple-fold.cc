@@ -1485,7 +1485,7 @@ gimple_fold_builtin_memset (gimple_stmt_iterator *gsi, tree c, tree len)
 
   if ((!INTEGRAL_TYPE_P (etype)
        && !POINTER_TYPE_P (etype))
-      || TREE_CODE (etype) == BITINT_TYPE)
+      || BITINT_TYPE_P (etype))
     return false;
 
   if (! var_decl_component_p (var))
@@ -4749,6 +4749,10 @@ clear_padding_type_may_have_padding_p (tree type)
       return clear_padding_type_may_have_padding_p (TREE_TYPE (type));
     case REAL_TYPE:
       return clear_padding_real_needs_padding_p (type);
+    case ENUMERAL_TYPE:
+      if (BITINT_TYPE_P (type))
+	return clear_padding_bitint_needs_padding_p (type);
+      return false;
     case BITINT_TYPE:
       return clear_padding_bitint_needs_padding_p (type);
     default:
@@ -4809,6 +4813,10 @@ type_has_padding_at_level_p (tree type)
       return false;
     case REAL_TYPE:
       return clear_padding_real_needs_padding_p (type);
+    case ENUMERAL_TYPE:
+      if (BITINT_TYPE_P (type))
+	return clear_padding_bitint_needs_padding_p (type);
+      return false;
     case BITINT_TYPE:
       return clear_padding_bitint_needs_padding_p (type);
     default:
@@ -5057,6 +5065,7 @@ clear_padding_type (clear_padding_struct *buf, tree type,
       buf->size += sz;
       break;
     case BITINT_TYPE:
+    do_bitint:
       {
 	struct bitint_info info;
 	bool ok = targetm.c.bitint_type_info (TYPE_PRECISION (type), &info);
@@ -5109,6 +5118,10 @@ clear_padding_type (clear_padding_struct *buf, tree type,
 	  }
 	break;
       }
+    case ENUMERAL_TYPE:
+      if (BITINT_TYPE_P (type))
+	goto do_bitint;
+      /* FALLTHRU */
     default:
       gcc_assert ((size_t) sz <= clear_padding_unit);
       if ((unsigned HOST_WIDE_INT) sz + buf->size > clear_padding_buf_size)

@@ -2349,7 +2349,7 @@ vn_walk_cb_data::push_partial_def (pd_data pd,
      access size.  */
   if (INTEGRAL_TYPE_P (vr->type) && maxsizei != TYPE_PRECISION (vr->type))
     {
-      if (TREE_CODE (vr->type) == BITINT_TYPE
+      if (BITINT_TYPE_P (vr->type)
 	  && maxsizei > MAX_FIXED_MODE_SIZE)
 	type = build_bitint_type (maxsizei, TYPE_UNSIGNED (type));
       else
@@ -3285,7 +3285,7 @@ vn_reference_lookup_3 (ao_ref *ref, tree vuse, void *data_,
 		      && maxsizei != TYPE_PRECISION (vr->type))
 		    {
 		      bool uns = TYPE_UNSIGNED (type);
-		      if (TREE_CODE (vr->type) == BITINT_TYPE
+		      if (BITINT_TYPE_P (vr->type)
 			  && maxsizei > MAX_FIXED_MODE_SIZE)
 			type = build_bitint_type (maxsizei, uns);
 		      else
@@ -7393,7 +7393,7 @@ eliminate_dom_walker::eliminate_stmt (basic_block b, gimple_stmt_iterator *gsi)
 	      || !DECL_BIT_FIELD_TYPE (TREE_OPERAND (lhs, 1)))
 	  && !type_has_mode_precision_p (TREE_TYPE (lhs)))
 	{
-	  if (TREE_CODE (TREE_TYPE (lhs)) == BITINT_TYPE
+	  if (BITINT_TYPE_P (TREE_TYPE (lhs))
 	      && TYPE_PRECISION (TREE_TYPE (lhs)) > MAX_FIXED_MODE_SIZE)
 	    lookup_lhs = NULL_TREE;
 	  else if (TREE_CODE (lhs) == COMPONENT_REF

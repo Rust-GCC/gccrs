@@ -116,8 +116,7 @@ useless_type_conversion_p (tree outer_type, tree inner_type)
 	 body, we need to prevent changing BITINT_TYPE to INTEGER_TYPE
 	 of the same precision or vice versa when passed to functions,
 	 especially for varargs.  */
-      if ((TREE_CODE (inner_type) == BITINT_TYPE)
-	  != (TREE_CODE (outer_type) == BITINT_TYPE))
+      if (BITINT_TYPE_P (inner_type) != BITINT_TYPE_P (outer_type))
 	return false;
 
       /* We don't need to preserve changes in the types minimum or

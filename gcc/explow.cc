@@ -852,9 +852,8 @@ promote_function_mode (const_tree type, machine_mode mode, int *punsignedp,
 	return mode;
     }
 
-  switch (TREE_CODE (type))
+  if (BITINT_TYPE_P (type))
     {
-    case BITINT_TYPE:
       if (TYPE_MODE (type) == BLKmode)
 	return mode;
 
@@ -865,10 +864,12 @@ promote_function_mode (const_tree type, machine_mode mode, int *punsignedp,
 
       if (!info.extended)
 	return mode;
-      /* FALLTHRU */
+    }
+  switch (TREE_CODE (type))
+    {
     case INTEGER_TYPE:   case ENUMERAL_TYPE:   case BOOLEAN_TYPE:
     case REAL_TYPE:      case OFFSET_TYPE:     case FIXED_POINT_TYPE:
-    case POINTER_TYPE:   case REFERENCE_TYPE:
+    case POINTER_TYPE:   case REFERENCE_TYPE:  case BITINT_TYPE:
       return targetm.calls.promote_function_mode (type, mode, punsignedp, funtype,
 						  for_return);
 
@@ -903,9 +904,8 @@ promote_mode (const_tree type ATTRIBUTE_UNUSED, machine_mode mode,
   code = TREE_CODE (type);
   unsignedp = *punsignedp;
 
-  switch (code)
+  if (BITINT_TYPE_P (type))
     {
-    case BITINT_TYPE:
       if (TYPE_MODE (type) == BLKmode)
 	return mode;
 
@@ -916,9 +916,12 @@ promote_mode (const_tree type ATTRIBUTE_UNUSED, machine_mode mode,
 
       if (!info.extended)
 	return mode;
-      /* FALLTHRU */
+    }
+  switch (code)
+    {
     case INTEGER_TYPE:   case ENUMERAL_TYPE:   case BOOLEAN_TYPE:
     case REAL_TYPE:      case OFFSET_TYPE:     case FIXED_POINT_TYPE:
+    case BITINT_TYPE:
       /* Values of these types always have scalar mode.  */
       smode = as_a <scalar_mode> (mode);
       PROMOTE_MODE (smode, unsignedp, type);

@@ -269,7 +269,7 @@ build_call_internal (internal_fn fn, gimple_match_op *res_op)
 	      /* For these 6 builtins large/huge _BitInt operand is ok
 		 before bitint lowering pass.  */
 	      if (res_op->num_ops >= 1
-		  && TREE_CODE (TREE_TYPE (res_op->ops[0])) == BITINT_TYPE
+		  && BITINT_TYPE_P (TREE_TYPE (res_op->ops[0]))
 		  && (TYPE_PRECISION (TREE_TYPE (res_op->ops[0]))
 		      > MAX_FIXED_MODE_SIZE)
 		  && cfun

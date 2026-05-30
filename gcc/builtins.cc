@@ -10483,7 +10483,7 @@ fold_builtin_bit_query (location_t loc, enum built_in_function fcode,
       /* Only keep second argument to IFN_CLZ/IFN_CTZ if it is the
 	 value defined at zero during GIMPLE, or for large/huge _BitInt
 	 (which are then lowered during bitint lowering).  */
-      if (arg2 && TREE_CODE (TREE_TYPE (arg0)) != BITINT_TYPE)
+      if (arg2 && !BITINT_TYPE_P (TREE_TYPE (arg0)))
 	{
 	  int val;
 	  if (fcode == BUILT_IN_CLZG)

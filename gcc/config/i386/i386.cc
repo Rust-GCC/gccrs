@@ -2281,7 +2281,7 @@ classify_argument (machine_mode mode, const_tree type,
     }
 
   if (type && (AGGREGATE_TYPE_P (type)
-	       || (TREE_CODE (type) == BITINT_TYPE && words > 1)))
+	       || (BITINT_TYPE_P (type) && words > 1)))
     {
       int i;
       tree field;
@@ -2431,6 +2431,7 @@ classify_argument (machine_mode mode, const_tree type,
 	  break;
 
 	case BITINT_TYPE:
+	case ENUMERAL_TYPE:
 	  /* _BitInt(N) for N > 64 is passed as structure containing
 	     (N + 63) / 64 64-bit elements.  */
 	  if (words > 2)

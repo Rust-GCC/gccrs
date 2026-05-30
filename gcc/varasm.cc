@@ -5530,9 +5530,12 @@ output_constant (tree exp, unsigned HOST_WIDE_INT size, unsigned int align,
      Otherwise, break and ensure SIZE is the size written.  */
   switch (code)
     {
+    case ENUMERAL_TYPE:
+      if (BITINT_TYPE_P (TREE_TYPE (exp)))
+	goto do_bitint;
+      /* FALLTHRU */
     case BOOLEAN_TYPE:
     case INTEGER_TYPE:
-    case ENUMERAL_TYPE:
     case POINTER_TYPE:
     case REFERENCE_TYPE:
     case OFFSET_TYPE:
@@ -5564,6 +5567,7 @@ output_constant (tree exp, unsigned HOST_WIDE_INT size, unsigned int align,
       break;
 
     case BITINT_TYPE:
+    do_bitint:
       if (TREE_CODE (exp) != INTEGER_CST)
 	error ("initializer for %<_BitInt(%d)%> value is not an integer "
 	       "constant", TYPE_PRECISION (TREE_TYPE (exp)));

@@ -1811,7 +1811,7 @@ maybe_optimize_var (tree var, bitmap addresses_taken, bitmap not_reg_needs,
 	      fprintf (dump_file, "\n");
 	    }
 	}
-      else if (TREE_CODE (TREE_TYPE (var)) == BITINT_TYPE
+      else if (BITINT_TYPE_P (TREE_TYPE (var))
 	       && (cfun->curr_properties & PROP_gimple_lbitint) != 0
 	       && TYPE_PRECISION (TREE_TYPE (var)) > MAX_FIXED_MODE_SIZE)
 	{

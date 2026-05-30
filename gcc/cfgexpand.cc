@@ -4924,7 +4924,7 @@ expand_debug_expr (tree exp)
       /* Fall through.  */
 
     case INTEGER_CST:
-      if (TREE_CODE (TREE_TYPE (exp)) == BITINT_TYPE
+      if (BITINT_TYPE_P (TREE_TYPE (exp))
 	  && TYPE_MODE (TREE_TYPE (exp)) == BLKmode)
 	return NULL;
       /* FALLTHRU */

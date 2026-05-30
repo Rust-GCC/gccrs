@@ -1131,7 +1131,7 @@ static void
 expand_ubsan_result_store (tree lhs, rtx target, scalar_int_mode mode,
 			   rtx res, rtx_code_label *do_error)
 {
-  if (TREE_CODE (TREE_TYPE (lhs)) == BITINT_TYPE
+  if (BITINT_TYPE_P (TREE_TYPE (lhs))
       && TYPE_PRECISION (TREE_TYPE (lhs)) < GET_MODE_PRECISION (mode))
     {
       int uns = TYPE_UNSIGNED (TREE_TYPE (lhs));

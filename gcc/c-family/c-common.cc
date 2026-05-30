@@ -1380,6 +1380,9 @@ c_common_get_narrower (tree op, int *unsignedp_ptr)
   if (TREE_CODE (TREE_TYPE (op)) == ENUMERAL_TYPE
       && ENUM_IS_SCOPED (TREE_TYPE (op)))
     {
+      if (BITINT_TYPE_P (TREE_TYPE (op)))
+	return fold_convert (ENUM_UNDERLYING_TYPE (TREE_TYPE (op)), op);
+
       /* C++0x scoped enumerations don't implicitly convert to integral
 	 type; if we stripped an explicit conversion to a larger type we
 	 need to replace it so common_type will still work.  */
@@ -2818,7 +2821,7 @@ c_common_signed_or_unsigned_type (int unsignedp, tree type)
       || TYPE_UNSIGNED (type) == unsignedp)
     return type;
 
-  if (TREE_CODE (type) == BITINT_TYPE
+  if (BITINT_TYPE_P (type)
       /* signed _BitInt(1) is invalid before C2Y, avoid creating that.  */
       && (unsignedp || flag_isoc2y || TYPE_PRECISION (type) > 1))
     return build_bitint_type (TYPE_PRECISION (type), unsignedp);
@@ -7747,7 +7750,7 @@ sync_resolve_size (tree function, vec<tree, va_gc> *params, bool fetch,
 
   size = tree_to_uhwi (TYPE_SIZE_UNIT (type));
   if (size == 16
-      && TREE_CODE (type) == BITINT_TYPE
+      && BITINT_TYPE_P (type)
       && !targetm.scalar_mode_supported_p (TImode))
     {
       if (fetch && !orig_format)
@@ -7758,7 +7761,7 @@ sync_resolve_size (tree function, vec<tree, va_gc> *params, bool fetch,
   if (size == 1 || size == 2 || size == 4 || size == 8 || size == 16)
     return size;
 
-  if (fetch && !orig_format && TREE_CODE (type) == BITINT_TYPE)
+  if (fetch && !orig_format && BITINT_TYPE_P (type))
     return -1;
 
  incompatible:
@@ -8486,7 +8489,7 @@ atomic_bitint_fetch_using_cas_loop (location_t loc,
 
   tree nonatomic_lhs_type = TREE_TYPE (TREE_TYPE ((*orig_params)[0]));
   nonatomic_lhs_type = TYPE_MAIN_VARIANT (nonatomic_lhs_type);
-  gcc_assert (TREE_CODE (nonatomic_lhs_type) == BITINT_TYPE);
+  gcc_assert (BITINT_TYPE_P (nonatomic_lhs_type));
 
   tree lhs_addr = (*orig_params)[0];
   tree val = convert (nonatomic_lhs_type, (*orig_params)[1]);
@@ -8879,7 +8882,7 @@ resolve_overloaded_builtin (location_t loc, tree function,
 	if (new_return)
 	  {
 	    /* Cast function result from I{1,2,4,8,16} to the required type.  */
-	    if (TREE_CODE (TREE_TYPE (new_return)) == BITINT_TYPE)
+	    if (BITINT_TYPE_P (TREE_TYPE (new_return)))
 	      {
 		struct bitint_info info;
 		unsigned prec = TYPE_PRECISION (TREE_TYPE (new_return));

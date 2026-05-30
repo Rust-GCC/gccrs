@@ -894,7 +894,7 @@ switch_conversion::array_value_type (tree type, int num)
   type = TYPE_MAIN_VARIANT (type);
 
   if (!INTEGRAL_TYPE_P (type)
-      || (TREE_CODE (type) == BITINT_TYPE
+      || (BITINT_TYPE_P (type)
 	  && (TYPE_PRECISION (type) > MAX_FIXED_MODE_SIZE
 	      || TYPE_MODE (type) == BLKmode)))
     return type;
@@ -1086,7 +1086,7 @@ switch_conversion::build_arrays ()
   utype = TREE_TYPE (m_index_expr);
   if (TREE_TYPE (utype))
     utype = lang_hooks.types.type_for_mode (TYPE_MODE (TREE_TYPE (utype)), 1);
-  else if (TREE_CODE (utype) == BITINT_TYPE
+  else if (BITINT_TYPE_P (utype)
 	   && (TYPE_PRECISION (utype) > MAX_FIXED_MODE_SIZE
 	       || TYPE_MODE (utype) == BLKmode))
     utype = unsigned_type_for (utype);
@@ -1548,7 +1548,7 @@ jump_table_cluster::emit (tree index_expr, tree,
   /* For large/huge _BitInt, subtract low from index_expr, cast to unsigned
      DImode type (get_range doesn't support ranges larger than 64-bits)
      and subtract low from all case values as well.  */
-  if (TREE_CODE (TREE_TYPE (index_expr)) == BITINT_TYPE
+  if (BITINT_TYPE_P (TREE_TYPE (index_expr))
       && TYPE_PRECISION (TREE_TYPE (index_expr)) > GET_MODE_PRECISION (DImode))
     {
       bitint = true;

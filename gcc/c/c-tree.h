@@ -786,6 +786,7 @@ extern void c_initialize_diagnostics (diagnostics::context *);
 extern bool c_var_mod_p (tree x, tree fn);
 extern alias_set_type c_get_alias_set (tree);
 extern int c_type_dwarf_attribute (const_tree, int);
+extern tree c_enum_underlying_base_type (const_tree);
 
 /* in c-typeck.cc */
 extern int in_alignof;

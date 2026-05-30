@@ -1055,7 +1055,7 @@ fold_const_call_ss (wide_int *result, combined_fn fn, const wide_int_ref &arg,
 	int tmp;
 	if (wi::ne_p (arg, 0))
 	  tmp = wi::clz (arg);
-	else if (TREE_CODE (arg_type) == BITINT_TYPE)
+	else if (BITINT_TYPE_P (arg_type))
 	  tmp = TYPE_PRECISION (arg_type);
 	else if (!CLZ_DEFINED_VALUE_AT_ZERO (SCALAR_INT_TYPE_MODE (arg_type),
 					     tmp))
@@ -1070,7 +1070,7 @@ fold_const_call_ss (wide_int *result, combined_fn fn, const wide_int_ref &arg,
 	int tmp;
 	if (wi::ne_p (arg, 0))
 	  tmp = wi::ctz (arg);
-	else if (TREE_CODE (arg_type) == BITINT_TYPE)
+	else if (BITINT_TYPE_P (arg_type))
 	  tmp = TYPE_PRECISION (arg_type);
 	else if (!CTZ_DEFINED_VALUE_AT_ZERO (SCALAR_INT_TYPE_MODE (arg_type),
 					     tmp))

@@ -633,9 +633,14 @@ extern void omp_clause_range_check_failed (const_tree, const char *, int,
         || VECTOR_TYPE_P (TYPE))		\
        && INTEGRAL_TYPE_P (TREE_TYPE (TYPE))))
 
-/* Nonzero if TYPE is bit-precise integer type.  */
+/* Nonzero if TYPE is bit-precise integer type or enumeral type
+   with bit-precise integer type as underlying type.  */
 
-#define BITINT_TYPE_P(TYPE) (TREE_CODE (TYPE) == BITINT_TYPE)
+#define BITINT_TYPE_P(TYPE) \
+  (TREE_CODE (TYPE) == BITINT_TYPE			\
+   || (TREE_CODE (TYPE) == ENUMERAL_TYPE		\
+       && TREE_TYPE (TYPE)				\
+       && TREE_CODE (TREE_TYPE (TYPE)) == BITINT_TYPE))
 
 /* Nonzero if TYPE represents a non-saturating fixed-point type.  */
 

@@ -5426,7 +5426,7 @@ make_range_step (location_t loc, enum tree_code code, tree arg0, tree arg1,
 	    equiv_type
 	      = lang_hooks.types.type_for_mode (TYPE_MODE (arg0_type),
 						TYPE_SATURATING (arg0_type));
-	  else if (TREE_CODE (arg0_type) == BITINT_TYPE)
+	  else if (BITINT_TYPE_P (arg0_type))
 	    equiv_type = arg0_type;
 	  else
 	    equiv_type
@@ -5616,7 +5616,9 @@ range_check_type (tree etype)
 {
   /* First make sure that arithmetics in this type is valid, then make sure
      that it wraps around.  */
-  if (TREE_CODE (etype) == ENUMERAL_TYPE || TREE_CODE (etype) == BOOLEAN_TYPE)
+  if (TREE_CODE (etype) == ENUMERAL_TYPE && BITINT_TYPE_P (etype))
+    etype = TREE_TYPE (etype);
+  else if (TREE_CODE (etype) == ENUMERAL_TYPE || TREE_CODE (etype) == BOOLEAN_TYPE)
     etype = lang_hooks.types.type_for_size (TYPE_PRECISION (etype), 1);
 
   if (TREE_CODE (etype) == INTEGER_TYPE && !TYPE_UNSIGNED (etype))
@@ -6572,8 +6574,7 @@ extract_muldiv_1 (tree t, tree c, enum tree_code code, tree wide_type)
   tree ctype = type;
   if (wide_type)
     {
-      if (TREE_CODE (type) == BITINT_TYPE
-	  || TREE_CODE (wide_type) == BITINT_TYPE)
+      if (BITINT_TYPE_P (type) || BITINT_TYPE_P (wide_type))
 	{
 	  if (TYPE_PRECISION (wide_type) > TYPE_PRECISION (type))
 	    ctype = wide_type;
@@ -7455,7 +7456,7 @@ native_encode_wide_int (tree type, const wide_int_ref &val,
 			unsigned char *ptr, int len, int off)
 {
   int total_bytes;
-  if (TREE_CODE (type) == BITINT_TYPE)
+  if (BITINT_TYPE_P (type))
     {
       struct bitint_info info;
       bool ok = targetm.c.bitint_type_info (TYPE_PRECISION (type), &info);
@@ -8479,7 +8480,7 @@ static tree
 native_interpret_int (tree type, const unsigned char *ptr, int len)
 {
   int total_bytes;
-  if (TREE_CODE (type) == BITINT_TYPE)
+  if (BITINT_TYPE_P (type))
     {
       struct bitint_info info;
       bool ok = targetm.c.bitint_type_info (TYPE_PRECISION (type), &info);

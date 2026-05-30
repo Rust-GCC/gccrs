@@ -6134,7 +6134,7 @@ arm_return_in_memory (const_tree type, const_tree fntype)
 	 some of the detail.  */
       if (!AGGREGATE_TYPE_P (type)
 	  /* A _BitInt(N) for N <= 64 is a simple, non-aggregate type.  */
-	  && !(TREE_CODE (type) == BITINT_TYPE && size > 8)
+	  && !(BITINT_TYPE_P (type) && size > 8)
 	  && TREE_CODE (type) != VECTOR_TYPE
 	  && TREE_CODE (type) != COMPLEX_TYPE)
 	return false;
@@ -6166,7 +6166,7 @@ arm_return_in_memory (const_tree type, const_tree fntype)
 
   if (!AGGREGATE_TYPE_P (type)
       /* A _BitInt(N) for N <= 64 is a simple, non-aggregate type.  */
-      && !(TREE_CODE (type) == BITINT_TYPE && size > 8)
+      && !(BITINT_TYPE_P (type) && size > 8)
       && (TREE_CODE (type) != VECTOR_TYPE))
     /* All simple types are returned in registers.  */
     return false;
@@ -7227,7 +7227,7 @@ arm_needs_doubleword_align (machine_mode mode, const_tree type)
     return GET_MODE_ALIGNMENT (mode) > PARM_BOUNDARY;
 
   /* For any _BitInt(N) where N > 32 the ABI demands double word alignment.  */
-  if (TREE_CODE (type) == BITINT_TYPE)
+  if (BITINT_TYPE_P (type))
     {
       if (int_size_in_bytes (type) > 4)
 	return 1;

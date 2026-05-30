@@ -2826,9 +2826,14 @@ perform_integral_promotions (tree exp)
   if (TREE_CODE (exp) == COMPONENT_REF
       && DECL_C_BIT_FIELD (TREE_OPERAND (exp, 1)))
     {
-      if (TREE_CODE (DECL_BIT_FIELD_TYPE (TREE_OPERAND (exp, 1)))
-	  == BITINT_TYPE)
-	return convert (DECL_BIT_FIELD_TYPE (TREE_OPERAND (exp, 1)), exp);
+      if (BITINT_TYPE_P (DECL_BIT_FIELD_TYPE (TREE_OPERAND (exp, 1))))
+	{
+	  tree btype = DECL_BIT_FIELD_TYPE (TREE_OPERAND (exp, 1));
+	  if (TREE_CODE (btype) == BITINT_TYPE)
+	    return convert (btype, exp);
+	  else
+	    return convert (ENUM_UNDERLYING_TYPE (btype), exp);
+	}
       /* If it's thinner than an int, promote it like a
 	 c_promoting_integer_type_p, otherwise leave it alone.  */
       if (compare_tree_int (DECL_SIZE (TREE_OPERAND (exp, 1)),

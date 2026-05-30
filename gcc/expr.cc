@@ -11397,7 +11397,7 @@ expand_expr_real_1 (tree exp, rtx target, machine_mode tmode,
      internally extend after arithmetic operations, we can avoid doing that
      when reading from SSA_NAMEs of vars.  */
 #define EXTEND_BITINT(expr) \
-  ((TREE_CODE (type) == BITINT_TYPE					\
+  ((BITINT_TYPE_P (type)						\
     && !bitint_extended							\
     && reduce_bit_field							\
     && mode != BLKmode							\
@@ -11410,7 +11410,7 @@ expand_expr_real_1 (tree exp, rtx target, machine_mode tmode,
   type = TREE_TYPE (exp);
   mode = TYPE_MODE (type);
   unsignedp = TYPE_UNSIGNED (type);
-  if (TREE_CODE (type) == BITINT_TYPE && bitint_extended == -1)
+  if (BITINT_TYPE_P (type) && bitint_extended == -1)
     {
       struct bitint_info info;
       bool ok = targetm.c.bitint_type_info (TYPE_PRECISION (type), &info);
@@ -11755,7 +11755,7 @@ expand_expr_real_1 (tree exp, rtx target, machine_mode tmode,
 
     case INTEGER_CST:
       {
-	if (TREE_CODE (type) == BITINT_TYPE)
+	if (BITINT_TYPE_P (type))
 	  {
 	    unsigned int prec = TYPE_PRECISION (type);
 	    struct bitint_info info;

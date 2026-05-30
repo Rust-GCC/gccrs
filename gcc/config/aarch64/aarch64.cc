@@ -7397,7 +7397,7 @@ aarch64_return_in_memory_1 (const_tree type)
   int count;
 
   if (!AGGREGATE_TYPE_P (type)
-      && TREE_CODE (type) != BITINT_TYPE
+      && !BITINT_TYPE_P (type)
       && TREE_CODE (type) != COMPLEX_TYPE
       && TREE_CODE (type) != VECTOR_TYPE)
     /* Simple scalar types always returned in registers.  */
@@ -7571,7 +7571,7 @@ bitint_or_aggr_of_bitint_p (tree type)
   if (!type)
     return false;
 
-  if (TREE_CODE (type) == BITINT_TYPE)
+  if (BITINT_TYPE_P (type))
     return true;
 
   /* If ARRAY_TYPE, check it's element type.  */
@@ -23478,7 +23478,7 @@ aarch64_composite_type_p (const_tree type,
     return true;
 
   if (type
-      && TREE_CODE (type) == BITINT_TYPE
+      && BITINT_TYPE_P (type)
       && int_size_in_bytes (type) > 16)
     return true;
 

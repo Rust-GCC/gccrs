@@ -4182,7 +4182,8 @@ c_parser_enum_specifier (c_parser *parser)
       if (specs->default_int_p)
 	error_at (enum_loc, "no %<enum%> underlying type specified");
       else if (TREE_CODE (specs->type) != INTEGER_TYPE
-	       && TREE_CODE (specs->type) != BOOLEAN_TYPE)
+	       && TREE_CODE (specs->type) != BOOLEAN_TYPE
+	       && (!flag_isoc2y || TREE_CODE (specs->type) != BITINT_TYPE))
 	{
 	  error_at (enum_loc, "invalid %<enum%> underlying type");
 	  specs->type = integer_type_node;

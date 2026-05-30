@@ -2594,7 +2594,7 @@ cond_removal_in_builtin_zero_pattern (basic_block cond_bb,
       if (INTEGRAL_TYPE_P (TREE_TYPE (arg)))
 	{
 	  tree type = TREE_TYPE (arg);
-	  if (TREE_CODE (type) == BITINT_TYPE)
+	  if (BITINT_TYPE_P (type))
 	    {
 	      if (gimple_call_num_args (call) == 1)
 		{
@@ -2624,7 +2624,7 @@ cond_removal_in_builtin_zero_pattern (basic_block cond_bb,
       if (INTEGRAL_TYPE_P (TREE_TYPE (arg)))
 	{
 	  tree type = TREE_TYPE (arg);
-	  if (TREE_CODE (type) == BITINT_TYPE)
+	  if (BITINT_TYPE_P (type))
 	    {
 	      if (gimple_call_num_args (call) == 1)
 		{
