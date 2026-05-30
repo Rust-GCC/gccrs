@@ -3479,9 +3479,28 @@ warn_parm_array_mismatch (location_t origloc, rdwr_map *cur_idx,
       cura->ptrarg = parmpos;
     }
 
+
+  unsigned newbnds = 0;
+  unsigned newunspec = 0;
+
+  if (newa->internal_p)
+    {
+      newbnds = newa->vla_bounds (&newunspec);
+      newbnds += newunspec;
+    }
+
+  unsigned curbnds = 0;
+  unsigned curunspec = 0;
+
+  if (cura->internal_p)
+    {
+      curbnds = cura->vla_bounds (&curunspec);
+      curbnds += curunspec;
+    }
+
   /* Set if the parameter is [re]declared as a VLA.  */
-  const bool cur_vla_p = cura->size || cura->minsize == HOST_WIDE_INT_M1U;
-  const bool new_vla_p = newa->size || newa->minsize == HOST_WIDE_INT_M1U;
+  const bool cur_vla_p = cura->minsize == HOST_WIDE_INT_M1U || 0 < curbnds;
+  const bool new_vla_p = newa->minsize == HOST_WIDE_INT_M1U || 0 < newbnds;
 
   if (DECL_P (curp))
     origloc = DECL_SOURCE_LOCATION (curp);
@@ -3560,10 +3579,6 @@ warn_parm_array_mismatch (location_t origloc, rdwr_map *cur_idx,
 
   if (newa->size || cura->size)
     {
-      unsigned newunspec, curunspec;
-      unsigned newbnds = newa->vla_bounds (&newunspec) + newunspec;
-      unsigned curbnds = cura->vla_bounds (&curunspec) + curunspec;
-
       if (newbnds != curbnds)
 	{
 	  if (warning_n (newloc, OPT_Wvla_parameter, newbnds,
