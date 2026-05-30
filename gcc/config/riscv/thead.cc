@@ -702,7 +702,7 @@ th_memidx_classify_address_index (struct riscv_address_info *info, rtx x,
 	   && GET_MODE (XEXP (offset, 0)) == DImode
 	   && GET_MODE (XEXP (XEXP (offset, 0), 0)) == SImode
 	   && CONST_INT_P (XEXP (offset, 1))
-	   && IN_RANGE(INTVAL (XEXP (offset, 1)), 0, 3))
+	   && IN_RANGE (INTVAL (XEXP (offset, 1)), 0, 3))
     {
       type = (GET_CODE (XEXP (offset, 0)) == SIGN_EXTEND)
 	     ? ADDRESS_REG_REG : ADDRESS_REG_UREG;
@@ -1224,7 +1224,7 @@ th_print_operand_address (FILE *file, machine_mode mode, rtx x)
 /* Number array of registers X1, X5-X7, X10-X17, X28-X31, to be
    operated on by instruction th.ipush/th.ipop in XTheadInt.  */
 
-int th_int_regs[] ={
+int th_int_regs[] = {
   RETURN_ADDR_REGNUM,
   T0_REGNUM, T1_REGNUM, T2_REGNUM,
   A0_REGNUM, A1_REGNUM, A2_REGNUM, A3_REGNUM,

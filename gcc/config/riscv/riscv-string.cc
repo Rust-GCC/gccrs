@@ -908,7 +908,7 @@ riscv_block_move_loop (rtx dest, rtx src, unsigned HOST_WIDE_INT length,
   if (leftover)
     riscv_block_move_straight (dest, src, leftover, align);
   else
-    emit_insn(gen_nop ());
+    emit_insn (gen_nop ());
 }
 
 /* Expand a cpymemsi instruction, which copies LENGTH bytes from

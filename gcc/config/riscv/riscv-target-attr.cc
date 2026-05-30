@@ -320,7 +320,7 @@ riscv_process_one_target_attr (char *arg_str,
     }
 
   std::unique_ptr<char[]> buf (new char[len+1]);
-  char *str_to_check = buf.get();
+  char *str_to_check = buf.get ();
   strcpy (str_to_check, arg_str);
 
   /* Split attribute name from argument (if present).  */

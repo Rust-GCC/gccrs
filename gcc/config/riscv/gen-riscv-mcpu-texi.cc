@@ -31,13 +31,13 @@ main ()
 #include "riscv-cores.def"
 #undef RISCV_CORE
 
-  for (size_t i = 0; i < coreNames.size(); ++i) {
-    if (i == coreNames.size() - 1) {
-      printf("@samp{%s}.\n", coreNames[i].c_str());
-    } else {
-      printf("@samp{%s},\n\n", coreNames[i].c_str());
+  for (size_t i = 0; i < coreNames.size (); ++i)
+    {
+      if (i == coreNames.size () - 1)
+	printf ("@samp{%s}.\n", coreNames[i].c_str ());
+      else
+	printf ("@samp{%s},\n\n", coreNames[i].c_str ());
     }
-  }
 
   return 0;
 }

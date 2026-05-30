@@ -901,7 +901,7 @@ extern enum riscv_cc get_riscv_cc (const rtx use);
 
 #undef ASM_OUTPUT_OPCODE
 #define ASM_OUTPUT_OPCODE(STREAM, PTR)	\
-  (PTR) = riscv_asm_output_opcode(STREAM, PTR)
+  (PTR) = riscv_asm_output_opcode (STREAM, PTR)
 
 #define JUMP_TABLES_IN_TEXT_SECTION (riscv_cmodel == CM_LARGE)
 #define CASE_VECTOR_MODE SImode

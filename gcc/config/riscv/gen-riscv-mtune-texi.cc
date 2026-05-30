@@ -31,9 +31,8 @@ main ()
 #include "riscv-cores.def"
 #undef RISCV_TUNE
 
-  for (size_t i = 0; i < tuneNames.size(); ++i) {
-    printf("@samp{%s},\n\n", tuneNames[i].c_str());
-  }
+  for (size_t i = 0; i < tuneNames.size (); ++i)
+    printf ("@samp{%s},\n\n", tuneNames[i].c_str ());
 
   puts ("and all valid options for @option{-mcpu=}.");
 

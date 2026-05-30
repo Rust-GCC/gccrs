@@ -20,7 +20,6 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "coretypes.h"
 
-#include <assert.h>
 #include <math.h>
 
 #define BOOL_SIZE_LIST                                                         \

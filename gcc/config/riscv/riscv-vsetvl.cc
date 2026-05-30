@@ -3710,20 +3710,23 @@ pre_vsetvl::remove_unused_dest_operand ()
 	  rtx vl = get_vl (rinsn);
 	  vsetvl_info info = vsetvl_info (rinsn);
 	  if (has_no_uses (cfg_bb, rinsn, REGNO (vl)))
-	    if (!info.has_vlmax_avl ())
-	      {
-		rtx new_pat = info.get_vsetvl_pat (true);
-		if (dump_file)
-		  {
-		    fprintf (dump_file,
-			     "  Remove vsetvl insn %u's dest(vl) operand since "
-			     "it unused:\n",
-			     INSN_UID (rinsn));
-		    print_rtl_single (dump_file, rinsn);
-		  }
-		validate_change_or_fail (rinsn, &PATTERN (rinsn), new_pat,
-					 false);
-	      }
+	    {
+	      if (!info.has_vlmax_avl ())
+		{
+		  rtx new_pat = info.get_vsetvl_pat (true);
+		  if (dump_file)
+		    {
+		      fprintf (dump_file,
+			       "  Remove vsetvl insn %u's dest(vl) operand"
+			       " since "
+			       "it unused:\n",
+			       INSN_UID (rinsn));
+		      print_rtl_single (dump_file, rinsn);
+		    }
+		  validate_change_or_fail (rinsn, &PATTERN (rinsn), new_pat,
+					   false);
+		}
+	    }
 	}
 }
 

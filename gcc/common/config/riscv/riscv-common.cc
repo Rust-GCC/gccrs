@@ -442,7 +442,6 @@ multi_letter_subset_rank (const std::string &subset)
       break;
     default:
       gcc_unreachable ();
-      return -1;
     }
 
   if (multiletter_class == 'z')
@@ -495,8 +494,8 @@ subset_cmp (const std::string &a, const std::string &b)
     }
   else
     {
-      int rank_a = multi_letter_subset_rank(a);
-      int rank_b = multi_letter_subset_rank(b);
+      int rank_a = multi_letter_subset_rank (a);
+      int rank_b = multi_letter_subset_rank (b);
 
       /* Using alphabetical/lexicographical order if they have same rank.  */
       if (rank_a == rank_b)
@@ -749,7 +748,7 @@ riscv_subset_list::to_string (bool version_p) const
       if (!first &&
 	  (version_p
 	   || subset->explicit_version_p
-	   || subset->name.length() > 1))
+	   || subset->name.length () > 1))
 	oss << '_';
       first = false;
 
@@ -894,19 +893,19 @@ riscv_subset_list::parse_profiles (const char *arch)
     2. Mixed Profiles with other extensions
 
     Use '_' to split Profiles and other extension.  */
-    std::string p(arch);
-    const size_t p_len = p.size();
+    std::string p (arch);
+    const size_t p_len = p.size ();
 
     for (int i = 0; riscv_profiles_table[i].profile_name != nullptr; ++i)
     {
       const std::string& p_name = riscv_profiles_table[i].profile_name;
       const std::string& p_str = riscv_profiles_table[i].profile_string;
-      size_t pos = p.find(p_name);
+      size_t pos = p.find (p_name);
       /* Find profile at the begin.  */
-      if (pos == 0 && pos + p_name.size() <= p_len)
+      if (pos == 0 && pos + p_name.size () <= p_len)
 	{
-	  size_t after_pos = pos + p_name.size();
-	  std::string after_part = p.substr(after_pos);
+	  size_t after_pos = pos + p_name.size ();
+	  std::string after_part = p.substr (after_pos);
 
 	  /* If there're only profile, return the profile_string directly.  */
 	  if (after_part[0] == '\0')
@@ -1135,7 +1134,7 @@ riscv_subset_list::handle_combine_ext ()
       /* Add combine extensions */
       if (is_combined)
 	{
-	  riscv_version_t ver = ext_info.default_version();
+	  riscv_version_t ver = ext_info.default_version ();
 	  add (ext_name.c_str (), ver.major_version,
 	       ver.minor_version, false, true);
 	}
@@ -1367,8 +1366,8 @@ riscv_subset_list::parse (const char *arch, location_t *loc)
   riscv_subset_list *subset_list = new riscv_subset_list (arch, loc);
 
   const char *p = arch;
-  std::string a = subset_list->parse_profiles(p);
-  p = subset_list->parse_base_ext (a.c_str());
+  std::string a = subset_list->parse_profiles (p);
+  p = subset_list->parse_base_ext (a.c_str ());
   if (p == NULL)
     goto fail;
 
@@ -1458,7 +1457,7 @@ riscv_arch_str (bool version_p)
   if (cmdline_subset_list)
     return cmdline_subset_list->to_string (version_p);
   else
-    return std::string();
+    return std::string ();
 }
 
 #define RISCV_EXT_FLAG_ENTRY(NAME, VAR, MASK) \
@@ -1825,7 +1824,7 @@ riscv_expand_arch_from_cpu (int argc ATTRIBUTE_UNUSED,
 
   riscv_parse_arch_string (arch_str, NULL, loc);
   const std::string arch = riscv_arch_str (false);
-  return xasprintf ("-march=%s", arch.c_str());
+  return xasprintf ("-march=%s", arch.c_str ());
 }
 
 /* Report error if not found suitable multilib.  */
@@ -2248,7 +2247,7 @@ riscv_arch_help (int, const char **)
   /* Collect all exts, and sort it in canonical order.  */
   struct extension_comparator {
     bool operator()(const std::string& a, const std::string& b) const {
-      return subset_cmp(a, b) >= 1;
+      return subset_cmp (a, b) >= 1;
     }
   };
   std::map<std::string, std::set<unsigned>, extension_comparator> all_exts;
@@ -2263,24 +2262,24 @@ riscv_arch_help (int, const char **)
 	}
     }
 
-  printf("All available -march extensions for RISC-V:\n");
-  printf("\t%-20sVersion\n", "Name");
+  printf ("All available -march extensions for RISC-V:\n");
+  printf ("\t%-20sVersion\n", "Name");
   for (auto const &ext_info : all_exts)
     {
-      printf("\t%-20s\t", ext_info.first.c_str());
+      printf ("\t%-20s\t", ext_info.first.c_str ());
       bool first = true;
       for (auto version : ext_info.second)
 	{
 	  if (first)
 	    first = false;
 	  else
-	    printf(", ");
+	    printf (", ");
 	  unsigned major = version / RISCV_MAJOR_VERSION_BASE;
 	  unsigned minor = (version % RISCV_MAJOR_VERSION_BASE)
 			    / RISCV_MINOR_VERSION_BASE;
-	  printf("%u.%u", major, minor);
+	  printf ("%u.%u", major, minor);
 	}
-      printf("\n");
+      printf ("\n");
     }
   exit (0);
 }

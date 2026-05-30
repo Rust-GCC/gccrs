@@ -167,7 +167,7 @@ struct GTY(())  riscv_frame_info {
   poly_int64 arg_pointer_offset;
 
   /* Reset this struct, clean all field to zero.  */
-  void reset(void);
+  void reset (void);
 };
 
 enum riscv_privilege_levels {
@@ -1009,7 +1009,7 @@ typedef enum
 
 typedef insn_code (*code_for_push_pop_t) (machine_mode);
 
-void riscv_frame_info::reset(void)
+void riscv_frame_info::reset (void)
 {
   total_size = 0;
   mask = 0;
@@ -2060,7 +2060,7 @@ riscv_float_const_rtx_index_for_fli (rtx x)
   machine_mode mode = GET_MODE (x);
 
   if (!TARGET_ZFA
-      || !CONST_DOUBLE_P(x)
+      || !CONST_DOUBLE_P (x)
       || mode == VOIDmode
       || (mode == HFmode && !(TARGET_ZFH || TARGET_ZVFH))
       || (mode == SFmode && !TARGET_HARD_FLOAT)
@@ -5305,7 +5305,7 @@ riscv_output_move (rtx dest, rtx src)
 	    return "bseti\t%0,zero,%S1";
 
 	  /* Should never reach here.  */
-	  abort ();
+	  gcc_unreachable ();
 	}
 
       if (src_code == HIGH)
@@ -7324,7 +7324,7 @@ riscv_libcall_value (machine_mode mode, const_rtx fun ATTRIBUTE_UNUSED)
 static bool
 riscv_pass_by_reference (cumulative_args_t cum_v, const function_arg_info &arg)
 {
-  HOST_WIDE_INT size = arg.type_size_in_bytes ().to_constant ();;
+  HOST_WIDE_INT size = arg.type_size_in_bytes ().to_constant ();
   struct riscv_arg_info info;
   CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
 
@@ -8170,7 +8170,7 @@ riscv_print_operand (FILE *file, rtx op, int letter)
   if (letter == '~')
     {
       if (TARGET_64BIT)
-	fputc('w', file);
+	fputc ('w', file);
       return;
     }
   machine_mode mode = GET_MODE (op);
@@ -8896,7 +8896,7 @@ riscv_save_libcall_count (unsigned mask)
   for (unsigned n = GP_REG_LAST; n > GP_REG_FIRST; n--)
     if (BITSET_P (mask, n))
       return CALLEE_SAVED_REG_NUMBER (n) + 1;
-  abort ();
+  gcc_unreachable ();
 }
 
 /* calculate number of s regs in multi push and pop.
@@ -9020,7 +9020,7 @@ riscv_compute_frame_info (void)
 	interrupt_save_prologue_temp = true;
     }
 
-  frame->reset();
+  frame->reset ();
 
   if (!cfun->machine->naked_p)
     {
@@ -9266,8 +9266,9 @@ riscv_set_return_address (rtx address, rtx scratch)
   rtx slot_address;
 
   gcc_assert (BITSET_P (cfun->machine->frame.mask, RETURN_ADDR_REGNUM));
-  slot_address = riscv_add_offset (scratch, stack_pointer_rtx,
-				  cfun->machine->frame.gp_sp_offset.to_constant());
+  slot_address
+    = riscv_add_offset (scratch, stack_pointer_rtx,
+			cfun->machine->frame.gp_sp_offset.to_constant ());
   riscv_emit_move (gen_frame_mem (GET_MODE (address), slot_address), address);
 }
 
@@ -9585,7 +9586,7 @@ riscv_first_stack_step (struct riscv_frame_info *frame, poly_int64 remaining_siz
 
   poly_int64 callee_saved_first_step =
     remaining_size - frame->frame_pointer_offset;
-  gcc_assert(callee_saved_first_step.is_constant ());
+  gcc_assert (callee_saved_first_step.is_constant ());
   HOST_WIDE_INT min_first_step =
     riscv_stack_align (callee_saved_first_step.to_constant ());
   HOST_WIDE_INT max_first_step = IMM_REACH / 2 - PREFERRED_STACK_BOUNDARY / 8;
@@ -9667,7 +9668,7 @@ riscv_adjust_multi_push_cfi_prologue (int saved_size)
 
   unsigned int num_multi_push = riscv_multi_push_regs_count (mask);
   for (unsigned int i = 0; i < num_multi_push; i++) {
-    gcc_assert(zcmp_save_reg_order[i] != INVALID_REGNUM);
+    gcc_assert (zcmp_save_reg_order[i] != INVALID_REGNUM);
     mask |= 1 << (zcmp_save_reg_order[i] - GP_REG_FIRST);
   }
 
@@ -11679,7 +11680,7 @@ riscv_output_mi_thunk (FILE *file, tree thunk_fndecl ATTRIBUTE_UNUSED,
   emit_note (NOTE_INSN_PROLOGUE_END);
 
   if (is_zicfilp_p ())
-    emit_insn(gen_lpad (const0_rtx));
+    emit_insn (gen_lpad (const0_rtx));
 
   /* Determine if we can use a sibcall to call FUNCTION directly.  */
   fnaddr = gen_rtx_MEM (FUNCTION_MODE, XEXP (DECL_RTL (function), 0));

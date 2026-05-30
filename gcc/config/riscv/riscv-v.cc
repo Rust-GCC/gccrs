@@ -48,7 +48,6 @@
 #include "optabs.h"
 #include "tm-constrs.h"
 #include "rtx-vector-builder.h"
-#include "targhooks.h"
 #include "predict.h"
 #include "errors.h"
 #include "riscv-v.h"
@@ -1734,7 +1733,7 @@ expand_const_vector (rtx target, rtx src)
   /* Support scalable const series vector.  */
   rtx base, step;
   if (const_vec_series_p (src, &base, &step))
-    return expand_const_vec_series(target, base, step);
+    return expand_const_vec_series (target, base, step);
 
   /* Handle variable-length vector.  */
   unsigned int nelts_per_pattern = CONST_VECTOR_NELTS_PER_PATTERN (src);
@@ -3858,7 +3857,7 @@ shuffle_slide_patterns (struct expand_vec_perm_d *d)
      skip/slide over.  For a slidedown it indicates how long
      OP1's high part is, while the first element is the amount to slide.  */
   insn_code icode;
-  int slide_cnt = slideup ? pivot : d->perm[0].to_constant();
+  int slide_cnt = slideup ? pivot : d->perm[0].to_constant ();
   if (slideup)
     {
       rtx ops[] = {d->target, d->op0, d->op1, gen_int_mode (slide_cnt, Pmode)};
@@ -4396,7 +4395,7 @@ shuffle_generic_patterns (struct expand_vec_perm_d *d)
   machine_mode sel_mode;
 
   /* We don't enable SLP for non-power of 2 NPATTERNS.  */
-  if (!pow2p_hwi (d->perm.encoding().npatterns ()))
+  if (!pow2p_hwi (d->perm.encoding ().npatterns ()))
     return false;
 
   /* Disable shuffle if we can't find an appropriate integer index mode for
