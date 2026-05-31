@@ -545,9 +545,9 @@ static struct tune_params olympus_tunings =
   }, /* memmov_cost.  */
   10, /* issue_rate  */
   AARCH64_FUSE_NEOVERSE_BASE, /* fusible_ops  */
-  "32:16",	/* function_align.  */
-  "4",		/* jump_align.  */
-  "64:16",	/* loop_align.  */
+  "32:25",	/* function_align.  */
+  "16:9",		/* jump_align.  */
+  "64:33:32",	/* loop_align.  */
   8,	/* int_reassoc_width.  */
   6,	/* fp_reassoc_width.  */
   4,	/* fma_reassoc_width.  */
