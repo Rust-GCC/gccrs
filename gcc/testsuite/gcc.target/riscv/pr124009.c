@@ -5,7 +5,7 @@
 int foo(int x, int y) { return (y < x) ? 1 : -1; }
 
 
-/* { dg-final { scan-assembler-times {slli\t} 1 } } */
+/* { dg-final { scan-assembler-times {(slli|ori)\t} 1 } } */
 /* { dg-final { scan-assembler-times {addi\t} 1 } } */
 /* { dg-final { scan-assembler-not {czero.eqz\t} } } */
 

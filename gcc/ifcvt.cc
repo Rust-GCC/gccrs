@@ -1778,6 +1778,75 @@ noce_try_store_flag_constants (struct noce_if_info *if_info)
   return false;
 }
 
+/* This is trying to capture cases like dest = cond ? a : -1.
+
+   The basic idea is to use a store-flag insn to generate a -1/0
+   value (directly or indirectly), then IOR that with the other
+   input.  */
+static bool
+noce_try_store_flag_logical (struct noce_if_info *if_info)
+{
+  rtx a = if_info->a;
+  rtx b = if_info->b;
+  rtx dest = if_info->x;
+  machine_mode mode = GET_MODE (dest);
+
+  if (STORE_FLAG_VALUE != -1 && STORE_FLAG_VALUE != 1)
+    return false;
+
+  if (!noce_simple_bbs (if_info))
+    return false;
+
+  bool swapped = false;
+  if (a == CONSTM1_RTX (GET_MODE (dest))
+      && if_info->rev_cond)
+    {
+      std::swap (a, b);
+      swapped = true;
+    }
+
+  if (b != CONSTM1_RTX (GET_MODE (dest)))
+    return false;
+
+  /* If the other arm is not a REG/SUBREG, then punt.  This is primarily to
+     let the target handle the constant case, which it can likely do better.
+     It also means we don't have to worry about non terminal expressions.  */
+  if (!REG_P (a) && !SUBREG_P (a))
+    return false;
+
+  /* At this point we've got dest = cond ? a : -1.  Emit the store flag and
+     adjust its value (if necessary) to -1/0.  */
+  start_sequence ();
+  rtx temp = gen_reg_rtx (mode);
+  rtx target = noce_emit_store_flag (if_info, temp, !swapped, false);
+  if (!target)
+    {
+      end_sequence ();
+      return false;
+    }
+
+  if (STORE_FLAG_VALUE == 1)
+    {
+      rtx x = gen_rtx_PLUS (mode, target, CONSTM1_RTX (mode));
+      emit_move_insn (target, x);
+    }
+
+  /* Now we've got -1/0 in TARGET.  We can just IOR with A.  */
+  rtx x = gen_rtx_IOR (mode, target, a);
+  emit_move_insn (dest, x);
+
+  /* We've generated all the RTL, make sure it recognizes and is
+     profitable.  */
+  rtx_insn *seq = end_ifcvt_sequence (if_info);
+  if (!seq || !targetm.noce_conversion_profitable_p (seq, if_info))
+    return false;
+
+  emit_insn_before_setloc (seq, if_info->jump,
+			   INSN_LOCATION (if_info->insn_a));
+  if_info->transform_name = "noce_try_store_flag_logical";
+  return true;
+}
+
 /* Convert "if (test) foo++" into "foo += (test != 0)", and
    similarly for "foo--".  */
 
@@ -4482,6 +4551,9 @@ noce_process_if_block (struct noce_if_info *if_info)
       && noce_try_store_flag_constants (if_info))
     goto success;
   if (noce_try_sign_bit_splat (if_info))
+    goto success;
+  if (!targetm.have_conditional_execution ()
+      && noce_try_store_flag_logical (if_info))
     goto success;
   if (HAVE_conditional_move
       && noce_try_cmove (if_info))
