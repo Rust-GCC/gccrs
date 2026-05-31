@@ -336,6 +336,9 @@ Parser<ManagedTokenSource>::parse_attr_input ()
 	  case BYTE_STRING_LITERAL:
 	    lit_type = AST::Literal::BYTE_STRING;
 	    break;
+	  case C_STRING_LITERAL:
+	    lit_type = AST::Literal::C_STRING;
+	    break;
 	  case RAW_STRING_LITERAL:
 	    lit_type = AST::Literal::RAW_STRING;
 	    break;

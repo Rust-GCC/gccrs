@@ -1063,6 +1063,10 @@ Lexer::build_token ()
 	    return parse_raw_byte_string (loc);
 	}
 
+      // C-style strings
+      else if (current_char == 'c' && peek_input () == '"')
+	return parse_c_string (loc);
+
       // raw identifiers and raw strings
       if (current_char == 'r')
 	{
@@ -1747,6 +1751,82 @@ Lexer::parse_byte_string (location_t loc)
   loc += str.size () - 1;
 
   return Token::make_byte_string (loc, std::move (str));
+}
+
+// Parses a C-style string.
+TokenPtr
+Lexer::parse_c_string (location_t loc)
+{
+  skip_input ();
+  current_column++;
+
+  // Mostly same code copied from parse_string...
+
+  std::string str;
+  str.reserve (16); // some sensible default
+
+  current_char = peek_input ();
+
+  const location_t string_begin_locus = get_current_location ();
+
+  while (current_char.value != '"' && !current_char.is_eof ())
+    {
+      if (current_char.value == '\\')
+	{
+	  int length = 1;
+
+	  auto escape_pair = parse_escape ('"');
+	  current_char = std::get<0> (escape_pair);
+
+	  if (current_char == Codepoint (0) && std::get<2> (escape_pair))
+	    length = std::get<1> (escape_pair) - 1;
+	  else
+	    length += std::get<1> (escape_pair);
+
+	  if (current_char != Codepoint (0) || !std::get<2> (escape_pair))
+	    str += current_char.as_string ();
+
+	  current_column += length;
+
+	  // FIXME: parse_escape does not update current_char correctly.
+	  current_char = peek_input ();
+	  continue;
+	}
+
+      current_column++;
+      if (current_char.value == '\n')
+	{
+	  current_line++;
+	  current_column = 1;
+	  // tell line_table that new line starts
+	  start_line (current_line, max_column_hint);
+	}
+
+      str += current_char;
+      skip_input ();
+      current_char = peek_input ();
+    }
+
+  if (current_char.value == '"')
+    {
+      current_column++;
+
+      skip_input ();
+      current_char = peek_input ();
+    }
+  else if (current_char.is_eof ())
+    {
+      rust_error_at (string_begin_locus, "unended C string literal");
+      return Token::make (END_OF_FILE, get_current_location ());
+    }
+  else
+    {
+      rust_unreachable ();
+    }
+
+  str.shrink_to_fit ();
+
+  return Token::make_c_string (loc, std::move (str));
 }
 
 // Parses a raw byte string.

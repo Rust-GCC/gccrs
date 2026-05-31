@@ -1089,6 +1089,10 @@ CompileExpr::visit (HIR::LiteralExpr &expr)
     case HIR::Literal::BYTE_STRING:
       translated = compile_byte_string_literal (expr, tyty);
       return;
+
+    case HIR::Literal::C_STRING:
+      translated = compile_c_string_literal (expr, tyty);
+      return;
     }
 }
 
@@ -1900,6 +1904,31 @@ CompileExpr::compile_byte_string_literal (const HIR::LiteralExpr &expr,
 					     expr.get_locus ());
 
   return address_expression (constructed, expr.get_locus ());
+}
+
+tree
+CompileExpr::compile_c_string_literal (const HIR::LiteralExpr &expr,
+				       const TyTy::BaseType *tyty)
+{
+  // Copied from compile_string_literal
+  tree fat_pointer = TyTyResolveCompile::compile (ctx, tyty);
+
+  rust_assert (expr.get_lit_type () == HIR::Literal::C_STRING);
+  const auto literal_value = expr.get_literal ();
+
+  auto base = Backend::string_constant_expression (literal_value.as_string ());
+  tree data = address_expression (base, expr.get_locus ());
+
+  TyTy::BaseType *usize = nullptr;
+  bool ok = ctx->get_tyctx ()->lookup_builtin ("usize", &usize);
+  rust_assert (ok);
+  tree type = TyTyResolveCompile::compile (ctx, usize);
+
+  // +1 for null terminator, unlike Rust string literals.
+  tree size = build_int_cstu (type, literal_value.as_string ().size () + 1);
+
+  return Backend::constructor_expression (fat_pointer, false, {data, size}, -1,
+					  expr.get_locus ());
 }
 
 tree

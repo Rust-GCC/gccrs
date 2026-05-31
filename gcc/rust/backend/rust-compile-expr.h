@@ -131,6 +131,9 @@ protected:
   tree compile_byte_string_literal (const HIR::LiteralExpr &expr,
 				    const TyTy::BaseType *tyty);
 
+  tree compile_c_string_literal (const HIR::LiteralExpr &expr,
+				 const TyTy::BaseType *tyty);
+
   tree type_cast_expression (tree type_to_cast_to, tree expr, location_t locus);
 
   tree array_value_expr (location_t expr_locus,
