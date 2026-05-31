@@ -342,6 +342,11 @@ Parser<ManagedTokenSource>::parse_literal_expr (AST::AttrVec outer_attrs)
       literal_value = t->get_str ();
       lexer.skip_token ();
       break;
+    case C_STRING_LITERAL:
+      type = AST::Literal::C_STRING;
+      literal_value = t->get_str ();
+      lexer.skip_token ();
+      break;
     case INT_LITERAL:
       type = AST::Literal::INT;
       literal_value = LiteralResolve::evaluate_integer_literal (t);
@@ -2110,6 +2115,10 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
     case RAW_STRING_LITERAL:
       return std::unique_ptr<AST::LiteralExpr> (
 	new AST::LiteralExpr (tok->get_str (), AST::Literal::RAW_STRING,
+			      tok->get_type_hint (), {}, tok->get_locus ()));
+    case C_STRING_LITERAL:
+      return std::unique_ptr<AST::LiteralExpr> (
+	new AST::LiteralExpr (tok->get_str (), AST::Literal::C_STRING,
 			      tok->get_type_hint (), {}, tok->get_locus ()));
     case CHAR_LITERAL:
       return std::unique_ptr<AST::LiteralExpr> (

@@ -429,6 +429,9 @@ TokenCollector::visit (Token &tok)
     case RAW_STRING_LITERAL:
       push (Rust::Token::make_raw_string (tok.get_locus (), std::move (data)));
       break;
+    case C_STRING_LITERAL:
+      push (Rust::Token::make_c_string (tok.get_locus (), std::move (data)));
+      break;
     case INNER_DOC_COMMENT:
       push (Rust::Token::make_inner_doc_comment (tok.get_locus (),
 						 std::move (data)));
@@ -865,6 +868,9 @@ TokenCollector::visit (Literal &lit, location_t locus)
       break;
     case Literal::LitType::RAW_STRING:
       push (Rust::Token::make_raw_string (locus, std::move (value)));
+      break;
+    case Literal::LitType::C_STRING:
+      push (Rust::Token::make_c_string (locus, std::move (value)));
       break;
     case Literal::LitType::INT:
       {
