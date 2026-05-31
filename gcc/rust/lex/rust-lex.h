@@ -147,6 +147,7 @@ private:
   TokenPtr parse_string (location_t loc);
   TokenPtr maybe_parse_raw_string (location_t loc);
   TokenPtr parse_raw_string (location_t loc, int initial_hash_count);
+  TokenPtr parse_c_string (location_t loc);
   TokenPtr parse_non_decimal_int_literals (location_t loc);
   TokenPtr parse_decimal_int_or_float (location_t loc);
   TokenPtr parse_char_or_lifetime (location_t loc);
