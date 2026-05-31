@@ -209,6 +209,7 @@ public:
       case STRING_LITERAL:
       case BYTE_STRING_LITERAL:
       case RAW_STRING_LITERAL:
+      case C_STRING_LITERAL:
 	return true;
       default:
 	return false;
@@ -272,6 +273,7 @@ public:
     BYTE,
     BYTE_STRING,
     RAW_STRING,
+    C_STRING,
     INT,
     FLOAT,
     BOOL,

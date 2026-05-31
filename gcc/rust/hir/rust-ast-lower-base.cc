@@ -1018,6 +1018,9 @@ ASTLoweringBase::lower_literal (const AST::Literal &literal)
     case AST::Literal::LitType::RAW_STRING:
       type = HIR::Literal::LitType::STRING;
       break;
+    case AST::Literal::LitType::C_STRING:
+      type = HIR::Literal::LitType::C_STRING;
+      break;
     case AST::Literal::LitType::INT:
       type = HIR::Literal::LitType::INT;
       break;
