@@ -3620,6 +3620,7 @@ AttributeParser::parse_meta_item_inner ()
 	case BYTE_CHAR_LITERAL:
 	case BYTE_STRING_LITERAL:
 	case RAW_STRING_LITERAL:
+	case C_STRING_LITERAL:
 	case INT_LITERAL:
 	case FLOAT_LITERAL:
 	case TRUE_LITERAL:
