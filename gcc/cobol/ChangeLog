@@ -1,3 +1,28 @@
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* compare.cc (alpha_compare): Fix typos.
+	* Make-lang.in: Fix typos.
+	* except.cc (cbl_enabled_exceptions_t::turn_on_off): Likewise.
+	* genapi.cc (MAX_AFTERS): Likewise.
+	(cobol_compare): Likewise.
+	(enter_program_common): Likewise.
+	(parser_bsearch_end): Likewise.
+	(parser_set_pointers): Likewise.
+	* gengen.cc (chain_parameter_to_function): Likewise.
+	* gengen.h (gg_return): Likewise.
+	* genutil.cc (refer_is_clean): Likewise.
+	* lexio.cc (right_margin): Likewise.
+	(maybe_add_space): Likewise.
+	* messages.cc: Likewise.
+	* parse_ante.h (procedure_division_ready): Likewise.
+	* structs.cc (create_cblc_field_t): Likewise.
+	* symbols.cc (special_pair_cmp): Likewise.
+	(symbol_table_init): Likewise.
+	(symbol_label_add): Likewise.
+	* symbols.h: Likewise.
+	* util.cc (date_time_fmt): Likewise.
+	(cobol_lineno): Likewise.
+
 2026-05-29  Robert Dubner  <rdubner@symas.com>
 	    James K. Lowden  <jklowden@cobolworx.com>
 	    Xavier Del Campo  <xdelcampo@symas.com>

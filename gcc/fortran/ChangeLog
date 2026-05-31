@@ -1,3 +1,55 @@
+2026-05-30  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/105582
+	* trans-decl.cc (get_proc_pointer_decl): Add FL_LABEL check to
+	route BLOCK-construct procedure pointers to gfc_add_decl_to_function
+	rather than gfc_add_decl_to_parent_function.
+
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* gfortran.texi: Reflow long line.
+
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* check.cc (oct2bin): Fix typos.
+	(gfc_check_move_alloc): Likewise.
+	* class.cc (gfc_intrinsic_hash_value): Likewise.
+	* decl.cc (copy_prefix): Likewise.
+	* dependency.cc (gfc_dep_compare_expr): Likewise.
+	* expr.cc (gfc_check_assign_symbol): Likewise.
+	* frontend-passes.cc (combine_array_constructor): Likewise.
+	(doloop_code): Likewise.
+	(doloop_warn): Likewise.
+	(matmul_lhs_realloc): Likewise.
+	* gfortran.h: Likewise.
+	* gfortran.texi: Likewise.
+	* interface.cc (compare_parameter): Likewise.
+	* intrinsic.cc (add_functions): Likewise.
+	(add_subroutines): Likewise.
+	* invoke.texi: Likewise.
+	* lang.opt: Likewise.
+	* module.cc (mio_full_f2k_derived): Likewise.
+	* openmp.cc (gfc_match_omp_variable_list): Likewise.
+	* resolve.cc (resolve_global_procedure): Likewise.
+	(gfc_fixup_inferred_type_refs): Likewise.
+	(gfc_verify_binding_labels): Likewise.
+	(resolve_fl_parameter): Likewise.
+	* trans-array.cc (gfc_set_loop_bounds_from_array_spec): Likewise.
+	(gfc_trans_array_constructor_value): Likewise.
+	(maybe_substitute_expr): Likewise.
+	(duplicate_allocatable_coarray): Likewise.
+	* trans-decl.cc (gfc_trans_deferred_vars): Likewise.
+	* trans-expr.cc (gfc_vptr_size_get): Likewise.
+	(gfc_trans_subcomponent_assign): Likewise.
+	(gfc_conv_expr): Likewise.
+	(fcncall_realloc_result): Likewise.
+	(alloc_scalar_allocatable_for_assignment): Likewise.
+	(gfc_trans_assignment_1): Likewise.
+	* trans-openmp.cc (gfc_omp_deep_mapping_cnt): Likewise.
+	* trans-stmt.cc (trans_associate_var): Likewise.
+	(gfc_trans_allocate): Likewise.
+	* trans.cc (gfc_finalize_tree_expr): Likewise.
+
 2026-05-29  Harald Anlauf  <anlauf@gmx.de>
 
 	PR fortran/125393

@@ -1,3 +1,7 @@
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* README.md: Fix typos.
+
 2026-05-28  Jean-Christian CÎRSTEA  <jean.christian.cirstea@gmail.com>
 
 	PR c++/120458

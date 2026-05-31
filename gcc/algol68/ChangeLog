@@ -1,3 +1,44 @@
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* a68-imports-archive.cc (struct Archive_fl_header): Fix typos.
+	* a68-imports.cc (encoded_mode_free): Likewise.
+	* a68-low-chars.cc (a68_char_repr): Likewise.
+	* a68-low-clauses.cc (a68_lower_label): Likewise.
+	(a68_lower_labeled_unit): Likewise.
+	(a68_lower_completer): Likewise.
+	(a68_lower_initialiser_series): Likewise.
+	(a68_lower_case_clause): Likewise.
+	* a68-low-decls.cc (a68_lower_variable_declaration): Likewise.
+	(a68_lower_procedure_variable_declaration): Likewise.
+	* a68-low-ints.cc (a68_get_int_skip_tree): Likewise.
+	(a68_int_maxval): Likewise.
+	* a68-low-moids.cc (lower_struct_mode): Likewise.
+	* a68-low-multiples.cc (a68_multiple_single_bound_check): Likewise.
+	* a68-low-prelude.cc (a68_lower_divab3): Likewise.
+	(a68_lower_upb3): Likewise.
+	(a68_lower_lwb3): Likewise.
+	* a68-low-procs.cc (a68_get_proc_skip_tree): Likewise.
+	* a68-low-reals.cc (a68_real_maxval): Likewise.
+	(a68_real_minval): Likewise.
+	* a68-low-units.cc (a68_lower_identifier): Likewise.
+	* a68-low.cc (a68_low_assignation): Likewise.
+	* a68-moids-misc.cc (a68_is_firm): Likewise.
+	(a68_is_coercible_series): Likewise.
+	* a68-parser-bottom-up.cc (strange_separator): Likewise.
+	(a68_bottom_up_parser): Likewise.
+	* a68-parser-prelude.cc (stand_prelude): Likewise.
+	* a68-parser-scanner.cc (a68_lexical_analyser): Likewise.
+	* a68-parser-scope.cc (a68_scope_checker): Likewise.
+	* a68-parser-serial-dsa.cc (serial_dsa_check_serial_clause): Likewise.
+	* a68-parser-taxes.cc (test_firmly_related_ops_local): Likewise.
+	* a68-parser.cc: Likewise.
+	* a68-types.h (struct KEYWORD_T): Likewise.
+	(struct OPTIONS_T): Likewise.
+	(struct NODE_T): Likewise.
+	(struct MODE_CACHE_T): Likewise.
+	* ga68-coding-guidelines.texi: Likewise.
+	* ga68.texi: Likewise.
+
 2026-05-24  Peter Damianov  <peter0x44@disroot.org>
 
 	* a68-lang.cc (a68_handle_option): Open file in binary mode.

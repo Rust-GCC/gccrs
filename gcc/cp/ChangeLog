@@ -1,3 +1,98 @@
+2026-05-30  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/125123
+	* parser.cc (cp_build_range_for_decls): If range_temp or begin
+	are static, set DECL_IGNORED_P on it.
+	* pt.cc (finish_expansion_stmt): Similarly for iter.
+	* decl.cc (cp_finish_decl): Call determine_local_discriminator
+	etc. also for DECL_ARTIFICIAL TREE_STATIC vars.
+
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* call.cc (involves_qualification_conversion_p): Fix typos.
+	(build_user_type_conversion_1): Likewise.
+	(complain_about_access): Likewise.
+	(maybe_warn_class_memaccess): Likewise.
+	* class.cc (inherit_targ_abi_tags): Likewise.
+	(warn_hidden): Likewise.
+	(maybe_add_class_template_decl_list): Likewise.
+	(check_bases_and_members): Likewise.
+	(dfs_accumulate_vtbl_inits): Likewise.
+	* constexpr.cc (cx_check_missing_mem_inits): Likewise.
+	(cxx_eval_call_expression): Likewise.
+	(modifying_const_object_error): Likewise.
+	(cxx_replaceable_global_alloc_fn): Likewise.
+	* contracts.cc (copy_contracts_list): Likewise.
+	(check_redecl_contract): Likewise.
+	(update_late_contract): Likewise.
+	(get_precondition_function): Likewise.
+	* coroutines.cc (cp_coroutine_transform::build_ramp_function): Likewise.
+	* cp-tree.def (DISJ_CONSTR): Likewise.
+	* cp-tree.h (struct lang_decl_base): Likewise.
+	(SCOPE_DEPTH): Likewise.
+	(set_anon_aggr_type_field): Likewise.
+	(struct cp_decl_specifier_seq): Likewise.
+	* decl.cc (reshape_init_array_1): Likewise.
+	(omp_declare_variant_finalize): Likewise.
+	(grokdeclarator): Likewise.
+	(copy_type_enum): Likewise.
+	* decl2.cc (struct priority_map_traits): Likewise.
+	(determine_visibility): Likewise.
+	(constrain_class_visibility): Likewise.
+	(one_static_initialization_or_destruction): Likewise.
+	* g++spec.cc (lang_specific_driver): Likewise.
+	* init.cc (constant_value_1): Likewise.
+	(build_new): Likewise.
+	* mangle.cc (write_unqualified_name): Likewise.
+	* method.cc (inherited_ctor_binfo): Likewise.
+	(synthesized_method_walk): Likewise.
+	* module.cc (GTY): Likewise.
+	(trees_out::lang_decl_bools): Likewise.
+	(trees_out::core_vals): Likewise.
+	(trees_in::core_vals): Likewise.
+	(trees_in::install_implicit_member): Likewise.
+	(trees_in::odr_duplicate): Likewise.
+	(instantiating_tu_local_entity): Likewise.
+	(sort_cluster): Likewise.
+	(module_state::write_define): Likewise.
+	(module_state::write_begin): Likewise.
+	(declare_module): Likewise.
+	(init_modules): Likewise.
+	* name-lookup.cc (name_lookup::ambiguous): Likewise.
+	(pushdecl): Likewise.
+	(suggest_alternatives_for_1): Likewise.
+	(maybe_add_fuzzy_decl): Likewise.
+	* name-lookup.h (INHERITED_VALUE_BINDING_P): Likewise.
+	(HIDDEN_TYPE_BINDING_P): Likewise.
+	(BINDING_VECTOR_GLOBAL_DUPS_P): Likewise.
+	* operators.def: Likewise.
+	* parser.cc (cp_lexer_new_main): Likewise.
+	(get_cast_suggestion): Likewise.
+	(cp_parser_expression): Likewise.
+	(cp_parser_simple_type_specifier): Likewise.
+	(cp_parser_noexcept_specification_opt): Likewise.
+	(cp_parser_lookup_name): Likewise.
+	(class_decl_loc_t::diag_mismatched_tags): Likewise.
+	(cp_parser_cache_defarg): Likewise.
+	(cp_parser_objc_statement): Likewise.
+	(cp_parser_omp_loop_nest): Likewise.
+	(cp_parser_omp_taskloop): Likewise.
+	(cp_parser_objc_at_property_declaration): Likewise.
+	* parser.h (struct cp_unparsed_functions_entry): Likewise.
+	* pt.cc (tsubst_friend_class): Likewise.
+	(use_pack_expansion_extra_args_p): Likewise.
+	(tsubst_unary_left_fold): Likewise.
+	(tsubst_unary_right_fold): Likewise.
+	(filter_memfn_lookup): Likewise.
+	* semantics.cc (maybe_convert_cond): Likewise.
+	(finish_switch_cond): Likewise.
+	(cp_finish_omp_clause_doacross_sink): Likewise.
+	(finish_omp_target_clauses_r): Likewise.
+	* tree.cc (build_cplus_new): Likewise.
+	(apply_identity_attributes): Likewise.
+	* vtable-class-hierarchy.cc (vtv_compute_class_hierarchy_transitive_closure): Likewise.
+	(vtv_generate_init_routine): Likewise.
+
 2026-05-29  Jakub Jelinek  <jakub@redhat.com>
 
 	* init.cc (build_value_init_noctor): Zero initialize anonymous

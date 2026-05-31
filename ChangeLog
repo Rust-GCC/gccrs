@@ -1,3 +1,9 @@
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* Makefile.def: Fix typos.
+	* Makefile.in: Likewise.
+	* Makefile.tpl: Likewise.
+
 2026-05-27  Richard Earnshaw  <rearnsha@arm.com>
 
 	* MAINTAINERS (Contributing under the DCO): Secondary sort

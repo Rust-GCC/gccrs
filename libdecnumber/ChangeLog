@@ -1,3 +1,19 @@
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* decBasic.c (decCanonical): Fix typos.
+	(decDivide): Likewise.
+	(decFiniteMultiply): Likewise.
+	(decFloatMultiply): Likewise.
+	(decFloatQuantize): Likewise.
+	(decToInt32): Likewise.
+	* decCommon.c (decFinalize): Likewise.
+	(decFloatFromString): Likewise.
+	* decContext.c (decContextGetStatus): Likewise.
+	* decNumber.c (decToString): Likewise.
+	(decAddOp): Likewise.
+	(decMalloc): Likewise.
+	* decNumberLocal.h: Likewise.
+
 2026-01-09  Ben Boeckel  <ben.boeckel@kitware.com>
 
 	* configure: Regenerate.

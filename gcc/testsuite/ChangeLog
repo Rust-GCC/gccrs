@@ -1,3 +1,42 @@
+2026-05-30  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	* gcc.target/aarch64/sve2/acle/general/firstp.c: Adjust testcases.
+	* gcc.target/aarch64/sve2/acle/general/lastp.c: Likewise.
+
+2026-05-30  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	* gcc.target/loongarch/la64/mul-const-reduction.c: Adjust expected
+	output.
+
+2026-05-30  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/105582
+	* gfortran.dg/block_proc_ptr_1.f90: New test.
+
+2026-05-30  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/125123
+	* g++.dg/cpp26/expansion-stmt42.C: New test.
+
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* g++.dg/opt/pr104515.C: Fix typo in dejagnu check pattern.
+	* g++.dg/tree-ssa/pr88797.C: Likewise.
+	* gcc.dg/ipa/fnsummary-1.c: Likewise.
+	* gcc.dg/tree-ssa/copy-headers-7.c: Likewise.
+	* gcc.dg/tree-ssa/split-path-11.c: Likewise.
+	* gcc.dg/tree-ssa/split-path-13.c: Likewise.
+	* gcc.dg/tree-ssa/split-path-2.c: Likewise.
+	* gcc.dg/tree-ssa/split-path-5.c: Likewise.
+
+2026-05-30  Jakub Jelinek  <jakub@redhat.com>
+
+	* gcc.dg/bitint-133.c: New test.
+	* gcc.dg/bitint-134.c: New test.
+	* gcc.dg/bitint-135.c: New test.
+	* gcc.dg/bitint-136.c: New test.
+	* gcc.dg/torture/bitint-99.c: New test.
+
 2026-05-29  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
 
 	* gcc.dg/torture/pr125453-1.c: Add -w to the options.

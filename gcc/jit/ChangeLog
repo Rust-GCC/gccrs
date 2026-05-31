@@ -1,3 +1,25 @@
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* TODO.rst: Fix typos.
+	* docs/cp/intro/tutorial03.rst: Likewise.
+	* docs/cp/topics/functions.rst: Likewise.
+	* docs/cp/topics/types.rst: Likewise.
+	* docs/internals/index.rst: Likewise.
+	* docs/intro/tutorial02.rst: Likewise.
+	* docs/intro/tutorial03.rst: Likewise.
+	* docs/topics/compatibility.rst: Likewise.
+	* docs/topics/contexts.rst: Likewise.
+	* docs/topics/functions.rst: Likewise.
+	* docs/topics/performance.rst: Likewise.
+	* docs/topics/types.rst: Likewise.
+	* jit-builtins.cc (builtins_manager::make_type): Likewise.
+	* jit-playback.cc (make_fake_args): Likewise.
+	(get_source_file): Likewise.
+	(get_source_line): Likewise.
+	* jit-recording.h (types_kinda_same_internal): Likewise.
+	* libgccjit.cc (gcc_jit_context_new_struct_constructor): Likewise.
+	* libgccjit.h (gcc_jit_case_as_object): Likewise.
+
 2026-05-18  David Malcolm  <dmalcolm@redhat.com>
 
 	* docs/topics/contexts.rst

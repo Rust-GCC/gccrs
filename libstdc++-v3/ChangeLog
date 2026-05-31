@@ -1,3 +1,54 @@
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* include/bits/stl_algo.h: Reflow long line.
+
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* configure: Regenerate.
+	* acinclude.m4: Fix typos.
+	* configure.ac: Likewise.
+	* doc/doxygen/doxygroups.cc: Likewise.
+	* doc/doxygen/stdheader.cc (init_map): Likewise.
+	* include/bits/basic_string.h: Likewise.
+	* include/bits/chrono.h: Likewise.
+	* include/bits/chrono_io.h: Likewise.
+	* include/bits/cpyfunc_impl.h: Likewise.
+	* include/bits/funcref_impl.h: Likewise.
+	* include/bits/locale_conv.h: Likewise.
+	* include/bits/mofunc_impl.h: Likewise.
+	* include/bits/shared_ptr_base.h: Likewise.
+	* include/bits/simd_details.h: Likewise.
+	* include/bits/stl_algo.h: Likewise.
+	* include/bits/stl_deque.h: Likewise.
+	* include/bits/stl_iterator.h: Likewise.
+	* include/bits/stl_map.h: Likewise.
+	* include/bits/stl_multimap.h: Likewise.
+	* include/bits/stl_multiset.h: Likewise.
+	* include/bits/stl_set.h: Likewise.
+	* include/bits/unicode.h: Likewise.
+	* include/bits/unique_ptr.h: Likewise.
+	* include/bits/version.h: Likewise.
+	* include/experimental/bits/simd.h: Likewise.
+	* include/experimental/bits/simd_fixed_size.h: Likewise.
+	* include/experimental/bits/simd_x86_conversions.h: Likewise.
+	* include/ext/concurrence.h: Likewise.
+	* include/ext/pb_ds/detail/container_base_dispatch.hpp: Likewise.
+	* include/ext/pb_ds/detail/list_update_policy/sample_update_policy.hpp: Likewise.
+	* include/ext/pb_ds/detail/tree_policy/sample_tree_node_update.hpp: Likewise.
+	* include/ext/pb_ds/detail/trie_policy/sample_trie_node_update.hpp: Likewise.
+	* include/ext/pb_ds/tree_policy.hpp: Likewise.
+	* include/ext/pb_ds/trie_policy.hpp: Likewise.
+	* include/parallel/multiway_merge.h: Likewise.
+	* include/pstl/parallel_backend_tbb.h (__parallel_transform_reduce): Likewise.
+	(class __merge_func): Likewise.
+	(class __stable_sort_func): Likewise.
+	(__parallel_stable_sort): Likewise.
+	* include/tr1/shared_ptr.h: Likewise.
+	* libsupc++/hash_bytes.cc: Likewise.
+	* libsupc++/vmi_class_type_info.cc (__do_find_public_src): Likewise.
+	* src/c++17/fast_float/fast_float.h (struct parse_options): Likewise.
+	(rounds_to_nearest): Likewise.
+
 2026-05-29  Patrick Palka  <ppalka@redhat.com>
 
 	* include/std/flat_set (_Flat_set_impl::swap): Swap _M_cont

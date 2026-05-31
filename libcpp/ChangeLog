@@ -1,3 +1,25 @@
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* files.cc (_cpp_stack_translated_file): Fix typos.
+	(_cpp_get_file_path): Likewise.
+	* include/cpplib.h (PREV_FALLTHROUGH): Likewise.
+	(struct cpp_options): Likewise.
+	* include/line-map.h (enum lc_reason): Likewise.
+	* internal.h (struct cpp_buffer): Likewise.
+	* lex.cc (lex_raw_string): Likewise.
+	(cpp_directive_only_process): Likewise.
+	* line-map.cc (linemap_add): Likewise.
+	(linemap_module_restore): Likewise.
+	(rich_location::get_last_fixit_hint): Likewise.
+	* macro.cc (_cpp_builtin_macro_text): Likewise.
+	(arg_token_ptr_at): Likewise.
+	(replace_args): Likewise.
+	(reached_end_of_context): Likewise.
+	(cpp_get_token_1): Likewise.
+	(create_iso_definition): Likewise.
+	(get_deferred_or_lazy_macro): Likewise.
+	* traditional.cc (check_output_buffer): Likewise.
+
 2026-04-21  Marek Polacek  <polacek@redhat.com>
 
 	PR preprocessor/124930

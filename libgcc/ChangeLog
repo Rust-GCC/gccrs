@@ -1,3 +1,13 @@
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* fixed-bit.c: Fix typos.
+	* libgcov-interface.c (__gcov_reset_int): Likewise.
+	(__gcov_dump_int): Likewise.
+	* libgcov-util.c (FLAG_ONE_HOT): Likewise.
+	(calculate_overlap): Likewise.
+	* unwind-dw2.c: Likewise.
+	* unwind-seh.c (_Unwind_GetTextRelBase): Likewise.
+
 2026-05-29  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
 
 	* config.host <i[34567]86-*-freebsd*> (tmake_file): Add

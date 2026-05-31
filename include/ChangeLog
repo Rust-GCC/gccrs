@@ -1,3 +1,27 @@
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* hsa.h: Reflow long line.
+
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* demangle.h (enum demangle_component_type): Fix typos.
+	* doubly-linked-list.h: Likewise.
+	* floatformat.h (struct floatformat): Likewise.
+	* gcc-cp-fe.def (GCC_METHOD1): Likewise.
+	(GCC_METHOD2): Likewise.
+	* gomp-constants.h (enum gomp_map_kind): Likewise.
+	(GOMP_TARGET_ARG_THREAD_LIMIT): Likewise.
+	* hsa.h: Likewise.
+	* hsa_ext_amd.h (hsa_amd_signal_value_pointer): Likewise.
+	(hsa_amd_memory_lock): Likewise.
+	(hsa_amd_pointer_info): Likewise.
+	(hsa_amd_ipc_memory_create): Likewise.
+	(hsa_amd_ipc_signal_create): Likewise.
+	* libiberty.h (PEX_STDOUT_APPEND): Likewise.
+	* longlong.h: Likewise.
+	* plugin-api.h (enum ld_plugin_status): Likewise.
+	* splay-tree.h (struct splay_tree_s): Likewise.
+
 2026-05-29  Tobias Burnus  <tburnus@baylibre.com>
 
 	PR c/122892

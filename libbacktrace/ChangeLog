@@ -1,3 +1,8 @@
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* allocfail.sh: Fix typos.
+	* elf.c (elf_fetch_bits): Likewise.
+
 2026-05-04  Ian Lance Taylor  <iant@golang.org>
 
 	* elf.c (elf_zstd_decompress_frame): New static function,

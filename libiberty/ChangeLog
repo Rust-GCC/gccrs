@@ -1,3 +1,41 @@
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* simple-object-mach-o.c (simple_object_mach_o_write_segment): Reflow
+	long line.
+
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* bcopy.c: Fix typos.
+	* bsearch.c: Likewise.
+	* bsearch_r.c: Likewise.
+	* configure.ac: Likewise.
+	* cp-demangle.c (d_print_comp_inner): Likewise.
+	(d_print_comp): Likewise.
+	* d-demangle.c (dlang_identifier): Likewise.
+	* dyn-string.c: Likewise.
+	* ldirname.c: Likewise.
+	* make-relative-prefix.c (make_relative_prefix_1): Likewise.
+	* obstacks.texi: Likewise.
+	* pex-win32.c (argv_to_cmdline): Likewise.
+	(spawn_script): Likewise.
+	* random.c (random): Likewise.
+	(setstate): Likewise.
+	* regex.c (WIDE_CHAR_SUPPORT): Likewise.
+	(convert_mbs_to_wcs): Likewise.
+	(PREFIX): Likewise.
+	(wcs_compile_range): Likewise.
+	(count_mbs_length): Likewise.
+	(wcs_re_match_2_internal): Likewise.
+	(byte_re_match_2_internal): Likewise.
+	* sigsetmask.c: Likewise.
+	* simple-object-elf.c (SHT_SYMTAB_SHNDX): Likewise.
+	(STV_HIDDEN): Likewise.
+	(simple_object_elf_copy_lto_debug_sections): Likewise.
+	* simple-object-mach-o.c (struct mach_o_header_32): Likewise.
+	(struct mach_o_header_64): Likewise.
+	(simple_object_mach_o_write_segment): Likewise.
+	* strsignal.c (defined): Likewise.
+
 2026-03-05  Jakub Jelinek  <jakub@redhat.com>
 
 	PR target/124365

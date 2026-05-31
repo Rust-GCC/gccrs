@@ -1,3 +1,23 @@
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* configure: Regenerate.
+	* acinclude.m4: Fix typos.
+	* env.c (parse_places_var): Likewise.
+	(parse_stacksize): Likewise.
+	(parse_wait_policy): Likewise.
+	(parse_affinity): Likewise.
+	(initialize_env): Likewise.
+	* libgomp.h (struct target_mem_desc): Likewise.
+	* plugin/build-target-indirect-htab.h: Likewise.
+	* plugin/plugin-gcn.c (struct hsa_runtime_fn_info): Likewise.
+	(struct hip_runtime_fn_info): Likewise.
+	(limit_worker_threads): Likewise.
+	(max_isa_vgprs): Likewise.
+	(GOMP_OFFLOAD_get_name): Likewise.
+	* plugin/plugin-nvptx.c (GOMP_OFFLOAD_get_name): Likewise.
+	* target.c (gomp_map_vars_internal): Likewise.
+	(GOMP_target_ext): Likewise.
+
 2026-05-29  Tobias Burnus  <tburnus@baylibre.com>
 
 	PR c/122892

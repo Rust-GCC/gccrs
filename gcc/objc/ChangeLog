@@ -1,3 +1,12 @@
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* objc-act.cc (objc_compare_types): Fix typos.
+	(objc_decl_method_attributes): Likewise.
+	(build_fast_enumeration_state_template): Likewise.
+	(objc_finish_foreach_loop): Likewise.
+	* objc-act.h (objc_common_register_features): Likewise.
+	* objc-runtime-hooks.h (struct objc_runtime_hooks): Likewise.
+
 2025-06-12  Jakub Jelinek  <jakub@redhat.com>
 
 	* objc-act.h (TYPE_OBJC_INFO): Define to info.objc_info

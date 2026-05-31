@@ -1,3 +1,888 @@
+2026-05-30  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	* config/m68k/m68k.h (ASM_PREFERRED_EH_DATA_FORMAT): Avoid
+	constant-logical diagnostic.
+
+2026-05-30  Takayuki 'January June' Suwa  <jjsuwa_sys3175@yahoo.co.jp>
+
+	* config/xtensa/xtensa.md (insvsi_intermal):
+	Rename from 'insvsi'.
+	(insvsi): New expansion pattern that also addresses situations
+	where the DEPBITS machine instruction is unavailable.
+
+2026-05-30  Takayuki 'January June' Suwa  <jjsuwa_sys3175@yahoo.co.jp>
+
+	* config/xtensa/xtensa.md (*splice_bits):
+	Remove.
+
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* builtins.def: Reflow long line.
+	* graphite-isl-ast-to-gimple.cc (graphite_copy_stmts_from_block): Likewise.
+	* lto-streamer.h: Likewise.
+	* prime-paths.cc (struct xpair): Likewise.
+
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* tree-vect-data-refs.cc (vect_get_smallest_scalar_type): Fix typos.
+	(vect_preserves_scalar_order_p): Likewise.
+	(vect_slp_analyze_instance_dependence): Likewise.
+	(vect_enhance_data_refs_alignment): Likewise.
+	(vect_check_gather_scatter): Likewise.
+	(vect_grouped_store_supported): Likewise.
+	* tree-vect-generic.cc (type_for_widest_vector_mode): Likewise.
+	* tree-vect-loop-manip.cc (vect_set_loop_condition_partial_vectors_avx512): Likewise.
+	(get_live_virtual_operand_on_edge): Likewise.
+	(vect_can_peel_nonlinear_iv_p): Likewise.
+	(vect_do_peeling): Likewise.
+	* tree-vect-loop.cc (vec_init_loop_exit_info): Likewise.
+	(vect_verify_full_masking_avx512): Likewise.
+	(vect_verify_loop_lens): Likewise.
+	(vect_analyze_loop_costing): Likewise.
+	(vect_analyze_loop_2): Likewise.
+	(vect_analyze_loop): Likewise.
+	(vect_is_simple_reduction): Likewise.
+	(vect_create_epilog_for_reduction): Likewise.
+	(vectorizable_lane_reducing): Likewise.
+	(vectorizable_reduction): Likewise.
+	(vectorizable_live_operation): Likewise.
+	(vect_record_loop_len): Likewise.
+	(scale_profile_for_vect_loop): Likewise.
+	(vect_update_ivs_after_vectorizer_for_early_breaks): Likewise.
+	* tree-vect-patterns.cc (vect_recog_bit_insert_pattern): Likewise.
+	(vect_recog_build_binary_gimple_stmt): Likewise.
+	(vect_recog_sat_sub_pattern_transform): Likewise.
+	(vect_recog_sat_sub_pattern): Likewise.
+	(add_code_for_floorceilround_divmod): Likewise.
+	(vect_recog_bool_pattern): Likewise.
+	(struct vect_recog_func): Likewise.
+	* tree-vect-slp-patterns.cc (class complex_pattern): Likewise.
+	(compatible_complex_nodes_p): Likewise.
+	* tree-vect-slp.cc (vect_slp_tree_uniform_p): Likewise.
+	(vect_def_types_match): Likewise.
+	(vect_record_max_nunits): Likewise.
+	(vect_analyze_slp_instance): Likewise.
+	(vect_lower_load_permutations): Likewise.
+	(vect_optimize_slp_pass::is_compatible_layout): Likewise.
+	* tree-vect-stmts.cc (vect_get_strided_load_store_ops): Likewise.
+	(vectorizable_simd_clone_call): Likewise.
+	(vectorizable_store): Likewise.
+	(vectorizable_load): Likewise.
+	(vectorizable_condition): Likewise.
+	(vectorizable_early_exit): Likewise.
+	* tree-vectorizer.cc (vector_costs::compare_inside_loop_cost): Likewise.
+	* tree-vectorizer.h (enum vect_reduction_type): Likewise.
+
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* tree-ssa-alias-compare.h: Fix typos.
+	* tree-ssa-alias.cc (ptr_deref_may_alias_decl_p): Likewise.
+	(ao_ref_alignment): Likewise.
+	(component_ref_to_zero_sized_trailing_array_p): Likewise.
+	(access_path_may_continue_p): Likewise.
+	(nonoverlapping_component_refs_p_1): Likewise.
+	(nonoverlapping_array_refs_p): Likewise.
+	(refs_may_alias_p_2): Likewise.
+	(ref_maybe_used_by_call_p_1): Likewise.
+	(stmt_kills_ref_p): Likewise.
+	* tree-ssa-ccp.cc: Likewise.
+	* tree-ssa-dce.cc (mark_all_reaching_defs_necessary_1): Likewise.
+	(propagate_necessity): Likewise.
+	(propagate_counts): Likewise.
+	(eliminate_unnecessary_stmts): Likewise.
+	* tree-ssa-dom.cc (pass_dominator::execute): Likewise.
+	* tree-ssa-dse.cc: Likewise.
+	* tree-ssa-forwprop.cc (new_src_based_on_copy): Likewise.
+	(optimize_agr_copyprop_1): Likewise.
+	(pass_forwprop::execute): Likewise.
+	* tree-ssa-ifcombine.cc (tree_ssa_ifcombine_bb_1): Likewise.
+	(pass_tree_ifcombine::execute): Likewise.
+	* tree-ssa-live.cc (remove_unused_scope_block_p): Likewise.
+	* tree-ssa-loop-ch.cc (loop_combined_static_and_iv_p): Likewise.
+	(should_duplicate_loop_header_p): Likewise.
+	* tree-ssa-loop-im.cc (get_coldest_out_loop): Likewise.
+	(determine_max_movement): Likewise.
+	(execute_sm_exit): Likewise.
+	(hoist_memory_references): Likewise.
+	* tree-ssa-loop-ivcanon.cc (constant_after_peeling): Likewise.
+	(loop_edge_to_cancel): Likewise.
+	(unloop_loops): Likewise.
+	(try_unroll_loop_completely): Likewise.
+	(adjust_loop_info_after_peeling): Likewise.
+	(tree_unroll_loops_completely_1): Likewise.
+	* tree-ssa-loop-ivopts.cc (struct iv_inv_expr_ent): Likewise.
+	(dump_cand): Likewise.
+	(group_compare_offset): Likewise.
+	(split_address_groups): Likewise.
+	(get_computation_aff_1): Likewise.
+	(iv_ca_dump): Likewise.
+	* tree-ssa-loop-niter.cc (number_of_iterations_ne): Likewise.
+	(number_of_iterations_popcount): Likewise.
+	(idx_infer_loop_bounds): Likewise.
+	(infer_loop_bounds_from_signedness): Likewise.
+	(discover_iteration_bound_by_body_walk): Likewise.
+	(loop_exits_before_overflow): Likewise.
+	* tree-ssa-loop-niter.h: Likewise.
+	* tree-ssa-loop-prefetch.cc (should_issue_prefetch_p): Likewise.
+	(schedule_prefetches): Likewise.
+	* tree-ssa-loop-split.cc (split_loop): Likewise.
+	(find_vdef_in_loop): Likewise.
+	(get_cond_branch_to_split_loop): Likewise.
+	* tree-ssa-math-opts.cc (powi_as_mults): Likewise.
+	(expand_pow_as_sqrts): Likewise.
+	(gimple_expand_builtin_pow): Likewise.
+	(convert_mult_to_widen): Likewise.
+	(convert_plusminus_to_widen): Likewise.
+	* tree-ssa-phiopt.cc (replace_phi_edge_with_variable): Likewise.
+	(factor_out_conditional_operation): Likewise.
+	(cond_if_else_store_replacement_1): Likewise.
+	(execute_over_cond_phis): Likewise.
+	* tree-ssa-phiprop.cc (can_handle_load): Likewise.
+	(propagate_with_phi): Likewise.
+	* tree-ssa-pre.cc (get_or_alloc_expr_for_nary): Likewise.
+	(sorted_array_from_bitmap_set): Likewise.
+	(value_dies_in_block_x): Likewise.
+	(compute_antic_aux): Likewise.
+	* tree-ssa-propagate.cc (substitute_and_fold_engine::substitute_and_fold): Likewise.
+	* tree-ssa-reassoc.cc (get_rank): Likewise.
+	(remove_visited_stmt_chain): Likewise.
+	* tree-ssa-sccvn.cc (vn_reference_eq): Likewise.
+	(vn_reference_lookup_call): Likewise.
+	(vn_nary_op_eq): Likewise.
+	(vn_nary_op_insert_into): Likewise.
+	(visit_reference_op_call): Likewise.
+	(visit_phi): Likewise.
+	(eliminate_dom_walker::eliminate_stmt): Likewise.
+	(eliminate_dom_walker::eliminate_cleanup): Likewise.
+	(process_bb): Likewise.
+	* tree-ssa-scopedtables.cc (hashable_expr_equal_p): Likewise.
+	* tree-ssa-structalias.cc (determine_global_memory_access): Likewise.
+	(clear_dependence_clique): Likewise.
+	* tree-ssa-threadbackward.cc (back_threader_profitability::profitable_path_p): Likewise.
+	* tree-ssa-threadedge.cc (propagate_threaded_block_debug_into): Likewise.
+	* tree-ssa-uninit.cc (warn_uninit): Likewise.
+	(execute_late_warn_uninitialized): Likewise.
+	* tree-ssanames.cc (range_info_get_range): Likewise.
+
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* tree-assume.cc (assume_query::calculate_phi): Fix typos.
+	* tree-cfg.cc (assign_discriminators): Likewise.
+	(stmt_starts_bb_p): Likewise.
+	(move_stmt_op): Likewise.
+	(ifconvertable_edge): Likewise.
+	* tree-cfgcleanup.cc (maybe_remove_forwarder_block): Likewise.
+	(cleanup_tree_cfg_noloop): Likewise.
+	* tree-chrec.cc (scev_is_linear_expression): Likewise.
+	* tree-complex.cc (expand_complex_div_wide): Likewise.
+	* tree-core.h (enum built_in_class): Likewise.
+	* tree-data-ref.cc (dump_alias_pair): Likewise.
+	(create_ifn_alias_checks): Likewise.
+	* tree-data-ref.h (struct data_dependence_relation): Likewise.
+	* tree-eh.cc (lower_try_finally_fallthru_label): Likewise.
+	(lower_eh_dispatch): Likewise.
+	* tree-if-conv.cc (idx_within_array_bound): Likewise.
+	(base_object_writable): Likewise.
+	(ifcvt_memrefs_wont_trap): Likewise.
+	(get_loop_body_in_if_conv_order): Likewise.
+	(predicate_scalar_phi): Likewise.
+	* tree-inline.cc (remap_type_1): Likewise.
+	(declare_return_variable): Likewise.
+	(inline_forbidden_p): Likewise.
+	(estimate_num_insns): Likewise.
+	(copy_decl_for_dup_finish): Likewise.
+	* tree-into-ssa.cc (get_ssa_name_ann): Likewise.
+	(clear_ssa_name_info): Likewise.
+	(insert_updated_phi_nodes_compare_uids): Likewise.
+	(update_ssa): Likewise.
+	* tree-loop-distribution.cc (enum partition_kind): Likewise.
+	(struct partition): Likewise.
+	(class loop_distribution): Likewise.
+	(loop_distribution::classify_partition): Likewise.
+	(loop_distribution::pg_add_dependence_edges): Likewise.
+	(add_partition_graph_edge): Likewise.
+	(free_partition_graph_vdata): Likewise.
+	(pg_unmark_merged_alias_ddrs): Likewise.
+	(version_loop_by_alias_check): Likewise.
+	* tree-object-size.cc (gimplify_size_expressions): Likewise.
+	(object_sizes_execute): Likewise.
+	* tree-parloops.cc (parloops_is_simple_reduction): Likewise.
+	(transform_to_exit_first_loop_alt): Likewise.
+	* tree-predcom.cc (pcom_worker::suitable_component_p): Likewise.
+	(pcom_worker::determine_roots_comp): Likewise.
+	(prepare_initializers_chain_store_elim): Likewise.
+	(pcom_worker::tree_predictive_commoning_loop): Likewise.
+	* tree-profile.cc (condition_uid): Likewise.
+	(cov_length): Likewise.
+	(tree_profiling): Likewise.
+	* tree-scalar-evolution.cc (scev_dfs::add_to_evolution_1): Likewise.
+	(scev_reset): Likewise.
+	(expression_expensive_p): Likewise.
+	* tree-sra.cc (struct access): Likewise.
+	(build_access_from_call_arg): Likewise.
+	(path_comparable_for_same_access): Likewise.
+	(child_would_conflict_in_acc): Likewise.
+	(sra_modify_call_arg): Likewise.
+	* tree-switch-conversion.cc (can_log2): Likewise.
+	(switch_conversion::exp_index_transform): Likewise.
+	* tree-switch-conversion.h (enum cluster_type): Likewise.
+	* tree-vrp.cc (remove_unreachable::handle_early): Likewise.
+	* tree.cc (build5): Likewise.
+	(get_file_function_name): Likewise.
+	(build_opaque_vector_type): Likewise.
+	(array_ref_flexible_size_p): Likewise.
+	(verify_type_variant): Likewise.
+	(gimple_canonical_types_compatible_p): Likewise.
+	* tree.h (decl_debug_args_insert): Likewise.
+	(strip_pointer_types): Likewise.
+
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* rtl-ssa/access-utils.h (drop_memory_access): Fix typos.
+	* rtl-ssa/accesses.cc (clobber_info::recompute_group): Likewise.
+	* rtl-ssa/accesses.h: Likewise.
+	* rtl-ssa/blocks.cc (function_info::add_artificial_accesses): Likewise.
+	* rtl-ssa/functions.h: Likewise.
+	* rtl-ssa/insns.cc (function_info::record_use): Likewise.
+	* rtl-ssa/insns.h: Likewise.
+
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* lto-cgraph.cc (get_alias_symbol): Fix typos.
+	(input_node): Likewise.
+	(input_varpool_node): Likewise.
+	* lto-ltrans-cache.cc: Likewise.
+	* lto-streamer-in.cc (lto_location_cache::revert_location_cache): Likewise.
+	(lto_location_cache::input_location_and_block): Likewise.
+	(lto_location_cache::input_location): Likewise.
+	(lto_input_location): Likewise.
+	* lto-streamer-out.cc (lto_variably_modified_type_p): Likewise.
+	(lto_is_streamable): Likewise.
+	(DFS::DFS): Likewise.
+	(cmp_symbol_files): Likewise.
+	(lto_output): Likewise.
+	* lto-streamer.h (enum LTO_tags): Likewise.
+	* lto-wrapper.cc (merge_flto_options): Likewise.
+	(run_gcc): Likewise.
+
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* ipa-comdats.cc: Fix typos.
+	* ipa-cp.cc (good_cloning_opportunity_p): Likewise.
+	(dump_profile_updates): Likewise.
+	(update_counts_for_self_gen_clones): Likewise.
+	(update_profiling_info): Likewise.
+	(adjust_refs_in_act_callers): Likewise.
+	(struct cloning_opportunity_ranking): Likewise.
+	* ipa-fnsummary.cc (evaluate_conditions_for_known_args): Likewise.
+	(unmodified_parm_or_parm_agg_item): Likewise.
+	(guards_builtin_unreachable): Likewise.
+	(analyze_function_body): Likewise.
+	(estimate_edge_devirt_benefit): Likewise.
+	* ipa-fnsummary.h (cross_module_call_p): Likewise.
+	* ipa-free-lang-data.cc (fld_simplified_type_name): Likewise.
+	(free_lang_data_in_decl): Likewise.
+	* ipa-icf-gimple.cc (func_checker::compare_decl): Likewise.
+	(func_checker::compatible_types_p): Likewise.
+	(func_checker::compare_gimple_asm): Likewise.
+	* ipa-icf.cc (sem_function::hash_stmt): Likewise.
+	(sem_item_optimizer::subdivide_classes_by_equality): Likewise.
+	(sem_item_optimizer::traverse_congruence_split): Likewise.
+	(sem_item_optimizer::process_cong_reduction): Likewise.
+	* ipa-inline-transform.cc (mark_all_inlined_calls_cdtor): Likewise.
+	(preserve_function_body_p): Likewise.
+	* ipa-inline.cc (enum can_inline_edge_by_limits_flags): Likewise.
+	(can_early_inline_edge_p): Likewise.
+	(early_inliner): Likewise.
+	* ipa-locality-cloning.cc (edge_redirectable_p): Likewise.
+	(clone_node_as_needed): Likewise.
+	(partition_callchain): Likewise.
+	* ipa-modref.cc (modref_eaf_analysis::merge_with_ssa_name): Likewise.
+	* ipa-param-manipulation.cc (ipa_param_adjustments::get_surviving_params): Likewise.
+	(purge_all_uses): Likewise.
+	(ipa_param_body_adjustments::mark_dead_statements): Likewise.
+	(replace_with_mapped_expr): Likewise.
+	(ipa_param_body_adjustments::get_new_param_chain): Likewise.
+	(record_argument_state): Likewise.
+	(ipa_param_body_adjustments::perform_cfun_body_modifications): Likewise.
+	* ipa-param-manipulation.h (struct ipa_replace_map): Likewise.
+	* ipa-polymorphic-call.cc (ipa_polymorphic_call_context::combine_with): Likewise.
+	* ipa-prop.cc (struct ipa_vr_ggc_hash_traits): Likewise.
+	(noted_fnptr_hasher::equal): Likewise.
+	(ipa_set_ancestor_jf): Likewise.
+	(check_stmt_for_type_change): Likewise.
+	(param_type_may_change_p): Likewise.
+	(find_dominating_aa_status): Likewise.
+	(parm_ref_data_pass_through_p): Likewise.
+	(build_agg_jump_func_from_list): Likewise.
+	(analyze_agg_content_value): Likewise.
+	(ipa_single_noted_fnptr_in_record): Likewise.
+	(ipa_make_edge_direct_to_target): Likewise.
+	(combine_controlled_uses_counters): Likewise.
+	(ipa_duplicate_jump_function): Likewise.
+	(ipa_write_jump_function): Likewise.
+	(useful_ipcp_transformation_info_p): Likewise.
+	* ipa-prop.h (struct GTY): Likewise.
+	* ipa-reference.cc (ipa_reference_var_uid): Likewise.
+	(ipa_reference_get_written_global): Likewise.
+	(union_static_var_sets): Likewise.
+	* ipa-split.cc (split_function): Likewise.
+	* ipa-sra.cc (isra_track_scalar_value_uses): Likewise.
+	(process_scan_results): Likewise.
+	(flip_all_hints_pessimistic): Likewise.
+	(flip_all_param_hints_pessimistic): Likewise.
+	* ipa-strub.cc (get_strub_mode_attr_parm): Likewise.
+	(compute_strub_mode): Likewise.
+	* ipa-utils.cc (ipa_merge_profiles): Likewise.
+	(recursive_call_p): Likewise.
+	(stmt_may_terminate_function_p): Likewise.
+	(find_always_executed_bbs): Likewise.
+	* ipa-utils.h (type_with_linkage_p): Likewise.
+	(lto_streaming_expected_p): Likewise.
+	* ipa-visibility.cc (varpool_node::externally_visible_p): Likewise.
+	* ipa.cc (update_inlined_to_pointer): Likewise.
+	(enqueue_node): Likewise.
+	(process_references): Likewise.
+	(set_readonly_bit): Likewise.
+	(clear_addressable_bit): Likewise.
+	(BOTTOM): Likewise.
+	(propagate_single_user): Likewise.
+
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* gimple-array-bounds.cc (trailing_array): Fix typos.
+	* gimple-crc-optimization.cc (crc_optimization::set_defs): Likewise.
+	* gimple-fold.cc (get_range_strlen): Likewise.
+	(can_refer_decl_in_current_unit_p): Likewise.
+	(gimple_fold_builtin_bcopy): Likewise.
+	(get_range_strlen_tree): Likewise.
+	(gimple_fold_builtin_stpcpy): Likewise.
+	(fold_stmt_1): Likewise.
+	(fold_truth_andor_for_ifcombine): Likewise.
+	(gimple_fold_stmt_to_constant): Likewise.
+	(fold_const_aggregate_ref): Likewise.
+	(gimple_get_virt_method_for_vtable): Likewise.
+	(rewrite_to_defined_unconditional): Likewise.
+	(gimple_build): Likewise.
+	(gimple_convert): Likewise.
+	* gimple-harden-control-flow.cc (pass_harden_control_flow_redundancy::execute): Likewise.
+	* gimple-loop-interchange.cc (loop_cand::can_interchange_p): Likewise.
+	(loop_cand::analyze_lcssa_phis): Likewise.
+	(should_interchange_loops): Likewise.
+	* gimple-loop-jam.cc (tree_loop_unroll_and_jam): Likewise.
+	* gimple-low.cc (find_assumption_locals_r): Likewise.
+	* gimple-match-exports.cc (try_conditional_simplification): Likewise.
+	* gimple-predicate-analysis.cc (find_matching_predicate_in_rest_chains): Likewise.
+	(uninit_analysis::func_t::phi_arg_set): Likewise.
+	(predicate::dump): Likewise.
+	* gimple-predicate-analysis.h (class uninit_analysis): Likewise.
+	* gimple-range-cache.cc (sbr_vector::bb_range_p): Likewise.
+	(block_range_cache::set_bb_range): Likewise.
+	* gimple-range-gori.cc (gori_compute::compute_operand_range): Likewise.
+	(gori_stmt_info::gori_stmt_info): Likewise.
+	(gori_calc_operands): Likewise.
+	(gori_on_edge): Likewise.
+	(gori_name_helper): Likewise.
+	* gimple-range-infer.h: Likewise.
+	* gimple-range-phi.cc (phi_group::phi_group): Likewise.
+	(phi_group::calculate_using_modifier): Likewise.
+	(phi_analyzer::operator[]): Likewise.
+	* gimple-range-phi.h: Likewise.
+	* gimple-range.cc (dom_ranger::range_of_stmt): Likewise.
+	* gimple-ssa-isolate-paths.cc (is_addr_local): Likewise.
+	(warn_return_addr_local): Likewise.
+	* gimple-ssa-pta-constraints.cc (get_constraint_for_ssa_var): Likewise.
+	(find_func_clobbers): Likewise.
+	(create_variable_info_for): Likewise.
+	(associate_varinfo_to_alias): Likewise.
+	* gimple-ssa-sccopy.cc: Likewise.
+	* gimple-ssa-split-paths.cc (count_stmts_in_block): Likewise.
+	(poor_ifcvt_pred): Likewise.
+	(is_feasible_trace): Likewise.
+	* gimple-ssa-sprintf.cc (get_int_range): Likewise.
+	(handle_printf_call): Likewise.
+	* gimple-ssa-store-merging.cc (get_location_for_stmts): Likewise.
+	* gimple-ssa-strength-reduction.cc: Likewise.
+	* gimple-ssa-warn-access.cc (call_arg): Likewise.
+	* gimple-ssa-warn-restrict.cc (builtin_memref::offset_out_of_bounds): Likewise.
+	(builtin_access::overlap_size): Likewise.
+	(maybe_diag_access_bounds): Likewise.
+	* gimple.def (GIMPLE_PHI): Likewise.
+	* gimple.h (gimple_goto_dest): Likewise.
+
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* genattrtab.cc (min_fn): Fix typos.
+	(get_attr_order): Likewise.
+	(optimize_attrs): Likewise.
+	* genautomata.cc (struct unit_usage): Likewise.
+	* gengtype-state.cc (s_expr_writer::write_any_indent): Likewise.
+	(write_state): Likewise.
+	* gengtype.cc (struct file_rule_st): Likewise.
+	(walk_type): Likewise.
+	(write_roots): Likewise.
+	* genmatch.cc (expr::gen_transform): Likewise.
+	(usage): Likewise.
+	* genopinit.cc (open_outfile): Likewise.
+	(handle_overloaded_code_for): Likewise.
+	(main): Likewise.
+	* genoutput.cc (operand_data_hasher::equal): Likewise.
+	* genpreds.cc (FOR_ALL_CONSTRAINTS): Likewise.
+	* genrecog.cc (prune_invalid_results): Likewise.
+	(split_out_patterns): Likewise.
+	* gensupport.cc (parse_section): Likewise.
+	(convert_syntax): Likewise.
+	(mark_operands_from_match_dup): Likewise.
+
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* sanopt.cc: Fix typos.
+	* sched-deps.cc (sched_analyze_2): Likewise.
+	* sel-sched-ir.cc (alloc_target_context): Likewise.
+	(av_set_union_and_live): Likewise.
+	(make_regions_from_loop_nest): Likewise.
+	* sel-sched-ir.h (struct _list_iterator): Likewise.
+	(struct succs_info): Likewise.
+	(SUCCS_ALL): Likewise.
+	* sel-sched.cc (moveup_expr): Likewise.
+	(moveup_expr_cached): Likewise.
+	(get_spec_check_type_for_insn): Likewise.
+	(get_expr_cost): Likewise.
+	(find_place_for_bookkeeping): Likewise.
+	(update_and_record_unavailable_insns): Likewise.
+	(move_op_at_first_insn): Likewise.
+	(calculate_new_fences): Likewise.
+	* shrink-wrap.cc (live_edge_for_reg): Likewise.
+	(try_shrink_wrapping): Likewise.
+	* simplify-rtx.cc
+	(simplify_context::simplify_logical_relational_operation): Likewise.
+	(simplify_const_vector_subreg): Likewise.
+	* spellcheck.cc (assert_not_suggested_for): Likewise.
+	* stringpool.h: Likewise.
+	* sym-exec/sym-exec-state.cc (state::do_shift_right): Likewise.
+	(state::get_parent_with_const_child): Likewise.
+	(state::add_numbers): Likewise.
+	(state::add_equal_cond): Likewise.
+	(state::add_not_equal_cond): Likewise.
+	* sym-exec/sym-exec-state.h (class state): Likewise.
+	* symbol-summary.h: Likewise.
+	* symtab.cc (symtab_node::noninterposable_alias): Likewise.
+	(symtab_node::equal_address_to): Likewise.
+	* system.h (gcc_stablesort_r): Likewise.
+	* target-hooks-macros.h: Likewise.
+	* target.def: Likewise.
+	* targhooks.cc (default_floatn_mode): Likewise.
+	(default_floatn_builtin_p): Likewise.
+	(default_builtin_vector_alignment_reachable): Likewise.
+	(default_addr_space_for_artificial_rodata): Likewise.
+	* text-art/ruler.cc (x_ruler::update_layout): Likewise.
+	* text-art/ruler.h (class x_ruler): Likewise.
+	* timevar.def (TV_ISOLATE_ERRONEOUS_PATHS): Likewise.
+	* trans-mem.cc (ipa_tm_scan_irr_block): Likewise.
+	(ipa_tm_execute): Likewise.
+	* typed-splay-tree.h (class typed_splay_tree): Likewise.
+	* ubsan.cc (instrument_bool_enum_load): Likewise.
+	* value-prof.cc: Likewise.
+	* value-range.cc (irange::union_append): Likewise.
+	(irange::snap): Likewise.
+	(irange::snap_subranges): Likewise.
+	(irange::get_bitmask): Likewise.
+	* value-range.h (irange_bitmask::get_precision): Likewise.
+	* value-relation.cc (dom_oracle::next_relation): Likewise.
+	(block_relation_iterator::block_relation_iterator): Likewise.
+	* var-tracking.cc (shared_hash_find): Likewise.
+	(emit_note_insn_var_location): Likewise.
+	* varasm.cc (mergeable_constant_section): Likewise.
+	(finish_tm_clone_pairs): Likewise.
+	(default_binds_local_p_3): Likewise.
+	* vr-values.cc (simplify_using_ranges::simplify): Likewise.
+	* vtable-verify.cc: Likewise.
+	* warning-control.cc (has_warning_spec): Likewise.
+	* wide-int.cc (wi::from_mpz): Likewise.
+	(wi::force_to_size): Likewise.
+	(wi::divmod_internal): Likewise.
+	* wide-int.h (wi::bitreverse): Likewise.
+	(wi::umin): Likewise.
+	(wi::mul_high): Likewise.
+	(wi::div_trunc): Likewise.
+	(wi::sdiv_trunc): Likewise.
+	(wi::udiv_trunc): Likewise.
+	(wi::div_floor): Likewise.
+	(wi::sdiv_floor): Likewise.
+	(wi::udiv_floor): Likewise.
+	(wi::div_ceil): Likewise.
+	(wi::udiv_ceil): Likewise.
+	(wi::div_round): Likewise.
+	(wi::gcd): Likewise.
+	(wi::mod_trunc): Likewise.
+	(wi::smod_trunc): Likewise.
+	(wi::umod_trunc): Likewise.
+	(wi::mod_floor): Likewise.
+	(wi::umod_floor): Likewise.
+	(wi::mod_ceil): Likewise.
+
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* omp-expand.cc (expand_oacc_collapse_vars): Likewise.
+	(expand_omp_for_init_vars): Likewise.
+	(expand_omp_for): Likewise.
+	(expand_omp_atomic_fetch_op): Likewise.
+	(build_omp_regions_1): Likewise.
+	* omp-general.cc (omp_is_allocatable_or_ptr): Likewise.
+	* omp-low.cc (lower_rec_input_clauses): Likewise.
+	(lower_omp): Likewise.
+	* omp-offload.cc (oacc_validate_dims): Likewise.
+	(oacc_loop_process): Likewise.
+	(oacc_loop_fixed_partitions): Likewise.
+	(oacc_loop_auto_partitions): Likewise.
+	(execute_oacc_device_lower): Likewise.
+	* omp-simd-clone.cc (simd_clone_clauses_extract): Likewise.
+	(ipa_simd_modify_stmt_ops): Likewise.
+	* optabs-query.cc (lshift_cheap_p): Likewise.
+	* optabs-query.h (trapv_binoptab_p): Likewise.
+	(get_vec_cmp_icode): Likewise.
+	* optabs.cc (expand_binop): Likewise.
+	(expand_vec_perm_var): Likewise.
+	(expand_compare_and_swap_loop): Likewise.
+	(expand_atomic_load): Likewise.
+	(maybe_optimize_fetch_op): Likewise.
+	(can_reuse_operands_p): Likewise.
+	* opts-global.cc (init_options_once): Likewise.
+	* opts.h (struct cl_option): Likewise.
+	* pair-fusion.cc (pair_fusion_bb_info::try_fuse_pair): Likewise.
+	* pair-fusion.h (enum class): Likewise.
+	* passes.cc (account_profile_1): Likewise.
+	* path-coverage.cc (instrument_prime_paths): Likewise.
+	* plugin.cc (get_event_last): Likewise.
+	* pointer-query.cc (handle_min_max_size): Likewise.
+	(handle_array_ref): Likewise.
+	(handle_ssa_name): Likewise.
+	* poly-int.h (struct if_lossless): Likewise.
+	(POLY_POLY_COEFF): Likewise.
+	* postreload-gcse.cc (gcse_after_reload_main): Likewise.
+	* predict.cc (expr_expected_value_1): Likewise.
+	(is_exit_with_zero_arg): Likewise.
+	(predict_paths_for_bb): Likewise.
+	(estimate_bb_frequencies): Likewise.
+	(rebuild_frequencies): Likewise.
+	(make_pass_rebuild_frequencies): Likewise.
+	* pretty-print-format-impl.h: Likewise.
+	* pretty-print.h: Likewise.
+	* prime-paths.cc (struct xpair): Likewise.
+	(edge_matrix): Likewise.
+	(test_build_ccfg): Likewise.
+	* print-rtl.cc (rtx_writer::print_rtx_operand_code_r): Likewise.
+	* profile-count.h (class profile_probability): Likewise.
+	* pta-andersen.cc (merge_node_constraints): Likewise.
+	(add_graph_edge): Likewise.
+	* range-op.cc (bool): Likewise.
+	(operator_cast::op1_range): Likewise.
+	(operator_bitwise_and::wi_fold): Likewise.
+	(operator_bitwise_and::op1_range): Likewise.
+	* range-op.h: Likewise.
+	* read-md.h (class md_reader): Likewise.
+	* read-rtl-function.cc (lookup_reg_by_dump_name): Likewise.
+	* real.cc: Likewise.
+	* recog.h: Likewise.
+	* ree.cc (find_and_remove_re): Likewise.
+	* reg-notes.def (REG_CFA_NOTE): Likewise.
+	* reginfo.cc (reg_allocno_class): Likewise.
+	* reload1.cc (will_delete_init_insn_p): Likewise.
+	(emit_reload_insns): Likewise.
+	* resource.cc (mark_referenced_resources): Likewise.
+	(mark_target_live_regs): Likewise.
+	* rtl.def (DEFINE_SPECIAL_PREDICATE): Likewise.
+	(COND): Likewise.
+	(DEFINE_SUBST): Likewise.
+	* rtl.h (const_vec_series_p_1): Likewise.
+	(const_vec_series_p): Likewise.
+
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* emit-rtl.h (struct rtl_data): Fix typos.
+	(struct address_reload_context): Likewise.
+	* explow.cc (anti_adjust_stack_and_probe): Likewise.
+	* explow.h (anti_adjust_stack_and_probe_stack_clash): Likewise.
+	* expmed.cc (store_bit_field_using_insv): Likewise.
+	(expand_mult): Likewise.
+	(emit_store_flag_force): Likewise.
+	(equivalent_cmp_code): Likewise.
+	* expr.cc (class op_by_pieces_d): Likewise.
+	(op_by_pieces_d::run): Likewise.
+	(use_group_regs): Likewise.
+	(get_def_for_expr): Likewise.
+	(emit_move_insn): Likewise.
+	(expand_expr_real): Likewise.
+	(expand_expr_real_gassign): Likewise.
+	* ext-dce.cc (ext_dce_process_uses): Likewise.
+	(ext_dce_process_bb): Likewise.
+	(ext_dce_rd_confluence_n): Likewise.
+	* fibonacci_heap.h (fibonacci_heap::cut): Likewise.
+	* fold-const.cc (combine_comparisons): Likewise.
+	(operand_compare::operand_equal_p): Likewise.
+	(fold_view_convert_vector_encoding): Likewise.
+	(fold_truth_andor): Likewise.
+	* fold-const.h: Likewise.
+	* function.cc (temp_address_hasher::equal): Likewise.
+	(gen_call_used_regs_seq): Likewise.
+	* gcc-diagnostic-spec.cc (GTY): Likewise.
+	(warning_suppressed_at): Likewise.
+	* gcc.cc (driver::maybe_run_linker): Likewise.
+	* gcov.cc (print_usage): Likewise.
+	(strip_extention): Likewise.
+	* gdbhooks.py: Likewise.
+	* gimplify.cc (gimplify_decl_expr): Likewise.
+	(gimplify_modify_expr): Likewise.
+	(oacc_default_clause): Likewise.
+	(omp_notice_variable): Likewise.
+	* graph.cc (draw_cfg_nodes): Likewise.
+	* graphite-dependences.cc (scop_get_reads_and_writes): Likewise.
+	* graphite-isl-ast-to-gimple.cc (graphite_copy_stmts_from_block): Likewise.
+	* haifa-sched.cc (model_set_excess_costs): Likewise.
+	(analyze_set_insn_for_autopref): Likewise.
+	(autopref_multipass_dfa_lookahead_guard): Likewise.
+	* hash-map-traits.h (HASH_MAP_TRAITS_H): Likewise.
+	* hosthooks.h (struct host_hooks): Likewise.
+	* ifcvt.cc (noce_try_sign_bit_splat): Likewise.
+	* input.cc (line_table_test::line_table_test): Likewise.
+	* internal-fn.def (PHI): Likewise.
+	* internal-fn.h (enum ifn_goacc_loop_kind): Likewise.
+	* ira-build.cc (create_insn_allocnos): Likewise.
+	* ira-color.cc (ira_mark_new_stack_slot): Likewise.
+	* ira-int.h: Likewise.
+	* ira.cc (struct sloc): Likewise.
+	* json-parsing.cc (parser::require_one_of): Likewise.
+	* langhooks.h (struct lang_hooks_for_decls): Likewise.
+	* libgdiagnostics.cc: Likewise.
+	* libgdiagnostics.h (diagnostic_manager_write_patch): Likewise.
+	* loop-invariant.cc (MAX_CANON_ADDR_PARTS): Likewise.
+	* lra-assigns.cc (reload_pseudo_compare_func): Likewise.
+	* lra-constraints.cc (match_reload): Likewise.
+	(process_alt_operands): Likewise.
+	(process_address_1): Likewise.
+	(lra_constraints): Likewise.
+	(inherit_in_ebb): Likewise.
+	* lra-eliminations.cc (init_elim_table): Likewise.
+	* lra-remat.cc: Likewise.
+	* machmode.h (struct int_n_data_t): Likewise.
+	* mem-stats.h (mem_alloc_description::register_descriptor): Likewise.
+	(mem_alloc_description::unregister_descriptor): Likewise.
+	* mode-switching.cc (optimize_mode_switching): Likewise.
+	* modulo-sched.cc (schedule_reg_moves): Likewise.
+	(optimize_sc): Likewise.
+
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* adjust-alignment.cc (pass_adjust_alignment::execute): Fix typos.
+	* alias.cc (alias_set_subset_of): Likewise.
+	(alias_ptr_types_compatible_p): Likewise.
+	(get_alias_set): Likewise.
+	(record_component_aliases): Likewise.
+	(base_alias_check): Likewise.
+	* alloc-pool.h: Likewise.
+	* asan.cc (insert_if_then_before_iter): Likewise.
+	(asan_expand_check_ifn): Likewise.
+	(hwasan_expand_check_ifn): Likewise.
+	* asan.h (sanitize_flags_p): Likewise.
+	* asm-toplevel.cc (analyze_toplevel_extended_asm): Likewise.
+	* attr-fnspec.h: Likewise.
+	* attribs.cc (decl_attributes): Likewise.
+	* auto-profile.cc (function_instance::match): Likewise.
+	(function_instance::remove_icall_target): Likewise.
+	(autofdo_source_profile::offline_external_functions): Likewise.
+	(afdo_set_bb_count): Likewise.
+	(scale_bbs): Likewise.
+	(afdo_adjust_guessed_profile): Likewise.
+	* basic-block.h (find_fallthru_edge): Likewise.
+	* bbitmap.h: Likewise.
+	* bitmap.cc (bitmap_list_find_element): Likewise.
+	* bitmap.h: Likewise.
+	* btfout.cc (BTF_INFO_SECTION_FLAGS): Likewise.
+	(btf_asm_type): Likewise.
+	(output_btf_vars): Likewise.
+	(btf_add_used_type_1): Likewise.
+	* builtins.cc (string_length): Likewise.
+	(expand_builtin_setjmp_setup): Likewise.
+	(inline_expand_builtin_bytecmp): Likewise.
+	* builtins.def: Likewise.
+	* ccmp.cc (get_compare_parts): Likewise.
+	(expand_ccmp_next): Likewise.
+	* ccmp.h: Likewise.
+	* cfg.cc (update_bb_profile_for_threading): Likewise.
+	* cfganal.cc (post_order_compute): Likewise.
+	* cfgbuild.cc (find_many_sub_basic_blocks): Likewise.
+	* cfgexpand.cc (vars_ssa_cache::dump): Likewise.
+	(add_scope_conflicts_1): Likewise.
+	(set_parm_rtl): Likewise.
+	(expand_one_ssa_partition): Likewise.
+	(expand_one_var): Likewise.
+	(discover_nonconstant_array_refs_r): Likewise.
+	(pass_expand::execute): Likewise.
+	* cfgloop.cc (get_estimated_loop_iterations): Likewise.
+	* cfgloopanal.cc (loop_count_in): Likewise.
+	* cfgloopmanip.cc (loop_exit_for_scaling): Likewise.
+	(update_loop_exit_probability_scale_dom_bbs): Likewise.
+	* cgraph.cc (add_detected_attribute_1): Likewise.
+	(cgraph_edge::maybe_hot_p): Likewise.
+	* cgraph.h (struct cgraph_node): Likewise.
+	* cif-code.def (ORIGINALLY_INDIRECT_CALL): Likewise.
+	* collect2.cc (main): Likewise.
+	* combine.cc (simplify_comparison): Likewise.
+	(distribute_notes): Likewise.
+	* configure.ac: Likewise.
+	* coretypes.h (enum pad_direction): Likewise.
+	* coroutine-passes.cc (make_pass_coroutine_lower_builtins): Likewise.
+	* coverage.cc (coverage_compute_profile_id): Likewise.
+	* cse.cc (struct set): Likewise.
+	(try_back_substitute_reg): Likewise.
+	(count_stores): Likewise.
+	* cselib.cc (struct cselib_hasher): Likewise.
+	* ctfc.cc (ctfc_get_num_ctf_vars): Likewise.
+	(ctf_add_string): Likewise.
+	(ctf_add_function_arg): Likewise.
+	* ctfc.h (GTY): Likewise.
+	(CTF_AUX_STRTAB): Likewise.
+	(ctfc_get_num_ctf_vars): Likewise.
+	* ctfout.cc (ctf_asm_sou_lmember): Likewise.
+	(output_ctf_header): Likewise.
+	* debug.h: Likewise.
+	* defaults.h: Likewise.
+	* df-problems.cc (df_simulate_fixup_sets): Likewise.
+	(df_simulate_finalize_backwards): Likewise.
+	* diagnostic-context-rich-location.cc
+	(lazy_diagnostic_context_path::make_inner_path): Likewise.
+	* diagnostics/color.cc (auto_enable_urls): Likewise.
+	* diagnostics/context.h: Likewise.
+	* diagnostics/sarif-sink.cc (get_message_from_result): Likewise.
+	* double-int.cc (double_int::lrotate): Likewise.
+	* dwarf2asm.cc (dw2_asm_output_delta_uleb128): Likewise.
+	* dwarf2cfi.cc (dwarf2out_frame_debug_expr): Likewise.
+	* dwarf2ctf.cc (ctf_get_AT_data_member_location): Likewise.
+	(handle_ctf_type_tags): Likewise.
+	* dwarf2out.cc (cst_pool_loc_descr): Likewise.
+	(loc_list_for_address_of_addr_expr_of_indirect_ref): Likewise.
+	(resolve_args_picking_1): Likewise.
+	(typed_binop_from_tree): Likewise.
+	(gen_array_type_die): Likewise.
+	* dwarf2out.h (struct dw_val_node): Likewise.
+	(dw_loc_dtprel): Likewise.
+
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* doc/analyzer.texi: Fix typos.
+	* doc/cpp.texi: Likewise.
+	* doc/extend.texi: Likewise.
+	* doc/gcov.texi: Likewise.
+	* doc/gm2.texi: Likewise.
+	* doc/gty.texi: Likewise.
+	* doc/install.texi: Likewise.
+	* doc/invoke.texi: Likewise.
+	* doc/libgdiagnostics/topics/compatibility.rst: Likewise.
+	* doc/libgdiagnostics/topics/physical-locations.rst: Likewise.
+	* doc/libgdiagnostics/tutorial/07-execution-paths.rst: Likewise.
+	* doc/libgdiagnostics/tutorial/08-message-buffers.rst: Likewise.
+	* doc/match-and-simplify.texi: Likewise.
+	* doc/md.texi: Likewise.
+	* doc/optinfo.texi: Likewise.
+	* doc/params.texi: Likewise.
+	* doc/poly-int.texi: Likewise.
+	* doc/riscv-ext.texi: Likewise.
+	* doc/rtl.texi: Likewise.
+	* doc/sourcebuild.texi: Likewise.
+	* doc/tm.texi: Likewise.
+	* doc/tm.texi.in: Likewise.
+	* doc/tree-ssa.texi: Likewise.
+
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* Makefile.in: Fix typos.
+
+2026-05-30  Jakub Jelinek  <jakub@redhat.com>
+
+	* tree.h (BITINT_TYPE_P): Return true also for ENUMERAL_TYPE with
+	BITINT_TYPE as underlying type.
+	* stor-layout.cc (finish_bitfield_representative): Use BITINT_TYPE_P
+	macro.
+	(layout_type): Likewise.  Lay out ENUMERAL_TYPEs with BITINT_TYPE as
+	underlying type the same as BITINT_TYPEs.
+	* gimple-lower-bitint.cc (maybe_cast_middle_bitint): Use BITINT_TYPE_P
+	macro.
+	(mergeable_op, optimizable_arith_overflow, comparison_op,
+	bitint_large_huge::handle_cast, bitint_large_huge::lower_shift_stmt,
+	bitint_large_huge::lower_muldiv_stmt,
+	bitint_large_huge::lower_mul_overflow,
+	bitint_large_huge::lower_bit_query,
+	bitint_large_huge::lower_call, bitint_large_huge::lower_asm,
+	bitint_large_huge::lower_stmt, build_bitint_stmt_ssa_conflicts,
+	arith_overflow_arg_kind, gimple_lower_bitint): Likewise.
+	* gimple-expr.cc (useless_type_conversion_p): Likewise.
+	* fold-const.cc (make_range_step): Likewise.
+	(range_check_type): For ENUMERAL_TYPEs with BITINT_TYPE as underlying
+	type use the underlying type.
+	(extract_muldiv_1): Use BITINT_TYPE_P macro.
+	(native_encode_wide_int): Likewise.
+	(native_interpret_int): Likewise.
+	* vr-values.cc
+	(simplify_using_ranges::simplify_float_conversion_using_ranges):
+	Likewise.
+	* cfgexpand.cc (expand_debug_expr): Likewise.
+	* convert.cc (convert_to_integer_1): Add special case for ENUMERAL_TYPE
+	with underlying BITINT_TYPE.
+	* tree-ssa-sccvn.cc (vn_walk_cb_data::push_partial_def): Use
+	BITINT_TYPE_P macro.
+	(vn_reference_lookup_3): Likewise.
+	(eliminate_dom_walker::eliminate_stmt): Likewise.
+	* match.pd (ctz(ext(X)) == ctz(X), popcount(zext(X)) == popcount(X),
+	parity(zext(X)) == parity(X), a != 0 ? CLZ(a) : CST -> .CLZ(a),
+	a != 0 ? CTZ(a) : CST -> .CTZ(a), ffs(ext(X)) == ffs(X)): Likewise.
+	* builtins.cc (fold_builtin_bit_query): Likewise.
+	* explow.cc (promote_function_mode): Handle ENUMERAL_TYPE with
+	BITINT_TYPE as underlying type like BITINT_TYPE.
+	(promote_mode): Likewise.
+	* expr.cc (EXTEND_BITINT): Use BITINT_TYPE_P macro.
+	(expand_expr_real_1): Likewise.
+	* fold-const-call.cc (fold_const_call_ss): Likewise.
+	* gimple-fold.cc (gimple_fold_builtin_memset): Likewise.
+	(clear_padding_type_may_have_padding_p): Handle ENUMERAL_TYPE
+	with BITINT_TYPE as underlying type like BITINT_TYPE.
+	(type_has_padding_at_level_p): Likewise.
+	(clear_padding_type): Likewise.
+	* gimple-match-exports.cc (build_call_internal): Use BITINT_TYPE_P
+	macro.
+	* internal-fn.cc (expand_ubsan_result_store): Likewise.
+	* tree-sra.cc (create_access): Likewise.
+	(analyze_access_subtree): Likewise.
+	* tree-ssa-phiopt.cc (cond_removal_in_builtin_zero_pattern): Likewise.
+	* tree-ssa.cc (maybe_optimize_var): Likewise.
+	* tree-switch-conversion.cc (switch_conversion::array_value_type):
+	Likewise.
+	(switch_conversion::build_arrays): Likewise.
+	(jump_table_cluster::emit): Likewise.
+	* ubsan.cc (ubsan_encode_value): Likewise.
+	(ubsan_type_descriptor): Handle ENUMERAL_TYPE with BITINT_TYPE as
+	underlying type like BITINT_TYPE.
+	(instrument_si_overflow): Use BITINT_TYPE_P macro.
+	* varasm.cc (output_constant): Handle ENUMERAL_TYPE with BITINT_TYPE
+	as underlying type like BITINT_TYPE.
+	* config/aarch64/aarch64.cc (aarch64_return_in_memory_1): Use
+	BITINT_TYPE_P macro.
+	(bitint_or_aggr_of_bitint_p): Likewise.
+	(aarch64_composite_type_p): Likewise.
+	* config/arm/arm.cc (arm_return_in_memory): Likewise.
+	(arm_needs_doubleword_align): Likewise.
+	* config/i386/i386.cc (classify_argument): Handle ENUMERAL_TYPE with
+	BITINT_TYPE as underlying type like BITINT_TYPE.
+	* config/loongarch/loongarch.h: Use BITINT_TYPE_P macro.
+
+2026-05-30  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* tree-switch-conversion.cc (case_bit_test::cmp): Stability
+	based on the index of the target bb instead.
+	(bit_test_cluster::emit): Remove setting of the label field
+	of case_bit_test.
+	* tree-switch-conversion.h (case_bit_test): Remove the label
+	field.
+
 2026-05-29  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
 
 	PR tree-optimization/125475

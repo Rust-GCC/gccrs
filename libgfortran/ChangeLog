@@ -1,3 +1,35 @@
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* caf/caf_error.h (caf_runtime_error): Fix typos.
+	* caf/libcaf.h: Likewise.
+	* caf/mpi.c (caf_runtime_error): Likewise.
+	* caf/shmem.c (_gfortran_caf_deregister): Likewise.
+	* caf/shmem/alloc.h: Likewise.
+	* caf/shmem/shared_memory.c (shared_memory_get_env): Likewise.
+	* caf/shmem/supervisor.h (struct caf_shmem_token): Likewise.
+	* caf/shmem/teams_mgmt.h (struct caf_shmem_team): Likewise.
+	* caf/single.c (caf_runtime_error): Likewise.
+	(_gfortran_caf_deregister): Likewise.
+	* intrinsics/args.c (get_command_i4): Likewise.
+	* intrinsics/chmod.c: Likewise.
+	* intrinsics/env.c (PREFIX): Likewise.
+	* intrinsics/trigd.c: Likewise.
+	* io/async.c (init_adv_cond): Likewise.
+	* io/file_pos.c (st_rewind): Likewise.
+	* io/format.c (parse_format_list): Likewise.
+	* io/open.c (new_unit): Likewise.
+	(st_open): Likewise.
+	* io/transfer.c (write_block): Likewise.
+	(unformatted_read): Likewise.
+	(unformatted_write): Likewise.
+	(formatted_transfer_scalar_write): Likewise.
+	* io/transfer128.c (export_proto): Likewise.
+	* io/unix.c (buf_init): Likewise.
+	(mem_read): Likewise.
+	* io/write.c (btoa): Likewise.
+	(list_formatted_write): Likewise.
+	* runtime/select_inc.c (select_string): Likewise.
+
 2026-05-29  Peter Damianov  <peter0x44@disroot.org>
 
 	* caf/shmem/shared_memory.c (shared_memory_init): Use

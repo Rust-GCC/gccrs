@@ -1,3 +1,12 @@
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* configure: Regenerate.
+	* acinclude.m4: Fix typos.
+	* dispatch.h (struct method_group): Likewise.
+	* method-gl.cc: Likewise.
+	* method-ml.cc: Likewise.
+	* method-serial.cc: Likewise.
+
 2026-05-05  Pietro Monteiro  <pietro@sociotechnical.xyz>
 
 	* Makefile.in: Regenerate.

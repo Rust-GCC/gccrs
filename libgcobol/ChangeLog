@@ -1,3 +1,37 @@
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* README: Reflow long line.
+
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* README: Fix typos.
+	* charmaps.cc (__gg__iconverter): Likewise.
+	* common-defs.h (enum cbl_field_attr_t): Likewise.
+	* gcobolio.h: Likewise.
+	* gfileio.cc (__gg__file_stash): Likewise.
+	* gmath.cc (__gg__pow): Likewise.
+	* inspect.cc (inspect_backward_format_1): Likewise.
+	(__gg__inspect_format_1): Likewise.
+	(inspect_backward_format_2): Likewise.
+	(__gg__inspect_format_2): Likewise.
+	(__gg__inspect_format_1_sbc): Likewise.
+	* intrinsic.cc (gets_month): Likewise.
+	* libgcobol.cc (get_time_nanoseconds_local): Likewise.
+	(__gg__compare_2): Likewise.
+	(display_both): Likewise.
+	(accept_envar): Likewise.
+	(__gg__set_pointer): Likewise.
+	(struct cbl_exception_t): Likewise.
+	(default_exception_handler): Likewise.
+	(convert_for_convert): Likewise.
+	* valconv.cc: Likewise.
+	* xmlparse.cc (struct xml_ec_value_t): Likewise.
+
+2026-05-30  Robert Dubner  <rdubner@symas.com>
+
+	PR cobol/125503
+	* m4/autoconf.m4: New file.
+
 2026-05-29  Robert Dubner  <rdubner@symas.com>
 	    James K. Lowden  <jklowden@cobolworx.com>
 	    Xavier Del Campo  <xdelcampo@symas.com>

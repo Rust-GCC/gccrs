@@ -1,3 +1,34 @@
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* access-diagram.cc: Fix typos.
+	* analyzer.cc (fixup_tree_for_diagnostic_1): Likewise.
+	(tree_to_json): Likewise.
+	* bounds-checking.cc: Likewise.
+	* constraint-manager.cc (constraint_manager::impossible_derived_conditions_p): Likewise.
+	* diagnostic-manager.cc (prune_frame): Likewise.
+	* engine.cc (get_eh_outedge): Likewise.
+	(maybe_process_run_of_enodes): Likewise.
+	* inlining-iterator.h: Likewise.
+	* ops.cc (call_and_return_op::execute): Likewise.
+	* pending-diagnostic.h (class pending_diagnostic): Likewise.
+	* region-model-asm.cc: Likewise.
+	* region-model.cc (check_one_function_attr_null_terminated_string_arg): Likewise.
+	(region_model::deref_rvalue): Likewise.
+	(region_model::scan_for_null_terminator): Likewise.
+	(region_model::check_for_null_terminated_string_arg): Likewise.
+	(model_merger::mergeable_svalue_p): Likewise.
+	(test_canonicalization_4): Likewise.
+	* region.cc (region::accept): Likewise.
+	* setjmp-longjmp.cc (region_model::on_longjmp): Likewise.
+	* sm-fd.cc: Likewise.
+	* sm-malloc.cc: Likewise.
+	* sm-taint.cc: Likewise.
+	* store.cc (binding_cluster::maybe_get_compound_binding): Likewise.
+	(binding_cluster::can_merge_p): Likewise.
+	(store::replay_call_summary): Likewise.
+	* svalue.cc (svalue::can_merge_p): Likewise.
+	(widening_svalue::eval_condition_without_cm): Likewise.
+
 2026-05-20  David Malcolm  <dmalcolm@redhat.com>
 
 	* region-model-manager.cc

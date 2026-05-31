@@ -1,3 +1,11 @@
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* README: Fix typos.
+	* fixinc.in: Likewise.
+	* fixincl.c (quoted_file_exists): Likewise.
+	* fixlib.c (fix_path_separators): Likewise.
+	* inclhack.def: Likewise.
+
 2026-02-15  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
 
 	PR libstdc++/113450

@@ -1,3 +1,9 @@
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* lto-plugin.c (startswith): Fix typos.
+	(exec_lto_wrapper): Likewise.
+	(symbol_strength): Likewise.
+
 2025-12-29  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
 
 	* configure: Regenerate.

@@ -1,3 +1,42 @@
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* c-decl.cc (pop_file_scope): Fix typos.
+	(diagnose_mismatched_decls): Likewise.
+	(parser_xref_tag): Likewise.
+	(verify_counted_by_attribute): Likewise.
+	* c-fold.cc (c_disable_warnings): Likewise.
+	* c-parser.cc (c_parser_do_statement): Likewise.
+	(c_parser_expression): Likewise.
+	(c_parser_objc_at_property_declaration): Likewise.
+	* c-tree.h (struct c_declspecs): Likewise.
+	* c-typeck.cc (build_access_with_size_for_counted_by): Likewise.
+	(build_modify_expr): Likewise.
+	(c_find_omp_var_r): Likewise.
+	* gimple-parser.cc (c_parser_gimple_compound_statement): Likewise.
+
+2026-05-30  Martin Uecker  <uecker@tugraz.at>
+
+	* c-decl.cc (diagnose_mismatched_decls): Adapt.
+	* c-tree.h (comptypes, comptypes_check_enum_int): Adapt.
+	(comptypes_check_different_types): Remove.
+	* c-typeck.cc (compatible_types_for_indirection_note_p): Fix.
+	(comptypes_internal): Remove outdated info from comment.
+	(comptypes, comptypes_check_enum_int): Adapt.
+	(comptypes_check_different_types,comp_parm_types): Remove.
+	(comp_target_types,build_function_call_vec,digest_init): Adapt.
+
+2026-05-30  Jakub Jelinek  <jakub@redhat.com>
+
+	* c-parser.cc (c_parser_enum_specifier): Implement
+	C2Y N3705: bit-precise enum.  Allow for flag_isoc2y enumerated
+	types with BITINT_TYPE as underlying type.
+	* c-lang.cc (LANG_HOOKS_ENUM_UNDERLYING_BASE_TYPE): Redefine.
+	* c-tree.h (c_enum_underlying_base_type): Declare.
+	* c-objc-common.cc (c_enum_underlying_base_type): New function.
+	* c-decl.cc (finish_struct): Use BITINT_TYPE_P macro.
+	* c-typeck.cc (perform_integral_promotions): Promote bit-fields with
+	enum type with underlying fixed _BitInt type to that _BitInt type.
+
 2026-05-29  Tobias Burnus  <tburnus@baylibre.com>
 
 	PR c/122892

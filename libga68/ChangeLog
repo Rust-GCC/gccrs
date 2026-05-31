@@ -1,3 +1,10 @@
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* ga68-error.c: Fix typos.
+	* ga68-unistr.c (_libga68_u32_cmp): Likewise.
+	(_libga68_u8_uctomb): Likewise.
+	(_libga68_u32_to_u8): Likewise.
+
 2026-05-08  Pietro Monteiro  <pietro@sociotechnical.xyz>
 
 	* Makefile.in: Regenerate.

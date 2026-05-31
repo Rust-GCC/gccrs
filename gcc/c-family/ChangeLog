@@ -1,3 +1,29 @@
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* c-attribs.cc (append_access_attr): Fix typos.
+	(append_access_attr_idxs): Likewise.
+	(has_attribute): Likewise.
+	* c-common.cc (get_cpp_ttype_from_string_type): Likewise.
+	(cb_get_suggestion): Likewise.
+	(maybe_add_include_fixit): Likewise.
+	* c-common.h (convert_vector_to_array_for_subscript): Likewise.
+	* c-cppbuiltin.cc (builtin_define_type_max): Likewise.
+	* c-format.cc (check_format_info_main): Likewise.
+	(check_format_types): Likewise.
+	* c-omp.cc (c_omp_categorize_directive): Likewise.
+	* c-opts.cc (c_common_post_options): Likewise.
+	* c-ubsan.cc (ubsan_instrument_bounds): Likewise.
+
+2026-05-30  Jakub Jelinek  <jakub@redhat.com>
+
+	* c-attribs.cc (type_valid_for_vector_size): Use BITINT_TYPE_P macro.
+	* c-common.cc (c_common_get_narrower): For ENUMERAL_TYPE with
+	BITINT_TYPE as underlying type convert to the underlying type.
+	(c_common_signed_or_unsigned_type): Use BITINT_TYPE_P macro.
+	(sync_resolve_size): Likewise.
+	(atomic_bitint_fetch_using_cas_loop): Likewise.
+	(resolve_overloaded_builtin): Likewise.
+
 2026-05-23  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
 
 	* c-warn.cc (warn_for_sign_compare): Remove strict_overflow_p

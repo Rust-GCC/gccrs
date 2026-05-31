@@ -1,3 +1,33 @@
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* d-attribs.cc (d_handle_alloc_size_attribute): Fix typos.
+	* d-codegen.cc (build_boolop): Likewise.
+	(get_frame_for_symbol): Likewise.
+	* d-gimplify.cc (empty_modify_p): Likewise.
+	* d-lang.cc (d_parse_file): Likewise.
+	* d-spec.cc (lang_specific_driver): Likewise.
+	* d-target.cc (Target::systemLinkage): Likewise.
+	* decl.cc (get_fndecl_arguments): Likewise.
+	(build_class_instance): Likewise.
+	* expr.cc: Likewise.
+	* implement-d.texi: Likewise.
+	* intrinsics.cc (call_builtin_fn): Likewise.
+	(expand_intrinsic_bsf): Likewise.
+	(expand_intrinsic_rotate): Likewise.
+	(expand_intrinsic_vastart): Likewise.
+	(expand_intrinsic_checkedint): Likewise.
+	(expand_volatile_load): Likewise.
+	(expand_volatile_store): Likewise.
+	(expand_intrinsic_vec_convert): Likewise.
+	(expand_intrinsic_vec_blend): Likewise.
+	(expand_intrinsic_vec_shuffle): Likewise.
+	(expand_intrinsic_vec_shufflevector): Likewise.
+	(expand_intrinsic_vec_load_unaligned): Likewise.
+	* modules.cc (get_dso_registry_fn): Likewise.
+	* toir.cc: Likewise.
+	* typeinfo.cc: Likewise.
+	* types.cc (finish_aggregate_type): Likewise.
+
 2026-05-05  Iain Buclaw  <ibuclaw@gdcproject.org>
 
 	PR d/125089

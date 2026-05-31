@@ -1,3 +1,18 @@
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* Make-lang.in: Fix typos.
+	* lto-common.cc (read_cgraph_and_symbols): Likewise.
+	* lto-lang.cc (lto_post_options): Likewise.
+	* lto-partition.cc (add_symbol_to_partition_1): Likewise.
+	(partition_over_target_split): Likewise.
+	(lto_balanced_map): Likewise.
+	(rename_statics): Likewise.
+	* lto-symtab.cc (lto_cgraph_replace_node): Likewise.
+	(lto_varpool_replace_node): Likewise.
+	(lto_symtab_merge_symbols): Likewise.
+	* lto.cc (stream_out_partitions): Likewise.
+	(do_whole_program_analysis): Likewise.
+
 2026-04-22  Sam James  <sam@gentoo.org>
 
 	* lto-symtab.cc (lto_varpool_replace_node): Fix spelling of 'warning'.

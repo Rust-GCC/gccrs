@@ -1,3 +1,10 @@
+2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* math/powq.c: Fix typos.
+	* math/rem_pio2q.c: Likewise.
+	* printf/printf_fp.c (__quadmath_printf_fp): Likewise.
+	* update-quadmath.py: Likewise
+
 2026-01-01  Jakub Jelinek  <jakub@redhat.com>
 
 	* libquadmath.texi: Bump @copying's copyright year.
