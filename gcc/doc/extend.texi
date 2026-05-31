@@ -13477,6 +13477,11 @@ The following @code{@var{spec}}'s are supported.  They specify the
 size of the @code{asm} --- or parts of it --- in units of 16-bit words:
 
 @table @code
+@item nl
+The number of lines in the code template, which is half the default size.
+It suits code templates that only use 1-word instructions with
+no superfuous physical @samp{\n} or logical @samp{$} line breaks.
+
 @item [0-9]+
 The decimal representation of a non-negative integer.
 
@@ -13526,9 +13531,9 @@ number of physical and logical line breaks.  Such cases can lead to errors when
 a jump that uses a too optimistic jump offset is crossing such assembly code.
 
 @item Better code generation for jumps that are crossing an @code{asm}.
-The default length of an asm is (1 + @var{NL}) * 2 words, where @var{NL}
-denotes the sum of physical and logical line breaks.  However, almost
-all AVR instructions occupy only a single 16-bit word.
+The default length in words is @emph{twice} the number of lines in
+the code template, though almost all AVR instructions occupy only
+@emph{one} 16-bit word.
 @end itemize
 
 

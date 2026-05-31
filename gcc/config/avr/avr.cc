@@ -11156,6 +11156,10 @@ avr_read_number (const char *start, const char **end)
    then return -1.  Otherwise, return the sum over all [[len=<words>]]
    annotations, where:
 
+   <words> = nl
+	The number of lines in the code template.
+	This is half the default size.
+
    <words> = [0-9]+
 	Specifies a non-negative decimal integer.
 
@@ -11215,6 +11219,13 @@ avr_length_of_asm (rtx_insn *insn, int default_len, const char *tpl,
 	  else if (startswith (pos, "call"))
 	    pos += 4;
 	}
+      else if (startswith (pos, "nl"))
+	{
+	  // "nl" denotes the number of lines in the code template,
+	  // which is half of the default length.
+	  inc = asm_str_count (tpl);
+	  pos += 2;
+	}
       else if (startswith (pos, "lds")
 	       || startswith (pos, "sts"))
 	{
@@ -11255,6 +11266,8 @@ avr_length_of_asm (rtx_insn *insn, int default_len, const char *tpl,
 	  if (pos_end)
 	    strncat (msg, pos_end - 4, 4);
 	}
+      else if (pos_end)
+	msg[l_pos] = '\0';
       if (pos_end)
 	strcat (msg, len_end);
 
