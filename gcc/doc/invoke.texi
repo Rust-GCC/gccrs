@@ -24268,11 +24268,11 @@ The following AVR devices and ISAs are supported.
 @emph{Note:} A complete device support consists of
 startup code @code{crt@var{mcu}.o}, a device header @code{avr/io*.h},
 a device library @code{lib@var{mcu}.a} and a
-@uref{https://gcc.gnu.org/wiki/avr-gcc#spec-files,device-specs} file
+@uref{https://gcc.gnu.org/wiki/avr-gcc#spec-files,,device-specs} file
 @code{specs-@var{mcu}}. Only the latter is provided by the compiler
 according the supported @code{@var{mcu}}s below.  The rest is supported
-by @w{@uref{https://github.com/avrdudes/avr-libc/,AVR-LibC}}, or by means of
-@uref{https://gcc.gnu.org/wiki/avr-gcc#atpack,@code{atpack}} files
+by @w{@uref{https://github.com/avrdudes/avr-libc/,,AVR-LibC}}, or by means of
+@uref{https://gcc.gnu.org/wiki/avr-gcc#atpack,,@code{atpack}} files
 from the hardware manufacturer.
 
 @c Auto-generated.  Re-build when new devices are added to avr-mcus.def
@@ -24293,7 +24293,7 @@ ATtiny40.  See also the @code{absdata}
 @itemx -mno-asm-len-notes
 Recognize resp.@: ignore @code{[[len=@var{spec}]]} notes that are placed in
 (comments in) inline assembly code templates.  They allow to specify
-the exact @ref{Size of an asm,size of @code{asm} constructs}.
+the exact @ref{Size of an asm,,size of @code{asm} constructs}.
 This option is on per default.
 
 @opindex mcvt
@@ -24311,7 +24311,7 @@ code is no more pulled in from @code{lib@var{mcu}.a}.
 For example, you can link with @code{-Wl,--defsym,__init_cvt=0}.
 
 The CVT startup code is available since
-@w{@uref{https://github.com/avrdudes/avr-libc/issues/1010,AVR-LibC v2.3}}.
+@w{@uref{https://github.com/avrdudes/avr-libc/issues/1010,,AVR-LibC v2.3}}.
 
 @opindex mdouble
 @opindex mlong-double
@@ -24321,7 +24321,7 @@ Set the size (in bits) of the @code{double} or @code{long double} type,
 respectively.  Possible values for @var{bits} are 32 and 64.
 Whether or not a specific value for @var{bits} is allowed depends on
 the @code{--with-double=} and @code{--with-long-double=}
-@w{@uref{https://gcc.gnu.org/install/configure.html#avr,configure options}},
+@w{@uref{https://gcc.gnu.org/install/configure.html#avr,,configure options}},
 and the same applies for the default values of the options.
 
 @opindex mgas-isr-prologues
@@ -24332,7 +24332,7 @@ If this option is on, the feature can still be disabled for individual
 ISRs by means of the @ref{AVR Attributes,,@code{no_gccisr}}
 function attribute.  This feature is activated per default
 if optimization is on (but not with @option{-Og}, @pxref{Optimize Options}),
-and if GNU Binutils support @w{@uref{https://sourceware.org/PR21683,PR21683}}.
+and if GNU Binutils support @w{@uref{https://sourceware.org/PR21683,,PR21683}}.
 
 @opindex mint8
 @item -mint8
@@ -24357,13 +24357,13 @@ XCALL  main
 XJMP   exit
 @end example
 Instead, put @code{main} in section
-@w{@uref{https://avrdudes.github.io/avr-libc/avr-libc-user-manual/mem_sections.html#sec_dot_init,@code{.init9}}}
+@w{@uref{https://avrdudes.github.io/avr-libc/avr-libc-user-manual/mem_sections.html#sec_dot_init,,@code{.init9}}}
 so that no call is required.
 By setting this option the user asserts that @code{main} will not return.
 
 This option can be used for devices with very limited resources in order
 to save a few bytes of code and stack space.  It will work as expected since
-@w{@uref{https://github.com/avrdudes/avr-libc/issues/1012,AVR-LibC v2.3}}.
+@w{@uref{https://github.com/avrdudes/avr-libc/issues/1012,,AVR-LibC v2.3}}.
 With older versions, there will be no performance gain.
 
 @opindex mno-interrupts
@@ -24402,7 +24402,7 @@ like an assertion.
 
 Since v14 and for the AVR64* and AVR128* devices, @code{.rodata}
 is located in flash memory per default, provided the required GNU Binutils
-support (@w{@uref{https://sourceware.org/PR31124,PR31124}}) is available.
+support (@w{@uref{https://sourceware.org/PR31124,,PR31124}}) is available.
 In that case, @option{-mrodata-in-ram} can be used to return to the old
 layout with @code{.rodata} in RAM.
 
@@ -24421,13 +24421,13 @@ Don't link against AVR-LibC's device specific library @code{lib@var{mcu}.a}.
 Notice that since AVR-LibC v2.3, that library contains code that is
 essential for the correct functioning of a program.  In particular,
 it contains parts of the startup code like:
-@w{@uref{https://github.com/avrdudes/avr-libc/issues/1011,@code{__init_sp}}}
+@w{@uref{https://github.com/avrdudes/avr-libc/issues/1011,,@code{__init_sp}}}
 to initialize the stack pointer with symbol @code{__stack},
-@w{@uref{https://github.com/avrdudes/avr-libc/issues/1010,@code{__init_cvt}}}
+@w{@uref{https://github.com/avrdudes/avr-libc/issues/1010,,@code{__init_cvt}}}
 to set up the hardware to use a compact vector table with @option{-mcvt},
-@w{@uref{https://github.com/avrdudes/avr-libc/issues/1012,@code{__call_main}}}
+@w{@uref{https://github.com/avrdudes/avr-libc/issues/1012,,@code{__call_main}}}
 to call @code{main} and @code{exit}, and
-@w{@uref{https://github.com/avrdudes/avr-libc/issues/931,@code{__do_flmap_init}}}
+@w{@uref{https://github.com/avrdudes/avr-libc/issues/931,,@code{__do_flmap_init}}}
 to set up FLMAP according to symbol @code{__flmap}.
 
 @opindex nodevicespecs
@@ -24454,8 +24454,8 @@ resulting address space is not contained in the incoming address space.
 @opindex Wasm-len-notes
 @item -Wasm-len-notes
 Warn about unrecognized @code{[[len=@var{spec}]]}
-@ref{Size of an asm,length} annotations in inline assembly code templates.
-This @ref{Warning Options,warning} is on per default.
+@ref{Size of an asm,,length} annotations in inline assembly code templates.
+This @ref{Warning Options,,warning} is on per default.
 Notice that in LTO mode, the code must be compiled with option
 @option{-ffat-lto-objects} in order for these diagnoses to appear.
 
@@ -24626,7 +24626,7 @@ points to.
 The startup code from libgcc never sets @code{EIND}.
 Notice that startup code is a blend of code from libgcc and AVR-LibC.
 For the impact of AVR-LibC on @code{EIND}, see the
-@w{@uref{https://avrdudes.github.io/avr-libc/avr-libc-user-manual/,AVR-LibC user manual}}.
+@w{@uref{https://avrdudes.github.io/avr-libc/avr-libc-user-manual/,,AVR-LibC user manual}}.
 
 @item
 It is legitimate for user-specific startup code to set up @code{EIND}
@@ -24728,7 +24728,7 @@ The startup code initializes the @code{RAMP} special function
 registers with zero.
 
 @item
-If a @ref{AVR Named Address Spaces,named address space} other than
+If a @ref{AVR Named Address Spaces,,named address space} other than
 generic or @code{__flash} is used, then @code{RAMPZ} is set
 as needed before the operation.
 
@@ -24920,7 +24920,7 @@ This applies to the AVR64* and AVR128* devices.
 @item It's not known at assembler-time which emulation will be used.
 @end itemize
 This implies the compiler was configured with GNU Binutils that implement
-@w{@uref{https://sourceware.org/PR31124,PR31124}}.
+@w{@uref{https://sourceware.org/PR31124,,PR31124}}.
 
 @item __AVR_RODATA_IN_RAM__
 This macro is undefined when the code is compiled for a core architecture.
@@ -24961,14 +24961,14 @@ Same as above, but for @code{long double} instead of @code{double}.
 
 @item __WITH_DOUBLE_COMPARISON__
 Reflects the @code{--with-double-comparison=@{tristate|bool|libf7@}}
-@w{@uref{https://gcc.gnu.org/install/configure.html#avr,configure option}}
+@w{@uref{https://gcc.gnu.org/install/configure.html#avr,,configure option}}
 and is defined to @code{2} or @code{3}.
 
 @item __WITH_LIBF7_LIBGCC__
 @itemx __WITH_LIBF7_MATH__
 @itemx __WITH_LIBF7_MATH_SYMBOLS__
 Reflects the @code{--with-libf7=@{libgcc|math|math-symbols@}}
-@w{@uref{https://gcc.gnu.org/install/configure.html#avr,configure option}}.
+@w{@uref{https://gcc.gnu.org/install/configure.html#avr,,configure option}}.
 
 @end table
 
@@ -24979,7 +24979,7 @@ options by hand, in particular they are not optimization options.
 Using these options in the wrong way may lead to sub-optimal or wrong code.
 They are documented for completeness, and in order to get a better
 understanding of
-@w{@uref{https://gcc.gnu.org/wiki/avr-gcc#spec-files,device specs}}
+@w{@uref{https://gcc.gnu.org/wiki/avr-gcc#spec-files,,device specs}}
 files.
 
 @table @gcctabopt

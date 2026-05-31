@@ -13504,8 +13504,8 @@ The following rules apply:
 
 @itemize
 @item All such annotations will be ignored with option
-@ref{avr_masm_len_notes,@option{-mno-asm-len-notes}}.  Diagnosing can be
-adjusted with option @ref{avr_Wasm_len_notes,@option{-Wasm-len-notes}}.
+@ref{avr_masm_len_notes,,@option{-mno-asm-len-notes}}.  Diagnosing can be
+adjusted with option @ref{avr_Wasm_len_notes,,@option{-Wasm-len-notes}}.
 
 @item The length of the @code{asm} is the sum over all
 @code{[[len=@var{spec}]]} notes in the @code{asm} template.  When an invalid
