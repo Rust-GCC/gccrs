@@ -1,3 +1,60 @@
+2026-05-31  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/23471
+	PR tree-optimization/125513
+	* gcc.dg/tree-ssa/vrp-mult-nonneg-1.c: New test.
+	* gcc.dg/tree-ssa/vrp-mult-nonneg-2.c: New test.
+
+2026-05-31  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR rtl-optimization/123313
+	* gcc.target/riscv/pr123313.c: New test.
+	* gcc.target/riscv/pr124009.c: Adjust expected output.
+
+2026-05-31  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* gcc.dg/opts-1.c: Removed Wnostrict-overflow option test.
+
+2026-05-31  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* gcc.dg/pr81592.c: Removed strict-overflow options.
+	* gcc.dg/pragma-diag-3.c: Removed Wstrict-overflow option, along
+	with a reference and tests for PR66098 ("[5 regression] #pragma
+	diagnostic 'ignored' not fullyundone by pop for
+	strict-overflow").
+	* gcc.dg/pr36227.c: Removed.
+	* gcc.dg/pr48022-1.c: Removed.
+	* gcc.dg/pr48022-2.c: Removed.
+	* gcc.dg/pr49705.c: Removed.
+	* gcc.dg/pr52904.c: Removed.
+
+2026-05-31  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* gcc.dg/Wstrict-overflow-10.c: Removed.
+	* gcc.dg/Wstrict-overflow-11.c: Removed.
+	* gcc.dg/Wstrict-overflow-12.c: Removed.
+	* gcc.dg/Wstrict-overflow-13.c: Removed.
+	* gcc.dg/Wstrict-overflow-14.c: Removed.
+	* gcc.dg/Wstrict-overflow-15.c: Removed.
+	* gcc.dg/Wstrict-overflow-16.c: Removed.
+	* gcc.dg/Wstrict-overflow-17.c: Removed.
+	* gcc.dg/Wstrict-overflow-18.c: Removed.
+	* gcc.dg/Wstrict-overflow-19.c: Removed.
+	* gcc.dg/Wstrict-overflow-2.c: Removed.
+	* gcc.dg/Wstrict-overflow-20.c: Removed.
+	* gcc.dg/Wstrict-overflow-21.c: Removed.
+	* gcc.dg/Wstrict-overflow-23.c: Removed.
+	* gcc.dg/Wstrict-overflow-26.c: Removed.
+	* gcc.dg/Wstrict-overflow-27.c: Removed.
+	* gcc.dg/Wstrict-overflow-4.c: Removed.
+	* gcc.dg/Wstrict-overflow-6.c: Removed.
+	* gcc.dg/Wstrict-overflow-7.c: Removed.
+	* gcc.dg/Wstrict-overflow-8.c: Removed.
+
+2026-05-31  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* gcc.dg/Wstrict-overflow-25.c: Removed.
+
 2026-05-30  Artemiy Volkov  <artemiy.volkov@arm.com>
 
 	* gcc.target/aarch64/sve2/acle/general/firstp.c: Adjust testcases.

@@ -1,3 +1,122 @@
+2026-05-31  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/23471
+	PR tree-optimization/125513
+	* range-op-mixed.h (operator_mult): Add op1_op2_relation_effect
+	for 2xirange.
+	* range-op.cc (operator_mult::op1_op2_relation_effect): New function.
+
+2026-05-31  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR rtl-optimization/123313
+	* ifcvt.cc (noce_try_store_flag_logical): New function.
+	(noce_process_if_block): Call it.
+
+2026-05-31  Georg-Johann Lay  <avr@gjlay.de>
+
+	* doc/invoke.texi (AVR Options): Fix overly long URLs.
+	* doc/extend.texi (Specifying the size of an asm on AVR): Dito.
+
+2026-05-31  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* common.opt: Updated Wstrict-overflow entries to indicate that
+	they do nothing now.
+	* coretypes.h (enum warn_strict_overflow_code): Enum removed.
+	* doc/invoke.texi: Updated Wstrict-overflow entries to indicate
+	that they do nothing now.  Also removed the option from the
+	"Warning Options" list.
+	* opts.cc (common_handle_option): Removed OPT_Wstrict_overflow
+	logic.
+
+2026-05-31  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* flags.h (issue_strict_overflow_warning): Removed.
+	* fold-const.cc (fold_defer_overflow_warnings): Removed.
+	(fold_undefer_overflow_warnings): Removed.
+	(fold_undefer_and_ignore_overflow_warnings): Removed.
+	(fold_deferring_overflow_warnings_p): Removed.
+	* fold-const.h (fold_defer_overflow_warnings): Removed.
+	(fold_undefer_overflow_warnings): Removed.
+	(fold_undefer_and_ignore_overflow_warnings): Removed.
+	(fold_deferring_overflow_warnings_p): Removed.
+	* gimple-fold.cc (fold_stmt_1): Removed
+	fold_*_overflow_warnings uses and all related logic.
+	* passes.cc (verify_interpass_invariants): Likewise.
+	(execute_one_ipa_transform_pass): Likewise.
+	(execute_one_pass): Likewise.
+	* tree-cfgcleanup.cc (cleanup_control_expr_graph): Likewise.
+	* tree-data-ref.cc (create_runtime_alias_checks): Likewise.
+	* tree-ssa-ccp.cc (evaluate_stmt): Likewise.
+	* tree-ssa-forwprop.cc (combine_cond_expr_cond): Likewise.
+	* tree-ssa-loop-niter.cc (expand_simple_operations): Likewise.
+	(number_of_iterations_exit_assumptions): Likewise.
+	(loop_niter_by_eval): Likewise.
+	(estimate_numbers_of_iterations): Likewise.
+	(loop_exits_before_overflow): Likewise.
+	* tree-ssa-threadedge.cc: Likewise.
+	* tree-vrp.cc (compare_values): Likewise.
+
+2026-05-31  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* tree-ssa-loop-ch.cc (ch_base::copy_headers): Removed
+	warn_strict_overflow logic.
+
+2026-05-31  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* expr.cc (maybe_optimize_sub_cmp_0): Removed warning_at () call
+	for Wstrict-overflow comparison.
+
+2026-05-31  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* tree-vrp.cc (compare_values_warnv): Removed.
+	(compare_values): Changed to do the same thing as the former
+	compare_values_warn but without the strict_overflow_p logic.
+	* tree-vrp.h (compare_values_warnv): Removed.
+	* vr-values.cc (test_for_singularity): Removed the
+	supress_warning logic that was used by compare_values_warnv.
+
+2026-05-31  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* tree-ssa-reassoc.cc (init_range_entry): Removed
+	strict_overflow_p use.
+	(force_into_ssa_name): Likewise.
+	(update_range_test): Removed strict_overflow_p from function
+	signature, along with the flag associated logic and the
+	warning_at call.
+	(optimize_range_tests_xor): Removed strict_overflow_p use.
+	(optimize_range_tests_diff): Likewise.
+	(optimize_range_tests_to_bit_test): Likewise.
+	(optimize_range_tests_cmp_bitwise): Likewise.
+	(optimize_range_tests_var_bound): Removed strict_overflow_p from
+	function signature, along with the flag associated logic and the
+	warning_at call.
+	(optimize_range_tests): Removed strict_overflow_p use.
+	* tree-ssa-reassoc.h (struct range_entry): Removed
+	strict_overflow_p flag.
+
+2026-05-31  Georg-Johann Lay  <avr@gjlay.de>
+
+	* config/avr/avr.cc (avr_length_of_asm): Support "nl" as
+	the number of lines in the code template.
+	* doc/extend.texi (Size of an asm): Document [[len=nl]].
+	Simplify the description of the default length.
+
+2026-05-31  John David Anglin  <danglin@gcc.gnu.org>
+
+	* config/pa/pa.cc (pa_trampoline_init): Rework to use
+	clear_cache pattern.
+	* config/pa/pa.md (dcacheflush): Use "<<" condition instead
+	of "<<=".
+	(icacheflush): Remove.
+	(icacheflush1, icacheflush2, icacheflush3): New flush patterns
+	for PA 1.x targets, PA 2.0 targets, and PA 1.x no space
+	register targets.
+	(clear_cache): Rework to flush data and instruction caches.
+	Skip flush if the start address is greater than or equal to
+	the end address.  Don't align the end address to a cacheline
+	boundary.  Handle instruction flushes for PA 1.x targets,
+	PA 2.0 targets, and PA 1.x no space register targets.
+
 2026-05-30  Jeff Law  <jeffrey.law@oss.qualcomm.com>
 
 	* config/m68k/m68k.h (ASM_PREFERRED_EH_DATA_FORMAT): Avoid

@@ -1,3 +1,8 @@
+2026-05-31  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* c-fold.cc (c_disable_warnings): Likewise.
+	(c_enable_warnings): Likewise.
+
 2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* c-decl.cc (pop_file_scope): Fix typos.

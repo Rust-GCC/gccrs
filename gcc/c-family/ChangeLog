@@ -1,3 +1,12 @@
+2026-05-31  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* c.opt: Removed Wstrict-overflow entry.
+
+2026-05-31  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	* c-common.cc (pointer_int_sum): Removed
+	fold_*_overflow_warnings uses.
+
 2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* c-attribs.cc (append_access_attr): Fix typos.
