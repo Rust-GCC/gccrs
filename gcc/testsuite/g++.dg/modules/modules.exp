@@ -151,7 +151,7 @@ proc dg-module-cmi { args } {
 
 # check the expected module files exist (or not)
 # return list to delete
-proc module_cmi_p { src ifs } {
+proc module_cmi_p { src ifs std } {
     set res {}
     foreach if_arg $ifs {
 	set spec [lindex $if_arg 0]
@@ -169,9 +169,9 @@ proc module_cmi_p { src ifs } {
 	global srcdir
 	set relcmi [string map [list $srcdir "/\$srcdir"] $cmi]
 	if { $not != [file_on_host exists $cmi] } {
-	    pass "$src module-cmi $spec ($relcmi)"
+	    pass "$src $std module-cmi $spec ($relcmi)"
 	} else {
-	    fail "$src module-cmi $spec ($relcmi)"
+	    fail "$src $std module-cmi $spec ($relcmi)"
 	    set not [expr ! $not ]
 	}
 	if { ! $not } {
@@ -369,7 +369,7 @@ foreach test [prune [lsort [find $srcdir/$subdir {*.[CH]}]] \
 		continue
 	    }
 	    set testcase [string range $test [string length "$srcdir/"] end]
-	    cleanup_module_files [module_cmi_p $testcase $module_cmis]
+	    cleanup_module_files [module_cmi_p $testcase $module_cmis $std]
 	}
     }
 }
@@ -417,7 +417,7 @@ foreach src [lsort [find $srcdir/$subdir {*_a.[CHX}]] {
 			break
 		    }
 		    set testcase [string range $test [string length "$srcdir/"] end]
-		    lappend mod_files [module_cmi_p $testcase $module_cmis]
+		    lappend mod_files [module_cmi_p $testcase $module_cmis $std]
 		}
 	    }
 	    set testcase [regsub {_a.[CH]} $src {}]

@@ -52,7 +52,7 @@ if { [check_effective_target_lto] } {
   # Work around linker bug https://sourceware.org/PR20882
   regsub {^(.*)-Wl,--gc-sections(.*)$} $cxxldflags {\1\2} cxxldflags
   gdb-dg-runtest [lsort [glob $srcdir/$subdir/*.cc]] \
-    "" "$DEFAULT_CXXFLAGS -flto $PCH_CXXFLAGS"
+    "-flto" "$DEFAULT_CXXFLAGS $PCH_CXXFLAGS"
 }
 
 if [info exists guality_gdb_name] {

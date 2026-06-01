@@ -25,8 +25,9 @@
 # MESSAGES_FOR_FILE is a list of expected messages, akin to DejaGnu's
 # "dg-messages" variable.
 # TEXT is the textual output from the LTO link.
+# OPTSTR is the LTO option set in effect.
 
-proc lto_handle_diagnostics_for_file { name filename messages_for_file text } {
+proc lto_handle_diagnostics_for_file { name filename messages_for_file text optstr } {
     global dg-linenum-format
 
     set filename_without_path [file tail $filename]
@@ -69,8 +70,9 @@ proc lto_handle_diagnostics_for_file { name filename messages_for_file text } {
 
 	# Unlike dg-test, add the filename to the PASS/FAIL message (rather
 	# than just the line number) so that the user can identify the
-	# pertinent directive.
-	set describe_where "$filename_without_path line $line"
+	# pertinent directive.  Also append the option set, so that the same
+	# directive checked under several LTO options got a unique test name.
+	set describe_where "$filename_without_path line $line $optstr"
 
 	# Issue the PASS/FAIL, adding "LTO" to the messages (e.g. "LTO errors")
 	# to distinguish them from the non-LTO case (in case we ever need to
@@ -112,8 +114,9 @@ proc lto_handle_diagnostics_for_file { name filename messages_for_file text } {
 # Return TEXT, stripped of any diagnostics that were handled.
 #
 # TEXT is the textual output from the LTO link.
+# OPTSTR is the LTO option set in effect.
 
-proc lto_handle_diagnostics { text } {
+proc lto_handle_diagnostics { text optstr } {
     global testcase
 
     upvar dg-messages-by-file messages_by_file
@@ -128,7 +131,7 @@ proc lto_handle_diagnostics { text } {
 	set dg-messages $messages_by_file($src)
 	verbose "  messages for $src: ${dg-messages}" 3
 	set text [lto_handle_diagnostics_for_file $testcase $src \
-		      ${dg-messages} $text]
+		      ${dg-messages} $text $optstr]
     }
 
     verbose "lto_handle_diagnostics: exit: $text" 2
@@ -414,7 +417,7 @@ proc lto-link-and-maybe-run { testname objlist dest optall optfile optstr } {
     }
 
     # Check for diagnostics specified by directives
-    set comp_output [lto_handle_diagnostics $comp_output]
+    set comp_output [lto_handle_diagnostics $comp_output $optstr]
 
     # Prune unimportant visibility warnings before checking output.
     set comp_output [lto_prune_warns $comp_output]
