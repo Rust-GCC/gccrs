@@ -1008,9 +1008,6 @@ UrlSuffix(gcc/Warning-Options.html#index-Wno-strict-flex-arrays)
 Wstrict-null-sentinel
 UrlSuffix(gcc/C_002b_002b-Dialect-Options.html#index-Wno-strict-null-sentinel)
 
-Wstrict-overflow=
-UrlSuffix(gcc/Warning-Options.html#index-Wno-strict-overflow)
-
 Wstrict-prototypes
 UrlSuffix(gcc/Warning-Options.html#index-Wno-strict-prototypes)
 
