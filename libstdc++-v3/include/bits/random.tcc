@@ -3084,7 +3084,7 @@ namespace __detail
 	if (__n == 1)
 	  {
 	    _RealType __ints[2] = { __xmin, __xmin + __delta };
-	    _RealType __den = __fw(__xmin * 0.5 * __delta);
+	    _RealType __den = __fw(__xmin + 0.5 * __delta);
 	    _M_initialize2(__ints, __den);
 	    return;
 	  }
