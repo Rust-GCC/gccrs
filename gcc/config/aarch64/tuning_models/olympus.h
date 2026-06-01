@@ -95,7 +95,7 @@ static sve_vec_cost olympus_sve_vector_cost =
 
 static aarch64_scalar_vec_issue_info olympus_scalar_issue_info =
 {
-  4, /* loads_stores_per_cycle  */
+  6, /* loads_stores_per_cycle  */
   2, /* stores_per_cycle  */
   8, /* general_ops_per_cycle  */
   0, /* fp_simd_load_general_ops  */
@@ -105,7 +105,7 @@ static aarch64_scalar_vec_issue_info olympus_scalar_issue_info =
 static aarch64_advsimd_vec_issue_info olympus_advsimd_issue_info =
 {
   {
-    3, /* loads_stores_per_cycle  */
+    6, /* loads_stores_per_cycle  */
     2, /* stores_per_cycle  */
     6, /* general_ops_per_cycle  */
     0, /* fp_simd_load_general_ops  */
@@ -120,7 +120,7 @@ static aarch64_sve_vec_issue_info olympus_sve_issue_info =
 {
   {
     {
-      3, /* loads_stores_per_cycle  */
+      6, /* loads_stores_per_cycle  */
       2, /* stores_per_cycle  */
       6, /* general_ops_per_cycle  */
       0, /* fp_simd_load_general_ops  */
