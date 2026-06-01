@@ -968,8 +968,11 @@ ocp_convert (tree type, tree expr, int convtype, int flags,
       if (abstract_virtuals_error (NULL_TREE, type, complain))
 	return error_mark_node;
 
-      if (BRACE_ENCLOSED_INITIALIZER_P (ctor))
-	ctor = perform_implicit_conversion (type, ctor, complain);
+      if (BRACE_ENCLOSED_INITIALIZER_P (ctor)
+	  /* We don't want to create a TARGET_EXPR in a template by the
+	     build_cplus_new below.  */
+	  || processing_template_decl)
+	ctor = perform_implicit_conversion_flags (type, ctor, complain, flags);
       else if ((flags & LOOKUP_ONLYCONVERTING)
 	       && ! (CLASS_TYPE_P (dtype) && DERIVED_FROM_P (type, dtype)))
 	/* For copy-initialization, first we create a temp of the proper type
