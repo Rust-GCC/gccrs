@@ -149,7 +149,7 @@ test2_sub (long *buf3, char *buf4, char *buf6, int n)
      call.  */
 
   /* buf3 points to an unknown object, so __memmove_chk should not be done.  */
-  if (memmove ((char *) buf3 + 4, buf5, n + 6) != (char *) buf1 + 4
+  if (memmove ((char *) buf3 + 4, buf5, 6) != (char *) buf1 + 4
       || memcmp (buf1, "aBcdRSTUVWklmnopq\0", 19))
     abort ();
 
@@ -161,7 +161,7 @@ test2_sub (long *buf3, char *buf4, char *buf6, int n)
       || i != 3)
     abort ();
 
-  if (memmove ((char *) buf3 + 14, buf6, n + 2) != (char *) buf1 + 14
+  if (memmove ((char *) buf3 + 14, buf6, 2) != (char *) buf1 + 14
       || memcmp (buf1, "aBcdRSTUVWkSmnrsq\0", 19))
     abort ();
 

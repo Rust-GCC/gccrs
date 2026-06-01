@@ -1,6 +1,7 @@
 /* { dg-do run } */
 /* { dg-options "-O2 -Wno-stringop-overread" } */
 /* { dg-additional-options "-DSKIP_STRNDUP" { target { ! strndup } } } */
+/* { dg-xfail-run-if "PTA now triggers PR123160" { "*-*-*" } } */
 
 #define __builtin_object_size __builtin_dynamic_object_size
 #include "builtin-object-size-4.c"

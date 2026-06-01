@@ -977,10 +977,32 @@ public:
   {
     // Shortcircuit subst_and_fold callbacks for abnormal ssa_names.
     if (TREE_CODE (name) == SSA_NAME && SSA_NAME_OCCURS_IN_ABNORMAL_PHI (name))
-      return NULL;
-    tree ret = m_ranger->value_of_expr (name, s);
-    if (!ret && supported_pointer_equiv_p (name))
-      ret = m_pta->get_equiv (name);
+      return NULL_TREE;
+    if (!value_range::supports_type_p (TREE_TYPE (name)))
+      return NULL_TREE;
+
+    value_range r (TREE_TYPE (name));
+    if (!m_ranger->range_of_expr (r, name, s))
+      return NULL_TREE;
+
+    // A constant used in an unreachable block often returns as UNDEFINED.
+    // If the result is undefined, check the global value for a constant.
+    if (r.undefined_p ())
+      range_of_expr (r, name);
+
+    tree ret;
+    if (r.singleton_p (&ret))
+      return ret;
+    else
+      ret = NULL_TREE;
+    if (is_a <prange> (r))
+      {
+	prange &p = as_a <prange> (r);
+	ret = p.pt_invariant ();
+	// A const points has to be gimple_min_invariant.
+	gcc_checking_assert (!ret || is_gimple_min_invariant (ret));
+      }
+
     return ret;
   }
 
@@ -989,9 +1011,31 @@ public:
     // Shortcircuit subst_and_fold callbacks for abnormal ssa_names.
     if (TREE_CODE (name) == SSA_NAME && SSA_NAME_OCCURS_IN_ABNORMAL_PHI (name))
       return NULL;
-    tree ret = m_ranger->value_on_edge (e, name);
-    if (!ret && supported_pointer_equiv_p (name))
-      ret = m_pta->get_equiv (name);
+    if (!value_range::supports_type_p (TREE_TYPE (name)))
+      return NULL_TREE;
+
+    value_range r (TREE_TYPE (name));
+    if (!m_ranger->range_on_edge (r, e, name))
+      return NULL_TREE;
+
+    // A constant used in an unreachable block often returns as UNDEFINED.
+    // If the result is undefined, check the global value for a constant.
+    if (r.undefined_p ())
+      range_of_expr (r, name);
+
+    tree ret;
+    if (r.singleton_p (&ret))
+      return ret;
+    else
+      ret = NULL_TREE;
+    if (is_a <prange> (r))
+      {
+	prange &p = as_a <prange> (r);
+	ret = p.pt_invariant ();
+	// A const points has to be gimple_min_invariant.
+	gcc_checking_assert (!ret || is_gimple_min_invariant (ret));
+      }
+
     return ret;
   }
 

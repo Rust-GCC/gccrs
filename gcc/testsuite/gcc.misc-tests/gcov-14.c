@@ -15,7 +15,7 @@ extern __inline int Foo ()
   return 0; /* count(-) */
 }
 
-int (* __attribute__ ((noinline)) Bar ()) ()
+int (* __attribute__ ((noinline,noipa)) Bar ()) ()
 {
   return Foo; /* count(1) */
 }
