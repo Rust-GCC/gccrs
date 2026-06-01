@@ -23005,7 +23005,7 @@ GM2_FOR_TARGET=${GM2_FOR_TARGET:-gcc}
 
 # Now we check the target as long as it is a supported host.
 # For some embedded targets we choose minimal runtime system which is
-# just enough to satisfy the linker targetting raw metal.
+# just enough to satisfy the linker targeting raw metal.
 if test x${M2_HOST_OS} != xunknown; then
 { $as_echo "$as_me:${as_lineno-$LINENO}: m2 library building for target ${target}" >&5
 $as_echo "$as_me: m2 library building for target ${target}" >&6;}
@@ -23084,8 +23084,8 @@ $as_echo "no" >&6; }
    fi
 
 
-   { $as_echo "$as_me:${as_lineno-$LINENO}: checking m2 front end will build Logitech compatability libraries:" >&5
-$as_echo_n "checking m2 front end will build Logitech compatability libraries:... " >&6; }
+   { $as_echo "$as_me:${as_lineno-$LINENO}: checking m2 front end will build Logitech compatibility libraries:" >&5
+$as_echo_n "checking m2 front end will build Logitech compatibility libraries:... " >&6; }
    if test x${BUILD_LOGLIB} = xtrue; then
       { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
 $as_echo "yes" >&6; }

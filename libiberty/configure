@@ -6234,7 +6234,7 @@ _ACEOF
 
 
 
-# Check for presense of long long
+# Check for presence of long long
 ac_fn_c_check_type "$LINENO" "long long" "ac_cv_type_long_long" "$ac_includes_default"
 if test "x$ac_cv_type_long_long" = xyes; then :
 

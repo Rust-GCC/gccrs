@@ -7910,7 +7910,7 @@ stk_clash_min=12
 stk_clash_max=30
 
 # Keep the default value when the option is not used to 0, this allows us to
-# distinguish between the cases where the user specifially set a value via
+# distinguish between the cases where the user specifically set a value via
 # configure and when the normal default value is used.
 
 # Check whether --with-stack-clash-protection-guard-size was given.
@@ -28547,7 +28547,7 @@ elif test x$gcc_cv_ld != x; then
       ld_soname_option='-install_name'
       ;;
     # Solaris 2 ld always supports -h.  It also supports --soname for GNU
-    # ld compatiblity since some Solaris 10 update.
+    # ld compatibility since some Solaris 10 update.
     *-*-solaris2*)
       gcc_cv_ld_soname=yes
       ld_soname_option='-h'
