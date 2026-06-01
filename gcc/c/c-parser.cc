@@ -10656,6 +10656,26 @@ c_parser_cast_expression (c_parser *parser, struct c_expr *after)
     return c_parser_unary_expression (parser);
 }
 
+
+/* Like mark_exp_read but skip marking VAR_DECLs and PARM_DECLs
+   depending on the warning mode.  This helper function is
+   used in c_parser_unary_expression and
+   and c_parser_postfix_expression_after_primary for
+   pre/post-increment/decrement operations.
+ */
+
+static void
+mark_exp_read_cond (tree exp)
+{
+  if ((VAR_P (exp) || TREE_CODE (exp) == PARM_DECL)
+      && (VAR_P (exp) ? warn_unused_but_set_variable
+		      : warn_unused_but_set_parameter) > 1)
+    return;
+
+  mark_exp_read (exp);
+}
+
+
 /* Parse an unary expression (C90 6.3.3, C99 6.5.3, C11 6.5.3).
 
    unary-expression:
@@ -10713,31 +10733,15 @@ c_parser_unary_expression (c_parser *parser)
       c_parser_consume_token (parser);
       exp_loc = c_parser_peek_token (parser)->location;
       op = c_parser_cast_expression (parser, NULL);
-      if ((VAR_P (op.value) || TREE_CODE (op.value) == PARM_DECL)
-	  && !DECL_READ_P (op.value)
-	  && (VAR_P (op.value) ? warn_unused_but_set_variable
-			       : warn_unused_but_set_parameter) > 1)
-	{
-	  op = default_function_array_read_conversion (exp_loc, op);
-	  DECL_READ_P (op.value) = 0;
-	}
-      else
-	op = default_function_array_read_conversion (exp_loc, op);
+      mark_exp_read_cond (op.value);
+      op = default_function_array_conversion (exp_loc, op);
       return parser_build_unary_op (op_loc, PREINCREMENT_EXPR, op);
     case CPP_MINUS_MINUS:
       c_parser_consume_token (parser);
       exp_loc = c_parser_peek_token (parser)->location;
       op = c_parser_cast_expression (parser, NULL);
-      if ((VAR_P (op.value) || TREE_CODE (op.value) == PARM_DECL)
-	  && !DECL_READ_P (op.value)
-	  && (VAR_P (op.value) ? warn_unused_but_set_variable
-			       : warn_unused_but_set_parameter) > 1)
-	{
-	  op = default_function_array_read_conversion (exp_loc, op);
-	  DECL_READ_P (op.value) = 0;
-	}
-      else
-	op = default_function_array_read_conversion (exp_loc, op);
+      mark_exp_read_cond (op.value);
+      op = default_function_array_conversion (exp_loc, op);
       return parser_build_unary_op (op_loc, PREDECREMENT_EXPR, op);
     case CPP_AND:
       c_parser_consume_token (parser);
@@ -14207,17 +14211,8 @@ c_parser_postfix_expression_after_primary (c_parser *parser,
 	  start = expr.get_start ();
 	  finish = c_parser_peek_token (parser)->get_finish ();
 	  c_parser_consume_token (parser);
-	  if ((VAR_P (expr.value) || TREE_CODE (expr.value) == PARM_DECL)
-	      && !DECL_READ_P (expr.value)
-	      && (VAR_P (expr.value) ? warn_unused_but_set_variable
-				     : warn_unused_but_set_parameter) > 1
-	      && TREE_CODE (TREE_TYPE (expr.value)) != ARRAY_TYPE)
-	    {
-	      expr = default_function_array_read_conversion (expr_loc, expr);
-	      DECL_READ_P (expr.value) = 0;
-	    }
-	  else
-	    expr = default_function_array_read_conversion (expr_loc, expr);
+	  mark_exp_read_cond (expr.value);
+	  expr = default_function_array_conversion (expr_loc, expr);
 	  expr.value = build_unary_op (op_loc, POSTINCREMENT_EXPR,
 				       expr.value, false);
 	  set_c_expr_source_range (&expr, start, finish);
@@ -14229,17 +14224,8 @@ c_parser_postfix_expression_after_primary (c_parser *parser,
 	  start = expr.get_start ();
 	  finish = c_parser_peek_token (parser)->get_finish ();
 	  c_parser_consume_token (parser);
-	  if ((VAR_P (expr.value) || TREE_CODE (expr.value) == PARM_DECL)
-	      && !DECL_READ_P (expr.value)
-	      && (VAR_P (expr.value) ? warn_unused_but_set_variable
-				     : warn_unused_but_set_parameter) > 1
-	      && TREE_CODE (TREE_TYPE (expr.value)) != ARRAY_TYPE)
-	    {
-	      expr = default_function_array_read_conversion (expr_loc, expr);
-	      DECL_READ_P (expr.value) = 0;
-	    }
-	  else
-	    expr = default_function_array_read_conversion (expr_loc, expr);
+	  mark_exp_read_cond (expr.value);
+	  expr = default_function_array_conversion (expr_loc, expr);
 	  expr.value = build_unary_op (op_loc, POSTDECREMENT_EXPR,
 				       expr.value, false);
 	  set_c_expr_source_range (&expr, start, finish);

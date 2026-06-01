@@ -5786,9 +5786,10 @@ build_unary_op (location_t location, enum tree_code code, tree xarg,
   tree ret = error_mark_node;
   tree eptype = NULL_TREE;
   const char *invalid_op_diag;
-  bool int_operands;
 
-  int_operands = EXPR_INT_CONST_OPERANDS (xarg);
+  gcc_checking_assert (!is_access_with_size_p (arg));
+
+  bool int_operands = EXPR_INT_CONST_OPERANDS (xarg);
   if (int_operands)
     arg = remove_c_maybe_const_expr (arg);
 
@@ -6250,10 +6251,7 @@ build_unary_op (location_t location, enum tree_code code, tree xarg,
 	  goto return_build_unary_op;
 	}
 
-      /* Ordinary case; arg is a COMPONENT_REF or a decl, or a call to
-	 .ACCESS_WITH_SIZE.  */
-      if (is_access_with_size_p (arg))
-	arg = TREE_OPERAND (TREE_OPERAND (CALL_EXPR_ARG (arg, 0), 0), 0);
+      /* Ordinary case; arg is a COMPONENT_REF or a decl.  */
 
       argtype = TREE_TYPE (arg);
 
