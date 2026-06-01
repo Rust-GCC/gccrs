@@ -59,7 +59,6 @@ nowarn_spec_t::nowarn_spec_t (opt_code opt)
     case OPT_Woverflow:
     case OPT_Wshift_count_negative:
     case OPT_Wshift_count_overflow:
-    case OPT_Wstrict_overflow:
       m_bits = NW_VFLOW;
       break;
 

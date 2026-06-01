@@ -2951,10 +2951,6 @@ common_handle_option (struct gcc_options *opts,
       set_Wstrict_aliasing (opts, value);
       break;
 
-    case OPT_Wstrict_overflow:
-      /* Deferred.  */
-      break;
-
     case OPT_Wsystem_headers:
       dc->m_warn_system_headers = value;
       break;

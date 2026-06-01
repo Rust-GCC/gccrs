@@ -781,10 +781,11 @@ Common Joined RejectNegative UInteger Var(warn_strict_aliasing) Warning
 Warn about code which might break strict aliasing rules.
 
 Wstrict-overflow
-Common Warning
+Common Ignore Warning
 Does nothing.  Preserved for backward compatibility.
 
 Wstrict-overflow=
+Common Ignore Joined RejectNegative UInteger Warning
 Does nothing.  Preserved for backward compatibility.
 
 Wsuggest-attribute=cold
