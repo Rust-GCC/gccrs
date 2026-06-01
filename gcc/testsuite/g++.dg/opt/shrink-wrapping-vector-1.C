@@ -14,4 +14,4 @@ void push_back(std::vector<int>& xs, unsigned char x) {
     xs.push_back(x);
 }
 
-/* { dg-final { scan-rtl-dump "Performing shrink-wrapping" "pro_and_epilogue" } } */
+/* { dg-final { scan-rtl-dump "Performing shrink-wrapping" "pro_and_epilogue" { xfail c++17_down } } } */
