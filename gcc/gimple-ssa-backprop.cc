@@ -64,8 +64,7 @@ along with GCC; see the file COPYING3.  If not see
        very few SSA names end up with useful information.)
 
    (2) Iteratively reduce the optimistic result of (1) until we reach
-       a maximal fixed point (which at the moment would mean revisiting
-       statements at most once).  First push all SSA names that used an
+       a maximal fixed point.  First push all SSA names that used an
        optimistic assumption about a backedge phi onto a worklist.
        While the worklist is nonempty, pick off an SSA name X and recompute
        INFO_MAP[X].  If the value changes, push all SSA names used in the
@@ -301,14 +300,20 @@ private:
      M_VISITED_BLOCKS.  */
   auto_bitmap m_visited_phis;
 
-  /* A worklist of var_infos whose SSA name definitions need to be
-     reconsidered.  */
-  auto_vec<var_info *, 64> m_worklist;
+  /* Two bitmaps that can be used for worklists.  The elements represent
+     indices into M_VARS.  */
+  auto_bitmap m_worklist1, m_worklist2;
 
-  /* The SSA names in M_WORKLIST, identified by their SSA_NAME_VERSION.
-     We use a bitmap rather than an sbitmap because most SSA names are
-     never added to the worklist.  */
-  bitmap m_worklist_names;
+  /* Used to perform a double-worklist update.  M_THIS_WORKLIST contains
+     the elements of M_VARS that should be processed in the current pass,
+     whereas M_NEXT_WORKLIST contains the elements of M_VARS that should
+     be processed in the next pass.
+
+     In a post-order traversal, any member of M_VARS beyond index
+     M_WORKLIST_THRESHOLD can be added to M_THIS_WORKLIST whereas others
+     should be added to M_NEXT_WORKLIST.  */
+  bitmap m_this_worklist, m_next_worklist;
+  unsigned int m_worklist_threshold;
 };
 
 backprop::backprop (function *fn)
@@ -316,14 +321,17 @@ backprop::backprop (function *fn)
     m_var_pool ("var_info"),
     m_var_table (64),
     m_visited_blocks (last_basic_block_for_fn (m_fn)),
-    m_worklist_names (BITMAP_ALLOC (NULL))
+    m_this_worklist (m_worklist1),
+    m_next_worklist (m_worklist2),
+    m_worklist_threshold (UINT_MAX)
 {
   bitmap_clear (m_visited_blocks);
+  bitmap_tree_view (m_worklist1);
+  bitmap_tree_view (m_worklist2);
 }
 
 backprop::~backprop ()
 {
-  BITMAP_FREE (m_worklist_names);
   m_var_pool.release ();
 }
 
@@ -342,10 +350,11 @@ backprop::lookup_operand (tree op)
 void
 backprop::push_to_worklist (var_info *v)
 {
-  if (!bitmap_set_bit (m_worklist_names, SSA_NAME_VERSION (v->var)))
-    return;
-  m_worklist.safe_push (v);
-  if (dump_file && (dump_flags & TDF_DETAILS))
+  bitmap worklist = (v->index > m_worklist_threshold
+		     ? m_this_worklist
+		     : m_next_worklist);
+  if (bitmap_set_bit (worklist, v->index)
+      && (dump_file && (dump_flags & TDF_DETAILS)))
     {
       fprintf (dump_file, "[WORKLIST] Pushing ");
       print_generic_expr (dump_file, v->var);
@@ -359,8 +368,8 @@ backprop::push_to_worklist (var_info *v)
 var_info *
 backprop::pop_from_worklist ()
 {
-  var_info *v = m_worklist.pop ();
-  bitmap_clear_bit (m_worklist_names, SSA_NAME_VERSION (v->var));
+  m_worklist_threshold = bitmap_clear_first_set_bit (m_this_worklist);
+  var_info *v = m_vars[m_worklist_threshold];
   if (dump_file && (dump_flags & TDF_DETAILS))
     {
       fprintf (dump_file, "[WORKLIST] Popping ");
@@ -908,7 +917,8 @@ void
 backprop::execute ()
 {
   /* Phase 1: Traverse the function, making optimistic assumptions
-     about any phi whose definition we haven't seen.  */
+     about any phi whose definition we haven't seen.  Add any variables
+     that need to be reconsidered to M_NEXT_WORKLIST.  */
   int *postorder = XNEWVEC (int, n_basic_blocks_for_fn (m_fn));
   unsigned int postorder_num = post_order_compute (postorder, false, false);
   for (unsigned int i = 0; i < postorder_num; ++i)
@@ -919,11 +929,18 @@ backprop::execute ()
   XDELETEVEC (postorder);
 
   /* Phase 2: Use the initial (perhaps overly optimistic) information
-     to create a maximal fixed point solution.  */
-  while (!m_worklist.is_empty ())
+     to create a maximal fixed point solution.  Each pass uses a post-order
+     walk to reduce the number of repeat visits.  */
+  while (!bitmap_empty_p (m_next_worklist))
     {
-      var_info *v = pop_from_worklist ();
-      process_var (v->var, v);
+      std::swap (m_this_worklist, m_next_worklist);
+      bitmap_clear (m_next_worklist);
+      do
+	{
+	  var_info *v = pop_from_worklist ();
+	  process_var (v->var, v);
+	}
+      while (!bitmap_empty_p (m_this_worklist));
     }
 
   if (dump_file && (dump_flags & TDF_DETAILS))
