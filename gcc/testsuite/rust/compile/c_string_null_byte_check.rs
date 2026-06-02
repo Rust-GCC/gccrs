@@ -1,3 +1,4 @@
+// { dg-additional-options "-frust-c-style-string-literals" }
 #![feature(no_core)]
 #![no_core]
 
