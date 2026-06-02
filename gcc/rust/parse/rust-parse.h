@@ -28,6 +28,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "rust-feature-store.h"
 
 #include "expected.h"
+#include "options.h"
 
 namespace Rust {
 
