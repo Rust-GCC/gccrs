@@ -53,13 +53,13 @@ along with GCC; see the file COPYING3.  If not see
    (1) Do a post-order traversal of the blocks in the function, walking
        each block backwards.  For each potentially-simplifiable statement
        that defines an SSA name X, examine all uses of X to see what
-       information is actually significant.  Record this as INFO_MAP[X].
+       information is actually significant.  Record this in VAR_TABLE[X].
        Optimistically ignore for now any back-edge references to
        unprocessed phis.
 
        (An alternative would be to record each use when we visit its
        statement and take the intersection as we go along.  However,
-       this would lead to more SSA names being entered into INFO_MAP
+       this would lead to more SSA names being entered into VAR_TABLE
        unnecessarily, only to be taken out again later.  At the moment
        very few SSA names end up with useful information.)
 
@@ -67,18 +67,31 @@ along with GCC; see the file COPYING3.  If not see
        a maximal fixed point.  First push all SSA names that used an
        optimistic assumption about a backedge phi onto a worklist.
        While the worklist is nonempty, pick off an SSA name X and recompute
-       INFO_MAP[X].  If the value changes, push all SSA names used in the
-       definition of X onto the worklist.
+       the usage information in VAR_TABLE[X].  If the value changes, push all
+       SSA names used in the definition of X onto the worklist.
 
-   (3) Iterate over each SSA name X with info in INFO_MAP, in the
+   (3) Iterate over each SSA name X with info in VAR_TABLE, in the
        opposite order to (1), i.e. a forward reverse-post-order walk.
-       Try to optimize the definition of X using INFO_MAP[X] and fold
-       the result.  (This ensures that we fold definitions before uses.)
+       Try to use the information in VAR_TABLE[X] to replace the definition
+       of X with a simpler calculation that may yield a different result.
+       When deciding to do such a replacement, record that each entry in
+       VAR_TABLE that directly or indirectly depends on X will then also
+       need to be replaced with a different calculation.  (The information
+       in VAR_TABLE guarantees that other uses of X are unaffected.)
 
-   (4) Iterate over each SSA name X with info in INFO_MAP, in the same
-       order as (1), and delete any statements that are now dead.
-       (This ensures that if a sequence of statements is dead,
-       we delete the last statement first.)
+   (4) Iterate over each SSA name X with info in VAR_TABLE, in the same
+       order as (1).  Carry out any scheduled replacement of X with a
+       different value, ensuring that debug uses either keep their current
+       value or are reset.  (This traversal order ensures that, if a chain
+       of values is being replaced, a debug bind is created for the last
+       value first, exposing a new debug use of the preceding value in
+       the chain.)
+
+   (5) Iterate over each SSA name X with info in VAR_TABLE, in the same order
+       as (1).  Delete any statements that are now dead.  (This traversal order
+       ensures that if a sequence of statements is dead, we delete the last
+       statement first.  It is not safe to do this on-the-fly during (4)
+       because multiple SSA names might be replaced with the same value.)
 
    Note that this pass does not deal with direct redundancies,
    such as cos(-x)->cos(x).  match.pd handles those cases instead.  */
@@ -208,11 +221,20 @@ dump_usage_info (FILE *file, tree var, usage_info *info)
 struct var_info
 {
   var_info (tree var, unsigned int index, const usage_info &info)
-    : var (var), index (index), info (info)
+    : var (var), new_value (var), seq (nullptr), index (index), info (info)
   {}
 
   /* The SSA name itself.  */
   tree var;
+
+  /* The value that VAR will be replaced with, or VAR itself if no
+     replacement is scheduled.  */
+  tree new_value;
+
+  /* If NEW_VALUE != VAR, the definition of VAR will be replaced by this
+     sequence, with an empty sequence meaning that the definition of VAR
+     should simply be deleted.  */
+  gimple_seq seq;
 
   /* The index of this entry in the M_VARS array.  */
   unsigned int index;
@@ -266,12 +288,17 @@ private:
   void process_var (tree, var_info *);
   void process_block (basic_block);
 
-  void prepare_change (tree);
-  void complete_change (gimple *);
-  void optimize_builtin_call (gcall *, tree, const usage_info *);
-  void replace_assign_rhs (gassign *, tree, tree, tree, tree);
-  void optimize_assign (gassign *, tree, const usage_info *);
-  void optimize_phi (gphi *, tree, const usage_info *);
+  void set_new_value (var_info *, tree);
+  tree subst_operand (tree);
+  gimple *copy_and_subst (var_info *);
+  void finish_stmt (var_info *, gimple *);
+  void optimize_builtin_call (gcall *, var_info *);
+  void replace_assign_rhs (var_info *, tree, tree, tree);
+  void optimize_assign (gassign *, var_info *);
+  void optimize_phi (gphi *, var_info *);
+
+  void propagate_change (var_info *);
+  void commit_replacement (var_info *);
 
   /* The function we're optimizing.  */
   function *m_fn;
@@ -688,39 +715,26 @@ backprop::process_block (basic_block bb)
   bitmap_clear (m_visited_phis);
 }
 
-/* Delete the definition of VAR, which has no uses.  */
+/* Delete the statement at GSI, which is now dead.  Note the deletion in the
+   dump file unless QUIET is true.  */
 
 static void
-remove_unused_var (tree var)
+remove_dead_stmt (gimple_stmt_iterator *gsi, bool quiet = false)
 {
-  gimple *stmt = SSA_NAME_DEF_STMT (var);
-  if (dump_file && (dump_flags & TDF_DETAILS))
+  gimple *stmt = gsi_stmt (*gsi);
+  if (!quiet && dump_file && (dump_flags & TDF_DETAILS))
     {
       fprintf (dump_file, "Deleting ");
       print_gimple_stmt (dump_file, stmt, 0, TDF_SLIM);
     }
-  gimple_stmt_iterator gsi = gsi_for_stmt (stmt);
   if (gimple_code (stmt) == GIMPLE_PHI)
-    remove_phi_node (&gsi, true);
+    remove_phi_node (gsi, true);
   else
     {
       unlink_stmt_vdef (stmt);
-      gsi_remove (&gsi, true);
+      gsi_remove (gsi, true);
       release_defs (stmt);
     }
-}
-
-/* Note that we're replacing OLD_RHS with NEW_RHS in STMT.  */
-
-static void
-note_replacement (gimple *stmt, tree old_rhs, tree new_rhs)
-{
-  fprintf (dump_file, "Replacing use of ");
-  print_generic_expr (dump_file, old_rhs);
-  fprintf (dump_file, " with ");
-  print_generic_expr (dump_file, new_rhs);
-  fprintf (dump_file, " in ");
-  print_gimple_stmt (dump_file, stmt, 0, TDF_SLIM);
 }
 
 /* If RHS is an SSA name whose definition just changes the sign of a value,
@@ -777,84 +791,162 @@ strip_sign_op (tree rhs)
   return new_rhs;
 }
 
-/* Start a change in the value of VAR that is suitable for all non-debug
-   uses of VAR.  We need to make sure that debug statements continue to
-   use the original definition of VAR where possible, or are nullified
-   otherwise.  */
+/* Note that V's SSA name will be replaced with NEW_VALUE.  */
 
 void
-backprop::prepare_change (tree var)
+backprop::set_new_value (var_info *v, tree new_value)
 {
-  if (MAY_HAVE_DEBUG_BIND_STMTS)
-    insert_debug_temp_for_var_def (NULL, var);
-  reset_flow_sensitive_info (var);
-}
-
-/* STMT has been changed.  Give the fold machinery a chance to simplify
-   and canonicalize it (e.g. by ensuring that commutative operands have
-   the right order), then record the updates.  */
-
-void
-backprop::complete_change (gimple *stmt)
-{
-  gimple_stmt_iterator gsi = gsi_for_stmt (stmt);
-  if (fold_stmt (&gsi))
+  if (dump_file && (dump_flags & TDF_DETAILS))
     {
-      if (dump_file && (dump_flags & TDF_DETAILS))
-	{
-	  fprintf (dump_file, "  which folds to: ");
-	  print_gimple_stmt (dump_file, gsi_stmt (gsi), 0, TDF_SLIM);
-	}
+      if (v->var == v->new_value)
+	fprintf (dump_file, "\n");
+      fprintf (dump_file, "Uses of ");
+      print_generic_expr (dump_file, v->var);
+      fprintf (dump_file, " will be replaced by ");
+      print_generic_expr (dump_file, new_value);
+      fprintf (dump_file, "\n");
     }
-  update_stmt (gsi_stmt (gsi));
+  v->new_value = new_value;
 }
 
-/* Optimize CALL, a call to a built-in function with lhs LHS, on the
-   basis that INFO describes all uses of LHS.  */
+/* Apply all current substitutions to gimple operand VALUE.  */
+
+tree
+backprop::subst_operand (tree value)
+{
+  if (const var_info *v = lookup_operand (value))
+    return v->new_value;
+
+  return value;
+}
+
+/* Assuming that V's SSA name occurs as "lhs" in a statement of the form:
+
+      S: lhs = op (rhs1, rhs2, ...)
+
+   create and insert a new statement:
+
+      S': lhs'= op (rhs1', rhs2', ...)
+
+   where:
+
+      lhs' is a new SSA name
+      rhsN' = subst_operand (rhsN)
+
+   Arrange for lhs to be replaced with lhs'.
+
+   Return S'.  After making any required changes to S', the caller should
+   call finish_stmt (V, S') to finish scheduling the replacement.  */
+
+gimple *
+backprop::copy_and_subst (var_info *v)
+{
+  gcc_assert (v->new_value == v->var);
+  gimple *stmt = SSA_NAME_DEF_STMT (v->var);
+  set_new_value (v, copy_ssa_name_fn (m_fn, v->var, stmt));
+  if (auto *phi = dyn_cast<gphi *> (stmt))
+    {
+      gphi *new_phi = create_phi_node (v->new_value, gimple_bb (phi));
+      gimple_set_location (new_phi, gimple_location (phi));
+      for (unsigned int i = 0; i < gimple_phi_num_args (phi); ++i)
+	{
+	  tree arg_def = subst_operand (gimple_phi_arg_def (phi, i));
+	  SET_USE (gimple_phi_arg_imm_use_ptr (new_phi, i), arg_def);
+	}
+      return new_phi;
+    }
+  else
+    {
+      gimple *new_stmt = gimple_copy (stmt);
+      for (unsigned int i = 0; i < gimple_num_ops (new_stmt); ++i)
+	{
+	  tree *op_ptr = gimple_op_ptr (new_stmt, i);
+	  *op_ptr = subst_operand (*op_ptr);
+	}
+      SSA_NAME_DEF_STMT (v->new_value) = new_stmt;
+      gimple_seq_add_stmt (&v->seq, new_stmt);
+      return new_stmt;
+    }
+}
+
+/* Finalize STMT, whose lhs will replace V's SSA name.  */
 
 void
-backprop::optimize_builtin_call (gcall *call, tree lhs, const usage_info *info)
+backprop::finish_stmt (var_info *v, gimple *stmt)
+{
+  if (dump_file && (dump_flags & TDF_DETAILS))
+    {
+      fprintf (dump_file, "Replacing ");
+      print_gimple_stmt (dump_file, SSA_NAME_DEF_STMT (v->var), TDF_SLIM);
+      fprintf (dump_file, "     with ");
+      print_gimple_stmt (dump_file, stmt, TDF_SLIM);
+    }
+  tree new_value = v->new_value;
+  gimple_stmt_iterator gsi;
+  if (auto *phi = dyn_cast<gphi *> (stmt))
+    {
+      gsi = gsi_for_stmt (phi);
+      new_value = degenerate_phi_result (phi);
+    }
+  else
+    {
+      gsi = gsi_for_stmt (stmt, &v->seq);
+      fold_stmt (&gsi);
+      stmt = gsi_stmt (gsi);
+      if (gimple_assign_single_p (stmt))
+	new_value = gimple_assign_rhs1 (stmt);
+    }
+  update_stmt (stmt);
+  if (new_value && new_value != v->new_value && is_gimple_val (new_value))
+    {
+      remove_dead_stmt (&gsi);
+      set_new_value (v, new_value);
+    }
+}
+
+/* Optimize CALL, a call to a built-in function, given that V describes
+   its lhs.  */
+
+void
+backprop::optimize_builtin_call (gcall *call, var_info *v)
 {
   /* If we have an f such that -f(x) = f(-x), and if the sign of the result
      doesn't matter, strip any sign operations from the input.  */
-  if (info->flags.ignore_sign
+  if (v->info.flags.ignore_sign
       && negate_mathfn_p (gimple_call_combined_fn (call)))
     {
       tree new_arg = strip_sign_op (gimple_call_arg (call, 0));
       if (new_arg)
 	{
-	  prepare_change (lhs);
-	  gimple_call_set_arg (call, 0, new_arg);
-	  complete_change (call);
+	  call = as_a<gcall *> (copy_and_subst (v));
+	  gimple_call_set_arg (call, 0, subst_operand (new_arg));
+	  finish_stmt (v, call);
 	}
     }
 }
 
-/* Optimize ASSIGN, an assignment to LHS, by replacing rhs operand N
-   with RHS<N>, if RHS<N> is nonnull.  This may change the value of LHS.  */
+/* Optimize V by replacing rhs operand N with RHS<N>, if RHS<N> is nonnull.  */
 
 void
-backprop::replace_assign_rhs (gassign *assign, tree lhs, tree rhs1,
-			      tree rhs2, tree rhs3)
+backprop::replace_assign_rhs (var_info *v, tree rhs1, tree rhs2, tree rhs3)
 {
   if (!rhs1 && !rhs2 && !rhs3)
     return;
 
-  prepare_change (lhs);
+  auto *assign = as_a<gassign *> (copy_and_subst (v));
   if (rhs1)
-    gimple_assign_set_rhs1 (assign, rhs1);
+    gimple_assign_set_rhs1 (assign, subst_operand (rhs1));
   if (rhs2)
-    gimple_assign_set_rhs2 (assign, rhs2);
+    gimple_assign_set_rhs2 (assign, subst_operand (rhs2));
   if (rhs3)
-    gimple_assign_set_rhs3 (assign, rhs3);
-  complete_change (assign);
+    gimple_assign_set_rhs3 (assign, subst_operand (rhs3));
+  finish_stmt (v, assign);
 }
 
-/* Optimize ASSIGN, an assignment to LHS, on the basis that INFO
-   describes all uses of LHS.  */
+/* Optimize ASSIGN given that V describes its lhs.  */
 
 void
-backprop::optimize_assign (gassign *assign, tree lhs, const usage_info *info)
+backprop::optimize_assign (gassign *assign, var_info *v)
 {
   switch (gimple_assign_rhs_code (assign))
     {
@@ -862,9 +954,8 @@ backprop::optimize_assign (gassign *assign, tree lhs, const usage_info *info)
     case RDIV_EXPR:
       /* If the sign of the result doesn't matter, strip sign operations
 	 from both inputs.  */
-      if (info->flags.ignore_sign)
-	replace_assign_rhs (assign, lhs,
-			    strip_sign_op (gimple_assign_rhs1 (assign)),
+      if (v->info.flags.ignore_sign)
+	replace_assign_rhs (v, strip_sign_op (gimple_assign_rhs1 (assign)),
 			    strip_sign_op (gimple_assign_rhs2 (assign)),
 			    NULL_TREE);
       break;
@@ -872,9 +963,8 @@ backprop::optimize_assign (gassign *assign, tree lhs, const usage_info *info)
     case COND_EXPR:
       /* If the sign of A ? B : C doesn't matter, strip sign operations
 	 from both B and C.  */
-      if (info->flags.ignore_sign)
-	replace_assign_rhs (assign, lhs,
-			    NULL_TREE,
+      if (v->info.flags.ignore_sign)
+	replace_assign_rhs (v, NULL_TREE,
 			    strip_sign_op (gimple_assign_rhs2 (assign)),
 			    strip_sign_op (gimple_assign_rhs3 (assign)));
       break;
@@ -884,33 +974,74 @@ backprop::optimize_assign (gassign *assign, tree lhs, const usage_info *info)
     }
 }
 
-/* Optimize PHI, which defines VAR, on the basis that INFO describes all
-   uses of the result.  */
+/* Optimize PHI given that V describes its result.  */
 
 void
-backprop::optimize_phi (gphi *phi, tree var, const usage_info *info)
+backprop::optimize_phi (gphi *phi, var_info *v)
 {
   /* If the sign of the result doesn't matter, strip sign operations
      from all arguments.  */
-  if (info->flags.ignore_sign)
+  if (v->info.flags.ignore_sign)
     {
-      use_operand_p use;
-      ssa_op_iter oi;
-      bool replaced = false;
-      FOR_EACH_PHI_ARG (use, phi, oi, SSA_OP_USE)
+      gphi *replacement = nullptr;
+      for (unsigned int i = 0; i < gimple_phi_num_args (phi); ++i)
 	{
-	  tree new_arg = strip_sign_op (USE_FROM_PTR (use));
+	  tree arg = gimple_phi_arg_def (phi, i);
+	  tree new_arg = strip_sign_op (arg);
 	  if (new_arg)
 	    {
-	      if (!replaced)
-		prepare_change (var);
-	      if (dump_file && (dump_flags & TDF_DETAILS))
-		note_replacement (phi, USE_FROM_PTR (use), new_arg);
-	      replace_exp (use, new_arg);
-	      replaced = true;
+	      if (!replacement)
+		replacement = as_a<gphi *> (copy_and_subst (v));
+	      SET_USE (gimple_phi_arg_imm_use_ptr (replacement, i),
+		       subst_operand (new_arg));
 	    }
 	}
+      if (replacement)
+	finish_stmt (v, replacement);
     }
+}
+
+/* V is being replaced with something that may have a different value.
+   If that would change the result of any dependent statement,
+   make sure that that dependent statement will also be replaced.  */
+
+void
+backprop::propagate_change (var_info *v)
+{
+  use_operand_p use_p;
+  imm_use_iterator use_iter;
+  FOR_EACH_IMM_USE_FAST (use_p, use_iter, v->var)
+    {
+      tree lhs = gimple_get_lhs (USE_STMT (use_p));
+      if (const var_info *lhsv = lookup_operand (lhs))
+	if (lhsv->new_value == lhsv->var)
+	  bitmap_set_bit (m_this_worklist, lhsv->index);
+    }
+}
+
+/* Implement the scheduled replacement for V.  */
+
+void
+backprop::commit_replacement (var_info *v)
+{
+  if (MAY_HAVE_DEBUG_BIND_STMTS)
+    insert_debug_temp_for_var_def (NULL, v->var);
+
+  gimple *stmt = SSA_NAME_DEF_STMT (v->var);
+  use_operand_p use_p;
+  imm_use_iterator iterator;
+  FOR_EACH_IMM_USE_STMT (stmt, iterator, v->var)
+    {
+      FOR_EACH_IMM_USE_ON_STMT (use_p, iterator)
+	SET_USE (use_p, v->new_value);
+      update_stmt (stmt);
+    }
+
+  gimple_stmt_iterator gsi = gsi_for_stmt (SSA_NAME_DEF_STMT (v->var));
+  if (v->seq)
+    gsi_replace_with_seq_vops (&gsi, v->seq);
+  else
+    remove_dead_stmt (&gsi, true);
 }
 
 void
@@ -943,29 +1074,60 @@ backprop::execute ()
       while (!bitmap_empty_p (m_this_worklist));
     }
 
-  if (dump_file && (dump_flags & TDF_DETAILS))
-    fprintf (dump_file, "\n");
-
-  /* Phase 3: Do a reverse post-order walk, using information about
-     the uses of SSA names to optimize their definitions.  */
+  /* Phase 3: Do a reverse post-order walk, using information about the uses of
+     SSA names to see whether computing a different value would be simpler and
+     would have the same effect.  Start to compute the transitive closure of
+     SSA names whose definitions are due to be replaced with new
+     calculations.  */
+  bitmap_clear (m_this_worklist);
   for (unsigned int i = m_vars.length (); i-- > 0;)
     if (var_info *v = m_vars[i])
       {
 	gimple *stmt = SSA_NAME_DEF_STMT (v->var);
 	if (gcall *call = dyn_cast <gcall *> (stmt))
-	  optimize_builtin_call (call, v->var, &v->info);
+	  optimize_builtin_call (call, v);
 	else if (gassign *assign = dyn_cast <gassign *> (stmt))
-	  optimize_assign (assign, v->var, &v->info);
+	  optimize_assign (assign, v);
 	else if (gphi *phi = dyn_cast <gphi *> (stmt))
-	  optimize_phi (phi, v->var, &v->info);
+	  optimize_phi (phi, v);
+
+	if (bitmap_clear_bit (m_this_worklist, v->index))
+	  if (v->new_value == v->var)
+	    finish_stmt (v, copy_and_subst (v));
+
+	if (v->new_value != v->var)
+	  propagate_change (v);
       }
 
-  /* Phase 4: Do a post-order walk, deleting statements that are no
-     longer needed.  */
+  /* Complete the transitive closure started by the previous loop.  */
+  while (!bitmap_empty_p (m_this_worklist))
+    {
+      var_info *v = m_vars[bitmap_clear_last_set_bit (m_this_worklist)];
+      finish_stmt (v, copy_and_subst (v));
+      propagate_change (v);
+    }
+
+  if (dump_file && (dump_flags & TDF_DETAILS))
+    fprintf (dump_file, "\n");
+
+  /* Phase 4: Do a post-order walk, creating debug bind expressions for
+     SSA names that are about to disappear.  Replace all non-debug uses
+     of old SSA names with uses of whatever calculation is replacing them.  */
   for (unsigned int i = 0; i < m_vars.length (); ++i)
     if (var_info *v = m_vars[i])
-      if (has_zero_uses (v->var))
-	remove_unused_var (v->var);
+      if (v->var != v->new_value)
+	commit_replacement (v);
+
+  /* Phase 5: Remove any statements that might have become dead.  */
+  for (unsigned int i = 0; i < m_vars.length (); ++i)
+    if (var_info *v = m_vars[i])
+      if (TREE_CODE (v->new_value) == SSA_NAME
+	  && has_zero_uses (v->new_value))
+	{
+	  gimple *stmt = SSA_NAME_DEF_STMT (v->new_value);
+	  gimple_stmt_iterator gsi = gsi_for_stmt (stmt);
+	  remove_dead_stmt (&gsi);
+	}
 
   if (dump_file && (dump_flags & TDF_DETAILS))
     fprintf (dump_file, "\n");
