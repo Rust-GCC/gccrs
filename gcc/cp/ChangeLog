@@ -1,3 +1,20 @@
+2026-06-01  Joe Natter  <johannes.natter@outlook.at>
+
+	PR c++/125422
+	* init.cc (build_new_1): Avoid building a null-check
+	COND_EXPR when rval == data_addr.
+
+2026-06-01  yxj-github-437  <2457369732@qq.com>
+
+	* module.cc (module_state_config::get_dialect): Add reflection
+	dialect.
+
+2026-06-01  Eczbek  <eczbek.void@gmail.com>
+
+	PR c++/125317
+	* parser.cc (cp_parser_requirement_body): Set
+	parser->greater_than_is_operator_p.
+
 2026-05-30  Jakub Jelinek  <jakub@redhat.com>
 
 	PR c++/125123

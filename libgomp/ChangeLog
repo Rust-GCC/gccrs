@@ -1,3 +1,149 @@
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/gcn/simple-bar.h: Fix typos.
+	* config/linux/futex.h: Likewise.
+	* config/nvptx/bar.c (gomp_team_barrier_cancel): Likewise.
+	* config/nvptx/bar.h (gomp_team_barrier_wake): Likewise.
+	* config/nvptx/simple-bar.h: Likewise.
+	* config/posix/sem.c: Likewise.
+	* config/posix/sem.h: Likewise.
+	* config/posix/simple-bar.h: Likewise.
+
+2026-06-01  Arsen Arsenović  <aarsenovic@baylibre.com>
+
+	* oacc-mem.c (goacc_enter_datum): Assert that tgt_offset of the
+	newly-mapped variable is zero.
+
+2026-06-01  Arsen Arsenović  <aarsenovic@baylibre.com>
+
+	* plugin/plugin-gcn.c (struct kernel_dispatch): Store
+	hsa_signal_t, rather than a uint64_t, so that we don't rely on
+	knowledge of the contents of hsa_signal_t.
+	(create_kernel_dispatch): Rename...
+	(prepare_kernel_dispatch): ... to this, as it no longer creates
+	a kernel dispatch.  The allocation that would've created it is
+	hoisted...
+	(run_kernel): ... here, as an automatic variable.  Move logic
+	that copies the fields of kernel_dispatch...
+	(populate_packet_from_dispatch): ... into this standalone
+	function, to make it clearer.
+	(release_kernel_dispatch): Rename....
+	(cleanup_kernel_dispatch): ... to this, don't free 'shadow'.
+
+2026-06-01  Arsen Arsenović  <aarsenovic@baylibre.com>
+
+	* libgomp-plugin.h (GOMP_OFFLOAD_run, GOMP_OFFLOAD_exec)
+	(GOMP_OFFLOAD_async_run, GOMP_OFFLOAD_openacc_async_exec): Pass
+	session in place of target variable table and devices.
+	(struct gomp_offload_session): New.
+	(GOMP_OFFLOAD_session_size): New
+	(GOMP_OFFLOAD_check_session_struct): New.
+	(GOMP_OFFLOAD_session_boilerplate): New.
+	(GOMP_OFFLOAD_session_start): New.
+	(GOMP_OFFLOAD_session_allocate_target_var_table): New.
+	(GOMP_OFFLOAD_session_set_target_var_table): New.
+	* libgomp.h (struct gomp_target_task): Add offload_session
+	field.
+	(struct gomp_device_descr): Add offload session management
+	functions.
+	(gomp_offload_session_new): New.
+	(goacc_map_vars): Add SESSION to signature
+	* oacc-host.c (struct gomp_offload_session): Define, for host
+	offload fallback case.
+	(host_session_size): New.  Implements GOMP_OFFLOAD_session_size.
+	(host_session_start): New.  Implements
+	GOMP_OFFLOAD_session_start.
+	(host_session_set_target_var_table): New.  Implements
+	GOMP_OFFLOAD_session_set_target_var_table.
+	(host_run): Adjust to match GOMP_OFFLOAD_run.
+	(host_openacc_exec): Adjust to match GOMP_OFFLOAD_openacc_exec.
+	(host_openacc_async_exec): Adjust to match
+	GOMP_OFFLOAD_openacc_async_exec.
+	* oacc-mem.c (acc_map_data): Adjust call to goacc_map_vars.
+	(goacc_enter_datum): Ditto.
+	(goacc_enter_data_internal): Ditto.
+	* oacc-parallel.c (GOACC_parallel_keyed): Allocate and pass
+	offload session.
+	(GOACC_data_start): Adjust call to goacc_map_vars.
+	* plugin/plugin-gcn.c (struct kernel_dispatch): Remove
+	kernarg_cache_node.
+	(struct kernargs): Add a flexible array member for the target
+	variable table.
+	(struct kernel_launch): Store an offload session rather than
+	target var. table pointer.
+	(print_kernel_dispatch): Receive kernargs as parameter.
+	(struct gomp_offload_session): Define.
+	(init_session): New.
+	(GOMP_OFFLOAD_session_start): Implement, using init_session.
+	(release_session): New.
+	(alloc_kernargs_on_agent): Rename to...
+	(allocate_session_kernargs): ... this, store result in
+	passed-in SESSION, and allocate extra room for target variable
+	table (rounding it up to nearest multiple of 64 pointers).
+	(GOMP_OFFLOAD_session_allocate_target_var_table): Implement
+	using the previous function.
+	(GOMP_OFFLOAD_session_set_target_var_table): Ditto.
+	(create_kernel_dispatch): Remove kernarg allocation, instead
+	receiving it as an argument.
+	(release_kernel_dispatch): Receive kernargs as an argument,
+	don't release them.
+	(run_kernel): Adjust to use sessions.
+	(destroy_module): Ditto.
+	(GOMP_OFFLOAD_load_image): Ditto.
+	(execute_queue_entry): Adjust to match changed struct
+	kernel_launch.
+	(queue_push_launch): Ditto.
+	(gcn_exec): Receive and pass along session.
+	(GOMP_OFFLOAD_run): Ditto.
+	(GOMP_OFFLOAD_async_run): Ditto.
+	(GOMP_OFFLOAD_openacc_exec): Ditto.
+	(GOMP_OFFLOAD_openacc_async_exec): Ditto.
+	* plugin/plugin-nvptx.c (struct gomp_offload_session): Define.
+	(GOMP_OFFLOAD_session_start): Implement.
+	(GOMP_OFFLOAD_session_set_target_var_table): Implement.
+	(GOMP_OFFLOAD_openacc_exec): Adjust to receive session.
+	(GOMP_OFFLOAD_openacc_async_exec): Ditto.
+	(GOMP_OFFLOAD_run): Ditto.
+	* target.c (gomp_get_tvt_size): Extract helper from...
+	(gomp_map_vars_internal): ... here.  Receive SESSION, iff doing
+	target offload.  Use a target variable table on the host
+	allocated by GOMP_OFFLOAD_session_allocate_target_var_table if
+	possible, or call GOMP_OFFLOAD_session_set_target_var_table with
+	an allocated device pointer otherwise.
+	(gomp_map_vars): Update to pass along session.
+	(goacc_map_vars): Ditto.
+	(GOMP_target): Allocate and pass along session.
+	(GOMP_target_ext): Ditto.
+	(gomp_target_data_fallback): Adjust call to gomp_map_vars.
+	(GOMP_target_data): Ditto.
+	(GOMP_target_data_ext): Ditto.
+	(GOMP_target_enter_exit_data): Ditto.
+	(gomp_target_task_fn): Start and pass along session, the storage
+	for which is allocated by gomp_create_target_task.
+	(DLSYM2): Rename from DLSYM, adding a new parameter for the
+	variable to populate, akin to DLSYM_OPT.
+	(DLSYM): Delegate to DLSYM2.
+	(gomp_load_plugin_for_device): Populate session-related fields.
+	* task.c (gomp_create_target_task): Allocate enough storage for
+	an offload session.
+	* testsuite/libgomp.c-c++-common/gcn-kernel-launch-no-tvt-alloc.c: New test.
+	* testsuite/libgomp.c-c++-common/gcn-kernel-launch-tvt-alloc.c: New test.
+
+2026-06-01  Arsen Arsenović  <aarsenovic@baylibre.com>
+
+	* libgomp.h (struct gomp_thread_start_data): New struct.  Holds
+	thread-independent parameters needed to initialize current
+	thread.
+	(struct gomp_team): On GCN, add thr_start_data field, that holds
+	a gomp_thread_start_data to be used in each thread.
+	(struct gomp_thread): Add start_data field, that points to
+	thread initialization parameters.
+	* config/gcn/team.c (gomp_team_start): Move thread
+	initialization steps into ...
+	(gomp_prep_our_thread): this new function, such that it reads
+	from a gomp_thread_start_data object.
+	(gomp_thread_start): Call the above to initialize our thread.
+
 2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* configure: Regenerate.

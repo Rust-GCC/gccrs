@@ -1,3 +1,43 @@
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/s390/tpf-unwind.h (s390_fallback_frame_state): Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/pa/linux-atomic.c: Fix typos.
+	* config/pa/sync-libfuncs.c: Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/nvptx/atomic.c: Fix typos.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/nds32/initfini.c: Fix typos.
+	* config/nds32/linux-atomic.c: Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/mips/linux-unwind.h (mips_fallback_frame_state): Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/arm/fp16.c (__gnu_float2h_internal): Fix typos.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/arc/ieee-754/divtab-arc-df.c: Fix typos.
+	* config/arc/ieee-754/divtab-arc-sf.c: Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/alpha/vms-unwind.h (alpha_vms_fallback_frame_state): Fix typos.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/aarch64/aarch64-unwind.h (aarch64_demangle_return_addr): Fix
+	typos.
+
 2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* fixed-bit.c: Fix typos.

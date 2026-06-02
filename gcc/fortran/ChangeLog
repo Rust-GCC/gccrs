@@ -1,3 +1,30 @@
+2026-06-01  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/125527
+	* class.cc (gfc_find_derived_vtab): Stop the top-level namespace
+	walk at module/submodule boundaries to avoid escaping a submodule
+	into its ancestor module namespace.
+	* openmp.cc (gfc_omp_requires_add_clause): Likewise; treat the
+	submodule as its own program unit for OMP REQUIRES.
+	(gfc_match_omp_requires): Likewise; allow OMP REQUIRES in a submodule
+	spec part even when gfc_current_ns->parent is now non-NULL.
+	(gfc_match_omp_atomic): Likewise.
+	* parse.cc (parse_module): After processing USE statements and
+	host-association traversal, link the submodule namespace to its
+	ancestor module namespace so internal subprograms are visible via
+	host association (Fortran 2018, 14.6.1.3).
+	(clean_up_modules): Reset gfc_current_ns->parent before gfc_done_2
+	to prevent double-free of the ancestor module namespace.
+
+2026-06-01  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/125481
+	* interface.cc (gfc_compare_actual_formal): Add missing check that
+	rejects a procedure-pointer actual argument corresponding to a
+	data-object dummy argument (F23:15.5.2.5, para 2).  Restrict to
+	EXPR_VARIABLE to avoid false positives on calls through procedure
+	pointer components.
+
 2026-05-30  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
 
 	PR fortran/105582

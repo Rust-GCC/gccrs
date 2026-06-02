@@ -1,3 +1,135 @@
+2026-06-01  Yap Zhi Heng  <yapzhhg@gmail.com>
+
+	* parse/rust-parse-impl.hxx(parse_expr_stmt): Return error early when
+	parse_path_in_expression() returns an error node.
+
+2026-06-01  lishin  <lishin1008@gmail.com>
+
+	* util/rust-lang-item.h (Rust::LangItem::Kind): Add DROP.
+	* util/rust-lang-item.cc (Rust::LangItem::lang_items): Add drop lang item.
+
+2026-06-01  Jean-Christian CÎRSTEA  <jean-christian.cirstea@tuta.com>
+
+	* backend/rust-intrinsic-handlers.cc
+	(check_for_basic_integer_type): Fixed typo.
+	(build_atomic_builtin_name): Update message.
+	(unchecked_op, atomic_store, ctlz_handler)
+	(cttz_handler, bswap_handler): Use call location.
+
+2026-06-01  Islam-Imad  <islamimad404@gmail.com>
+
+	* backend/rust-compile-expr.cc (CompileExpr::visit): Lower labeled block.
+	(CompileExpr::construct_block_label): Utility function to construct block label.
+	(CompileExpr::lookup_label): Utility function to lookup label.
+	(CompileExpr::lookup_temp_var): Utility function to lookup block temp variables.
+	(CompileExpr::resolve_util): Utility to resolve NodeId to HirId.
+	* backend/rust-compile-expr.h: Header functions.
+	* resolve/rust-late-name-resolver-2.0.cc (Late::visit): Fix label resolution.
+
+2026-06-01  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* hir/tree/rust-hir-visibility.h: Switch Visibility::VisType to an enum class, adapt
+	variants' case.
+	* backend/rust-compile-base.cc (HIRCompileBase::setup_fndecl): Use the new enum API.
+	* backend/rust-compile-implitem.cc (CompileTraitItem::visit): Likewise.
+	* checks/errors/privacy/rust-visibility-resolver.cc
+	(VisibilityResolver::resolve_visibility): Likewise.
+	* hir/rust-ast-lower.cc (translate_visibility): Likewise.
+	* hir/tree/rust-hir.cc (Visibility::to_string): Likewise.
+	* metadata/rust-export-metadata.cc (PublicInterface::is_crate_public): Likewise.
+	* util/rust-hir-map.cc (Mappings::Mappings): Likewise.
+
+2026-06-01  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* checks/errors/feature/rust-feature-gate.cc (FeatureGate::visit): Add
+	a feature gate around rustc_const_stable attributes.
+
+2026-06-01  Enes Cevik  <nsvke@proton.me>
+
+	* lex/rust-lex.cc (Lexer::parse_non_decimal_int_literal): Emit E0768.
+
+2026-06-01  Enes Cevik  <nsvke@proton.me>
+
+	* ast/rust-ast-collector.cc (TokenCollector::visit): Update Token::make_int and
+	Token::make_float calls to include suffix_start and IntegerLiteralBase::Decimal.
+	* expand/rust-macro-builtins-location.cc (MacroBuiltin::column_handler): Pass string
+	length and base to Token::make_int.
+	(MacroBuiltin::line_handler): Likewise.
+	* lex/rust-lex.cc (Lexer::parse_in_type_suffix): Rename to parse_in_suffix and return
+	string instead of PrimitiveCoreType.
+	(Lexer::parse_in_suffix): Remove underscore stripping to preserve source fidelity for
+	macros.
+	(Lexer::parse_in_exponent_part): Preserve '+' and '-' characters in the raw string.
+	(Lexer::parse_in_decimal): Remove underscore stripping.
+	(Lexer::parse_non_decimal_int_literal): Track suffix start index and pass literal base.
+	(Lexer::parse_non_decimal_int_literals): Use IntegerLiteralBase enum values instead of
+	raw integers.
+	(Lexer::parse_decimal_int_or_float): Track suffix string length and pass base parameters
+	to token creation.
+	* lex/rust-lex.h: Update method signatures for suffix parsing.
+	* lex/rust-token.h (enum class IntegerLiteralBase): New enum to represent numeric bases.
+	* parse/rust-parse-impl-expr.hxx: use LiteralResolve functions to evaluate raw token
+	strings.
+	* parse/rust-parse-impl-pattern.hxx: Use evaluated literal strings for INT and FLOAT
+	tokens.
+	* parse/rust-parse.cc (resolve_literal_suffix): Move suffix validation logic from lexer
+	to parser.
+	(evaluate_integer_literal): New function to strip underscores and convert to decimal via
+	GMP.
+	(evaluate_float_literal): New function to strip underscores from floats.
+	* parse/rust-parse.h (evaluate_integer_literal): Declare in LiteralResolve namespace.
+	(evaluate_float_literal): Likewise.
+	(resolve_literal_suffix): Likewise.
+	* util/rust-token-converter.cc (from_literal): Safely reconstruct raw text and suffix to
+	dynamically determine base and suffix_start for ProcMacros.
+
+2026-06-01  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* resolve/rust-name-resolution-context.hxx: Do segment resolution in types NS for more
+	correctness and correct behavior when later resolving paths that use imports and/or
+	modules.
+
+2026-06-01  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* resolve/rust-forever-stack.h: Move declarations from ForeverStack to NRCtx, make most
+	of the ForeverStack members public as it helps the Ctx a lot.
+	* resolve/rust-forever-stack.hxx: Move implementation of resolve_path methods to NRCtx.
+	* resolve/rust-name-resolution-context.h: Declare resolve_path methods.
+	* resolve/rust-name-resolution-context.hxx: New file with resolve_path impls.
+
+2026-06-01  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* expand/rust-macro-builtins-log-debug.cc (MacroBuiltin::assert_handler):
+	Add basic assert builtin macro handler.
+
+2026-06-01  lishin  <lishin1008@gmail.com>
+
+	* hir/tree/rust-hir-item.cc (TraitFunctionDecl::TraitFunctionDecl):
+	Handle null return types in copy constructor.
+	(TraitFunctionDecl::operator=): Likewise.
+
+2026-06-01  Owen Avery  <powerboat9.gamer@gmail.com>
+
+	* util/rust-attributes.cc (__definitions): Add entries for warn
+	and deny attributes.
+
+2026-06-01  Harishankar  <harishankarpp7@gmail.com>
+
+	* expand/rust-cfg-strip.cc (CfgStrip::visit): mark CallExpr for
+	strip when function expression fails stripping.
+	(CfgStrip::visit): mark ArrayIndexExpr for strip when array or
+	index expression fails stripping.
+
+2026-06-01  Islam-Imad  <islamimad404@gmail.com>
+
+	* backend/rust-compile-expr.cc (CompileExpr::visit): Emit the
+	missing assignment for CompoundAssignmentExpr.
+
+2026-06-01  fisnikhasani  <242628373+fisnikhasani@users.noreply.github.com>
+
+	* lang.opt (flag_name_resolution_2_0): Remove.
+	* resolve/rust-name-resolver.cc: Remove include.
+
 2026-05-29  Marc Poulhiès  <dkm@kataplop.net>
 	    Andreas Schwab  <schwab@linux-m68k.org>
 

@@ -1,3 +1,8 @@
+2026-06-01  Arsen Arsenović  <aarsenovic@baylibre.com>
+
+	* gomp-constants.h (GOMP_VERSION): Bump.  Signature of
+	GOMP_OFFLOAD_run et al changed.
+
 2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* hsa.h: Reflow long line.

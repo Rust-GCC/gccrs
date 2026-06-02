@@ -1,3 +1,9 @@
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* libf7.c (f7_addsub): Likewise.
+	(f7_madd_msub): Likewise.
+	* libf7.h (f7_Ildexp): Likewise.
+
 2026-05-28  Georg-Johann Lay  <avr@gjlay.de>
 
 	* libf7.h: Add "[len=...]]" notes to all non-empty inline asm's.

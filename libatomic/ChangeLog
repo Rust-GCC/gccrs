@@ -1,3 +1,8 @@
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/mingw/lock.c: Fix typos.
+	* config/posix/lock.c: Likewise.
+
 2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* acinclude.m4: Fix typos.

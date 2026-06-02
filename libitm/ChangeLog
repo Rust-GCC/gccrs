@@ -1,3 +1,7 @@
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/linux/futex_bits.h: Fix typo.
+
 2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* configure: Regenerate.

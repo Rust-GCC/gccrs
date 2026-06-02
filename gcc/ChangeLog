@@ -1,3 +1,814 @@
+2026-06-01  Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	PR target/122827
+	* config/aarch64/aarch64.cc (aarch64_hard_regno_call_part_clobbered):
+	For SVE modes use BYTES_PER_SVE_VECTOR for the per-register size
+	rather than GET_MODE_SIZE.
+	* config/aarch64/aarch64-early-ra.cc (early_ra::get_allocno_subgroup):
+	Classify any SVE mode as FPR_Z.
+
+2026-06-01  Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	* config/aarch64/tuning_models/olympus.h (olympus_scalar_issue_info,
+	olympus_advsimd_issue_info, olympus_sve_issue_info): Set
+	loads_stores_per_cycle to 6.
+
+2026-06-01  Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	* config/aarch64/tuning_models/olympus.h (olympus_tunings):
+	Adjust loop_align, function_align, jump_align.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/arm/arm-mve-builtins-shapes.cc (struct viddup_def):
+	Re-flow comment.
+	(struct vidwdup_def): Likewise.
+	* config/arm/arm.cc (arm_mve_check_reg_origin_is_num_elems): Likewise.
+	* config/loongarch/sync.md: Likewise.
+	* config/microblaze/microblaze.cc (compute_frame_size): Likewise.
+	* config/rs6000/rs6000-call.cc (rs6000_gimplify_va_arg): Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/darwin-c.cc (find_subframework_header): Fix typos.
+	* config/darwin-driver.cc (darwin_find_version_from_kernel): Likewise.
+	* config/darwin.cc (darwin_label_is_anonymous_local_objc_name): Likewise.
+	(fprintf): Likewise.
+	* config/sol2-stubs.cc: Likewise.
+	* config/sol2.cc (solaris_elf_asm_comdat_section): Likewise.
+	* config/sol2.h: Likewise.
+	* config/vx-common.h: Likewise.
+	* config/vxworks.h (vxworks_asm_out_destructor): Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/xtensa/xtensa.cc (xtensa_legitimize_address): Fix typos.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/vms/vms-c.cc (enum extern_model_kind): Fix typos.
+	(vms_pragma_message): Likewise.
+	(vms_c_register_includes): Likewise.
+	* config/vms/vms.cc (vms_function_section): Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/visium/visium.h (CASE_VECTOR_PC_RELATIVE): Fix typos.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/vax/vax.cc (vax_expand_addsub_di_operands): Fix typos.
+	* config/vax/vax.h (PRINT_OPERAND_ADDRESS): Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/sparc/freebsd.h: Fix typos.
+	* config/sparc/sparc.cc (emit_scc_insn): Likewise.
+	(sparc_emit_membar_for_model): Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/sh/sh-mem.cc (sh_expand_cmpstr): Fix typos.
+	* config/sh/sh.cc (sh_option_override): Likewise.
+	(sh_rtx_costs): Likewise.
+	(fixup_addr_diff_vecs): Likewise.
+	(sh_expand_epilogue): Likewise.
+	(sh_legitimize_address_displacement): Likewise.
+	(sh_can_use_simple_return_p): Likewise.
+	(sh_find_equiv_gbr_addr): Likewise.
+	(sh_check_add_incdec_notes): Likewise.
+	* config/sh/sh.md: Likewise.
+	* config/sh/sh4-300.md: Likewise.
+	* config/sh/sh_treg_combine.cc (sh_treg_combine::try_combine_comparisons): Likewise.
+	(sh_treg_combine::try_eliminate_cstores): Likewise.
+	* config/sh/sync.md: Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/rx/rx.cc (rx_print_operand): Fix typos.
+	(rx_expand_epilogue): Likewise.
+	* config/rx/rx.md: Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/s390/2817.md: Fix typos.
+	* config/s390/s390.cc (s390_contiguous_bitmask_nowrap_p): Likewise.
+	(s390_contiguous_bitmask_p): Likewise.
+	(s390_short_displacement): Likewise.
+	(s390_expand_cmpmem): Likewise.
+	(s390_expand_vec_movstr): Likewise.
+	(s390_expand_cstoreti4): Likewise.
+	(s390_expand_int_spaceship): Likewise.
+	(s390_z10_optimize_cmp): Likewise.
+	(s390_support_vector_misalignment): Likewise.
+	* config/s390/s390.h (NO_FUNCTION_CSE): Likewise.
+	* config/s390/s390.md: Likewise.
+	* config/s390/subst.md: Likewise.
+	* config/s390/vx-builtins.md: Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/rs6000/aix.h: Fix typos.
+	* config/rs6000/cell.md: Likewise.
+	* config/rs6000/darwin.h: Likewise.
+	* config/rs6000/mmintrin.h: Likewise.
+	* config/rs6000/rs6000-call.cc (rs6000_gimplify_va_arg): Likewise.
+	* config/rs6000/rs6000-internal.h: Likewise.
+	* config/rs6000/rs6000-logue.cc (is_altivec_return_reg): Likewise.
+	(rs6000_output_function_prologue): Likewise.
+	* config/rs6000/rs6000-p8swap.cc (quad_aligned_store_p): Likewise.
+	(const_load_sequence_p): Likewise.
+	(replace_swapped_aligned_store): Likewise.
+	* config/rs6000/rs6000-passes.def: Likewise.
+	* config/rs6000/rs6000-string.cc (expand_cmp_vec_sequence): Likewise.
+	(expand_compare_loop): Likewise.
+	* config/rs6000/rs6000.cc (rs6000_debug_addr_mask): Likewise.
+	(rs6000_setup_reg_addr_masks): Likewise.
+	(darwin_rs6000_override_options): Likewise.
+	(rs6000_option_override_internal): Likewise.
+	(rs6000_cost_data::determine_suggested_unroll_factor): Likewise.
+	(rs6000_cannot_force_const_mem): Likewise.
+	(rs6000_emit_le_vsx_move): Likewise.
+	(rs6000_secondary_reload_memory): Likewise.
+	(rs6000_reverse_condition): Likewise.
+	(rs6000_expand_float128_convert): Likewise.
+	(rs6000_adjust_atomic_subword): Likewise.
+	(rs6000_expand_atomic_op): Likewise.
+	(rs6000_xcoff_declare_object_name): Likewise.
+	(output_pcrel_opt_reloc): Likewise.
+	(rs6000_set_up_by_prologue): Likewise.
+	(rs6000_split_logical_inner): Likewise.
+	(rs6000_split_multireg_move): Likewise.
+	* config/rs6000/rs6000.h: Likewise.
+	* config/rs6000/rs6000.md: Likewise.
+	* config/rs6000/sync.md: Likewise.
+	* config/rs6000/vector.md: Likewise.
+	* config/rs6000/vsx.md: Likewise.
+	* config/rs6000/vxworks.h: Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/rl78/rl78.cc (rl78_alloc_physical_registers): Fix typos.
+	(set_origin): Likewise.
+	(rl78_remove_unused_sets): Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/pdp11/pdp11.cc (pdp11_insn_cost): Fix typo.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* common/config/riscv/riscv-common.cc (riscv_subset_list::add): Fix
+	typos.
+	(riscv_subset_list::parse_single_multiletter_ext): Likewise.
+	(riscv_subset_list::set_loc): Likewise.
+	(riscv_arch_str): Likewise.
+	* config/riscv/riscv-avlprop.cc: Likewise.
+	* config/riscv/riscv-bclr-lowest-set-bit.cc (find_later_ctz): Likewise.
+	* config/riscv/riscv-ext-andes.def: Likewise.
+	* config/riscv/riscv-ext.def: Likewise.
+	* config/riscv/riscv-profiles.def: Likewise.
+	* config/riscv/riscv-selftests.cc (run_const_vector_selftests): Likewise.
+	(run_broadcast_selftests): Likewise.
+	(riscv_run_selftests): Likewise.
+	* config/riscv/riscv-string.cc (riscv_expand_strcmp): Likewise.
+	* config/riscv/riscv-v.cc (shuffle_decompress_patterns): Likewise.
+	(vls_mode_valid_p): Likewise.
+	* config/riscv/riscv-vect-permconst.cc (vector_permconst::process_bb): Likewise.
+	* config/riscv/riscv-vector-builtins.cc (riscv_pragma_intrinsic_flags_pollute): Likewise.
+	* config/riscv/riscv-vsetvl.cc: Likewise.
+	* config/riscv/riscv-zicfilp.cc: Likewise.
+	* config/riscv/riscv.cc (riscv_expand_mult_with_const_int): Likewise.
+	(riscv_rtx_costs): Likewise.
+	(riscv_address_cost): Likewise.
+	(riscv_vls_cc_function_abi): Likewise.
+	(riscv_frm_mode_needed): Likewise.
+	(dispatch_function_versions): Likewise.
+	* config/riscv/riscv.h (DWARF_REG_TO_UNWIND_COLUMN): Likewise.
+	* config/riscv/riscv.md: Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/pa/pa.cc (pa_assemble_integer): Fix typos.
+	(pa_can_change_mode_class): Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/or1k/or1k.cc (or1k_strict_argument_naming): Fix typos.
+	(or1k_print_operand_address): Likewise.
+	* config/or1k/or1k.md: Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/nvptx/nvptx.cc (nvptx_option_override): Fix typos.
+	(nvptx_assemble_undefined_decl): Likewise.
+	(nvptx_mem_maybe_shared_p): Likewise.
+	(nvptx_discover_pars): Likewise.
+	(verify_neutering_labels): Likewise.
+	(nvptx_condjump_label): Likewise.
+	(nvptx_lockfull_update): Likewise.
+	* config/nvptx/nvptx.md: Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* common/config/nds32/nds32-common.cc (nds32_except_unwind_info): Fix
+	typos.
+	* config/nds32/constants.md: Likewise.
+	* config/nds32/constraints.md: Likewise.
+	* config/nds32/nds32-cost.cc (nds32_rtx_costs_speed_prefer): Likewise.
+	* config/nds32/nds32-dspext.md: Likewise.
+	* config/nds32/nds32-e8.md: Likewise.
+	* config/nds32/nds32-fp-as-gp.cc (nds32_fp_as_gp_check_available): Likewise.
+	* config/nds32/nds32-intrinsic.cc (nds32_expand_priority_builtin): Likewise.
+	* config/nds32/nds32-isr.cc (nds32_emit_isr_vector_section): Likewise.
+	(nds32_asm_file_end_for_isr): Likewise.
+	* config/nds32/nds32-md-auxiliary.cc (output_cond_branch): Likewise.
+	(nds32_expand_cbranch): Likewise.
+	(nds32_expand_float_cstore): Likewise.
+	(nds32_expand_movcc): Likewise.
+	(nds32_output_stack_pop): Likewise.
+	(nds32_output_return): Likewise.
+	(nds32_split_sms): Likewise.
+	(nds32_legitimize_tls_address): Likewise.
+	* config/nds32/nds32-memory-manipulation.cc (nds32_expand_cpymemsi_unroll): Likewise.
+	(nds32_expand_load_multiple): Likewise.
+	* config/nds32/nds32-multiple.md: Likewise.
+	* config/nds32/nds32-n7.md: Likewise.
+	* config/nds32/nds32-n8.md: Likewise.
+	* config/nds32/nds32-n9-2r1w.md: Likewise.
+	* config/nds32/nds32-pipelines-auxiliary.cc (extract_nth_access_reg): Likewise.
+	(pbsada_insn_ra_rb_dep_reg_p): Likewise.
+	* config/nds32/nds32-predicates.cc (nds32_can_use_bset_p): Likewise.
+	(nds32_can_use_btgl_p): Likewise.
+	(nds32_symbol_load_store_p): Likewise.
+	* config/nds32/nds32-protos.h (nds32_cond_move_p): Likewise.
+	(nds32_mem_format): Likewise.
+	* config/nds32/nds32-relax-opt.cc (nds32_plus_reg_load_store_p): Likewise.
+	* config/nds32/nds32-utils.cc (extract_offset_rtx): Likewise.
+	* config/nds32/nds32.cc (nds32_compute_stack_frame): Likewise.
+	(nds32_emit_stack_pop_multiple): Likewise.
+	(nds32_emit_stack_v3pop): Likewise.
+	(nds32_can_change_mode_class): Likewise.
+	(nds32_arg_partial_bytes): Likewise.
+	(nds32_function_ok_for_sibcall): Likewise.
+	(nds32_register_move_cost): Likewise.
+	(nds32_print_operand): Likewise.
+	(nds32_merge_decl_attributes): Likewise.
+	(nds32_insert_attributes): Likewise.
+	(nds32_init_libfuncs): Likewise.
+	(nds32_expand_epilogue_v3pop): Likewise.
+	(nds32_can_use_return_insn): Likewise.
+	(nds32_target_alignment): Likewise.
+	(nds32_split_double_word_load_store_p): Likewise.
+	* config/nds32/nds32.h (enum nds32_builtins): Likewise.
+	(CASE_VECTOR_MODE): Likewise.
+	* config/nds32/nds32.md: Likewise.
+	* config/nds32/nds32_intrinsic.h (__attribute__): Likewise.
+	* config/nds32/nds32_isr.h: Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/msp430/msp430-opts.h (enum msp430_cpu_types): Fix typos.
+	* config/msp430/msp430.cc (msp430_op_not_in_high_mem): Likewise.
+	* config/msp430/msp430.md: Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/mingw/winnt-cxx.cc (i386_pe_adjust_class_at_definition): Fix
+	typos.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/microblaze/microblaze.cc (struct microblaze_frame_info): Fix
+	typos.
+	(compute_frame_size): Likewise.
+	* config/microblaze/microblaze.h: Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/mcore/mcore.h: Fix typo.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/mips/driver-native.cc (host_detect_local_cpu): Fix typos.
+	* config/mips/mips-cpus.def (MIPS_CPU): Likewise.
+	* config/mips/mips.cc (mips_setup_incoming_varargs): Likewise.
+	(mips_function_ok_for_sibcall): Likewise.
+	(mips_expand_ext_as_unaligned_load): Likewise.
+	(mips_use_ins_ext_p): Likewise.
+	(mips_pop_asm_switch): Likewise.
+	(mips_cfun_has_inflexible_gp_ref_p): Likewise.
+	(mips_set_compression_mode): Likewise.
+	(mips_expand_vec_unpack): Likewise.
+	* config/mips/mips.h (while): Likewise.
+	* config/mips/mips.md: Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/m68k/cf.md: Fix typos.
+	* config/m68k/m68k.cc (m68k_unwrap_symbol): Likewise.
+	(m68k_adjust_decorated_operand): Likewise.
+	(m68k_call_tls_get_addr): Likewise.
+	(m68k_call_m68k_read_tp): Likewise.
+	(m68k_sched_attr_size): Likewise.
+	(m68k_sched_dfa_post_advance_cycle): Likewise.
+	(sched_mem_operand_p): Likewise.
+	(m68k_sched_address_bypass_p): Likewise.
+	* config/m68k/m68kelf.h: Likewise.
+	* config/m68k/netbsd-elf.h (REGISTER_PREFIX): Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/loongarch/lasx.md: Fix typos.
+	* config/loongarch/loongarch-builtins.cc: Likewise.
+	* config/loongarch/loongarch-c.cc (loongarch_pragma_target_parse): Likewise.
+	* config/loongarch/loongarch-opts.cc (loongarch_generate_mrecip_scheme): Likewise.
+	* config/loongarch/loongarch-opts.h (loongarch_config_target): Likewise.
+	* config/loongarch/loongarch.cc (loongarch_setup_incoming_varargs): Likewise.
+	(loongarch_build_integer): Likewise.
+	(loongarch_explicit_relocs_p): Likewise.
+	(loongarch_valid_lo_sum_p): Likewise.
+	(loongarch_addu16i_imm12_operand_p): Likewise.
+	(loongarch_rewrite_mem_for_simple_ldst): Likewise.
+	(loongarch_is_elem_duplicate): Likewise.
+	(loongarch_expand_vec_perm_const): Likewise.
+	(loongarch_sched_reassociation_width): Likewise.
+	(loongarch_expand_vec_unpack): Likewise.
+	(dispatch_function_versions): Likewise.
+	(loongarch_option_same_function_versions): Likewise.
+	* config/loongarch/loongarch.h: Likewise.
+	* config/loongarch/loongarch.md: Likewise.
+	* config/loongarch/lsx.md: Likewise.
+	* config/loongarch/predicates.md: Likewise.
+	* config/loongarch/simd.md: Likewise.
+	* config/loongarch/sync.md: Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/lm32/lm32.cc (lm32_compute_frame_size): Fix typos.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/ia64/ia64.cc (ia64_add_bundle_selector_before): Fix typos.
+	* config/ia64/itanium2.md: Likewise.
+	* config/ia64/sync.md: Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/i386/athlon.md: Fix typos.
+	* config/i386/avx512fintrin.h: Likewise.
+	* config/i386/btver2.md: Likewise.
+	* config/i386/c86-4g-m7.md: Likewise.
+	* config/i386/c86-4g.md: Likewise.
+	* config/i386/cygwin.h: Likewise.
+	* config/i386/i386-c.cc (ix86_target_macros_internal): Likewise.
+	* config/i386/i386-expand.cc (ix86_expand_branch): Likewise.
+	(ix86_expand_int_sse_cmp): Likewise.
+	(ix86_expand_vec_perm): Likewise.
+	(expand_small_cpymem_or_setmem): Likewise.
+	(ix86_copy_addr_to_reg): Likewise.
+	(ix86_expand_special_args_builtin): Likewise.
+	(ix86_expand_vector_init_interleave): Likewise.
+	(expand_vec_perm_shufps_shufps): Likewise.
+	(ix86_expand_sse2_mulvxdi3): Likewise.
+	(ix86_gen_ccmp_first): Likewise.
+	* config/i386/i386-features.cc (general_scalar_to_vector_candidate_p): Likewise.
+	(pass_x86_cse::x86_cse): Likewise.
+	(ix86_apx_nf_convert): Likewise.
+	(dispatch_function_versions): Likewise.
+	* config/i386/i386-features.h (class scalar_chain): Likewise.
+	* config/i386/i386-options.cc (ix86_function_specific_restore): Likewise.
+	(ix86_valid_target_attribute_tree): Likewise.
+	(ix86_override_options_after_change_1): Likewise.
+	(ix86_option_override_internal): Likewise.
+	* config/i386/i386.cc (ix86_can_inline_p): Likewise.
+	(ix86_function_regparm): Likewise.
+	(construct_container): Likewise.
+	(ix86_return_in_memory): Likewise.
+	(output_indirect_thunk): Likewise.
+	(ix86_compute_frame_layout): Likewise.
+	(choose_basereg): Likewise.
+	(ix86_emit_save_reg_using_mov): Likewise.
+	(pro_epilogue_adjust_stack): Likewise.
+	(ix86_expand_prologue): Likewise.
+	(ix86_emit_restore_sse_regs_using_mov): Likewise.
+	(ix86_memory_address_reg_class): Likewise.
+	(ix86_avx_u128_mode_after): Likewise.
+	(ix86_output_addr_diff_elt): Likewise.
+	(ix86_lea_outperforms): Likewise.
+	(ix86_avoid_lea_for_addr): Likewise.
+	(ix86_cc_modes_compatible): Likewise.
+	(add_parameter_dependencies): Likewise.
+	(ix86_data_alignment): Likewise.
+	(ix86_gimple_fold_builtin): Likewise.
+	(ix86_autovectorize_vector_modes): Likewise.
+	(ix86_max_noce_ifcvt_seq_cost): Likewise.
+	(ix86_vector_costs::add_stmt_cost): Likewise.
+	(ix86_vector_costs::finish_cost): Likewise.
+	(ix86_optab_supported_p): Likewise.
+	(ix86_push_rounding): Likewise.
+	* config/i386/i386.h (host_detect_local_cpu): Likewise.
+	(enum reg_class): Likewise.
+	* config/i386/i386.md: Likewise.
+	* config/i386/i386elf.h: Likewise.
+	* config/i386/predicates.md: Likewise.
+	* config/i386/sse.md: Likewise.
+	* config/i386/x86-tune-costs.h (struct processor_costs): Likewise.
+	* config/i386/x86-tune-sched-atom.cc (swap_top_of_ready_list): Likewise.
+	(ix86_atom_sched_reorder): Likewise.
+	* config/i386/x86-tune-sched-bd.cc (find_constant): Likewise.
+	* config/i386/x86-tune-sched.cc (exact_store_load_dependency): Likewise.
+	* config/i386/x86-tune.def (X86_TUNE_FUSE_MOV_AND_ALU): Likewise.
+	(X86_TUNE_PREFER_KNOWN_REP_MOVSB_STOSB): Likewise.
+	(X86_TUNE_DOUBLE_WITH_ADD): Likewise.
+	(X86_TUNE_PROMOTE_QIMODE): Likewise.
+	* config/i386/zn4zn5.md: Likewise.
+	* config/i386/znver.md: Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/gcn/constraints.md: Fix typos.
+	* config/gcn/gcn-opts.h (TARGET_ARCHITECTED_FLAT_SCRATCH): Likewise.
+	* config/gcn/gcn-valu.md: Likewise.
+	* config/gcn/gcn.cc (gcn_gen_undef): Likewise.
+	(gcn_addr_space_debug): Likewise.
+	(gcn_expand_prologue): Likewise.
+	(gcn_frame_pointer_rqd): Likewise.
+	* config/gcn/gcn.h (NUM_PARM_REGS): Likewise.
+	(enum gcn_builtin_codes): Likewise.
+	* config/gcn/gcn.md: Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/ft32/ft32.cc (ft32_init_machine_status): Fix typos.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/frv/frv-opts.h: Fix typos.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/fr30/fr30.cc (fr30_const_double_is_zero): Fix typos.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/epiphany/epiphany.cc (epiphany_expand_epilogue): Fix typos.
+	* config/epiphany/resolve-sw-modes.cc: Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/csky/csky.cc (csky_output_inline_const): Fix typos.
+	(emit_csky_regs_pop): Likewise.
+	(csky_return_in_memory): Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/c6x/c6x.cc (c6x_file_start): Fix typos.
+	(c6x_print_operand_address): Likewise.
+	(c6x_asm_emit_except_personality): Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/bpf/bpf.cc (bpf_asm_named_section): Fix typos.
+	* config/bpf/core-builtins.cc (remove_parser_plugin): Likewise.
+	(make_core_relo): Likewise.
+	(bpf_handle_plugin_finish_type): Likewise.
+	(bpf_output_core_reloc): Likewise.
+	(core_make_builtins): Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/bfin/bfin.cc (bfin_function_ok_for_sibcall): Fix typos.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* common/config/avr/avr-common.cc: Fix typos.
+	* config/avr/avr-passes.cc (size_to_mode): Likewise.
+	(struct absint_t): Likewise.
+	(plies_t::emit_sets): Likewise.
+	(avr_strict_unsigned_p): Likewise.
+	(avr_redundant_compare): Likewise.
+	(avr_optimize_casesi): Likewise.
+	(struct AVR_LdSt_Props): Likewise.
+	(avr_pass_split_nzb::split_nzb_insns): Likewise.
+	(make_avr_pass_fuse_move): Likewise.
+	* config/avr/avr.cc (avr_option_override): Likewise.
+	(avr_can_inline_p): Likewise.
+	(avr_expand_epilogue): Likewise.
+	(avr_init_cumulative_args): Likewise.
+	(reg_unused_after): Likewise.
+	(avr_out_lpm_no_lpmx): Likewise.
+	(avr_out_compare): Likewise.
+	(avr_out_plus_ext): Likewise.
+	(avr_out_fract): Likewise.
+	(avr_nonzero_bits_lsr_operands_p): Likewise.
+	* config/avr/avr.h (avr_no_devlib): Likewise.
+	(struct machine_function): Likewise.
+	* config/avr/avr.md: Likewise.
+	* config/avr/builtins.def (FLASH_SEGMENT): Likewise.
+	* config/avr/specs.h: Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* common/config/arm/arm-common.cc (arm_config_default): Fix typos.
+	(arm_canon_arch_option_1): Likewise.
+	* config/arm/aarch-bti-insert.cc (rest_of_insert_bti): Likewise.
+	* config/arm/arm-builtins.cc (MAC_LANE_PAIR_QUALIFIERS): Likewise.
+	(USMAC_LANE_QUADTUP_QUALIFIERS): Likewise.
+	* config/arm/arm-modes.def (ADJUST_FLOAT_FORMAT): Likewise.
+	* config/arm/arm-mve-builtins-base.cc: Likewise.
+	* config/arm/arm-mve-builtins-shapes.cc (struct binary_lshift_unsigned_def): Likewise.
+	(struct binary_maxamina_def): Likewise.
+	(struct viddup_def): Likewise.
+	(struct vidwdup_def): Likewise.
+	* config/arm/arm-protos.h (struct tune_params): Likewise.
+	* config/arm/arm.cc (arm_option_override_internal): Likewise.
+	(arm_option_override): Likewise.
+	(optimal_immediate_sequence_1): Likewise.
+	(arm_pcs_from_attribute): Likewise.
+	(aapcs_vfp_advance): Likewise.
+	(aapcs_layout_arg): Likewise.
+	(arm_init_cumulative_args): Likewise.
+	(arm_rtx_costs_internal): Likewise.
+	(mve_bool_vec_to_const): Likewise.
+	(operands_ok_ldrd_strd): Likewise.
+	(emit_multi_reg_push): Likewise.
+	(arm_emit_vfp_multi_reg_pop): Likewise.
+	(thumb2_emit_ldrd_pop): Likewise.
+	(arm_print_condition): Likewise.
+	(get_arm_condition_code): Likewise.
+	(thumb_pop): Likewise.
+	(arm_print_asm_arch_directives): Likewise.
+	(arm_debugger_regno): Likewise.
+	(arm_target_bb_ok_for_lob): Likewise.
+	(arm_mve_load_store_insn_p): Likewise.
+	(arm_mve_check_reg_origin_is_num_elems): Likewise.
+	(arm_mve_dlstp_check_dec_counter): Likewise.
+	(arm_mve_loop_valid_for_dlstp): Likewise.
+	(arm_loop_unroll_adjust): Likewise.
+	* config/arm/arm.h (ROUND_UP_WORD): Likewise.
+	* config/arm/arm.md: Likewise.
+	* config/arm/constraints.md: Likewise.
+	* config/arm/cortex-a17-neon.md: Likewise.
+	* config/arm/cortex-r4f.md: Likewise.
+	* config/arm/crypto.md: Likewise.
+	* config/arm/elf.h: Likewise.
+	* config/arm/fa726te.md: Likewise.
+	* config/arm/iterators.md: Likewise.
+	* config/arm/neon.md: Likewise.
+	* config/arm/thumb1.md: Likewise.
+	* config/arm/uclinuxfdpiceabi.h: Likewise.
+	* config/arm/unspecs.md: Likewise.
+	* config/arm/vec-common.md: Likewise.
+	* config/arm/vxworks.h (STACK_CHECK_PROTECT): Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/arc/arc-arch.h (enum base_architecture): Fix typos.
+	* config/arc/arc-cpus.def: Likewise.
+	* config/arc/arc.cc (legitimate_small_data_address_p): Likewise.
+	(legitimate_scaled_address_p): Likewise.
+	(get_arc_condition_code): Likewise.
+	(arc_setup_incoming_varargs): Likewise.
+	(pop_reg): Likewise.
+	(arc_restore_callee_leave): Likewise.
+	(arc_asm_trampoline_template): Likewise.
+	(arc_add_jli_section): Likewise.
+	(arc_invalid_within_doloop): Likewise.
+	(arc_reorg): Likewise.
+	(conditionalize_nonjump): Likewise.
+	(arc_eh_uses): Likewise.
+	(arc_memory_move_cost): Likewise.
+	* config/arc/arc.h (TARGET_CPU_CPP_BUILTINS): Likewise.
+	(TARGET_PAD_RETURN): Likewise.
+	(arc_select_cc_mode): Likewise.
+	* config/arc/arc.md: Likewise.
+	* config/arc/arc.opt: Likewise.
+	* config/arc/arc700.md: Likewise.
+	* config/arc/elf.h (TARGET_ASM_FILE_END): Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/alpha/alpha.cc (alpha_pass_by_reference): Fix typos.
+	(alpha_reorg): Likewise.
+	* config/alpha/predicates.md: Likewise.
+
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* common/config/aarch64/aarch64-common.cc (aarch64_parse_cpu): Fix
+	typos.
+	* common/config/aarch64/cpuinfo.h: Likewise.
+	* config/aarch64/aarch64-builtins.cc: Likewise.
+	* config/aarch64/aarch64-c.cc (aarch64_pragma_target_parse): Likewise.
+	* config/aarch64/aarch64-modes.def (FLOAT_MODE): Likewise.
+	* config/aarch64/aarch64-simd.md: Likewise.
+	* config/aarch64/aarch64-speculation.cc: Likewise.
+	* config/aarch64/aarch64-sve-builtins-functions.h: Likewise.
+	* config/aarch64/aarch64-sve-builtins-shapes.cc (struct binary_za_m_def): Likewise.
+	* config/aarch64/aarch64-sve-builtins.cc (function_builder::add_function): Likewise.
+	* config/aarch64/aarch64-sve.md: Likewise.
+	* config/aarch64/aarch64-sve2.md: Likewise.
+	* config/aarch64/aarch64.cc (aarch64_init_sysregs): Likewise.
+	(aarch64_load_symref_appropriately): Likewise.
+	(aarch64_output_sve_cnt_immediate): Likewise.
+	(aarch64_replace_reg_mode): Likewise.
+	(aarch64_pass_by_reference_1): Likewise.
+	(aarch64_layout_arg): Likewise.
+	(aarch64_allocate_and_probe_stack_space): Likewise.
+	(aarch64_legitimize_address_displacement): Likewise.
+	(aarch64_output_casesi): Likewise.
+	(aarch64_stp_sequence_cost): Likewise.
+	(aarch64_vector_costs::add_stmt_cost): Likewise.
+	(aarch64_override_options): Likewise.
+	(aarch64_functions_b_resolvable_from_a): Likewise.
+	(dispatch_function_versions): Likewise.
+	(aarch64_can_inline_p): Likewise.
+	(aarch64_classify_symbol): Likewise.
+	(aarch64_build_builtin_va_list): Likewise.
+	(aarch64_sve_pred_valid_immediate): Likewise.
+	(aarch64_simd_lane_bounds): Likewise.
+	(aarch64_expand_vector_init_fallback): Likewise.
+	(aarch64_modes_compatible_p): Likewise.
+	(aarch64_ldrstr_offset_compare): Likewise.
+	(aarch64_speculation_safe_value): Likewise.
+	* config/aarch64/aarch64.h (DEFAULT_PCC_STRUCT_RETURN): Likewise.
+	(struct GTY): Likewise.
+	* config/aarch64/aarch64.md: Likewise.
+	* config/aarch64/aarch64.opt: Likewise.
+	* config/aarch64/arm_bf16.h: Likewise.
+	* config/aarch64/arm_neon.h (vbslq_u64): Likewise.
+	* config/aarch64/cortex-a57-fma-steering.cc: Likewise.
+	* config/aarch64/driver-aarch64.cc (get_cpu_from_id): Likewise.
+	(host_detect_local_cpu): Likewise.
+	* config/aarch64/iterators.md: Likewise.
+	* config/aarch64/thunderx.md: Likewise.
+	* config/aarch64/thunderx3t110.md: Likewise.
+
+2026-06-01  Jakub Jelinek  <jakub@redhat.com>
+
+	* configure: Regenerate.
+
+2026-06-01  Hongyu Wang  <hongyu.wang@intel.com>
+
+	* config/i386/i386.h (TARGET_ENABLE_NDD_MEM): New.
+	* config/i386/x86-tune.def (X86_TUNE_ENABLE_NDD_MEM): New.
+	* config/i386/i386.md (*add<dwi>3_doubleword): Split NDD rm
+	to r,m and add preferred_for_speed for NDD memory alternatives.
+	(*add<dwi>3_doubleword_zext): Likewise.
+	(*add<mode>_1<nf_name>): Likewise.
+	(addsi_1_zext): Likewise.
+	(*addhi_1<nf_name>): Likewise.
+	(*addqi_1<nf_name>): Likewise.
+	(*add<mode>_2): Likewise.
+	(*addsi_2_zext): Likewise.
+	(*add<mode>_3): Likewise.
+	(*addsi_3_zext): Likewise.
+	(*add<mode>_5): Likewise.
+	(*addv<mode>4): Likewise.
+	(addv<mode>4_1): Likewise.
+	(*addv<dwi>4_doubleword_1): Likewise.
+	(*addv<mode>4_overflow_1): Likewise.
+	(*addv<mode>4_overflow_2): Likewise.
+	(*sub<dwi>3_doubleword): Likewise.
+	(*sub<dwi>3_doubleword_zext): Likewise.
+	(*sub<mode>_1<nf_name>): Likewise.
+	(*subsi_1_zext): Likewise.
+	(*sub<mode>_2): Likewise.
+	(*subsi_2_zext): Likewise.
+	(*subv<mode>4): Likewise.
+	(subv<mode>4_1): Likewise.
+	(*subv<dwi>4_doubleword_1): Likewise.
+	(*subv<mode>4_overflow_1): Likewise.
+	(*subv<mode>4_overflow_2): Likewise.
+	(*sub<mode>_3): Likewise.
+	(*subsi_3_zext): Likewise.
+	(@add<mode>3_carry): Likewise.
+	(*add<mode>3_carry_2): Likewise.
+	(*addsi3_carry_zext): Likewise.
+	(*addsi3_carry_zext_0): Likewise.
+	(*addsi3_carry_zext_0r): Likewise.
+	(addcarry<mode>): Likewise.
+	(*addcarry<mode>_1): Likewise.
+	(@sub<mode>3_carry): Likewise.
+	(*sub<mode>3_carry_2): Likewise.
+	(*subsi3_carry_zext): Likewise.
+	(*subsi3_carry_zext_0): Likewise.
+	(*subsi3_carry_zext_0r): Likewise.
+	(subborrow<mode>): Likewise.
+	(*subborrow<mode>_1): Likewise.
+	(*add<mode>3_cconly_overflow_1): Likewise.
+	(@add<mode>3_cc_overflow_1): Likewise.
+	(*addsi3_zext_cc_overflow_1): Likewise.
+	(*add<mode>3_cconly_overflow_2): Likewise.
+	(*add<mode>3_cc_overflow_2): Likewise.
+	(*addsi3_zext_cc_overflow_2): Likewise.
+	(*mul<mode>3_1<nf_name>): Likewise.
+	(*mulsi3_1_zext<nf_name>): Likewise.
+	(*mulv<mode>4): Likewise.
+	(*mulvhi4): Likewise.
+	(*and<dwi>3_doubleword): Likewise.
+	(*anddi_1<nf_name>): Likewise.
+	(*andsi_1_zext): Likewise.
+	(*andqi_1<nf_name>): Likewise.
+	(*anddi_2): Likewise.
+	(*andsi_2_zext): Likewise.
+	(*andqi_2_maybe_si): Likewise.
+	(*and<mode>_2): Likewise.
+	(*<code><dwi>3_doubleword): Likewise.
+	(*<code><mode>_1<nf_name>): Likewise.
+	(*notxor<mode>_1): Likewise.
+	(*<code>si_1_zext): Likewise.
+	(*<code>si_1_zext_imm): Likewise.
+	(*<code>qi_1<nf_name>): Likewise.
+	(*notxorqi_1): Likewise.
+	(*<code><mode>_2): Likewise.
+	(*<code>si_2_zext): Likewise.
+	(*<code>si_2_zext_imm): Likewise.
+	(*neg<dwi>2_doubleword): Likewise.
+	(*neg<mode>_1<nf_name>): Likewise.
+	(*negsi_1_zext): Likewise.
+	(*neg<mode>_2): Likewise.
+	(*negsi_2_zext): Likewise.
+	(*neg<mode>_ccc_1): Likewise.
+	(*neg<mode>_ccc_2): Likewise.
+	(*one_cmpl<dwi>2_doubleword): Likewise.
+	(*one_cmpl<mode>2_1): Likewise.
+	(*one_cmplsi2_1_zext): Likewise.
+	(*one_cmplqi2_1): Likewise.
+	(*one_cmpl<mode>2_2): Likewise.
+	(*one_cmplsi2_2_zext): Likewise.
+	(*ashl<dwi>3_doubleword_highpart): Likewise.
+	(*ashl<mode>3_1<nf_name>): Likewise.
+	(*ashlsi3_1_zext): Likewise.
+	(*ashlhi3_1<nf_name>): Likewise.
+	(*ashlqi3_1<nf_name>): Likewise.
+	(*ashl<mode>3_cmp): Likewise.
+	(*ashlsi3_cmp_zext): Likewise.
+	(*ashl<mode>3_cconly): Likewise.
+	(ashr<mode>3_cvt<nf_name>): Likewise.
+	(*ashrsi3_cvt_zext): Likewise.
+	(*ashr<mode>3_1<nf_name>): Likewise.
+	(*highpartdisi2): Likewise.
+	(*lshr<mode>3_1<nf_name>): Likewise.
+	(*<insn>si3_1_zext): Likewise.
+	(*lshrqi3_1<nf_name>): Likewise.
+	(*lshrhi3_1<nf_name>): Likewise.
+	(*<insn><mode>3_cmp): Likewise.
+	(*<insn>si3_cmp_zext): Likewise.
+	(*<insn><mode>3_cconly): Likewise.
+	(*<insn><mode>3_1<nf_name>): Likewise.
+	(*<insn>si3_1_zext): Likewise.
+	(rcrsi2): Likewise.
+	(rcrdi2): Likewise.
+	(<insn><mode>3_carry): Likewise.
+	(*mov<mode>cc_noc): Likewise.
+	(*movsicc_noc_zext): Likewise.
+	(*movsicc_noc_zext_1): Likewise.
+	(*addqi3_carry_zext<mode>_0): Likewise.
+	(*addhi3_carry_zext<mode>_0): Likewise.
+	(*addqi3_carry_zext<mode>_0r): Likewise.
+	(*addhi3_carry_zext<mode>_0r): Likewise.
+	(*subqi3_carry_zext<mode>_0): Likewise.
+	(*subhi3_carry_zext<mode>_0): Likewise.
+	(*subqi3_carry_zext<mode>_0r): Likewise.
+	(*subhi3_carry_zext<mode>_0r): Likewise.
+	(*negqi_1_zext<mode><nf_name>): Likewise.
+	(*neghi_1_zext<mode><nf_name>): Likewise.
+	(*one_cmplqi2_1_zext<mode>): Likewise.
+	(*one_cmplhi2_1_zext<mode>): Likewise.
+	(x86_64_shld_ndd<nf_name>): Likewise.
+	(x86_64_shld_ndd_1<nf_name>): Likewise.
+	(x86_shld_ndd<nf_name>): Likewise.
+	(x86_shld_ndd_1<nf_name>): Likewise.
+	(*ashlqi3_1_zext<mode><nf_name>): Likewise.
+	(*ashlhi3_1_zext<mode><nf_name>): Likewise.
+	(x86_64_shrd_ndd<nf_name>): Likewise.
+	(x86_64_shrd_ndd_1<nf_name>): Likewise.
+	(x86_shrd_ndd<nf_name>): Likewise.
+	(x86_shrd_ndd_1<nf_name>): Likewise.
+	(*<insn>qi3_1_zext<mode><nf_name>): Likewise.
+	(*<insn>hi3_1_zext<mode><nf_name>): Likewise.
+	* config/i386/sse.md
+	(*kortest_cmp<mode>_mov<mode>cc): Add
+	preferred_for_speed for NDD memory alternatives.
+
+2026-06-01  Hongyu Wang  <hongyu.wang@intel.com>
+
+	* config/i386/x86-tune.def (X86_TUNE_DISABLE_SETZUCC): New.
+	Enable for m_DIAMONDRAPIDS | m_NOVALAKE.
+	* config/i386/i386.h (TARGET_DISABLE_SETZUCC): New define.
+	* config/i386/i386.md (*setcc_<mode>_zu): Guard with
+	TARGET_APX_ZU && !TARGET_DISABLE_SETZUCC.
+	(*setcc_di_1, *setcc_<mode>_1_movzbl): Guard with
+	(!TARGET_APX_ZU || TARGET_DISABLE_SETZUCC).
+	(*setcc_qi, *setcc_qi_slp): Emit setzucc only when
+	TARGET_APX_ZU && !TARGET_DISABLE_SETZUCC.
+
+2026-06-01  Martin Liska  <martin.liska@hey.com>
+
+	* configure.ac: Declare Wild as capable of LTO bootstrap.
+	* configure: Regenerate.
+
 2026-05-31  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
 
 	PR tree-optimization/23471

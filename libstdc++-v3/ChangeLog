@@ -1,3 +1,13 @@
+2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	* config/os/vxworks/os_defines.h: Fix typos.
+
+2026-06-01  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/random.tcc
+	(piecewise_constant_distribution:::param_type::param_type):
+	Replace * with + in __fw argument.
+
 2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* include/bits/stl_algo.h: Reflow long line.

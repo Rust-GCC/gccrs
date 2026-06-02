@@ -1,3 +1,165 @@
+2026-06-01  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/125527
+	* gfortran.dg/submodule_host_assoc_1.f90: New test.
+	* gfortran.dg/submodule_host_assoc_1_aux.f90: New test.
+
+2026-06-01  Joe Natter  <johannes.natter@outlook.at>
+
+	PR c++/125422
+	* g++.dg/warn/Wduplicated-branches10.C: New test.
+
+2026-06-01  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/98539
+	* gcc.dg/pr98539.c: New test.
+
+2026-06-01  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* g++.dg/opt/shrink-wrapping-vector-1.C: xfail for C++17down.
+
+2026-06-01  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/125481
+	* gfortran.dg/generic_37.f90: New test.
+	* gfortran.dg/generic_38.f90: New test.
+
+2026-06-01  Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	PR target/122827
+	* gcc.target/aarch64/sve/pr122827.c: New test.
+
+2026-06-01  Eczbek  <eczbek.void@gmail.com>
+
+	PR c++/125317
+	* g++.dg/cpp2a/concepts-requires42.C: New test.
+
+2026-06-01  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	* gcc.dg/lto/toplevel-simple-asm-1_0.c: Adjust inline assembler
+	for arm-none-eabi.
+
+2026-06-01  Yap Zhi Heng  <yapzhhg@gmail.com>
+
+	* rust/compile/empty_path.rs: New file.
+
+2026-06-01  lishin  <lishin1008@gmail.com>
+
+	* rust/compile/drop-lang-item.rs: New test.
+
+2026-06-01  Jean-Christian CÎRSTEA  <jean-christian.cirstea@tuta.com>
+
+	* rust/compile/bswap.rs: Update error location.
+	* rust/compile/ctlz.rs: Likewise.
+	* rust/compile/ctlz_nonzero.rs: Likewise.
+	* rust/compile/cttz.rs: Likewise.
+	* rust/compile/cttz_nonzero.rs: Likewise.
+	* rust/compile/torture/intrinsics-5.rs: Likewise.
+	* rust/compile/torture/intrinsics-7.rs: Likewise.
+
+2026-06-01  Islam-Imad  <islamimad404@gmail.com>
+
+	* rust/execute/cf-labeled-block.rs: New test.
+
+2026-06-01  Harishankar  <harishankarpp7@gmail.com>
+
+	* rust/compile/issue-4159.rs: New test
+
+2026-06-01  Harishankar  <harishankarpp7@gmail.com>
+
+	* rust/compile/issue-4158.rs: New test.
+
+2026-06-01  Harishankar  <harishankarpp7@gmail.com>
+
+	* rust/compile/issue-3537.rs: New test.
+
+2026-06-01  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* rust/compile/const-issue1440.rs: Enable staged_api feature.
+	* rust/compile/for-loop1.rs: Likewise.
+	* rust/compile/for-loop2.rs: Likewise.
+	* rust/compile/issue-1031.rs: Likewise.
+	* rust/compile/issue-1289.rs: Likewise.
+	* rust/compile/iterators1.rs: Likewise.
+	* rust/compile/rustc_const_stable.rs: Likewise.
+	* rust/compile/torture/issue-1075.rs: Likewise.
+	* rust/compile/torture/issue-1432.rs: Likewise.
+	* rust/execute/torture/const-generics-7.rs: Likewise.
+	* rust/execute/torture/for-loop1.rs: Likewise.
+	* rust/execute/torture/for-loop2.rs: Likewise.
+	* rust/execute/torture/issue-1120.rs: Likewise.
+	* rust/execute/torture/issue-1133.rs: Likewise.
+	* rust/execute/torture/issue-1232.rs: Likewise.
+	* rust/execute/torture/issue-1436.rs: Likewise.
+	* rust/execute/torture/iter1.rs: Likewise.
+	* rust/execute/torture/slice-magic.rs: Likewise.
+	* rust/execute/torture/slice-magic2.rs: Likewise.
+	* rust/execute/torture/str-layout1.rs: Likewise.
+	* rust/compile/missing_staged_api.rs: New test.
+
+2026-06-01  Enes Cevik  <nsvke@proton.me>
+
+	* rust/compile/empty-non-decimal.rs: New test.
+
+2026-06-01  Enes Cevik  <nsvke@proton.me>
+
+	* rust/compile/deferred-suffix-validation.rs: New test.
+	* rust/compile/evaluate-integer-or-float.rs: New test.
+	* rust/compile/tuple-index.rs: New test.
+
+2026-06-01  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* rust/compile/assert_missing_panic.rs: New test.
+
+2026-06-01  lishin  <lishin1008@gmail.com>
+
+	* rust/compile/issue-3972.rs: New test.
+
+2026-06-01  Harishankar  <harishankarpp7@gmail.com>
+
+	* rust/compile/issue-4167.rs: New test.
+
+2026-06-01  Islam-Imad  <islamimad404@gmail.com>
+
+	* rust/compile/const-compound-assignment.rs: New test.
+	* rust/execute/const-compound-assignment.rs: New test.
+
+2026-06-01  Hongyu Wang  <hongyu.wang@intel.com>
+
+	* gcc.target/i386/apx-ndd-2.c: Add -mtune-ctrl=enable_ndd_mem.
+	* gcc.target/i386/apx-ndd-adc.c: Likewise.
+	* gcc.target/i386/apx-ndd-base-index-1.c: Likewise.
+	* gcc.target/i386/apx-ndd-cmov.c: Likewise.
+	* gcc.target/i386/apx-ndd-no-seg-global-1.c: Likewise.
+	* gcc.target/i386/apx-ndd-sbb.c: Likewise.
+	* gcc.target/i386/apx-ndd-seg-1.c: Likewise.
+	* gcc.target/i386/apx-ndd-seg-2.c: Likewise.
+	* gcc.target/i386/apx-ndd-seg-3.c: Likewise.
+	* gcc.target/i386/apx-ndd-seg-4.c: Likewise.
+	* gcc.target/i386/apx-ndd-seg-5.c: Likewise.
+	* gcc.target/i386/apx-ndd-shld-shrd.c: Likewise.
+	* gcc.target/i386/apx-ndd-tls-1a.c: Likewise.
+	* gcc.target/i386/apx-ndd-tls-1b.c: Likewise.
+	* gcc.target/i386/apx-ndd-tls-2.c: Likewise.
+	* gcc.target/i386/apx-ndd-tls-3.c: Likewise.
+	* gcc.target/i386/apx-ndd-tls-4.c: Likewise.
+	* gcc.target/i386/apx-ndd-x32-1.c: Likewise.
+	* gcc.target/i386/apx-ndd-x32-2a.c: Likewise.
+	* gcc.target/i386/apx-ndd-x32-2b.c: Likewise.
+	* gcc.target/i386/apx-ndd-x32-2c.c: Likewise.
+	* gcc.target/i386/apx-ndd-x32-2d.c: Likewise.
+	* gcc.target/i386/apx-ndd.c: Likewise.
+	* gcc.target/i386/pr113729.c: Likewise.
+	* gcc.target/i386/pr113729-adc-sbb.c: Likewise.
+	* gcc.target/i386/pr79173-13.c: Likewise.
+	* gcc.target/i386/pr79173-14.c: Likewise.
+	* gcc.target/i386/pr79173-15.c: Likewise.
+	* gcc.target/i386/pr79173-16.c: Likewise.
+
+2026-06-01  Hongyu Wang  <hongyu.wang@intel.com>
+
+	* gcc.target/i386/apx-zu-4.c: New test.
+
 2026-05-31  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
 
 	PR tree-optimization/23471
