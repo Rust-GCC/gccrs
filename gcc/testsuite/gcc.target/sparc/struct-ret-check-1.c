@@ -3,7 +3,7 @@
 
 /* Test that GCC follows the SPARC 32-bit psABI with regards to
    structure return checking in a callee. When -mstd-struct-return 
-   is specificed then gcc will emit code to skip the unimp insn. */ 
+   is specified then gcc will emit code to skip the unimp insn. */ 
 
 /* Origin: Carlos O'Donell <carlos@codesourcery.com> */
 /* { dg-do run { target sparc*-*-solaris* sparc*-*-linux* sparc*-*-*bsd* } } */

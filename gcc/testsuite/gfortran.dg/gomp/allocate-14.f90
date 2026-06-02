@@ -79,7 +79,7 @@ subroutine common
   use m
   integer :: a,b,c(5)
   common /my/ a,b,c
-  !$omp allocate(b) allocator(omp_cgroup_mem_alloc)  ! { dg-error "'b' at .1. is part of the common block '/my/' and may only be specificed implicitly via the named common block" }
+  !$omp allocate(b) allocator(omp_cgroup_mem_alloc)  ! { dg-error "'b' at .1. is part of the common block '/my/' and may only be specified implicitly via the named common block" }
 end
 
 subroutine c_and_func_ptrs

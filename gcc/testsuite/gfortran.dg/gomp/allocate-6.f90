@@ -68,7 +68,7 @@ common /com2/ y,z
 integer, allocatable :: alloc
 integer, pointer :: ptr
 
-!$omp allocate(q) ! { dg-error "'q' at .1. is part of the common block '/com1/' and may only be specificed implicitly via the named common block" }
+!$omp allocate(q) ! { dg-error "'q' at .1. is part of the common block '/com1/' and may only be specified implicitly via the named common block" }
 
 !$omp allocate(d(:)) ! { dg-error "Unexpected expression as list item at .1. in ALLOCATE directive" }
 !$omp allocate(a) align(4), align(4)  ! { dg-error "Duplicated 'align' clause" }

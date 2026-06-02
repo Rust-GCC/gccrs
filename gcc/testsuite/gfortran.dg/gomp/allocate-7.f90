@@ -52,7 +52,7 @@ integer, parameter :: prm=5
 !$omp allocate(used) allocator(omp_pteam_mem_alloc)  ! { dg-error "Argument 'used' at .1. to declarative !.OMP ALLOCATE shall be in the same scope as the variable declaration" }
 !$omp allocate(n) allocator(omp_pteam_mem_alloc) ! { dg-error "Unexpected dummy argument 'n' as argument at .1. to declarative !.OMP ALLOCATE" }
 
-!$omp allocate (x) align(128) ! { dg-error "'x' at .1. is part of the common block '/com1/' and may only be specificed implicitly via the named common block" }
+!$omp allocate (x) align(128) ! { dg-error "'x' at .1. is part of the common block '/com1/' and may only be specified implicitly via the named common block" }
 
 !$omp allocate (a, b, a) allocator (omp_pteam_mem_alloc) ! { dg-error "Duplicated variable 'a' in !.OMP ALLOCATE" }
 contains
