@@ -48,6 +48,10 @@ public:
   void visit (AST::Enum &enum_item) override;
   void visit (AST::Union &union_item) override;
   void visit (AST::ConstantItem &const_item) override;
+  void visit (AST::TypeAlias &type) override;
+  void visit (AST::Trait &trait) override;
+  void visit (AST::InherentImpl &impl) override;
+  void visit (AST::TraitImpl &impl) override;
   void visit (AST::ExternCrate &crate) override;
   void visit (AST::UseDeclaration &use) override;
 
