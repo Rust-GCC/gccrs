@@ -26183,6 +26183,8 @@ private:
   unsigned m_num_sse_needed[3];
   /* Number of 256-bit vector permutation.  */
   unsigned m_num_avx256_vec_perm[3];
+  /* Number of 512-bit vector permutation.  */
+  unsigned m_num_avx512_vec_perm[3];
   /* Number of reductions for FMA/DOT_PROD_EXPR/SAD_EXPR  */
   unsigned m_num_reduc[X86_REDUC_LAST];
   /* Don't do unroll if m_prefer_unroll is false, default is true.  */
@@ -26194,6 +26196,7 @@ ix86_vector_costs::ix86_vector_costs (vec_info* vinfo, bool costing_for_scalar)
     m_num_gpr_needed (),
     m_num_sse_needed (),
     m_num_avx256_vec_perm (),
+    m_num_avx512_vec_perm (),
     m_num_reduc (),
     m_prefer_unroll (true)
 {}
@@ -26204,6 +26207,47 @@ static vector_costs *
 ix86_vectorize_create_costs (vec_info *vinfo, bool costing_for_scalar)
 {
   return new ix86_vector_costs (vinfo, costing_for_scalar);
+}
+
+/* Return true if a vec_perm should be counted as a cross-lane vector
+   permutation for a vector with NUNITS elements.  */
+static bool
+ix86_count_cross_lane_perm_p (vec_info *vinfo, slp_tree node, unsigned nunits)
+{
+  /* TODO: For loop vectorization with no SLP load-permutation
+     information, conservatively treat these perms as cross-lane.
+     Repeated-index cases such as {0, 0, 0, 0} are emitted as
+     separate vec_perm_exprs for each index, so we cannot reliably
+     separate false positives from real cross-lane shuffles yet.  */
+  if (!node
+      || !SLP_TREE_LOAD_PERMUTATION (node).exists ()
+      || !is_a<bb_vec_info> (vinfo))
+    return true;
+
+  unsigned half = nunits / 2;
+  bool allsame = true;
+  unsigned first = SLP_TREE_LOAD_PERMUTATION (node)[0];
+  bool cross_lane_p = false;
+
+  for (unsigned i = 0; i != SLP_TREE_LANES (node); i++)
+    {
+      unsigned tmp = SLP_TREE_LOAD_PERMUTATION (node)[i];
+      /* allsame is just a broadcast.  */
+      if (tmp != first)
+	allsame = false;
+
+      /* The load permutation can cover multiple vectors, so compare
+	 source and destination lanes modulo NUNITS.  */
+      tmp = tmp & (nunits - 1);
+      unsigned index = i & (nunits - 1);
+      if ((index < half && tmp >= half) || (index >= half && tmp < half))
+	cross_lane_p = true;
+
+      if (!allsame && cross_lane_p)
+	return true;
+    }
+
+  return false;
 }
 
 unsigned
@@ -26771,58 +26815,25 @@ ix86_vector_costs::add_stmt_cost (int count, vect_cost_for_stmt kind,
   if (stmt_cost == -1)
     stmt_cost = ix86_default_vector_cost (kind, mode);
 
-  if (kind == vec_perm && vectype
-      && GET_MODE_SIZE (TYPE_MODE (vectype)) == 32
-      /* BIT_FIELD_REF <vect_**, 64, 0> 0 times vec_perm costs 0 in body.  */
-      && count != 0)
+  /* BIT_FIELD_REF <vect_**, 64, 0> with count 0 costs 0 in body.  */
+  if (kind == vec_perm && vectype && count != 0)
     {
-      bool real_perm = true;
+      unsigned vec_size = GET_MODE_SIZE (TYPE_MODE (vectype));
       unsigned nunits = TYPE_VECTOR_SUBPARTS (vectype);
+      unsigned *num_vec_perm = NULL;
 
-      if (node
-	  && SLP_TREE_LOAD_PERMUTATION (node).exists ()
-	  /* Loop vectorization will have 4 times vec_perm
-	     with index as {0, 0, 0, 0}.
-	     But it actually generates
-	     vec_perm_expr <vect, vect, 0, 0, 0, 0>
-	     vec_perm_expr <vect, vect, 1, 1, 1, 1>
-	     vec_perm_expr <vect, vect, 2, 2, 2, 2>
-	     Need to be handled separately.  */
-	  && is_a <bb_vec_info> (m_vinfo))
+      if (vec_size == 32)
+	num_vec_perm = m_num_avx256_vec_perm;
+      else if (vec_size == 64)
+	num_vec_perm = m_num_avx512_vec_perm;
+
+      if (num_vec_perm && ix86_count_cross_lane_perm_p (m_vinfo, node, nunits))
 	{
-	  unsigned half = nunits / 2;
-	  unsigned i = 0;
-	  bool allsame = true;
-	  unsigned first = SLP_TREE_LOAD_PERMUTATION (node)[0];
-	  bool cross_lane_p = false;
-	  for (i = 0 ; i != SLP_TREE_LANES (node); i++)
-	    {
-	      unsigned tmp = SLP_TREE_LOAD_PERMUTATION (node)[i];
-	      /* allsame is just a broadcast.  */
-	      if (tmp != first)
-		allsame = false;
-
-	      /* 4 times vec_perm with number of lanes multiple of nunits.  */
-	      tmp = tmp & (nunits - 1);
-	      unsigned index = i & (nunits - 1);
-	      if ((index < half && tmp >= half)
-		  || (index >= half && tmp < half))
-		cross_lane_p = true;
-
-	      if (!allsame && cross_lane_p)
-		break;
-	    }
-
-	  if (i == SLP_TREE_LANES (node))
-	    real_perm = false;
-	}
-
-      if (real_perm)
-	{
-	  m_num_avx256_vec_perm[where] += count;
+	  num_vec_perm[where] += count;
 	  if (dump_file && (dump_flags & TDF_DETAILS))
 	    {
-	      fprintf (dump_file, "Detected avx256 cross-lane permutation: ");
+	      fprintf (dump_file,
+		       "Detected avx%u cross-lane permutation: ", vec_size * 8);
 	      if (stmt_info)
 		print_gimple_expr (dump_file, stmt_info->stmt, 0, TDF_SLIM);
 	      fprintf (dump_file, " \n");
@@ -26943,6 +26954,10 @@ ix86_vector_costs::finish_cost (const vector_costs *scalar_costs)
   for (int i = 0; i != 3; i++)
     if (m_num_avx256_vec_perm[i]
 	&& TARGET_AVX256_AVOID_VEC_PERM)
+      m_costs[i] = INT_MAX;
+
+  for (int i = 0; i != 3; i++)
+    if (m_num_avx512_vec_perm[i] && TARGET_AVX512_AVOID_VEC_PERM)
       m_costs[i] = INT_MAX;
 
   /* When X86_TUNE_AVX512_TWO_EPILOGUES is enabled arrange for both
