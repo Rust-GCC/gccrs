@@ -34,6 +34,14 @@ along with GCC; see the file COPYING3.  If not see
 #include "value-prof.h"
 #include "gimplify.h"
 
+/* Return true if VAR has no uses at all, including no debug uses.  */
+
+static inline bool
+completely_unused (const_tree var)
+{
+  auto *head = &SSA_NAME_IMM_USE_NODE (var);
+  return head->next == head;
+}
 
 /* Mark the statement STMT as modified, and update it.  */
 
@@ -422,9 +430,12 @@ gsi_split_seq_before (gimple_stmt_iterator *i, gimple_seq *pnew_seq)
 
 /* Replace the statement pointed-to by GSI to STMT.  If UPDATE_EH_INFO
    is true, the exception handling information of the original
-   statement is moved to the new statement.  Assignments must only be
-   replaced with assignments to the same LHS.  Returns whether EH edge
-   cleanup is required.  */
+   statement is moved to the new statement.  Returns whether EH edge
+   cleanup is required.
+
+   If the two statements assign to different SSA names, the caller must
+   ensure that all uses of the old SSA name have been removed before
+   calling this function.  This includes removing all debug uses.  */
 
 bool
 gsi_replace (gimple_stmt_iterator *gsi, gimple *stmt, bool update_eh_info)
@@ -436,7 +447,8 @@ gsi_replace (gimple_stmt_iterator *gsi, gimple *stmt, bool update_eh_info)
     return false;
 
   gcc_assert (!gimple_has_lhs (orig_stmt) || !gimple_has_lhs (stmt)
-	      || gimple_get_lhs (orig_stmt) == gimple_get_lhs (stmt));
+	      || gimple_get_lhs (orig_stmt) == gimple_get_lhs (stmt)
+	      || completely_unused (gimple_get_lhs (orig_stmt)));
 
   gimple_set_location (stmt, gimple_location (orig_stmt));
   gimple_set_bb (stmt, gsi_bb (*gsi));

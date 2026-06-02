@@ -581,8 +581,14 @@ fold_gimple_assign (gimple_stmt_iterator *si)
 
 /* Replace a statement at *SI_P with a sequence of statements in STMTS,
    adjusting the replacement stmts location and virtual operands.
-   If the statement has a lhs the last stmt in the sequence is expected
-   to assign to that lhs.  */
+
+   If the statements has an lhs, either:
+
+   - the last statement of the new sequence must assign to the same lhs or
+
+   - the caller must ensure that all uses of the old lhs have been
+     removed before calling this function.  This includes removing
+     all debug uses.  */
 
 void
 gsi_replace_with_seq_vops (gimple_stmt_iterator *si_p, gimple_seq stmts)
