@@ -29765,6 +29765,78 @@
   DONE;
 })
 
+;; vec_cbranch modes with fewer than 8 elements (integer + floating-point).
+;; Limited to AVX512VL+DQ so that kortestb is available for the QImode mask.
+(define_mode_iterator V_ANY_CBRANCH
+   [(V4SI "TARGET_AVX512VL && TARGET_AVX512DQ")
+    (V2DI "TARGET_AVX512VL && TARGET_AVX512DQ")
+    (V4DI "TARGET_AVX512VL && TARGET_AVX512DQ")
+    (V4SF "TARGET_AVX512VL && TARGET_AVX512DQ")
+    (V4DF "TARGET_AVX512VL && TARGET_AVX512DQ")
+    (V2DF "TARGET_AVX512VL && TARGET_AVX512DQ")])
+
+;; Masked variant of vec_cbranch_any.  Eliminates the redundant kmov + and
+;; + test sequence the vectorizer would otherwise emit when an early-break
+;; is guarded by a loop mask.
+(define_expand "cond_vec_cbranch_any<mode>"
+  [(set (pc)
+	(if_then_else
+	  (match_operator 0 ""
+	    [(match_operand:<avx512fmaskmode> 1 "register_operand")
+	     (match_operand:V_ANY_CBRANCH 2 "register_operand")
+	     (match_operand:V_ANY_CBRANCH 3 "nonimmediate_operand")])
+	  (label_ref (match_operand 4 ""))
+	  (pc)))]
+ ""
+{
+  machine_mode mask_mode = <avx512fmaskmode>mode;
+  rtx cmp_mask = gen_reg_rtx (mask_mode);
+  rtx and_mask = gen_reg_rtx (mask_mode);
+
+  emit_insn (gen_vec_cmp<mode><avx512fmaskmodelower> (cmp_mask,
+						      operands[0],
+						      operands[2],
+						      operands[3]));
+  and_mask = expand_simple_binop (mask_mode, AND, cmp_mask, operands[1],
+				  and_mask, 1, OPTAB_DIRECT);
+
+  rtx cc_reg = gen_rtx_REG (CCZmode, FLAGS_REG);
+  emit_insn (gen_rtx_SET (cc_reg,
+			  gen_rtx_COMPARE (CCZmode, and_mask, const0_rtx)));
+  ix86_expand_branch (NE, cc_reg, const0_rtx, operands[4]);
+  DONE;
+})
+
+;; Reached when the middle-end reverses an NE comparison to EQ and swaps the
+;; branch labels.
+(define_expand "cond_vec_cbranch_all<mode>"
+  [(set (pc)
+	(if_then_else
+	  (match_operator 0 ""
+	    [(match_operand:<avx512fmaskmode> 1 "register_operand")
+	     (match_operand:V_ANY_CBRANCH 2 "register_operand")
+	     (match_operand:V_ANY_CBRANCH 3 "nonimmediate_operand")])
+	  (label_ref (match_operand 4 ""))
+	  (pc)))]
+ ""
+{
+  machine_mode mask_mode = <avx512fmaskmode>mode;
+  rtx cmp_mask = gen_reg_rtx (mask_mode);
+  rtx and_mask = gen_reg_rtx (mask_mode);
+
+  emit_insn (gen_vec_cmp<mode><avx512fmaskmodelower> (cmp_mask,
+						      operands[0],
+						      operands[2],
+						      operands[3]));
+  and_mask = expand_simple_binop (mask_mode, AND, cmp_mask, operands[1],
+				  and_mask, 1, OPTAB_DIRECT);
+
+  rtx cc_reg = gen_rtx_REG (CCZmode, FLAGS_REG);
+  emit_insn (gen_rtx_SET (cc_reg,
+			  gen_rtx_COMPARE (CCZmode, and_mask, const0_rtx)));
+  ix86_expand_branch (EQ, cc_reg, const0_rtx, operands[4]);
+  DONE;
+})
 
 (define_insn_and_split "avx_<castmode><avxsizesuffix>_<castmode>"
   [(set (match_operand:AVX256MODE2P 0 "nonimmediate_operand" "=x,m")
