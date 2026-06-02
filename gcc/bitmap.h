@@ -313,10 +313,10 @@ struct bitmap_obstack {
 
 struct GTY((chain_next ("%h.next"))) bitmap_element {
   /* In list form, the next element in the linked list;
-     in tree form, the left child node in the tree.  */
+     in tree form, the right child node in the tree.  */
   struct bitmap_element *next;
   /* In list form, the previous element in the linked list;
-     in tree form, the right child node in the tree.  */
+     in tree form, the left child node in the tree.  */
   struct bitmap_element *prev;
   /* regno/BITMAP_ELEMENT_ALL_BITS.  */
   unsigned int indx;
