@@ -32,6 +32,7 @@
 ;;  m: Memory operand.
 ;;
 ;; The following constraints are intended for internal use only:
+;;  Rmd0, Rms0, Rms1: Registers for MUL instruction operands.
 ;;  Rsib: Jump address register suitable for sibling calls.
 ;;  Rrio: The R30 and R31 I/O registers.
 ;;  M: -255 to 0 (for converting ADD to SUB with suitable UBYTE OP2).
@@ -49,6 +50,19 @@
 (define_register_constraint "Rsib" "SIB_REGS"
   "@internal
   A register suitable for an indirect sibcall.")
+
+(define_register_constraint "Rmd0" "MULDST_REGS"
+  "@internal
+  The multiply destination register."
+  "regno == MULDST_REGNUM")
+
+(define_register_constraint "Rms0" "MULSRC0_REGS"
+  "@internal
+  The multiply source 0 register.")
+
+(define_register_constraint "Rms1" "MULSRC1_REGS"
+  "@internal
+  The multiply source 1 register.")
 
 (define_register_constraint "Rrio" "REGIO_REGS"
   "@internal

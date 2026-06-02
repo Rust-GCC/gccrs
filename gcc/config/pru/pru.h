@@ -216,6 +216,10 @@ enum reg_class
 {
   NO_REGS,
   SIB_REGS,
+  LOOPCNTR_REGS,
+  MULDST_REGS,
+  MULSRC0_REGS,
+  MULSRC1_REGS,
   REGIO_REGS,
   GP_REGS,
   ALL_REGS,
@@ -227,6 +231,10 @@ enum reg_class
 #define REG_CLASS_NAMES   \
   {  "NO_REGS",		  \
      "SIB_REGS",	  \
+     "LOOPCNTR_REGS",	  \
+     "MULDST_REGS",	  \
+     "MULSRC0_REGS",	  \
+     "MULSRC1_REGS",	  \
      "REGIO_REGS",	  \
      "GP_REGS",		  \
      "ALL_REGS" }
@@ -237,6 +245,10 @@ enum reg_class
   {								\
     /* NO_REGS	      */ { 0, 0, 0, 0, 0},			\
     /* SIB_REGS	      */ { 0xf, 0xff000000u, ~0u, 0xffffffu, 0},\
+    /* LOOPCNTR_REGS  */ { 0, 0, 0, 0, 0xf},			\
+    /* MULDST_REGS    */ { 0, 0, 0, 0x0000ff00u, 0},		\
+    /* MULSRC0_REGS   */ { 0, 0, 0, 0x000f0000u, 0},		\
+    /* MULSRC1_REGS   */ { 0, 0, 0, 0x00f00000u, 0},		\
     /* REGIO_REGS     */ { 0, 0, 0, 0xff000000u, 0},		\
     /* GP_REGS	      */ { ~0u, ~0u, ~0u, ~0u, 0},		\
     /* ALL_REGS	      */ { ~0u, ~0u, ~0u, ~0u, ~0u}		\
@@ -245,11 +257,15 @@ enum reg_class
 
 #define GP_REG_P(REGNO) ((unsigned)(REGNO) <= LAST_GP_REGNUM)
 #define REGNO_REG_CLASS(REGNO)						    \
-	((REGNO) == R30_REGNUM ? REGIO_REGS				    \
+	((REGNO) == MULDST_REGNUM ? MULDST_REGS				    \
+	 : (REGNO) == MULSRC0_REGNUM ? MULSRC0_REGS			    \
+	 : (REGNO) == MULSRC1_REGNUM ? MULSRC1_REGS			    \
+	 : (REGNO) == R30_REGNUM ? REGIO_REGS				    \
 	 : (REGNO) == R31_REGNUM ? REGIO_REGS				    \
 	 : (REGNO) >= FIRST_ARG_REGNUM					    \
 	    && (REGNO) <= LAST_ARG_REGNUM ? SIB_REGS			    \
 	 : (REGNO) == STATIC_CHAIN_REGNUM ? SIB_REGS			    \
+	 : (REGNO) == LOOPCNTR_REGNUM ? LOOPCNTR_REGS			    \
 	 : (REGNO) <= LAST_NONIO_GP_REGNUM ? GP_REGS			    \
 	 : ALL_REGS)
 

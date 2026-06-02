@@ -1208,26 +1208,26 @@
   [(set_attr "type" "alu")
    (set_attr "length" "8")])
 
-;; Multiply instruction.  The nop is required to ensure that source
+;; Multiply instruction.  The nop is required to ensure that Rmd0 and Rms0
 ;; registers are sampled and multiplication is executed on those values.
 ;; Only after that one cycle can xin obtain the result.
 
 (define_insn "mulsi3"
-  [(set (match_operand:SI 0 "pru_muldst_operand"	   "={r26}")
-	(mult:SI (match_operand:SI 1 "pru_mulsrc0_operand" "%{r28}")
-		 (match_operand:SI 2 "pru_mulsrc1_operand" "{r29}")))]
+  [(set (match_operand:SI 0 "pru_muldst_operand"	   "=Rmd0")
+	(mult:SI (match_operand:SI 1 "pru_mulsrc0_operand" "%Rms0")
+		 (match_operand:SI 2 "pru_mulsrc1_operand" "Rms1")))]
   "TARGET_OPT_MUL"
   "nop\;xin\\t0, %0, 4"
   [(set_attr "type" "alu")
    (set_attr "length" "8")])
 
 (define_insn "umulsidi3"
-  [(set (match_operand:DI 0 "pru_muldst_operand"	   "={r26}")
+  [(set (match_operand:DI 0 "pru_muldst_operand"	   "=Rmd0")
 	(mult:DI
 	  (zero_extend:DI
-	    (match_operand:SI 1 "pru_mulsrc0_operand"	   "%{r28}"))
+	    (match_operand:SI 1 "pru_mulsrc0_operand"	   "%Rms0"))
 	  (zero_extend:DI
-	    (match_operand:SI 2 "pru_mulsrc1_operand"	   "{r29}"))))]
+	    (match_operand:SI 2 "pru_mulsrc1_operand"	   "Rms1"))))]
   "TARGET_OPT_MUL"
   "nop\;xin\\t0, %0, 8"
   [(set_attr "type" "alu")
