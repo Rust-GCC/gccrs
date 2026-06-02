@@ -41,7 +41,7 @@ h
 //
 // This will generate the FTMs you named, and let you use them in your code as
 // if it was user code.  All macros are also exposed under __glibcxx_NAME even
-// if unwanted, to permit bits and other FTMs to depend on them for condtional
+// if unwanted, to permit bits and other FTMs to depend on them for conditional
 // computation without exposing extra FTMs to user code.
 
 #ifdef _GLIBCXX_SYSHDR
