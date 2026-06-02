@@ -1244,12 +1244,11 @@ do_compare_rtx_and_jump (rtx op0, rtx op1, enum rtx_code code, int unsignedp,
 	  auto nunits = TYPE_VECTOR_SUBPARTS (TREE_TYPE (val)).to_constant ();
 	  if (maybe_ne (GET_MODE_PRECISION (mode), nunits))
 	    {
-	      op0 = expand_binop (mode, and_optab, op0,
-				  GEN_INT ((HOST_WIDE_INT_1U << nunits) - 1),
-				  NULL_RTX, true, OPTAB_WIDEN);
-	      op1 = expand_binop (mode, and_optab, op1,
-				  GEN_INT ((HOST_WIDE_INT_1U << nunits) - 1),
-				  NULL_RTX, true, OPTAB_WIDEN);
+	      rtx mask_imm = GEN_INT ((HOST_WIDE_INT_1U << nunits) - 1);
+	      op0 = simplify_expand_binop (mode, and_optab, op0, mask_imm,
+					   NULL_RTX, true, OPTAB_WIDEN);
+	      op1 = simplify_expand_binop (mode, and_optab, op1, mask_imm,
+					   NULL_RTX, true, OPTAB_WIDEN);
 	    }
 	}
 
