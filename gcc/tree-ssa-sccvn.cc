@@ -5778,9 +5778,10 @@ visit_nary_op (tree lhs, gassign *stmt)
     case BIT_FIELD_REF:
       if (TREE_CODE (TREE_OPERAND (rhs1, 0)) == SSA_NAME)
 	{
-	  tree op0 = TREE_OPERAND (rhs1, 0);
-	  gassign *ass = dyn_cast <gassign *> (SSA_NAME_DEF_STMT (op0));
-	  if (ass
+	  tree op0 = vn_valueize (TREE_OPERAND (rhs1, 0));
+	  gassign *ass;
+	  if (TREE_CODE (op0) == SSA_NAME
+	      && (ass = dyn_cast <gassign *> (SSA_NAME_DEF_STMT (op0)))
 	      && !gimple_has_volatile_ops (ass)
 	      && vn_get_stmt_kind (ass) == VN_REFERENCE)
 	    {
