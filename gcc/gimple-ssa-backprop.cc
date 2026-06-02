@@ -575,6 +575,10 @@ backprop::process_var (tree var)
   if (has_zero_uses (var))
     return;
 
+  /* Propagating along abnormal edges is delicate, punt for now.  */
+  if (SSA_NAME_OCCURS_IN_ABNORMAL_PHI (var))
+    return;
+
   usage_info info;
   intersect_uses (var, &info);
 
@@ -853,21 +857,15 @@ backprop::optimize_assign (gassign *assign, tree lhs, const usage_info *info)
 void
 backprop::optimize_phi (gphi *phi, tree var, const usage_info *info)
 {
-  /* If the sign of the result doesn't matter, try to strip sign operations
-     from arguments.  */
+  /* If the sign of the result doesn't matter, strip sign operations
+     from all arguments.  */
   if (info->flags.ignore_sign)
     {
-      basic_block bb = gimple_bb (phi);
       use_operand_p use;
       ssa_op_iter oi;
       bool replaced = false;
       FOR_EACH_PHI_ARG (use, phi, oi, SSA_OP_USE)
 	{
-	  /* Propagating along abnormal edges is delicate, punt for now.  */
-	  const int index = PHI_ARG_INDEX_FROM_USE (use);
-	  if (EDGE_PRED (bb, index)->flags & EDGE_ABNORMAL)
-	    continue;
-
 	  tree new_arg = strip_sign_op (USE_FROM_PTR (use));
 	  if (new_arg)
 	    {
