@@ -4300,16 +4300,6 @@ definition that is usually appropriate, refer to @file{expr.h} for additional
 documentation.
 @end deftypefn
 
-@deftypefn {Target Hook} bool TARGET_OVERALIGNED_STACK_SLOT_REQUIRED (void)
-This hook should return @code{true} when call-related stack slots whose
-requested alignment exceeds @code{MAX_SUPPORTED_STACK_ALIGNMENT} need special
-handling on the target.  This covers stack slots created by call expansion
-(such as by-reference argument copies and hidden structure return storage) and
-incoming argument setup.  When @code{true}, GCC may avoid normal fixed stack
-slots for such cases and use over-allocation plus dynamic address alignment
-instead.
-@end deftypefn
-
 @deftypefn {Target Hook} rtx TARGET_FUNCTION_INCOMING_ARG (cumulative_args_t @var{ca}, const function_arg_info @var{&arg})
 Define this hook if the caller and callee on the target have different
 views of where arguments are passed.  Also define this hook if there are

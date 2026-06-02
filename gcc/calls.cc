@@ -159,8 +159,6 @@ static void compute_argument_addresses (struct arg_data *, rtx, int);
 static rtx rtx_for_function_call (tree, tree);
 static void load_register_parameters (struct arg_data *, int, rtx *, int,
 				      int, bool *);
-static rtx allocate_call_dynamic_stack_space (rtx, unsigned int, HOST_WIDE_INT,
-					      rtx *, poly_int64 *);
 static int special_function_p (const_tree, int);
 static bool check_sibcall_argument_overlap_1 (rtx);
 static bool check_sibcall_argument_overlap (rtx_insn *, struct arg_data *,
@@ -211,28 +209,6 @@ mark_stack_region_used (poly_uint64 lower_bound, poly_uint64 upper_bound)
       stack_usage_map[i] = 1;
   else
     stack_usage_watermark = MIN (stack_usage_watermark, const_lower);
-}
-
-/* Allocate temporary call-related stack space with ALIGN alignment.
-	 Save the stack pointer on first use so the caller can restore it after
-	 the call sequence completes.  */
-
-static rtx
-allocate_call_dynamic_stack_space (rtx size, unsigned int align,
-				   HOST_WIDE_INT known_size,
-				   rtx *old_stack_level,
-				   poly_int64 *old_pending_adj)
-{
-  if (*old_stack_level == 0)
-    {
-      emit_stack_save (SAVE_BLOCK, old_stack_level);
-      *old_pending_adj = pending_stack_adjust;
-      pending_stack_adjust = 0;
-    }
-
-  /* We can pass TRUE as the 5th argument because we just saved the stack
-	   pointer and will restore it right after the call.  */
-  return allocate_dynamic_stack_space (size, align, align, known_size, true);
 }
 
 /* Force FUNEXP into a form suitable for the address of a CALL,
@@ -1505,23 +1481,30 @@ initialize_argument_information (int num_actuals ATTRIBUTE_UNUSED,
 
 	      if (!COMPLETE_TYPE_P (type)
 		  || TREE_CODE (TYPE_SIZE_UNIT (type)) != INTEGER_CST
-		  || (targetm.calls.overaligned_stack_slot_required ()
-		      && TYPE_ALIGN (type) > MAX_SUPPORTED_STACK_ALIGNMENT)
 		  || (flag_stack_check == GENERIC_STACK_CHECK
 		      && compare_tree_int (TYPE_SIZE_UNIT (type),
 					   STACK_CHECK_MAX_VAR_SIZE) > 0))
 		{
-		  /* Variable-sized or over-aligned by-reference arguments cannot
-		     use a regular stack temp when the target can't guarantee the
-		     requested alignment for stack slots.  Allocate temporary
-		     space dynamically and restore the stack right after the call.  */
+		  /* This is a variable-sized object.  Make space on the stack
+		     for it.  */
 		  rtx size_rtx = expr_size (args[i].tree_value);
 
-		  copy = allocate_call_dynamic_stack_space (size_rtx,
-						 TYPE_ALIGN (type),
-						 max_int_size_in_bytes (type),
-						 old_stack_level,
-						 old_pending_adj);
+		  if (*old_stack_level == 0)
+		    {
+		      emit_stack_save (SAVE_BLOCK, old_stack_level);
+		      *old_pending_adj = pending_stack_adjust;
+		      pending_stack_adjust = 0;
+		    }
+
+		  /* We can pass TRUE as the 4th argument because we just
+		     saved the stack pointer and will restore it right after
+		     the call.  */
+		  copy = allocate_dynamic_stack_space (size_rtx,
+						       TYPE_ALIGN (type),
+						       TYPE_ALIGN (type),
+						       max_int_size_in_bytes
+						       (type),
+						       true);
 		  copy = gen_rtx_MEM (BLKmode, copy);
 		  set_mem_attributes (copy, type, 1);
 		}
@@ -2928,23 +2911,8 @@ expand_call (tree exp, rtx target, int ignore)
 	    /* For variable-sized objects, we must be called with a target
 	       specified.  If we were to allocate space on the stack here,
 	       we would have no way of knowing when to free it.  */
-	    if (targetm.calls.overaligned_stack_slot_required ()
-		&& TYPE_ALIGN (rettype) > MAX_SUPPORTED_STACK_ALIGNMENT)
-	      {
-		unsigned HOST_WIDE_INT size;
-
-		gcc_checking_assert (TREE_CODE (TYPE_SIZE_UNIT (rettype))
-				     == INTEGER_CST);
-		size = tree_to_uhwi (TYPE_SIZE_UNIT (rettype));
-		structure_value_addr = allocate_call_dynamic_stack_space (
-		  gen_int_mode (size, Pmode), TYPE_ALIGN (rettype), size,
-		  &old_stack_level, &old_pending_adj);
-	      }
-	    else
-	      {
-		rtx d = assign_temp (rettype, 1, 1);
-		structure_value_addr = XEXP (d, 0);
-	      }
+	    rtx d = assign_temp (rettype, 1, 1);
+	    structure_value_addr = XEXP (d, 0);
 	    target = 0;
 	  }
       }

@@ -430,7 +430,6 @@ static rtx ix86_function_value (const_tree, const_tree, bool);
 static bool ix86_function_value_regno_p (const unsigned int);
 static unsigned int ix86_function_arg_boundary (machine_mode,
 						const_tree);
-static bool ix86_overaligned_stack_slot_required (void);
 static rtx ix86_static_chain (const_tree, bool);
 static int ix86_function_regparm (const_tree, const_tree);
 static void ix86_compute_frame_layout (void);
@@ -1630,14 +1629,6 @@ ix86_must_pass_in_stack (const function_arg_info &arg)
      currently unsupported vector types on the stack by using TImode.  */
   return (!TARGET_64BIT && arg.mode == TImode
 	  && arg.type && TREE_CODE (arg.type) != VECTOR_TYPE);
-}
-
-/* Implement TARGET_OVERALIGNED_STACK_SLOT_REQUIRED.  */
-
-static bool
-ix86_overaligned_stack_slot_required (void)
-{
-  return TARGET_SEH;
 }
 
 /* It returns the size, in bytes, of the area reserved for arguments passed
@@ -28534,8 +28525,6 @@ static const scoped_attribute_specs *const ix86_attribute_table[] =
 #define TARGET_SETUP_INCOMING_VARARGS ix86_setup_incoming_varargs
 #undef TARGET_MUST_PASS_IN_STACK
 #define TARGET_MUST_PASS_IN_STACK ix86_must_pass_in_stack
-#undef TARGET_OVERALIGNED_STACK_SLOT_REQUIRED
-#define TARGET_OVERALIGNED_STACK_SLOT_REQUIRED ix86_overaligned_stack_slot_required
 #undef TARGET_ALLOCATE_STACK_SLOTS_FOR_ARGS
 #define TARGET_ALLOCATE_STACK_SLOTS_FOR_ARGS ix86_allocate_stack_slots_for_args
 #undef TARGET_FUNCTION_ARG_ADVANCE
