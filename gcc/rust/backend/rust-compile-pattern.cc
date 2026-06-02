@@ -1369,10 +1369,23 @@ CompilePatternLet::visit (HIR::IdentifierPattern &pattern)
       ctx->add_statement (s);
     }
 
-  if (!pattern.has_subpattern () && !pattern.get_is_ref ()
-      && type_has_drop_impl (ctx, ty))
+  TyTy::BaseType *drop_ty = ty;
+  if (pattern.get_is_ref ())
+    {
+      auto ref_ty = ty->try_as<TyTy::ReferenceType> ();
+      rust_assert (ref_ty != nullptr);
+      drop_ty = ref_ty->get_base ();
+    }
+
+  if (!type_has_drop_impl (ctx, drop_ty))
+    return;
+
+  if (!pattern.has_subpattern () && !pattern.get_is_ref ())
     ctx->note_simple_drop_candidate (pattern.get_mappings ().get_hirid (),
 				     pattern.get_locus ());
+  else
+    rust_sorry_at (pattern.get_locus (),
+		   "drop trait not supported for subpatterns and ref patterns");
 }
 
 void
