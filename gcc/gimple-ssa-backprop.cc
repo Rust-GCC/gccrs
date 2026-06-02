@@ -205,6 +205,44 @@ dump_usage_info (FILE *file, tree var, usage_info *info)
     }
 }
 
+/* Information about an SSA name that we might want to optimize.  */
+struct var_info
+{
+  var_info (tree var, unsigned int index, const usage_info &info)
+    : var (var), index (index), info (info)
+  {}
+
+  /* The SSA name itself.  */
+  tree var;
+
+  /* The index of this entry in the M_VARS array.  */
+  unsigned int index;
+
+  /* Information about all uses of the SSA name.  */
+  usage_info info;
+};
+
+/* Hash var_info based on the SSA name.  */
+struct var_info_hasher : nofree_ptr_hash<var_info>
+{
+  using compare_type = const_tree;
+
+  static inline hashval_t hash (const var_info *);
+  static inline bool equal (const var_info *, const_tree);
+};
+
+hashval_t
+var_info_hasher::hash (const var_info *v)
+{
+  return SSA_NAME_VERSION (v->var);
+}
+
+bool
+var_info_hasher::equal (const var_info *v, const_tree var)
+{
+  return v->var == var;
+}
+
 /* Represents one execution of the pass.  */
 class backprop
 {
@@ -215,10 +253,10 @@ public:
   void execute ();
 
 private:
-  const usage_info *lookup_operand (tree);
+  var_info *lookup_operand (tree);
 
-  void push_to_worklist (tree);
-  tree pop_from_worklist ();
+  void push_to_worklist (var_info *);
+  var_info *pop_from_worklist ();
 
   void process_builtin_call_use (gcall *, tree, usage_info *);
   void process_assign_use (gassign *, tree, usage_info *);
@@ -226,7 +264,7 @@ private:
   void process_use (gimple *, tree, usage_info *);
   bool intersect_uses (tree, usage_info *);
   void reprocess_inputs (gimple *);
-  void process_var (tree);
+  void process_var (tree, var_info *);
   void process_block (basic_block);
 
   void prepare_change (tree);
@@ -236,26 +274,23 @@ private:
   void optimize_assign (gassign *, tree, const usage_info *);
   void optimize_phi (gphi *, tree, const usage_info *);
 
-  typedef hash_map <tree_ssa_name_hash, usage_info *> info_map_type;
-  typedef std::pair <tree, usage_info *> var_info_pair;
-
   /* The function we're optimizing.  */
   function *m_fn;
 
-  /* Pool for allocating usage_info structures.  */
-  object_allocator <usage_info> m_info_pool;
+  /* Pool for allocating var_info structures.  */
+  object_allocator<var_info> m_var_pool;
 
-  /* Maps an SSA name to a description of all uses of that SSA name.
-     All the usage_infos satisfy is_useful.
+  /* All extant var_infos, hashed by SSA name.  All the usage_infos satisfy
+     is_useful.
 
-     We use a hash_map because the map is expected to be sparse
+     We use a hash_table because the table is expected to be sparse
      (i.e. most SSA names won't have useful information attached to them).
      We could move to a directly-indexed array if that situation changes.  */
-  info_map_type m_info_map;
+  hash_table<var_info_hasher> m_var_table;
 
-  /* Post-ordered list of all potentially-interesting SSA names,
-     along with information that describes all uses.  */
-  auto_vec <var_info_pair, 128> m_vars;
+  /* A post-ordered list of the contents of M_VAR_TABLE.  Entries might
+     be null if we initially created a var_info and then withdrew it.  */
+  auto_vec<var_info *, 128> m_vars;
 
   /* A bitmap of blocks that we have finished processing in the initial
      post-order walk.  */
@@ -266,8 +301,9 @@ private:
      M_VISITED_BLOCKS.  */
   auto_bitmap m_visited_phis;
 
-  /* A worklist of SSA names whose definitions need to be reconsidered.  */
-  auto_vec <tree, 64> m_worklist;
+  /* A worklist of var_infos whose SSA name definitions need to be
+     reconsidered.  */
+  auto_vec<var_info *, 64> m_worklist;
 
   /* The SSA names in M_WORKLIST, identified by their SSA_NAME_VERSION.
      We use a bitmap rather than an sbitmap because most SSA names are
@@ -277,7 +313,8 @@ private:
 
 backprop::backprop (function *fn)
   : m_fn (fn),
-    m_info_pool ("usage_info"),
+    m_var_pool ("var_info"),
+    m_var_table (64),
     m_visited_blocks (last_basic_block_for_fn (m_fn)),
     m_worklist_names (BITMAP_ALLOC (NULL))
 {
@@ -287,54 +324,50 @@ backprop::backprop (function *fn)
 backprop::~backprop ()
 {
   BITMAP_FREE (m_worklist_names);
-  m_info_pool.release ();
+  m_var_pool.release ();
 }
 
-/* Return usage information for general operand OP, or null if none.  */
+/* Return the var_info for general operand OP, or null if none.  */
 
-const usage_info *
+var_info *
 backprop::lookup_operand (tree op)
 {
   if (op && TREE_CODE (op) == SSA_NAME)
-    {
-      usage_info **slot = m_info_map.get (op);
-      if (slot)
-	return *slot;
-    }
+    return m_var_table.find_with_hash (op, SSA_NAME_VERSION (op));
   return NULL;
 }
 
-/* Add SSA name VAR to the worklist, if it isn't on the worklist already.  */
+/* Add V to the worklist, if it isn't on the worklist already.  */
 
 void
-backprop::push_to_worklist (tree var)
+backprop::push_to_worklist (var_info *v)
 {
-  if (!bitmap_set_bit (m_worklist_names, SSA_NAME_VERSION (var)))
+  if (!bitmap_set_bit (m_worklist_names, SSA_NAME_VERSION (v->var)))
     return;
-  m_worklist.safe_push (var);
+  m_worklist.safe_push (v);
   if (dump_file && (dump_flags & TDF_DETAILS))
     {
       fprintf (dump_file, "[WORKLIST] Pushing ");
-      print_generic_expr (dump_file, var);
+      print_generic_expr (dump_file, v->var);
       fprintf (dump_file, "\n");
     }
 }
 
-/* Remove and return the next SSA name from the worklist.  The worklist
+/* Remove and return the next var_info from the worklist.  The worklist
    is known to be nonempty.  */
 
-tree
+var_info *
 backprop::pop_from_worklist ()
 {
-  tree var = m_worklist.pop ();
-  bitmap_clear_bit (m_worklist_names, SSA_NAME_VERSION (var));
+  var_info *v = m_worklist.pop ();
+  bitmap_clear_bit (m_worklist_names, SSA_NAME_VERSION (v->var));
   if (dump_file && (dump_flags & TDF_DETAILS))
     {
       fprintf (dump_file, "[WORKLIST] Popping ");
-      print_generic_expr (dump_file, var);
+      print_generic_expr (dump_file, v->var);
       fprintf (dump_file, "\n");
     }
-  return var;
+  return v;
 }
 
 /* Make INFO describe all uses of RHS in CALL, which is a call to a
@@ -400,13 +433,10 @@ backprop::process_builtin_call_use (gcall *call, tree rhs, usage_info *info)
 
     default:
       if (negate_mathfn_p (fn))
-	{
-	  /* The sign of the (single) input doesn't matter provided
-	     that the sign of the output doesn't matter.  */
-	  const usage_info *lhs_info = lookup_operand (lhs);
-	  if (lhs_info)
-	    info->flags.ignore_sign = lhs_info->flags.ignore_sign;
-	}
+	/* The sign of the (single) input doesn't matter provided
+	   that the sign of the output doesn't matter.  */
+	if (var_info *lhsv = lookup_operand (lhs))
+	  info->flags.ignore_sign = lhsv->info.flags.ignore_sign;
       break;
     }
 }
@@ -429,11 +459,8 @@ backprop::process_assign_use (gassign *assign, tree rhs, usage_info *info)
       /* For A = B ? C : D, propagate information about all uses of A
 	 to C and D.  */
       if (rhs != gimple_assign_rhs1 (assign))
-	{
-	  const usage_info *lhs_info = lookup_operand (lhs);
-	  if (lhs_info)
-	    *info = *lhs_info;
-	}
+	if (var_info *lhsv = lookup_operand (lhs))
+	  *info = lhsv->info;
       break;
 
     case MULT_EXPR:
@@ -448,11 +475,8 @@ backprop::process_assign_use (gassign *assign, tree rhs, usage_info *info)
       /* If the sign of the result doesn't matter, the sign of the inputs
 	 doesn't matter either.  */
       if (FLOAT_TYPE_P (TREE_TYPE (rhs)))
-	{
-	  const usage_info *lhs_info = lookup_operand (lhs);
-	  if (lhs_info)
-	    info->flags.ignore_sign = lhs_info->flags.ignore_sign;
-	}
+	if (var_info *lhsv = lookup_operand (lhs))
+	  info->flags.ignore_sign = lhsv->info.flags.ignore_sign;
       break;
 
     default:
@@ -466,8 +490,8 @@ void
 backprop::process_phi_use (gphi *phi, usage_info *info)
 {
   tree result = gimple_phi_result (phi);
-  if (const usage_info *result_info = lookup_operand (result))
-    *info = *result_info;
+  if (var_info *resultv = lookup_operand (result))
+    *info = resultv->info;
 }
 
 /* Make INFO describe all uses of RHS in STMT.  */
@@ -547,11 +571,8 @@ backprop::reprocess_inputs (gimple *stmt)
   use_operand_p use_p;
   ssa_op_iter oi;
   FOR_EACH_PHI_OR_STMT_USE (use_p, stmt, oi, SSA_OP_USE)
-    {
-      tree var = get_use_from_ptr (use_p);
-      if (lookup_operand (var))
-	push_to_worklist (var);
-    }
+    if (var_info *v = lookup_operand (get_use_from_ptr (use_p)))
+      push_to_worklist (v);
 }
 
 /* Say that we're recording INFO for SSA name VAR, or that we're deleting
@@ -567,10 +588,11 @@ dump_var_info (tree var, usage_info *info, const char *intro)
 }
 
 /* Process all uses of VAR and record or update the result in
-   M_INFO_MAP and M_VARS.  */
+   M_VAR_TABLE and M_VARS.  V is the current entry for VAR, or null
+   if we are looking at it for the first time.  */
 
 void
-backprop::process_var (tree var)
+backprop::process_var (tree var, var_info *v)
 {
   if (has_zero_uses (var))
     return;
@@ -583,18 +605,18 @@ backprop::process_var (tree var)
   intersect_uses (var, &info);
 
   gimple *stmt = SSA_NAME_DEF_STMT (var);
+  auto hash = SSA_NAME_VERSION (var);
   if (info.is_useful ())
     {
-      bool existed;
-      usage_info *&map_info = m_info_map.get_or_insert (var, &existed);
-      if (!existed)
+      if (!v)
 	{
 	  /* Recording information about VAR for the first time.  */
-	  map_info = m_info_pool.allocate ();
-	  *map_info = info;
-	  m_vars.safe_push (var_info_pair (var, map_info));
+	  v = m_var_pool.allocate (var, m_vars.length (), info);
+	  m_vars.safe_push (v);
+	  *m_var_table.find_slot_with_hash (var, hash, INSERT) = v;
+
 	  if (dump_file && (dump_flags & TDF_DETAILS))
-	    dump_var_info (var, map_info, "Recording new information");
+	    dump_var_info (var, &v->info, "Recording new information");
 
 	  /* If STMT is a phi, reprocess any backedge uses.  This is a
 	     no-op for other uses, which won't have any information
@@ -602,23 +624,25 @@ backprop::process_var (tree var)
 	  if (is_a <gphi *> (stmt))
 	    reprocess_inputs (stmt);
 	}
-      else if (info != *map_info)
+      else if (info != v->info)
 	{
 	  /* Recording information that is less optimistic than before.  */
-	  gcc_checking_assert ((info & *map_info) == info);
-	  *map_info = info;
+	  gcc_checking_assert ((info & v->info) == info);
+	  v->info = info;
 	  if (dump_file && (dump_flags & TDF_DETAILS))
-	    dump_var_info (var, map_info, "Updating information");
+	    dump_var_info (var, &v->info, "Updating information");
 	  reprocess_inputs (stmt);
 	}
     }
   else
     {
-      if (usage_info **slot = m_info_map.get (var))
+      if (v)
 	{
 	  /* Removing previously-recorded information.  */
-	  **slot = info;
-	  m_info_map.remove (var);
+	  m_var_table.remove_elt_with_hash (var, hash);
+	  m_vars[v->index] = nullptr;
+	  m_var_pool.remove (v);
+
 	  if (dump_file && (dump_flags & TDF_DETAILS))
 	    dump_var_info (var, NULL, "Deleting information");
 	  reprocess_inputs (stmt);
@@ -643,13 +667,13 @@ backprop::process_block (basic_block bb)
     {
       tree lhs = gimple_get_lhs (gsi_stmt (gsi));
       if (lhs && TREE_CODE (lhs) == SSA_NAME)
-	process_var (lhs);
+	process_var (lhs, nullptr);
     }
   for (gphi_iterator gpi = gsi_start_phis (bb); !gsi_end_p (gpi);
        gsi_next (&gpi))
     {
       tree result = gimple_phi_result (gpi.phi ());
-      process_var (result);
+      process_var (result, nullptr);
       bitmap_set_bit (m_visited_phis, SSA_NAME_VERSION (result));
     }
   bitmap_clear (m_visited_phis);
@@ -897,7 +921,10 @@ backprop::execute ()
   /* Phase 2: Use the initial (perhaps overly optimistic) information
      to create a maximal fixed point solution.  */
   while (!m_worklist.is_empty ())
-    process_var (pop_from_worklist ());
+    {
+      var_info *v = pop_from_worklist ();
+      process_var (v->var, v);
+    }
 
   if (dump_file && (dump_flags & TDF_DETAILS))
     fprintf (dump_file, "\n");
@@ -905,29 +932,23 @@ backprop::execute ()
   /* Phase 3: Do a reverse post-order walk, using information about
      the uses of SSA names to optimize their definitions.  */
   for (unsigned int i = m_vars.length (); i-- > 0;)
-    {
-      usage_info *info = m_vars[i].second;
-      if (info->is_useful ())
-	{
-	  tree var = m_vars[i].first;
-	  gimple *stmt = SSA_NAME_DEF_STMT (var);
-	  if (gcall *call = dyn_cast <gcall *> (stmt))
-	    optimize_builtin_call (call, var, info);
-	  else if (gassign *assign = dyn_cast <gassign *> (stmt))
-	    optimize_assign (assign, var, info);
-	  else if (gphi *phi = dyn_cast <gphi *> (stmt))
-	    optimize_phi (phi, var, info);
-	}
-    }
+    if (var_info *v = m_vars[i])
+      {
+	gimple *stmt = SSA_NAME_DEF_STMT (v->var);
+	if (gcall *call = dyn_cast <gcall *> (stmt))
+	  optimize_builtin_call (call, v->var, &v->info);
+	else if (gassign *assign = dyn_cast <gassign *> (stmt))
+	  optimize_assign (assign, v->var, &v->info);
+	else if (gphi *phi = dyn_cast <gphi *> (stmt))
+	  optimize_phi (phi, v->var, &v->info);
+      }
 
   /* Phase 4: Do a post-order walk, deleting statements that are no
      longer needed.  */
   for (unsigned int i = 0; i < m_vars.length (); ++i)
-    {
-      tree var = m_vars[i].first;
-      if (has_zero_uses (var))
-	remove_unused_var (var);
-    }
+    if (var_info *v = m_vars[i])
+      if (has_zero_uses (v->var))
+	remove_unused_var (v->var);
 
   if (dump_file && (dump_flags & TDF_DETAILS))
     fprintf (dump_file, "\n");
