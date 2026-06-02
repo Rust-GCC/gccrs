@@ -3320,6 +3320,7 @@ expand_vec_perm (rtx target, rtx op0, rtx op1, rtx sel)
 	  op = op1;
 	}
       emit_vlmax_gather_insn (target, op, sel);
+      return;
     }
 
   /* Note: vec_perm indices are supposed to wrap when they go beyond the
