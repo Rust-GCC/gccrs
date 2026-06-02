@@ -343,9 +343,26 @@ Parser<ManagedTokenSource>::parse_literal_expr (AST::AttrVec outer_attrs)
       lexer.skip_token ();
       break;
     case C_STRING_LITERAL:
-      type = AST::Literal::C_STRING;
-      literal_value = t->get_str ();
-      lexer.skip_token ();
+      {
+	if (flag_c_style_string_literals)
+	  {
+	    type = AST::Literal::C_STRING;
+	    literal_value = t->get_str ();
+	    lexer.skip_token ();
+	  }
+	else
+	  {
+	    add_error (
+	      Error (t->get_locus (),
+		     "unexpected token %qs when parsing literal expression - "
+		     "C-style string literals require "
+		     "%<-frust-c-style-string-literals%> to be enabled",
+		     t->get_token_description ()));
+	    return tl::unexpected<Parse::Error::Node> (
+	      Parse::Error::Node::MALFORMED);
+	  }
+      }
+
       break;
     case INT_LITERAL:
       type = AST::Literal::INT;
@@ -2117,9 +2134,22 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	new AST::LiteralExpr (tok->get_str (), AST::Literal::RAW_STRING,
 			      tok->get_type_hint (), {}, tok->get_locus ()));
     case C_STRING_LITERAL:
-      return std::unique_ptr<AST::LiteralExpr> (
-	new AST::LiteralExpr (tok->get_str (), AST::Literal::C_STRING,
-			      tok->get_type_hint (), {}, tok->get_locus ()));
+      if (flag_c_style_string_literals)
+	{
+	  return std::unique_ptr<AST::LiteralExpr> (
+	    new AST::LiteralExpr (tok->get_str (), AST::Literal::C_STRING,
+				  tok->get_type_hint (), {},
+				  tok->get_locus ()));
+	}
+      else
+	{
+	  Error error (tok->get_locus (),
+		       "C-style string literals require "
+		       "%<-frust-c-style-string-literals%> to be enabled");
+	  add_error (std::move (error));
+	  return tl::unexpected<Parse::Error::Expr> (
+	    Parse::Error::Expr::MALFORMED);
+	}
     case CHAR_LITERAL:
       return std::unique_ptr<AST::LiteralExpr> (
 	new AST::LiteralExpr (tok->get_str (), AST::Literal::CHAR,
