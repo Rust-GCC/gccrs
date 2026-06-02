@@ -111,6 +111,12 @@ package body Sem_Util is
    --  and Build_Discriminal_Subtype_Of_Component. C is a list of constraints,
    --  Loc is the source location, T is the original subtype.
 
+   function Direct_Attribute_Names_Correspond
+     (Parent_Subp : Entity_Id; Candidate_Subp : Entity_Id) return Boolean;
+   --  Returns True if both Parent_Subp and Candidate_Subp are names of
+   --  attribute subprograms and the aspect parts of their names are for
+   --  the same aspect; otherwise returns False.
+
    procedure Examine_Array_Bounds
      (Typ        : Entity_Id;
       All_Static : out Boolean;
@@ -6392,19 +6398,50 @@ package body Sem_Util is
    --------------------------------------
 
    function Direct_Attribute_Definition_Name
-     (Prefix : Entity_Id; Att_Name : Name_Id) return Name_Id is
+     (Prefix : Entity_Id; Att_Name : Name_Id) return Name_Id
+   is
+      Initial_Prefix     : Entity_Id := Prefix;
+      Prefix_Attr_Name   : Name_Id;
+      Is_Class_Wide_Attr : Boolean := False;
+
    begin
-      if Nkind (Prefix) = N_Attribute_Reference then
-         Error_Msg_N ("attribute streams not supported in "
-                      & "direct attribute definitions",
-                      Prefix);
+      --  Account for "Class" attribute names (for stream attributes),
+      --  when either the prefix already denotes a class-wide type or
+      --  the prefix has the form "T'Class".
+
+      if Is_Entity (Prefix) and then Is_Class_Wide_Type (Prefix) then
+         Initial_Prefix := Root_Type (Prefix);
+         Is_Class_Wide_Attr := True;
+
+      elsif Nkind (Prefix) = N_Attribute_Reference then
+         Prefix_Attr_Name := Attribute_Name (Prefix);
+
+         if Prefix_Attr_Name /= Name_Class then
+            Error_Msg_N ("unsupported kind of attribute in "
+                         & "direct attribute definition",
+                         Prefix);
+         else
+            Is_Class_Wide_Attr := True;
+         end if;
+
+         Initial_Prefix := Sinfo.Nodes.Prefix (Prefix);
+      end if;
+
+      if Nkind (Prefix) = N_Defining_Program_Unit_Name then
+         if Present (Name (Prefix)) then
+            Error_Msg_N
+              ("attribute names not allowed for library subprograms", Prefix);
+         end if;
+
+         Initial_Prefix := Defining_Identifier (Prefix);
       end if;
 
       pragma Assert (Is_Attribute_Name (Att_Name));
       return New_External_Name
-               (Related_Id => Chars (Prefix),
-                Suffix => "_" & Get_Name_String (Att_Name) & "_Att",
-                Prefix => 'D');
+               (Related_Id => Chars (Initial_Prefix),
+                Suffix =>
+                  (if Is_Class_Wide_Attr then "'class" else "")
+                  & "'" & Get_Name_String (Att_Name));
    end Direct_Attribute_Definition_Name;
 
    --------------------------------------
@@ -6754,10 +6791,13 @@ package body Sem_Util is
          --  but for predefined dispatching operations we cannot rely on
          --  the name of the primitive to identify a candidate since their
          --  name is internally built by adding a suffix to the name of the
-         --  tagged type.
+         --  tagged type. We also account for cases of attribute subprograms,
+         --  where the subprogram names may differ, but correspondence and
+         --  overriding can still occur.
 
          if Chars (Subp) = Chars (Ancestor_Op)
            or else Is_Predefined_Dispatching_Operation (Subp)
+           or else Direct_Attribute_Names_Correspond (Ancestor_Op, Subp)
          then
             --  Handle case where Ancestor_Op is a primitive of a progenitor.
             --  We rely on internal entities that map interface primitives:
@@ -7583,6 +7623,46 @@ package body Sem_Util is
          return False;
       end if;
    end Designate_Same_Unit;
+
+   ---------------------------------------
+   -- Direct_Attribute_Names_Correspond --
+   ---------------------------------------
+
+   function Direct_Attribute_Names_Correspond
+     (Parent_Subp : Entity_Id; Candidate_Subp : Entity_Id) return Boolean
+   is
+   begin
+      if not Is_Direct_Attribute_Subp_Name (Chars (Parent_Subp))
+        or else not Is_Direct_Attribute_Subp_Name (Chars (Candidate_Subp))
+      then
+         return False;
+
+      else
+         declare
+            Parent_Name       : constant String :=
+                                  Get_Name_String (Chars (Parent_Subp));
+            Parent_Attr_Start : Natural := 2;
+
+            Cand_Name         : constant String :=
+                                  Get_Name_String (Chars (Candidate_Subp));
+            Cand_Attr_Start   : Natural := 2;
+         begin
+            while Parent_Name (Parent_Attr_Start) /= ''' loop
+               Parent_Attr_Start := Parent_Attr_Start + 1;
+            end loop;
+
+            while Cand_Name (Cand_Attr_Start) /= ''' loop
+               Cand_Attr_Start := Cand_Attr_Start + 1;
+            end loop;
+
+            --  Compare the internal subprogram names from the apostrophe on,
+            --  to determine whether names are for the same aspect/attribute.
+
+            return Parent_Name (Parent_Attr_Start .. Parent_Name'Last)
+                     = Cand_Name (Cand_Attr_Start .. Cand_Name'Last);
+         end;
+      end if;
+   end Direct_Attribute_Names_Correspond;
 
    ------------------------
    -- Discriminated_Size --
@@ -15426,12 +15506,30 @@ package body Sem_Util is
          New_Item       : Node_Id;
          Item_Aspect_Id : constant Nonoverridable_Aspect_Id :=
            Get_Aspect_Id (Item);
+         New_Expr       : Node_Id;
 
       begin
+         --  When the expression of the parent aspect is a name that has
+         --  the form of a direct attribute subprogram name, then construct
+         --  a new name using the derived type's name combined with the same
+         --  attribute/aspect name.
+
+         if Nkind (Expression (Item)) = N_Identifier
+           and then
+             Is_Direct_Attribute_Subp_Name (Chars (Expression (Item)))
+         then
+            New_Expr :=
+              Make_Identifier (Loc,
+                Direct_Attribute_Definition_Name
+                  (Typ, Aspect_Names (Item_Aspect_Id)));
+         else
+            New_Expr := New_Copy_Tree (Expression (Item));
+         end if;
+
          New_Item := Make_Aspect_Specification (
            Sloc => Loc,
            Identifier => Identifier (Item),
-           Expression => New_Copy_Tree (Expression (Item)));
+           Expression => New_Expr);
          Set_Entity (New_Item, Typ);
 
          --  We are trying here to implement RM 13.1(15.5):
@@ -16486,6 +16584,24 @@ package body Sem_Util is
       return Nkind (N) = N_Attribute_Reference
         and then Attribute_Name (N) = Name_Result;
    end Is_Attribute_Result;
+
+   -----------------------------------
+   -- Is_Direct_Attribute_Subp_Name --
+   -----------------------------------
+
+   function Is_Direct_Attribute_Subp_Name (Nam : Name_Id) return Boolean is
+      Name_Str : constant String := Get_Name_String (Nam);
+      Index    : Positive := 1;
+
+   begin
+      while Index < Name_Str'Length and then Name_Str (Index) /= ''' loop
+         Index := Index + 1;
+      end loop;
+
+      --  Return True iff an apostrophe is found before the end of the name
+
+      return Index < Name_Str'Length;
+   end Is_Direct_Attribute_Subp_Name;
 
    -----------------------------------
    -- Is_Direct_Attribute_Subp_Spec --
@@ -27543,7 +27659,9 @@ package body Sem_Util is
              and then Is_Predefined_Dispatching_Operation (E2)
              and then Same_TSS (E1, E2))
         or else
-           (Is_Init_Proc (E1) and then Is_Init_Proc (E2));
+           (Is_Init_Proc (E1) and then Is_Init_Proc (E2))
+        or else
+           Direct_Attribute_Names_Correspond (E1, E2);
    end Primitive_Names_Match;
 
    -----------------------

@@ -2069,3 +2069,102 @@ Another example, which additionally uses the inference of dependent types:
    begin
       Ada.Unchecked_Deallocation(Name => Integer_Access) (A);
    end;
+
+Attribute Subprograms
+---------------------
+
+This feature allows declaring subprograms that are associated with a named
+aspect or attribute of a given type, as an alternative to explicitly
+specifying the aspect or attribute for the type (using an aspect_specification
+or attribute_definition_clause), by defining the name of the subprogram
+using attribute syntax. In effect, this implicitly specifies the aspect
+or attribute for the type, and is intended to be semantically equivalent to
+using an explicit aspect specification, but without needing to give a specific
+name in the aspect and subprogram. This is allowed for the various aspects that
+denote subprograms (see below for the exact list of supported aspects).
+
+Here is an example of the use of this feature for defining indexing functions
+for a container type and an integer-literal function for the container's
+element type:
+
+.. code-block:: ada
+
+   package My_Container is
+
+      type Container is tagged ...;  -- Implicit indexing aspects
+
+      type Element_Type is ...;      -- Implicit Integer_Literal aspect
+
+      type Cursor_Type is ...;
+
+      type Reference_Type is ...;
+
+      function Container'Constant_Indexing (C : Container; Index : Positive)
+        return Element_Type;
+
+      function Container'Constant_Indexing (C : Container; Index : Cursor_Type)
+        return Element_Type;
+
+      function Container'Variable_Indexing
+        (C : in out Container; Index : Positive)
+         return Reference_Type;
+
+      function Element_Type'Integer_Literal (S : String) return Element_Type;
+
+   end My_Container;
+
+Syntax
+^^^^^^
+
+.. code-block:: text
+
+   defining_program_unit_name ::=
+     [parent_unit_name . ]defining_identifier
+   | defining_attribute_subprogram_name
+
+   defining_attribute_subprogram_name ::=
+     prefix'attribute_designator
+
+Legality Rules
+^^^^^^^^^^^^^^
+
+The prefix of a ``defining_attribute_subprogram_name`` shall be either
+a ``direct_name`` denoting a type (more properly, a first subtype)
+declared immediately within the scope where the associated subprogram
+is declared, or else an attribute name itself whose ``attribute_designator``
+is ``Class`` and whose prefix denotes a type subject to the same
+declaration condition. A ``defining_program_unit_name`` that is
+a ``defining_attribute_subprogram_name`` may only be used to define
+the name of a subprogram that is neither a library subprogram nor
+a subprogram whose body is given by a ``body_stub`` (nor can it be
+used to define the name of a generic subprogram).
+
+The ``attribute_designator`` given in a ``defining_attribute_subprogram_name``
+shall name an aspect that is allowed to designate a subprogram. Specifically,
+it shall be one of the predefined aspects ``Constant_Indexing``,
+``Variable_Indexing``, ``Default_Iterator``, ``Integer_Literal``,
+``Real_Literal``, ``String_Literal``, ``Put_Image``, ``Read``, ``Write``,
+``Input``, or ``Output``, or else one of the implementation-defined aspects
+``Constructor`` or ``Destructor``. (Note that this feature is not supported
+for aspects that have elements that may designate a subprogram, such as the
+``Aggregate`` aspect.)
+
+If the prefix of a ``defining_attribute_subprogram_name`` is an attribute name
+whose ``attribute_designator`` is ``Class``, then the ``attribute_designator``
+of the ``defining_attribute_subprogram_name`` shall be the name of a stream
+attribute.
+
+An attribute subprogram for a given type and aspect is subject to
+the same restrictions as would be imposed on a subprogram denoted by
+an explicit ``aspect_specification`` or ``attribute_definition_clause``
+for that type and aspect. In particular, the profile of the subprogram
+must satisfy any expected profile defined for the aspect.
+
+If a subprogram is declared using a ``defining_attribute_subprogram_name``,
+then the type named in the attribute subprogram's name shall not have
+an explicit ``aspect_specification`` that specifies the same aspect as
+that named by the subprogram, nor shall the type derive from an ancestor
+type that explicitly specifies that aspect. Similarly, an explicit
+``aspect_specification`` shall not specify an aspect for a type that
+is derived from a type for which any attribute subprograms have been
+declared for the same aspect.

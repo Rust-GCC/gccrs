@@ -2420,11 +2420,14 @@ package body Sem_Ch10 is
    begin
       Check_Stub_Level (N);
 
+      if Is_Direct_Attribute_Subp_Spec (Specification (N)) then
+         Error_Msg_N ("body stubs not allowed for attribute subprograms", N);
+
       --  Verify that the identifier for the stub is unique within this
       --  declarative part.
 
-      if Nkind (Parent (N)) in
-           N_Block_Statement | N_Package_Body | N_Subprogram_Body
+      elsif Nkind (Parent (N)) in
+        N_Block_Statement | N_Package_Body | N_Subprogram_Body
       then
          Decl := First (Declarations (Parent (N)));
          while Present (Decl) and then Decl /= N loop

@@ -379,13 +379,6 @@ package body Sem_Ch13 is
    --  a corresponding pragma (or an attribute definition clause). This
    --  parallels what is done in sem_prag.adb (see Get_Argument).
 
-   procedure Analyze_One_Aspect
-     (N        : Node_Id;
-      E        : N_Entity_Id;
-      Aspect   : Node_Id);
-   --  N and E are what was passed to Analyze_Aspect_Specifications.
-   --  Aspect is one element of Aspect_Specifications (N).
-
    -----------------------------------------------------------
    --  Visibility of Discriminants in Aspect Specifications --
    -----------------------------------------------------------
@@ -5011,17 +5004,23 @@ package body Sem_Ch13 is
                Next (Aspect_Comp);
             end loop;
 
-            --  Do a psuedo pass over the aggregate to ensure its
+            --  Do a "pseudo" pass over the aggregate to ensure its
             --  validity. The expression with actions is required to
             --  have a valid node where to place the ABE check during
             --  resolution.
 
-            Expander_Active := False;
-            Dummy := Make_Expression_With_Actions (Loc,
-              Actions => Empty_List,
-              Expression => New_Copy_Tree (Expression (Aspect)));
-            Resolve_Aggregate (Expression (Dummy), Typ);
-            Expander_Active := True;
+            declare
+               EA_Save : constant Boolean := Expander_Active;
+            begin
+               Expander_Active := False;
+
+               Dummy := Make_Expression_With_Actions (Loc,
+                 Actions => Empty_List,
+                 Expression => New_Copy_Tree (Expression (Aspect)));
+               Resolve_Aggregate (Expression (Dummy), Typ);
+
+               Expander_Active := EA_Save;
+            end;
          end Initialize;
 
          --  Aspect Initializes is never delayed because it is equivalent
@@ -6174,10 +6173,13 @@ package body Sem_Ch13 is
       -----------------------------------
 
       procedure Analyze_Put_Image_TSS_Definition is
-         Subp : Entity_Id := Empty;
-         I    : Interp_Index;
-         It   : Interp;
-         Pnam : Entity_Id;
+         Subp         : Entity_Id := Empty;
+         Bad_Subp     : Entity_Id := Empty;
+         Err_Node     : Node_Id   := Empty;
+         Is_Attr_Subp : Boolean;
+         I            : Interp_Index;
+         It           : Interp;
+         Pnam         : Entity_Id;
 
          function Has_Good_Profile
            (Subp   : Entity_Id;
@@ -6305,6 +6307,8 @@ package body Sem_Ch13 is
             if not Is_Overloaded (Expr) then
                if Has_Good_Profile (Entity (Expr), Report => True) then
                   Subp := Entity (Expr);
+               else
+                  Bad_Subp := Entity (Expr);
                end if;
 
             else
@@ -6313,6 +6317,8 @@ package body Sem_Ch13 is
                   if Has_Good_Profile (It.Nam) then
                      Subp := It.Nam;
                      exit;
+                  else
+                     Bad_Subp := It.Nam;
                   end if;
 
                   Get_Next_Interp (I, It);
@@ -6320,9 +6326,22 @@ package body Sem_Ch13 is
             end if;
          end if;
 
+         --  If Expr does not come from source, then the clause must be
+         --  associated with an aspect_specification that was implicitly
+         --  created due to an attribute subprogram. When there are errors
+         --  on such a subprogram, we want to flag errors on the subprogram
+         --  itself rather than the type (which is where the errors would
+         --  end up being placed otherwise), so we set Err_Node accordingly.
+
+         Is_Attr_Subp := not Comes_From_Source (Expr);
+
+         Err_Node := (if not Is_Attr_Subp then Expr
+                      elsif Present (Bad_Subp) then Bad_Subp else Subp);
+
          if Present (Subp) then
             if Is_Abstract_Subprogram (Subp) then
-               Error_Msg_N ("Put_Image subprogram must not be abstract", Expr);
+               Error_Msg_N
+                 ("Put_Image subprogram must not be abstract", Err_Node);
                return;
             end if;
 
@@ -6333,7 +6352,10 @@ package body Sem_Ch13 is
 
          else
             Error_Msg_Name_1 := Attr;
-            Error_Msg_N ("incorrect expression for% attribute", Expr);
+            Error_Msg_N
+              ("incorrect "
+               & (if Is_Attr_Subp then "subprogram" else "expression")
+               & " for% attribute", Err_Node);
          end if;
       end Analyze_Put_Image_TSS_Definition;
 
@@ -6342,10 +6364,13 @@ package body Sem_Ch13 is
       -----------------------------------
 
       procedure Analyze_Stream_TSS_Definition (TSS_Nam : TSS_Name_Type) is
-         Subp : Entity_Id := Empty;
-         I    : Interp_Index;
-         It   : Interp;
-         Pnam : Entity_Id;
+         Subp         : Entity_Id := Empty;
+         Bad_Subp     : Entity_Id := Empty;
+         Err_Node     : Node_Id   := Empty;
+         Is_Attr_Subp : Boolean;
+         I            : Interp_Index;
+         It           : Interp;
+         Pnam         : Entity_Id;
 
          Is_Read : constant Boolean := (TSS_Nam = TSS_Stream_Read);
          --  True for Read attribute, False for other attributes
@@ -6475,6 +6500,8 @@ package body Sem_Ch13 is
             if not Is_Overloaded (Expr) then
                if Has_Good_Profile (Entity (Expr), Report => True) then
                   Subp := Entity (Expr);
+               else
+                  Bad_Subp := Entity (Expr);
                end if;
 
             else
@@ -6483,6 +6510,8 @@ package body Sem_Ch13 is
                   if Has_Good_Profile (It.Nam) then
                      Subp := It.Nam;
                      exit;
+                  else
+                     Bad_Subp := It.Nam;
                   end if;
 
                   Get_Next_Interp (I, It);
@@ -6490,9 +6519,22 @@ package body Sem_Ch13 is
             end if;
          end if;
 
+         --  If Expr does not come from source, then the clause must be
+         --  associated with an aspect_specification that was implicitly
+         --  created due to an attribute subprogram. When there are errors
+         --  on such a subprogram, we want to flag errors on the subprogram
+         --  itself rather than the type (which is where the errors would
+         --  end up being placed otherwise), so we set Err_Node accordingly.
+
+         Is_Attr_Subp := not Comes_From_Source (Expr);
+
+         Err_Node := (if not Is_Attr_Subp then Expr
+                      elsif Present (Bad_Subp) then Bad_Subp else Subp);
+
          if Present (Subp) then
             if Is_Abstract_Subprogram (Subp) then
-               Error_Msg_N ("stream subprogram must not be abstract", Expr);
+               Error_Msg_N
+                 ("stream subprogram must not be abstract", Err_Node);
                return;
 
             --  A stream subprogram for an interface type must be a null
@@ -6511,7 +6553,7 @@ package body Sem_Ch13 is
             then
                Error_Msg_N
                  ("stream subprogram for interface type must be null "
-                  & "procedure", Expr);
+                  & "procedure", Err_Node);
             end if;
 
             Set_Entity (Expr, Subp);
@@ -6524,9 +6566,14 @@ package body Sem_Ch13 is
 
             if Is_Class_Wide_Type (Base_Type (Ent)) then
                Error_Msg_N
-                 ("incorrect expression for class-wide% attribute", Expr);
+                 ("incorrect "
+                  & (if Is_Attr_Subp then "subprogram" else "expression")
+                  & " for class-wide% attribute", Err_Node);
             else
-               Error_Msg_N ("incorrect expression for% attribute", Expr);
+               Error_Msg_N
+                 ("incorrect "
+                  & (if Is_Attr_Subp then "subprogram" else "expression")
+                  & " for% attribute", Err_Node);
             end if;
          end if;
       end Analyze_Stream_TSS_Definition;
@@ -7383,15 +7430,6 @@ package body Sem_Ch13 is
 
          when Attribute_Default_Iterator => Default_Iterator : declare
          begin
-            --  If target type is untagged, further checks are irrelevant
-
-            if not Is_Tagged_Type (U_Ent) then
-               Error_Msg_N
-                 ("aspect Default_Iterator can only apply to a tagged type",
-                  Nam);
-               return;
-            end if;
-
             declare
                Parent_Aspect : constant Node_Id :=
                  Find_Aspect (U_Ent, Aspect_Default_Iterator);
@@ -7399,10 +7437,15 @@ package body Sem_Ch13 is
                --  If the attribute definition clause comes from an aspect that
                --  is not Comes_From_Source, then the aspect must be inherited
                --  from a parent type, in which case the operation has already
-               --  been set properly, and there's no need to do the check.
+               --  been set properly, and there's no need to do the check,
+               --  except for the case of an implicit aspect that denotes
+               --  an attribute subprogram, where we do want to check.
 
                if No (Parent_Aspect)
                  or else Comes_From_Source (Parent_Aspect)
+                 or else
+                   (Nkind (Expr) in N_Has_Chars
+                     and then Is_Direct_Attribute_Subp_Name (Chars (Expr)))
                then
                   Check_Iterator_Functions (Typ => U_Ent, Expr => Expr);
                end if;
@@ -7410,10 +7453,20 @@ package body Sem_Ch13 is
 
             Analyze (Expr);
 
-            if not Is_Entity_Name (Expr)
-              or else Ekind (Entity (Expr)) /= E_Function
-            then
-               Error_Msg_N ("aspect Iterator must be a function", Expr);
+            --  If target type is untagged, further checks are irrelevant
+
+            if not Is_Tagged_Type (U_Ent) then
+
+               --  If an attribute subprogram is denoted, then flag the error
+               --  on the subprogram. Otherwise, flag the error on the type.
+
+               Error_Msg_N
+                 ("aspect Default_Iterator can only apply to a tagged type",
+                  (if not Comes_From_Source (Expr)
+                     and then Is_Direct_Attribute_Subp_Name (Chars (Expr))
+                  then Entity (Expr)
+                  else Nam));
+
                return;
             end if;
          end Default_Iterator;
@@ -12073,11 +12126,17 @@ package body Sem_Ch13 is
             --  If the aspect is not Comes_From_Source, then it's an inherited
             --  aspect, in which case the aspect's operation has already been
             --  set, and there's no need to call Check_Iterator_Functions.
+            --  Except when the aspect expression is a name that's an attribute
+            --  name, so it denotes one or more attribute subprograms, and the
+            --  checks are needed.
 
-            if Comes_From_Source (ASN) then
+            if Comes_From_Source (ASN)
+              or else Is_Direct_Attribute_Subp_Name (Chars (Expr))
+            then
                Check_Iterator_Functions
                  (Typ => Entity (ASN), Expr => Expression (ASN));
             end if;
+
             return;
 
          --  Finalizable, legality checks in Validate_Finalizable_Aspect
@@ -12795,13 +12854,27 @@ package body Sem_Ch13 is
 
          --  Set Error_Msg_Warn based on whether errors are wanted, so that
          --  messages with "<<" will be reported appropriately as warnings
-         --  or errors.
+         --  or errors. Note that we always want messages to be errors in
+         --  the case of attribute subprograms.
 
-         Error_Msg_Warn := not Error_On_Ineligible;
-         Error_Msg_NE (Msg, ASN, Typ);
+         Error_Msg_Warn := not Error_On_Ineligible
+           and then not Is_Direct_Attribute_Subp_Name (Chars (Subp));
 
-         Error_Msg_Sloc := Sloc (Subp);
-         Error_Msg_NE ("\ineligible operation & declared#", ASN, Subp);
+         --  When the subprogram's name is an attribute name, then we flag
+         --  the error on the subprogram itself rather than the aspect, which
+         --  was implicitly created in this case (so the error would be flagged
+         --  on the type, which would be confusing). (Maybe we should always
+         --  flag these errors on the subprograms themselves???)
+
+         if Is_Direct_Attribute_Subp_Name (Chars (Subp)) then
+            Error_Msg_NE (Msg, Subp, Typ);
+
+         else
+            Error_Msg_NE (Msg, ASN, Typ);
+
+            Error_Msg_Sloc := Sloc (Subp);
+            Error_Msg_NE ("\ineligible operation & declared#", ASN, Subp);
+         end if;
       end Report_Ineligible_Indexing_Function;
 
       ---------------------------
@@ -12889,6 +12962,10 @@ package body Sem_Ch13 is
               (Param_Type    => Etype (First_Formal (Subp)),
                Specific_Type => Typ);
 
+      No_Eligible_Func_Or_Is_Attr_Subp : constant Boolean :=
+        not Has_Eligible_Func
+          or else Is_Direct_Attribute_Subp_Name (Chars (Subp));
+
    --  Start of processing for Check_Function_For_Indexing_Aspect
 
    begin
@@ -12916,7 +12993,7 @@ package body Sem_Ch13 is
       if Scope (Subp) /= Scope (Typ)
         and then not Has_Class_Wide_First_Formal
       then
-         if not Has_Eligible_Func and then Error_On_Ineligible then
+         if Error_On_Ineligible and then No_Eligible_Func_Or_Is_Attr_Subp then
             Report_Ineligible_Indexing_Function
               ("indexing aspect requires function with same scope as type&");
          end if;
@@ -12928,7 +13005,7 @@ package body Sem_Ch13 is
       --  identified, and never issue a warning.
 
       elsif not Is_Overloadable (Subp) or else No (Ret_Type) then
-         if not Has_Eligible_Func and then Error_On_Ineligible then
+         if Error_On_Ineligible and then No_Eligible_Func_Or_Is_Attr_Subp then
             Report_Ineligible_Indexing_Function
               ("illegal indexing function for type&");
          end if;
@@ -12936,7 +13013,7 @@ package body Sem_Ch13 is
          return;
 
       elsif No (First_Formal (Subp)) then
-         if not Has_Eligible_Func then
+         if No_Eligible_Func_Or_Is_Attr_Subp then
             Report_Ineligible_Indexing_Function
               ("indexing aspect requires a function that applies to type&<<");
          end if;
@@ -12946,7 +13023,7 @@ package body Sem_Ch13 is
       elsif not Subp_Is_Dispatching_Op_Of_Typ (Subp => Subp, Typ => Typ)
         and then not Has_Class_Wide_First_Formal
       then
-         if not Has_Eligible_Func then
+         if No_Eligible_Func_Or_Is_Attr_Subp then
             Report_Ineligible_Indexing_Function
               ("indexing aspect requires function with first formal "
                & "applying to type& or its class-wide type<<");
@@ -12954,7 +13031,7 @@ package body Sem_Ch13 is
          return;
 
       elsif No (Next_Formal (First_Formal (Subp))) then
-         if not Has_Eligible_Func then
+         if No_Eligible_Func_Or_Is_Attr_Subp then
             Report_Ineligible_Indexing_Function
               ("at least two parameters required for indexing function<<");
          end if;
@@ -13147,7 +13224,9 @@ package body Sem_Ch13 is
       Analyze (Expr);
 
       if not Is_Entity_Name (Expr) then
-         Error_Msg_N ("aspect Default_Iterator must be a function name", Expr);
+         Error_Msg_N ("aspect Default_Iterator must denote a function", Expr);
+
+         return;
       end if;
 
       if not Is_Overloaded (Expr) then
@@ -19469,6 +19548,7 @@ package body Sem_Ch13 is
       Is_Match     : Boolean;
       Match        : Interp;
       Match2       : Entity_Id := Empty;
+      Subp         : Entity_Id := Empty;
 
       function Matching
         (Param_Id : Entity_Id; Param_Type : Entity_Id) return Boolean;
@@ -19492,8 +19572,12 @@ package body Sem_Ch13 is
    begin
       --  If the aspect specification was effectively inherited from the parent
       --  type (so constructed anew by analysis), then no point in validating.
+      --  Except when the aspect expression is an attribute name, as it denotes
+      --  an attribute subprogram, and we do want to do the checks here.
 
-      if not Comes_From_Source (ASN) then
+      if not Comes_From_Source (ASN)
+        and then not Is_Direct_Attribute_Subp_Name (Chars (Func_Name))
+      then
          return;
       end if;
 
@@ -19551,28 +19635,27 @@ package body Sem_Ch13 is
            and then Base_Type (Etype (It.Nam)) = Base_Type (Typ)
          then
             declare
-               Params     : constant List_Id :=
-                 Parameter_Specifications (Parent (It.Nam));
-               Param_Spec : Node_Id;
+               Formal : Entity_Id := First_Formal (It.Nam);
 
             begin
-               if List_Length (Params) = 1 then
-                  Param_Spec := First (Params);
-                  Is_Match :=
-                    Matching (Defining_Identifier (Param_Spec), Param_Type);
+               Subp := It.Nam;
+
+               if Present (Formal)
+                 and then not Present (Next_Formal (Formal))
+               then
+                  Is_Match := Matching (Formal, Param_Type);
 
                --  Look for the optional overloaded 2-param Real_Literal
 
-               elsif List_Length (Params) = 2
+               elsif Present (Formal)
+                 and then Present (Next_Formal (Formal))
                  and then A_Id = Aspect_Real_Literal
                then
-                  Param_Spec := First (Params);
+                  if Matching (Formal, Param_Type) then
+                     Formal := Next_Formal (Formal);
 
-                  if Matching (Defining_Identifier (Param_Spec), Param_Type)
-                  then
-                     Param_Spec := Next (Param_Spec);
-
-                     if Matching (Defining_Identifier (Param_Spec), Param_Type)
+                     if not Present (Next_Formal (Formal))
+                       and then Matching (Formal, Param_Type)
                      then
                         if No (Match2) then
                            Match2 := It.Nam;
@@ -19613,8 +19696,20 @@ package body Sem_Ch13 is
       end loop;
 
       if not Match_Found then
-         Error_Msg_N
-           ("function name in aspect specification cannot be resolved", ASN);
+         if not Comes_From_Source (ASN)
+           and then Present (Subp)
+           and then Is_Direct_Attribute_Subp_Name (Chars (Subp))
+         then
+            Error_Msg_Name_1 := Chars (Identifier (ASN));
+
+            Error_Msg_N
+              ("attribute subprogram not valid for aspect%", Subp);
+         else
+            Error_Msg_N
+              ("function name in aspect specification cannot be resolved",
+               ASN);
+         end if;
+
          return;
       end if;
 

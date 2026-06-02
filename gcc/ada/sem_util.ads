@@ -1941,6 +1941,11 @@ package Sem_Util is
    function Is_Attribute_Result (N : Node_Id) return Boolean;
    --  Determine whether node N denotes attribute 'Result
 
+   function Is_Direct_Attribute_Subp_Name (Nam : Name_Id) return Boolean;
+   --  Determine whether Nam has the proper form for being the name of
+   --  a direct attribute definition subprogram (basically the function
+   --  tests that the name string includes an apostrophe).
+
    function Is_Direct_Attribute_Subp_Spec (N : Node_Id) return Boolean;
    --  Determine whether N denotes a direct attribute definition subprogram
    --  specification node.

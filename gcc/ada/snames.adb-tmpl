@@ -126,12 +126,8 @@ package body Snames is
    function Get_Attribute_Id (N : Name_Id) return Attribute_Id is
    begin
       case N is
-         when Name_Constant_Indexing =>
-            return Attribute_Constant_Indexing;
          when Name_CPU =>
             return Attribute_CPU;
-         when Name_Default_Iterator =>
-            return Attribute_Default_Iterator;
          when Name_Dispatching_Domain =>
             return Attribute_Dispatching_Domain;
          when Name_Implicit_Dereference =>
@@ -142,8 +138,6 @@ package body Snames is
             return Attribute_Iterable;
          when Name_Iterator_Element =>
             return Attribute_Iterator_Element;
-         when Name_Variable_Indexing =>
-            return Attribute_Variable_Indexing;
          when First_Attribute_Name .. Last_Attribute_Name =>
             return Attribute_Id'Val (N - First_Attribute_Name);
          when others =>
@@ -419,7 +413,20 @@ package body Snames is
    function Is_Direct_Attribute_Definition_Name (N : Name_Id) return Boolean is
    begin
       return
-        Is_Attribute_Name (N) and then N in Name_Constructor | Name_Destructor;
+        Is_Attribute_Name (N)
+          and then N in Name_Constant_Indexing
+                      | Name_Constructor
+                      | Name_Default_Iterator
+                      | Name_Destructor
+                      | Name_Input
+                      | Name_Integer_Literal
+                      | Name_Output
+                      | Name_Put_Image
+                      | Name_Read
+                      | Name_Real_Literal
+                      | Name_String_Literal
+                      | Name_Variable_Indexing
+                      | Name_Write;
    end Is_Direct_Attribute_Definition_Name;
 
    ------------------------------

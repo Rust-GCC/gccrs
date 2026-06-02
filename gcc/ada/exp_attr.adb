@@ -9152,8 +9152,10 @@ package body Exp_Attr is
          | Attribute_Bit_Order
          | Attribute_Class
          | Attribute_Compiler_Version
+         | Attribute_Constant_Indexing
          | Attribute_Constructor
          | Attribute_Default_Bit_Order
+         | Attribute_Default_Iterator
          | Attribute_Default_Scalar_Storage_Order
          | Attribute_Definite
          | Attribute_Delta
@@ -9168,6 +9170,7 @@ package body Exp_Attr is
          | Attribute_Has_Access_Values
          | Attribute_Has_Discriminants
          | Attribute_Has_Tagged_Values
+         | Attribute_Integer_Literal
          | Attribute_Large
          | Attribute_Last_Valid
          | Attribute_Library_Level
@@ -9187,6 +9190,7 @@ package body Exp_Attr is
          | Attribute_Modulus
          | Attribute_Partition_ID
          | Attribute_Range
+         | Attribute_Real_Literal
          | Attribute_Restriction_Set
          | Attribute_Safe_Emax
          | Attribute_Safe_First
@@ -9200,6 +9204,7 @@ package body Exp_Attr is
          | Attribute_Small_Denominator
          | Attribute_Small_Numerator
          | Attribute_Storage_Unit
+         | Attribute_String_Literal
          | Attribute_Stub_Type
          | Attribute_Super
          | Attribute_System_Allocator_Alignment
@@ -9209,6 +9214,7 @@ package body Exp_Attr is
          | Attribute_Unconstrained_Array
          | Attribute_Universal_Literal_String
          | Attribute_Unsigned_Base_Range
+         | Attribute_Variable_Indexing
          | Attribute_Wchar_T_Size
          | Attribute_Word_Size
       =>

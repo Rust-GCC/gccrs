@@ -5647,7 +5647,7 @@ package body Sem_Ch8 is
    procedure Find_Direct_Name (N : Node_Id) is
       E   : Entity_Id;
       E2  : Entity_Id;
-      Msg : Boolean;
+      Msg : Boolean := False;
 
       Homonyms : Entity_Id;
       --  Saves start of homonym chain

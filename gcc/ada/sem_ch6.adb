@@ -5231,6 +5231,19 @@ package body Sem_Ch6 is
            (E : Entity_Id; T : Entity_Id) return Boolean;
          --  Returns whether E can be declared the destructor of T
 
+         procedure Create_And_Append_Aspect
+           (Aspect_Name : Name_Id;
+            Subp_Name   : Name_Id;
+            Typ         : Entity_Id);
+         --  Creates, adds, and analyzes an aspect spec for Aspect_Name that
+         --  specifies Subp_Name to Typ's list of representation items, unless
+         --  the type already has such an aspect, or the type is a derived type
+         --  that will inherit the aspect from its parent, or the aspect is
+         --  a nonoverridable aspect. An error will be issued for an attempt
+         --  to specify the aspect via an attribute subprogram if the type
+         --  already explicitly specifies the aspect or inherits the aspect
+         --  from a type that explicitly specifies it.
+
          -----------------------------------
          -- Add_Default_Initialize_Aspect --
          -----------------------------------
@@ -5275,25 +5288,148 @@ package body Sem_Ch6 is
               and then No (Next_Formal (First_Formal (E)));
          end Can_Be_Destructor_Of;
 
+         ------------------------------
+         -- Create_And_Append_Aspect --
+         ------------------------------
+
+         procedure Create_And_Append_Aspect
+           (Aspect_Name : Name_Id;
+            Subp_Name   : Name_Id;
+            Typ         : Entity_Id)
+         is
+            Loc : constant Source_Ptr := Sloc (Typ);
+
+            Subp_Aspect_Id : constant Aspect_Id :=
+              Get_Aspect_Id (Aspect_Name);
+
+            Subp_Aspect : Node_Id := Find_Aspect (Typ, Subp_Aspect_Id);
+
+            Type_Decl : constant Node_Id := Parent (Typ);
+
+         begin
+            --  We disallow attempts to use both forms of specifying the aspect
+            --  (an explicit aspect together with using attribute subprograms).
+            --  This also applies to derived types where the parent type has
+            --  an explicit aspect specification.
+
+            if Present (Subp_Aspect)
+              and then Comes_From_Source (Subp_Aspect)
+            then
+               Error_Msg_Sloc := Sloc (Designator);
+
+               Error_Msg_NE
+                 ("aspect% conflicts with use of attribute subprogram&#",
+                  Subp_Aspect, Designator);
+
+               return;
+            end if;
+
+            --  If the type doesn't already have an aspect associated with
+            --  itself, and it's not a derived type, or it is derived but
+            --  its parent type doesn't have the aspect (which, if it had
+            --  it, would be inherited in Inherit_Nonoverridable_Aspects),
+            --  or it's not a nonoverridable aspect (so it won't be inherited
+            --  from a parent type), then create the aspect now.
+
+            if (not Present (Subp_Aspect)
+                 or else Entity (Subp_Aspect) /= Typ)
+              and then
+                (not Is_Derived_Type (Typ)
+                  or else
+                 not Present (Find_Aspect (Etype (Typ), Subp_Aspect_Id))
+                  or else
+                 Subp_Aspect_Id not in Nonoverridable_Aspect_Id)
+            then
+               Subp_Aspect :=
+                 Make_Aspect_Specification (Loc,
+                   Identifier => Make_Identifier (Loc, Aspect_Name),
+                   Expression => Make_Identifier (Loc, Subp_Name),
+                   Class_Present => Is_Class_Wide_Type (Typ));
+               Set_Entity (Subp_Aspect, Typ);
+
+               if No (Aspect_Specifications (Type_Decl)) then
+                  Set_Aspect_Specifications
+                    (Type_Decl, New_List (Subp_Aspect));
+               else
+                  Append_To
+                    (Aspect_Specifications (Type_Decl), Subp_Aspect);
+               end if;
+
+               Set_Expression_Copy
+                 (Subp_Aspect, New_Copy_Tree (Expression (Subp_Aspect)));
+
+               Analyze_One_Aspect (Type_Decl, Typ, Subp_Aspect);
+            end if;
+         end Create_And_Append_Aspect;
+
          --  Local variables
 
-         Att_N    : constant Node_Id := Original_Node (N);
-         Prefix_E : constant Entity_Id :=
-           Get_Full_View
-             (Current_Entity (Prefix (Defining_Unit_Name (Att_N))));
-         Att_Name : constant Name_Id :=
+         Att_N      : constant Node_Id := Original_Node (N);
+         Att_Prefix : constant Node_Id := Prefix (Defining_Unit_Name (Att_N));
+         Att_Name   : constant Name_Id :=
            Attribute_Name (Defining_Unit_Name (Att_N));
+
+         Is_Class_Wide_Attr : constant Boolean :=
+           Nkind (Att_Prefix) = N_Attribute_Reference
+             and then Attribute_Name (Att_Prefix) = Name_Class;
+
+         Curr_Ent_In_Scope : constant Entity_Id :=
+           Current_Entity_In_Scope
+             (if Is_Class_Wide_Attr
+              then Prefix (Att_Prefix) -- cases like T'Class'Write
+              else Att_Prefix);
+
+         Prefix_E : Entity_Id := Empty;
 
       --  Start of processing for Analyze_Direct_Attribute_Definition
 
       begin
          pragma Assert (N /= Att_N);
 
+         Error_Msg_Name_1 := Att_Name;
+
          if not Is_Direct_Attribute_Definition_Name (Att_Name) then
-            Error_Msg_Name_1 := Att_Name;
             Error_Msg_N
               ("direct definition syntax not supported for attribute%",
                Designator);
+         end if;
+
+         if Is_Library_Level_Entity (Designator)
+           and then Scope (Designator) = Standard_Standard
+         then
+            Error_Msg_N
+              ("attribute names not allowed for library subprograms",
+               Designator);
+            return;
+         end if;
+
+         if Is_Class_Wide_Attr
+           and then
+             Att_Name not in Name_Input | Name_Output | Name_Read | Name_Write
+         then
+            Error_Msg_N
+              ("% not supported as class-wide attribute", Designator);
+            return;
+         end if;
+
+         if No (Curr_Ent_In_Scope) then
+            Error_Msg_N
+              ("prefix& of attribute% must be a type with same scope",
+               Att_Prefix);
+            return;
+
+         else
+            Prefix_E := Get_Full_View (Curr_Ent_In_Scope);
+
+            if Is_Class_Wide_Attr then
+               if Is_Tagged_Type (Prefix_E) then
+                  Prefix_E := Class_Wide_Type (Prefix_E);
+               else
+                  Error_Msg_N
+                    ("prefix& not allowed for untagged type", Att_Prefix);
+                  return;
+               end if;
+            end if;
          end if;
 
          --  Handle each kind of attribute separately
@@ -5301,8 +5437,6 @@ package body Sem_Ch6 is
          case Att_Name is
 
             when Name_Constructor =>
-               Error_Msg_Name_1 := Att_Name;
-
                --  If missing, add a default initialization aspect for this
                --  constructor's body stub: Initialize => (others => <>).
 
@@ -5374,7 +5508,9 @@ package body Sem_Ch6 is
             when Name_Destructor  =>
                if Parent_Kind (N) not in N_Subprogram_Declaration then
                   return;
-               elsif not Is_Record_Type (Prefix_E) then
+               elsif not Present (Prefix_E)
+                 or else not Is_Record_Type (Prefix_E)
+               then
                   Error_Msg_N
                     ("destructors can only be specified for record types",
                      Designator);
@@ -5404,9 +5540,39 @@ package body Sem_Ch6 is
                   Set_Destructor (Prefix_E, Designator);
                end if;
 
-            when others           =>
-               null;
+            when Name_Constant_Indexing
+               | Name_Default_Iterator
+               | Name_Integer_Literal
+               | Name_Put_Image
+               | Name_Real_Literal
+               | Name_String_Literal
+               | Name_Variable_Indexing
+               | Name_Read
+               | Name_Input
+               | Name_Write
+               | Name_Output
+            =>
+               if Scope (Prefix_E) /= Current_Scope then
+                  Error_Msg_N ("subprogram for aspect must be declared in "
+                               & "same scope as&", Att_Prefix);
 
+               elsif not Is_Type (Prefix_E) then
+                  Error_Msg_N
+                    ("prefix& of attribute% must be a type with same scope",
+                     Att_Prefix);
+
+               --  Create an aspect for the appropriate type, unless we have
+               --  a subprogram body, since the aspect will already have been
+               --  created for the subprogram declaration. (Except maybe for
+               --  rare case of subp body that serves as the declaration? ???)
+
+               elsif Nkind (Parent (N)) /= N_Subprogram_Body then
+                  Create_And_Append_Aspect
+                    (Att_Name, Chars (Designator), Prefix_E);
+               end if;
+
+            when others =>
+               null;
          end case;
       end Analyze_Direct_Attribute_Definition;
 

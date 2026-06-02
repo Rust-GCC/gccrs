@@ -16567,7 +16567,10 @@ package body Sem_Ch3 is
       --  is normally just a copy of the parent name. An exception arises for
       --  type support subprograms, where the name is changed to reflect the
       --  name of the derived type, e.g. if type foo is derived from type bar,
-      --  then a procedure barDA is derived with a name fooDA.
+      --  then a procedure barDA is derived with name fooDA. Another exception
+      --  is for the case of attribute subprograms, where the name is changed
+      --  to substitute the derived type's name for the parent type's name
+      --  (e.g., changing "parent'put_image" to "derived'put_image").
 
       ---------------------------
       -- Is_Private_Overriding --
@@ -16739,7 +16742,38 @@ package body Sem_Ch3 is
       procedure Set_Derived_Name is
          Nm : constant TSS_Name_Type := Get_TSS_Name (Parent_Subp);
       begin
-         if Nm = TSS_Null then
+         if Is_Direct_Attribute_Subp_Name (Chars (Parent_Subp)) then
+            declare
+               Derived_Type_Name : constant String :=
+                 Get_Name_String (Chars (Derived_Type));
+
+               Parent_Subp_Name : constant String :=
+                 Get_Name_String (Chars (Parent_Subp));
+
+               Att_Buf : Bounded_String
+                           (Max_Length => Derived_Type_Name'Length
+                             + Parent_Subp_Name'Length);
+            begin
+               for J in 2 .. Parent_Subp_Name'Length loop
+
+                  --  J is at the position separating the prefix from the
+                  --  attribute name.
+
+                  if Parent_Subp_Name (J) = ''' then
+                     Append (Att_Buf, Derived_Type_Name);
+                     Append (Att_Buf, "'");
+                     Append
+                       (Att_Buf,
+                        Parent_Subp_Name (J + 1 .. Parent_Subp_Name'Length));
+
+                     exit;
+                  end if;
+               end loop;
+
+               Set_Chars (New_Subp, Name_Find (Att_Buf));
+            end;
+
+         elsif Nm = TSS_Null then
             Set_Chars (New_Subp, Chars (Parent_Subp));
          else
             Set_Chars (New_Subp, Make_TSS_Name (Base_Type (Derived_Type), Nm));

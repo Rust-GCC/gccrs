@@ -770,12 +770,6 @@ package Erroutc is
    --  Iterate over all of the errors in the error chain and mark all messages
    --  as deleted if they match the Filter.
 
-   procedure Replace_With_Attribute_Definition;
-   --  The caller has placed in Namet.Global_Name_Buffer the internal encoding
-   --  of a direct attribute definition; this subprogram rewrites that name to
-   --  a user-readable T'attribute string. The original source casing cannot
-   --  be recovered from the names table, so the result is all lowercase.
-
    function Same_Error (M1, M2 : Error_Msg_Id) return Boolean;
    --  See if two messages have the same text. Returns true if the text of the
    --  two messages is identical, or if one of them is the same as the other

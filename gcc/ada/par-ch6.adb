@@ -616,6 +616,8 @@ package body Ch6 is
             Scan; -- past RENAMES
             Set_Name (Rename_Node, P_Name);
             Set_Specification (Rename_Node, Specification_Node);
+            Rewrite_Entity_If_Direct_Attribute_Def
+              (Name_Node, Specification_Node);
             P_Aspect_Specifications (Rename_Node, Semicolon => True);
             TF_Semicolon;
             Pop_Scope_Stack;
@@ -744,6 +746,8 @@ package body Ch6 is
             Stub_Node :=
               New_Node (N_Subprogram_Body_Stub, Sloc (Specification_Node));
             Set_Specification (Stub_Node, Specification_Node);
+            Rewrite_Entity_If_Direct_Attribute_Def
+              (Name_Node, Specification_Node);
 
             if Is_Non_Empty_List (Aspects) then
                Error_Msg

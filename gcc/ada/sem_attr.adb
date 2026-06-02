@@ -467,6 +467,22 @@ package body Sem_Attr is
       --  second message Msg_Cont is useful to issue a continuation message
       --  before raising Bad_Attribute.
 
+      function Is_Reference_To_Attribute_Subp_Name
+        (N : Node_Id) return Boolean is
+          (No (Expressions (N))
+            and then Nkind (Parent (N)) = N_Selected_Component
+            and then Prefix (Parent (N)) = N);
+      --  Returns True if N, which is assumed to be an N_Attribute_Reference,
+      --  is being used as the prefix of an expanded name, such as when
+      --  referring to a local declaration of the body of an attribute
+      --  subprogram (for example, Pkg.T'Constant_Indexing.Local_Var).
+      --  This is used as a guard for calling Rewrite_As_Attribute_Subp_Name.
+      --
+      --  We test whether Expressions is present, and return False if it is,
+      --  because that indicates that the attribute is being used for a call,
+      --  in which case we definitely don't want to do the rewriting (like
+      --  in cases of calls to stream attributes).
+
       procedure Legal_Formal_Attribute;
       --  Common processing for attributes Definite and Has_Discriminants.
       --  Checks that prefix is generic indefinite formal type.
@@ -477,6 +493,15 @@ package body Sem_Attr is
 
       procedure Min_Max;
       --  Common processing for attributes Max and Min
+
+      procedure Rewrite_As_Attribute_Subp_Name;
+      --  Checks that the attribute prefix is a type that has an aspect
+      --  corresponding to the attribute part of the name, and rewrites
+      --  the attribute name in the form of the name of an attribute
+      --  subprogram (usually an N_Identifier whose Chars is a name of
+      --  form "<type-id>'<attribute-name>", but possibly as an N_Expanded_Name
+      --  whose Selector denotes a name of that form in the case where the
+      --  prefix is an expanded name). The rewritten name is then analyzed.
 
       procedure Standard_Attribute (Val : Int);
       --  Used to process attributes whose prefix is package Standard which
@@ -3180,6 +3205,48 @@ package body Sem_Attr is
          end if;
       end Min_Max;
 
+      -------------------------------------
+      -- Rewrite_As_Attribute_Subp_Name --
+      -------------------------------------
+
+      procedure Rewrite_As_Attribute_Subp_Name is
+      begin
+         --  Verify that the prefix of an attribute associated with aspects
+         --  that denote subprograms is a type, and that the type specifies
+         --  the associated aspect. Note that such attribute names can only
+         --  occur for subprograms whose name has the form of an attribute
+         --  (a GNAT extension feature).
+
+         Check_Type;
+
+         if not Has_Aspect (Entity (P), Get_Aspect_Id (Aname)) then
+            Error_Attr_P ("aspect% not available for type");
+         end if;
+
+         --  Change the attribute name into a simple entity reference, so it
+         --  can be used as the prefix in expanded names like the name of a
+         --  normal scope entity. If the prefix of the attribute name is
+         --  itself an expanded name, then account for that in constructing
+         --  the name.
+
+         declare
+            Subp_Name : Node_Id :=
+              Make_Identifier (Sloc (N),
+                Direct_Attribute_Definition_Name (Entity (P), Aname));
+         begin
+            if Nkind (P) = N_Expanded_Name then
+               Subp_Name := Make_Expanded_Name (Sloc (P),
+                              Chars         => Chars (Subp_Name),
+                              Prefix        => Prefix (P),
+                              Selector_Name => Subp_Name);
+            end if;
+
+            Rewrite (N, Subp_Name);
+         end;
+
+         Analyze (N);
+      end Rewrite_As_Attribute_Subp_Name;
+
       ------------------------
       -- Standard_Attribute --
       ------------------------
@@ -4981,9 +5048,14 @@ package body Sem_Attr is
       -----------
 
       when Attribute_Input =>
-         Check_E1;
-         Check_Stream_Attribute (TSS_Stream_Input);
-         Set_Etype (N, P_Base_Type);
+         if Is_Reference_To_Attribute_Subp_Name (N) then
+            Rewrite_As_Attribute_Subp_Name;
+
+         else
+            Check_E1;
+            Check_Stream_Attribute (TSS_Stream_Input);
+            Set_Etype (N, P_Base_Type);
+         end if;
 
       -------------------
       -- Integer_Value --
@@ -6072,10 +6144,15 @@ package body Sem_Attr is
       ------------
 
       when Attribute_Output =>
-         Check_E2;
-         Check_Stream_Attribute (TSS_Stream_Output);
-         Set_Etype (N, Standard_Void_Type);
-         Resolve (N, Standard_Void_Type);
+         if Is_Reference_To_Attribute_Subp_Name (N) then
+            Rewrite_As_Attribute_Subp_Name;
+
+         else
+            Check_E2;
+            Check_Stream_Attribute (TSS_Stream_Output);
+            Set_Etype (N, Standard_Void_Type);
+            Resolve (N, Standard_Void_Type);
+         end if;
 
       ------------------
       -- Partition_ID --
@@ -6256,10 +6333,15 @@ package body Sem_Attr is
       ---------------
 
       when Attribute_Put_Image =>
-         Check_E2;
-         Check_Put_Image_Attribute;
-         Set_Etype (N, Standard_Void_Type);
-         Resolve (N, Standard_Void_Type);
+         if Is_Reference_To_Attribute_Subp_Name (N) then
+            Rewrite_As_Attribute_Subp_Name;
+
+         else
+            Check_E2;
+            Check_Put_Image_Attribute;
+            Set_Etype (N, Standard_Void_Type);
+            Resolve (N, Standard_Void_Type);
+         end if;
 
       -----------
       -- Range --
@@ -6662,11 +6744,16 @@ package body Sem_Attr is
       ----------
 
       when Attribute_Read =>
-         Check_E2;
-         Check_Stream_Attribute (TSS_Stream_Read);
-         Set_Etype (N, Standard_Void_Type);
-         Resolve (N, Standard_Void_Type);
-         Note_Possible_Modification (E2, Sure => True);
+         if Is_Reference_To_Attribute_Subp_Name (N) then
+            Rewrite_As_Attribute_Subp_Name;
+
+         else
+            Check_E2;
+            Check_Stream_Attribute (TSS_Stream_Read);
+            Set_Etype (N, Standard_Void_Type);
+            Resolve (N, Standard_Void_Type);
+            Note_Possible_Modification (E2, Sure => True);
+         end if;
 
       ---------
       -- Ref --
@@ -8240,11 +8327,24 @@ package body Sem_Attr is
       -----------
 
       when Attribute_Write =>
-         Check_E2;
-         Check_Stream_Attribute (TSS_Stream_Write);
-         Set_Etype (N, Standard_Void_Type);
-         Resolve (N, Standard_Void_Type);
+         if Is_Reference_To_Attribute_Subp_Name (N) then
+            Rewrite_As_Attribute_Subp_Name;
 
+         else
+            Check_E2;
+            Check_Stream_Attribute (TSS_Stream_Write);
+            Set_Etype (N, Standard_Void_Type);
+            Resolve (N, Standard_Void_Type);
+         end if;
+
+      when Attribute_Constant_Indexing
+         | Attribute_Default_Iterator
+         | Attribute_Integer_Literal
+         | Attribute_Real_Literal
+         | Attribute_String_Literal
+         | Attribute_Variable_Indexing
+      =>
+         Rewrite_As_Attribute_Subp_Name;
       end case;
 
       --  In SPARK certain attributes (see below) depend on Tasking_State.
@@ -11636,9 +11736,11 @@ package body Sem_Attr is
          | Attribute_Class
          | Attribute_Code_Address
          | Attribute_Compiler_Version
+         | Attribute_Constant_Indexing
          | Attribute_Constructor
          | Attribute_Count
          | Attribute_Default_Bit_Order
+         | Attribute_Default_Iterator
          | Attribute_Default_Scalar_Storage_Order
          | Attribute_Deref
          | Attribute_Destructor
@@ -11653,6 +11755,7 @@ package body Sem_Attr is
          | Attribute_Img
          | Attribute_Input
          | Attribute_Index
+         | Attribute_Integer_Literal
          | Attribute_Initialized
          | Attribute_Last_Bit
          | Attribute_Library_Level
@@ -11666,12 +11769,14 @@ package body Sem_Attr is
          | Attribute_Priority
          | Attribute_Put_Image
          | Attribute_Read
+         | Attribute_Real_Literal
          | Attribute_Result
          | Attribute_Scalar_Storage_Order
          | Attribute_Simple_Storage_Pool
          | Attribute_Storage_Pool
          | Attribute_Storage_Size
          | Attribute_Storage_Unit
+         | Attribute_String_Literal
          | Attribute_Stub_Type
          | Attribute_Super
          | Attribute_System_Allocator_Alignment
@@ -11687,6 +11792,7 @@ package body Sem_Attr is
          | Attribute_Valid_Scalars
          | Attribute_Valid_Value
          | Attribute_Value
+         | Attribute_Variable_Indexing
          | Attribute_Wchar_T_Size
          | Attribute_Wide_Value
          | Attribute_Wide_Wide_Value

@@ -1448,41 +1448,6 @@ package body Erroutc is
       end loop;
    end Prescan_Message;
 
-   ---------------------------------------
-   -- Replace_With_Attribute_Definition --
-   ---------------------------------------
-
-   procedure Replace_With_Attribute_Definition is
-      First   : constant Integer := 2;
-      Last    : constant Integer := Name_Len - 4;
-      Att_Buf : Bounded_String (Max_Length => Name_Len - 7);
-
-   begin
-      Until_Tick :
-      for J in First .. Last loop
-
-         --  J could be at the position separating the prefix from the
-         --  attribute name.
-
-         if Name_Buffer (J) = '_' then
-            Att_Buf.Length := 0;
-            Append (Att_Buf, Name_Buffer (J + 1 .. Last));
-            Set_Casing (Att_Buf, All_Lower_Case);
-
-            if Is_Direct_Attribute_Definition_Name (Name_Find (Att_Buf)) then
-               Name_Buffer (J) := ''';
-               exit Until_Tick;
-            end if;
-         end if;
-      end loop Until_Tick;
-
-      --  Remove prefix 'D' and suffix "_Att"
-
-      Name_Buffer (1 .. Last - 1) := Name_Buffer (2 .. Last);
-      Name_Len := Last - 1;
-      Set_Casing (All_Lower_Case);
-   end Replace_With_Attribute_Definition;
-
    ----------------
    -- Same_Error --
    ----------------
@@ -1793,16 +1758,7 @@ package body Erroutc is
          --  Else output with surrounding quotes in proper casing mode
 
          else
-            --  Replace compiler generated name for direct attribute
-            --  definitions with a nicer one.
-
-            if Name_Buffer (1) = 'D'
-              and then Name_Buffer (Name_Len - 3 .. Name_Len) = "_Att"
-            then
-               Replace_With_Attribute_Definition;
-            else
-               Set_Casing (Identifier_Casing (Flag_Source));
-            end if;
+            Set_Casing (Identifier_Casing (Flag_Source));
 
             Set_Msg_Quote;
             Set_Msg_Name_Buffer;

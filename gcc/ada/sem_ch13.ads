@@ -53,6 +53,13 @@ package Sem_Ch13 is
    --  routine. This routine diagnoses misplaced aspects that should appear on
    --  the initial declaration of N and offers suggestions for replacements.
 
+   procedure Analyze_One_Aspect
+     (N        : Node_Id;
+      E        : N_Entity_Id;
+      Aspect   : Node_Id);
+   --  N and E are what was passed to Analyze_Aspect_Specifications.
+   --  Aspect is one element of Aspect_Specifications (N).
+
    procedure Adjust_Record_For_Reverse_Bit_Order (R : Entity_Id);
    --  Called from Freeze where R is a record entity for which reverse bit
    --  order is specified and there is at least one component clause. Note:

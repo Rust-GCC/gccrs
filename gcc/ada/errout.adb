@@ -3854,16 +3854,6 @@ package body Errout is
          Kill_Message := True;
       end if;
 
-      --  Replace compiler generated name for direct attribute definitions with
-      --  a nicer name.
-
-      if Name_Len > 5
-        and then Name_Buffer (1) = 'D'
-        and then Name_Buffer (Name_Len - 3 .. Name_Len) = "_Att"
-      then
-         Replace_With_Attribute_Definition;
-      end if;
-
       --  Remaining step is to adjust casing and possibly add 'Class
 
       Adjust_Name_Case (Global_Name_Buffer, Loc);
