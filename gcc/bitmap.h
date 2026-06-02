@@ -128,6 +128,7 @@ along with GCC; see the file COPYING3.  If not see
      * largest_member		: bitmap_last_set_bit (but this could
 				  in constant time with a pointer to
 				  the last element in the chain)
+     * pop_largest              : bitmap_clear_last_set_bit
      * set_size			: bitmap_last_set_bit
 
    In tree view the following operations can all be performed in O(log E)
@@ -136,6 +137,7 @@ along with GCC; see the file COPYING3.  If not see
      * smallest_member
      * pop_smallest
      * largest_member
+     * pop_largest
      * set_size
      * member_p
      * add_member
@@ -505,6 +507,7 @@ extern void debug (const bitmap_head *ptr);
 extern unsigned bitmap_first_set_bit (const_bitmap);
 extern unsigned bitmap_clear_first_set_bit (bitmap);
 extern unsigned bitmap_last_set_bit (const_bitmap);
+extern unsigned bitmap_clear_last_set_bit (bitmap);
 
 /* Compute bitmap hash (for purposes of hashing etc.)  */
 extern hashval_t bitmap_hash (const_bitmap);

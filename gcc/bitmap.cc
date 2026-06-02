@@ -1308,13 +1308,13 @@ bitmap_clear_first_set_bit (bitmap a)
   return bitmap_first_set_bit_worker (a, true);
 }
 
-/* Return the bit number of the first set bit in the bitmap.  The
-   bitmap must be non-empty.  */
+/* Return the bit number of the last set bit in the bitmap.  The bitmap
+   must be non-empty.  When CLEAR is true, also clear the bit.  */
 
-unsigned
-bitmap_last_set_bit (const_bitmap a)
+static unsigned
+bitmap_last_set_bit_worker (bitmap a, bool clear)
 {
-  const bitmap_element *elt;
+  bitmap_element *elt;
   unsigned bit_no;
   BITMAP_WORD word;
   int ix;
@@ -1355,8 +1355,41 @@ bitmap_last_set_bit (const_bitmap a)
   bit_no += bitmap_popcount (x) - 1;
 #endif
 
-  return bit_no;
+ if (clear)
+   {
+     elt->bits[ix] &= ~((BITMAP_WORD) 1 << (bit_no % BITMAP_WORD_BITS));
+     /* If we cleared the entire word, free up the element.  */
+     if (!elt->bits[ix]
+	 && bitmap_element_zerop (elt))
+       {
+	 if (!a->tree_form)
+	   bitmap_list_unlink_element (a, elt);
+	 else
+	   bitmap_tree_unlink_element (a, elt);
+       }
+   }
+
+ return bit_no;
 }
+
+/* Return the bit number of the last set bit in the bitmap.
+   The bitmap must be non-empty.  */
+
+unsigned
+bitmap_last_set_bit (const_bitmap a)
+{
+  return bitmap_last_set_bit_worker (const_cast<bitmap> (a), false);
+}
+
+/* Return and clear the bit number of the last set bit in the bitmap.
+   The bitmap must be non-empty.  */
+
+unsigned
+bitmap_clear_last_set_bit (bitmap a)
+{
+  return bitmap_last_set_bit_worker (a, true);
+}
+
 
 
 /* DST = A & B.  */
