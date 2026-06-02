@@ -143,6 +143,28 @@ GlobbingVisitor::visit (AST::ConstantItem &const_item)
 }
 
 void
+GlobbingVisitor::visit (AST::TypeAlias &type)
+{
+  ctx.insert_globbed (type.get_new_type_name (), type.get_node_id (),
+		      Namespace::Types);
+}
+
+void
+GlobbingVisitor::visit (AST::Trait &trait)
+{
+  ctx.insert_globbed (trait.get_identifier (), trait.get_node_id (),
+		      Namespace::Types);
+}
+
+void
+GlobbingVisitor::visit (AST::InherentImpl &impl)
+{}
+
+void
+GlobbingVisitor::visit (AST::TraitImpl &impl)
+{}
+
+void
 GlobbingVisitor::visit (AST::ExternCrate &crate)
 {}
 
