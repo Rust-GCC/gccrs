@@ -31,6 +31,11 @@ namespace Resolver2_0 {
 void
 DefaultResolver::visit (AST::Crate &crate)
 {
+  // Guard against infinite recursion: `extern crate self;` resolves to the
+  // current crate, causing visit(AST::Crate) to call itself infinitely.
+  if (!visited_crates.insert (crate.get_node_id ()).second)
+    return;
+
   auto inner_fn = [this, &crate] () { AST::DefaultASTVisitor::visit (crate); };
 
   auto &mappings = Analysis::Mappings::get ();
@@ -444,7 +449,11 @@ void
 DefaultResolver::visit (AST::ExternCrate &crate)
 {
   auto &mappings = Analysis::Mappings::get ();
-  auto num_opt = mappings.lookup_crate_name (crate.get_referenced_crate ());
+  tl::optional<CrateNum> num_opt;
+  if (crate.get_referenced_crate () == "self")
+    num_opt = mappings.get_current_crate ();
+  else
+    num_opt = mappings.lookup_crate_name (crate.get_referenced_crate ());
 
   if (!num_opt)
     {
@@ -462,7 +471,9 @@ DefaultResolver::visit (AST::ExternCrate &crate)
 
   auto sub_visitor_2 = [&] () {
     ctx.canonical_ctx.scope_crate (referenced_crate.get_node_id (),
-				   crate.get_referenced_crate (),
+				   crate.get_referenced_crate () == "self"
+				     ? mappings.get_current_crate_name ()
+				     : crate.get_referenced_crate (),
 				   std::move (sub_visitor_1));
   };
 
