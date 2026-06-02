@@ -114,7 +114,6 @@ along with GCC; see the file COPYING3.  If not see
 	    builtin_define ("__STDC_VERSION__=201112L");\
 	    break;					\
 	  }						\
-	builtin_define ("_XOPEN_SOURCE=600");		\
 	builtin_define ("_LARGEFILE_SOURCE=1");		\
 	builtin_define ("_LARGEFILE64_SOURCE=1");	\
 	builtin_define ("_FILE_OFFSET_BITS=64");	\
