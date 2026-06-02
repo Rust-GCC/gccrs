@@ -8625,6 +8625,9 @@ Operand 0 is a comparison operator.  Operand 1 and operand 2 are the
 first and second operands of the comparison, respectively.  Operand 3
 is the @code{code_label} to jump to.
 
+Note: In practice, the middle-end invokes the pattern when comparing a vector
+boolean against @{0,@dots{}@}, after dojump.cc has already swapped the branch labels.
+
 @mdindex cond_vec_cbranch_any@var{mode}
 @item @samp{cond_vec_cbranch_any@var{mode}}
 Masked conditional branch instruction based on a vector compare that branches
@@ -8643,6 +8646,9 @@ Operand 0 is a comparison operator.  Operand 1 is the mask operand.
 Operand 2 and operand 3 are the first and second operands of the comparison,
 respectively.  Operand 5 is the @code{code_label} to jump to.  Inactive lanes in
 the mask operand should not influence the decision to branch.
+
+Note: In practice, the middle-end invokes the pattern when comparing a vector
+boolean against @{0,@dots{}@}, after dojump.cc has already swapped the branch labels.
 
 @mdindex cond_len_vec_cbranch_any@var{mode}
 @item @samp{cond_len_vec_cbranch_any@var{mode}}
@@ -8664,6 +8670,9 @@ and operand 3 are the first and second operands of the comparison, respectively.
 Operand 4 is the len operand and Operand 5 is the bias operand.  Operand 6 is
 the @code{code_label} to jump to. Inactive lanes in the mask operand should not
 influence the decision to branch.
+
+Note: In practice, the middle-end invokes the pattern when comparing a vector
+boolean against @{0,@dots{}@}, after dojump.cc has already swapped the branch labels.
 
 @end table
 
