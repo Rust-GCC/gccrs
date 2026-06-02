@@ -4425,7 +4425,13 @@ optimize_vector_load (gimple_stmt_iterator *gsi)
 	  gimple *use_stmt = USE_STMT (use_p);
 	  if (is_gimple_debug (use_stmt))
 	    continue;
-	  if (!is_gimple_assign (use_stmt))
+	  tree use_lhs;
+	  if (!is_gimple_assign (use_stmt)
+	      /* For alias reasons we move the use to the place of the
+		 load.  Avoid this when abnormals are involved.  */
+	      || ((TREE_CODE ((use_lhs = gimple_assign_lhs (use_stmt)))
+		   == SSA_NAME)
+		  && SSA_NAME_OCCURS_IN_ABNORMAL_PHI (use_lhs)))
 	    {
 	      rewrite = false;
 	      break;
