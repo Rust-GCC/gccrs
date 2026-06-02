@@ -338,6 +338,10 @@
 @tab 1.0
 @tab Vector BF16 converts extension
 
+@item @samp{zvfofp8min}
+@tab 0.2
+@tab Vector FP8 minimum extension
+
 @item @samp{zvfbfwma}
 @tab 1.0
 @tab Vector BF16 widening multiply/add extension

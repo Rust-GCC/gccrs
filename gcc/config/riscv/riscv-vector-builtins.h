@@ -110,6 +110,7 @@ static const unsigned int CP_WRITE_CSR = 1U << 5;
 #define RVV_REQUIRE_MIN_VLEN_64 (1 << 5)	/* Require TARGET_MIN_VLEN >= 64.  */
 #define RVV_REQUIRE_ELEN_FP_16 (1 << 6) /* Require FP ELEN >= 32.  */
 #define RVV_REQUIRE_ELEN_BF_16 (1 << 7) /* Require BF16.  */
+#define RVV_REQUIRE_ZVFOFP8MIN (1 << 8) /* Require ZVFOFP8MIN extension.  */
 
 /* Enumerates the required extensions.  */
 enum required_ext
@@ -129,6 +130,7 @@ enum required_ext
   ZVKSH_EXT,		/* Crypto vector Zvksh sub-ext */
   ZVFBFMIN_EXT,		/* Zvfbfmin extension */
   ZVFBFWMA_EXT,		/* Zvfbfwma extension */
+  ZVFOFP8MIN_EXT,	/* Zvfofp8min extension */
   XSFVQMACCQOQ_EXT,	/* XSFVQMACCQOQ extension */
   XSFVQMACCDOD_EXT,	/* XSFVQMACCDOD extension */
   XSFVFNRCLIPXFQF_EXT,	/* XSFVFNRCLIPXFQF extension */
@@ -159,6 +161,7 @@ enum rvv_builtin_partition
   RVV_PARTITION_ZVFBFWMA,
   RVV_PARTITION_ZVFHMIN,
   RVV_PARTITION_ZVFH,
+  RVV_PARTITION_ZVFOFP8MIN,
   RVV_PARTITION_XSFVQMACCQOQ,
   RVV_PARTITION_XSFVQMACCDOD,
   RVV_PARTITION_XSFVFNRCLIPXFQF,
@@ -211,6 +214,8 @@ static inline const char * required_ext_to_isa_name (enum required_ext required)
       return "zvfbfmin";
     case ZVFBFWMA_EXT:
       return "zvfbfwma";
+    case ZVFOFP8MIN_EXT:
+      return "zvfofp8min";
     case XSFVQMACCQOQ_EXT:
       return "xsfvqmaccqoq";
     case XSFVQMACCDOD_EXT:
@@ -266,6 +271,8 @@ static inline bool required_extensions_specified (enum required_ext required)
       return TARGET_ZVFBFMIN;
     case ZVFBFWMA_EXT:
       return TARGET_ZVFBFWMA;
+    case ZVFOFP8MIN_EXT:
+      return TARGET_ZVFOFP8MIN;
     case XSFVQMACCQOQ_EXT:
       return TARGET_XSFVQMACCQOQ;
     case XSFVQMACCDOD_EXT:

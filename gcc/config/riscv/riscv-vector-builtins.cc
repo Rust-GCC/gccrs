@@ -3654,6 +3654,8 @@ get_builtin_partition (required_ext ext, const function_instance &instance)
       return RVV_PARTITION_ZVFBFMIN;
     case ZVFBFWMA_EXT:
       return RVV_PARTITION_ZVFBFWMA;
+    case ZVFOFP8MIN_EXT:
+      return RVV_PARTITION_ZVFOFP8MIN;
     case XSFVQMACCQOQ_EXT:
       return RVV_PARTITION_XSFVQMACCQOQ;
     case XSFVQMACCDOD_EXT:

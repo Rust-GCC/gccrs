@@ -1170,6 +1170,19 @@ DEFINE_RISCV_EXT(
   /* EXTRA_EXTENSION_FLAGS */ 0)
 
 DEFINE_RISCV_EXT(
+  /* NAME */ zvfofp8min,
+  /* UPPERCASE_NAME */ ZVFOFP8MIN,
+  /* FULL_NAME */ "Vector FP8 minimum extension",
+  /* DESC */ "",
+  /* URL */ ,
+  /* DEP_EXTS */ ({"zve32f"}),
+  /* SUPPORTED_VERSIONS */ ({{0, 2}}),
+  /* FLAG_GROUP */ zvf,
+  /* BITMASK_GROUP_ID */ BITMASK_NOT_YET_ALLOCATED,
+  /* BITMASK_BIT_POSITION*/ BITMASK_NOT_YET_ALLOCATED,
+  /* EXTRA_EXTENSION_FLAGS */ 0)
+
+DEFINE_RISCV_EXT(
   /* NAME */ zvfbfwma,
   /* UPPERCASE_NAME */ ZVFBFWMA,
   /* FULL_NAME */ "Vector BF16 widening multiply/add extension",

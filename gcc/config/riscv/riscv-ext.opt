@@ -266,6 +266,8 @@ Mask(ZVE64X) Var(riscv_zve_subext)
 
 Mask(ZVFBFMIN) Var(riscv_zvf_subext)
 
+Mask(ZVFOFP8MIN) Var(riscv_zvf_subext)
+
 Mask(ZVFBFWMA) Var(riscv_zvf_subext)
 
 Mask(ZVFH) Var(riscv_zvf_subext)
@@ -473,4 +475,3 @@ Mask(XANDESVPACKFPH) Var(riscv_xandes_subext)
 Mask(XANDESVDOT) Var(riscv_xandes_subext)
 
 Mask(XSMTVDOT) Var(riscv_xsmt_subext)
-
