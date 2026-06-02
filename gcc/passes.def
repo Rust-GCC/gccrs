@@ -94,6 +94,7 @@ along with GCC; see the file COPYING3.  If not see
 	  NEXT_PASS (pass_phiprop);
 	  NEXT_PASS (pass_fre, true /* may_iterate */);
 	  NEXT_PASS (pass_early_vrp);
+	  NEXT_PASS (pass_sccopy);
 	  NEXT_PASS (pass_merge_phi);
           NEXT_PASS (pass_dse);
 	  NEXT_PASS (pass_cd_dce, false /* update_address_taken_p */, true /* remove_unused_locals */);
@@ -104,7 +105,6 @@ along with GCC; see the file COPYING3.  If not see
 	  NEXT_PASS (pass_tail_recursion);
 	  NEXT_PASS (pass_if_to_switch);
 	  NEXT_PASS (pass_convert_switch);
-	  NEXT_PASS (pass_sccopy);
 	  NEXT_PASS (pass_profile);
 	  NEXT_PASS (pass_local_pure_const);
 	  NEXT_PASS (pass_modref);
