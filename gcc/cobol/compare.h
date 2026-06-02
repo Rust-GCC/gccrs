@@ -34,9 +34,9 @@
     "left" and "right" var_decl trees, which can be fed directly into one of
     the six relational expressions like EQ_EXPR, LT_EXPR, and so on. */
 
-void cobol_compare_relop( tree        &left,
-                          tree        &right,
-                    const cbl_refer_t &left_side,
-                    const cbl_refer_t &right_side);
+void cobol_compare( tree        &left,
+                    tree        &right,
+              const cbl_refer_t &left_side,
+              const cbl_refer_t &right_side);
 
 #endif

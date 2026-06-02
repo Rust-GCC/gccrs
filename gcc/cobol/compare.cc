@@ -1368,10 +1368,10 @@ compare_class( tree        &left,
   }
 
 void
-cobol_compare_relop(tree        &left,
-                    tree        &right,
-              const cbl_refer_t &left_side,
-              const cbl_refer_t &right_side)
+cobol_compare(tree        &left,
+              tree        &right,
+        const cbl_refer_t &left_side,
+        const cbl_refer_t &right_side)
   {
   // This routine figures out how to compare left_side to right_side, and
   // returns the trees 'left' and 'right' in numeric form that can be turned

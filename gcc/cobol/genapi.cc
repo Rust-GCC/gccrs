@@ -5254,7 +5254,6 @@ parser_display( const struct cbl_special_name_t *upon,
       case SYSOUT_e:
       case SYSLIST_e:
       case SYSLST_e:
-      case SYSPUNCH_e:
       case SYSPCH_e:
         // In the 21st century, when there are no longer valid assumptions to
         // be made about the existence of line printers, and where things
@@ -5268,6 +5267,22 @@ parser_display( const struct cbl_special_name_t *upon,
                                 NULL_TREE));
         needs_closing = true;
         break;
+
+      case SYSPUNCH_e:
+        // With the ASSEMBLER environment variable, SYSPUNCH means "insert
+        // the text into the assembly language".  So, we don't need a file
+        // descriptor.
+        if( !getenv("ASSEMBLER") )
+          {
+          gg_assign(file_descriptor,
+                    gg_call_expr( INT,
+                                  "__gg__get_file_descriptor",
+                                  gg_string_literal(upon->os_filename),
+                                  NULL_TREE));
+          needs_closing = true;
+          }
+        break;
+
 
       case ARG_NUM_e:
         // Set the index number for a subsequent ACCEPT FROM ARG_VALUE_e
@@ -7736,7 +7751,7 @@ parser_relop(   cbl_field_t *tgt,
 
   tree left;
   tree right;
-  cobol_compare_relop(left, right, aref, bref);
+  cobol_compare(left, right, aref, bref);
   tgt->var_decl_node = gg_build_relational_expression(left,
                                                       relop,
                                                       right);
@@ -11377,6 +11392,38 @@ parser_intrinsic_call_1( cbl_field_t *tgt,
     }
   }
 
+static bool
+handle_gg_trim(cbl_field_t *tgt,
+               const char function_name[],
+         const cbl_refer_t& ref1,
+         const cbl_refer_t& ref2 )
+  {
+  bool handled = false;
+  if( strcmp(function_name, "__gg__trim") == 0 )
+    {
+    charmap_t *charmap = __gg__get_charmap(ref1.field->codeset.encoding);
+    if(charmap->stride() == 1)
+      {
+      uint8_t space = charmap->mapped_character(ascii_space);
+      int how = atoi(ref2.field->data.original());
+      if( how == 0 )
+        {
+        how = 3;
+        }
+      gg_call(VOID,
+              "__gg__trim_1",
+              gg_get_address_of(tgt->var_decl_node),
+              gg_get_address_of(ref1.field->var_decl_node),
+              refer_offset(ref1),
+              refer_size_source(ref1),
+              build_int_cst_type(INT, (space<<8) + how),
+              NULL_TREE);
+      handled = true;
+      }
+    }
+  return handled;
+  }
+
 void
 parser_intrinsic_call_2( cbl_field_t *tgt,
                        const char function_name[],
@@ -11404,17 +11451,24 @@ parser_intrinsic_call_2( cbl_field_t *tgt,
     }
   store_location_stuff(function_name);
 
-  gg_call(VOID,
-          function_name,
-          gg_get_address_of(tgt->var_decl_node),
-          gg_get_address_of(ref1.field->var_decl_node),
-          refer_offset(ref1),
-          refer_size_source(ref1),
-          ref2.field ? gg_get_address_of(ref2.field->var_decl_node)
-                     : null_pointer_node,
-          refer_offset(ref2),
-          refer_size_source(ref2),
-          NULL_TREE);
+  if( handle_gg_trim(tgt, function_name, ref1, ref2) )
+    {
+    // The specialty routine did the job
+    }
+  else
+    {
+    gg_call(VOID,
+            function_name,
+            gg_get_address_of(tgt->var_decl_node),
+            gg_get_address_of(ref1.field->var_decl_node),
+            refer_offset(ref1),
+            refer_size_source(ref1),
+            ref2.field ? gg_get_address_of(ref2.field->var_decl_node)
+                       : null_pointer_node,
+            refer_offset(ref2),
+            refer_size_source(ref2),
+            NULL_TREE);
+    }
   TRACE1
     {
     TRACE1_INDENT
@@ -12010,11 +12064,11 @@ parser_bsearch_when(cbl_label_t* name,
   tree right;
   if( ascending )
     {
-    cobol_compare_relop(left, right, key, sarg);
+    cobol_compare(left, right, key, sarg);
     }
   else
     {
-    cobol_compare_relop(left, right, sarg, key);
+    cobol_compare(left, right, sarg, key);
     }
 
   IF( left, lt_op, right )

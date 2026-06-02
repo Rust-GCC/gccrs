@@ -3530,7 +3530,6 @@ __gg__trim( cblc_field_t *dest,
                                                           arg2,
                                                           arg2_offset,
                                                           arg2_size);
-  //static const int BOTH     = 0;
   #define LEADING  1  // Remove leading  spaces
   #define TRAILING 2  // Remove trailing spaces
 
@@ -5840,3 +5839,57 @@ __gg__locale_time_from_seconds( cblc_field_t *dest,
   __gg__field_from_string(dest, 0, dest->capacity, converted, bytes_converted);
   free(converted);
   }
+
+
+extern "C"
+void
+__gg__trim_1( cblc_field_t *dest,
+        const cblc_field_t *src,
+              size_t        src_offset,
+              size_t        src_size,
+              int           space_how ) // (space<<8) + how
+  {
+  // This is the no-holds-barred, do-it-as-fast-as-possible, TRIM routine. It
+  // gets called only when the stride is 1.  Spaces is eight bytes of the
+  // character to be trimmed away, usually 0x2020202020202020 because we are
+  // usually working in ASCII.  'how' indicates LEADING and TRAILING.
+
+  #define LEADING  1  // Remove leading  spaces
+  #define TRAILING 2  // Remove trailing spaces
+
+  const uint8_t *left  = src->data + src_offset;    // Leftmost  character
+  const uint8_t *right = left      + src_size;      // One past the end
+
+  uint8_t space = space_how >> 8;
+
+  if ((space_how & LEADING) && left < right)
+    {
+    left = std::find_if(left, right, [space](uint8_t c)
+      {
+          return c != space;
+      });
+    }
+
+  if( (space_how & TRAILING) && left < right)
+    {
+    right = std::find_if(
+        std::make_reverse_iterator(right),
+        std::make_reverse_iterator(left),
+        [space](uint8_t c) { return c != space; }
+    ).base();
+    }
+
+  size_t bytes_converted = right - left;
+  __gg__adjust_dest_size(dest, bytes_converted);
+
+#if 0
+  __gg__field_from_string(dest, 0, dest->capacity, reinterpret_cast<const char *>(left), bytes_converted);
+#else
+  memcpy(dest->data,
+         left,
+         bytes_converted);
+#endif
+
+  return;
+  }
+

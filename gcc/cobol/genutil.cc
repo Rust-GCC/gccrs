@@ -2024,13 +2024,19 @@ refer_is_super_clean(const cbl_refer_t &refer)
   // otherwise in condition so that we can use refer.field->var_data_node for
   // GENERIC, thus getting rid the additional level of indirection through
   // the refer.field->var_decl_node::data pointer
-  return   refer_is_clean(refer)
-        && !(refer.field->attr & (  based_e
-                                  | linkage_e
-                                  | local_e
-                                  | intermediate_e
-                                  | any_length_e
-                                  | external_e)) ;
+
+  // Note: By rights, FldLiteralA should be super-clean, but errors ensue when
+  // it is made so.  This should be tracked down.  The disconnect might be in
+  // get_location().
+  return     // refer.field->type == FldLiteralA ||
+             refer.field->type == FldLiteralN
+           || (refer_is_clean(refer)
+              && !(refer.field->attr & (  based_e
+                                        | linkage_e
+                                        | local_e
+                                        | intermediate_e
+                                        | any_length_e
+                                        | external_e))) ;
   }
 
 bool
@@ -2316,7 +2322,7 @@ is_pure_integer(const cbl_field_t *field)
   return retval;
   }
 
-bool
+static bool
 binary_from_FldNumericBin5(tree &value, const cbl_refer_t &refer, tree type)
   {
   bool retval = false;
@@ -2402,6 +2408,24 @@ binary_from_FldNumericBin5(tree &value, const cbl_refer_t &refer, tree type)
     }
   return retval;
   }
+
+static bool
+binary_from_FldLiteralN(tree &value, const cbl_refer_t &refer, tree type)
+  {
+  // The data_decl_node has the value we need.
+
+  tree source_type = tree_type_from_field(refer.field);
+  if( !type )
+    {
+    type = source_type;
+    }
+
+  value = gg_define_variable(type);
+  gg_assign(value, gg_cast(type, refer.field->data_decl_node));
+
+  return true;
+  }
+
 
 bool
 binary_from_FldNumericBinary(tree &value, const cbl_refer_t &refer, tree type)
@@ -3116,8 +3140,11 @@ get_binary_value(tree &value, const cbl_refer_t &refer, tree type)
     // We know that the refer is a type that involves an integer binary value.
     switch(refer.field->type)
       {
-      case FldNumericBin5:
       case FldLiteralN:
+        retval = binary_from_FldLiteralN(value, refer, type);
+        break;
+
+      case FldNumericBin5:
       case FldIndex:
       case FldPointer:
         retval = binary_from_FldNumericBin5(value, refer, type);
