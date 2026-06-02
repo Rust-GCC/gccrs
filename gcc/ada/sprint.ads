@@ -125,7 +125,7 @@ package Sprint is
    --  Like Sprint_Node_List, but prints nothing if List = No_List
 
    procedure Sprint_Indented_List (List : List_Id);
-   --  Like Sprint_Line_List, except that the indentation level is increased
+   --  Like Sprint_Node_List, except that the indentation level is increased
    --  before outputting the list of items, and then decremented (back to its
    --  original level) before returning to the caller.
 
