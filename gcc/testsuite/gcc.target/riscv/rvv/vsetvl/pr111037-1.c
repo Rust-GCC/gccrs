@@ -11,5 +11,5 @@ void foo(_Float16 y, int64_t *i64p)
   asm volatile ("# use %0 %1" : : "vr"(vx), "vr" (vy));
 }
 
-/* { dg-final { scan-assembler-times {vsetivli\s+zero,\s*1,\s*e16,\s*mf4,\s*t[au],\s*m[au]} 1 } } */
-/* { dg-final { scan-assembler-times {vsetvli\s+zero,\s*zero,\s*e64,\s*m1,\s*t[au],\s*m[au]} 1 } } */
+/* { dg-final { scan-assembler-times {vsetivli\s+zero,\s*1,\s*e64,\s*m1,\s*t[au],\s*m[au]} 1 } } */
+/* { dg-final { scan-assembler-times {vsetivli\s+zero,\s*1,\s*e16,\s*m1,\s*t[au],\s*m[au]} 1 } } */

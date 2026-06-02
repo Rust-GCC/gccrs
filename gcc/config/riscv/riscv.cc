@@ -11413,7 +11413,6 @@ riscv_sched_reorder (FILE *, int, rtx_insn **ready, int *nreadyp, int)
   if (!last_vconfig.valid || *nreadyp == 1)
     return riscv_issue_rate ();
 
-  return riscv_issue_rate ();
   int nready = *nreadyp;
   int priority = INSN_PRIORITY (ready[nready - 1]);
   for (int i = nready - 1; i >= 0; i--)
