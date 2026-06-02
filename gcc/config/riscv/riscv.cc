@@ -665,6 +665,77 @@ static const struct riscv_tune_param generic_ooo_tune_info = {
   true,						/* prefer-agnostic.  */
 };
 
+static const common_vector_cost xt_c9501_vls_vector_cost = {
+  3, /* int_stmt_cost  */
+  4, /* fp_stmt_cost  */
+  99, /* gather_load_cost  */
+  32, /* scatter_store_cost  */
+  8, /* segment_permute (2) */
+  9, /* segment_permute (3) */
+  9, /* segment_permute (4) */
+  12, /* segment_permute (5) */
+  12, /* segment_permute (6) */
+  12, /* segment_permute (7) */
+  12, /* segment_permute (8) */
+  2, /* vec_to_scalar_cost  */
+  2, /* scalar_to_vec_cost  */
+  4, /* permute_cost  */
+  6, /* align_load_cost  */
+  1, /* align_store_cost  */
+  8, /* unalign_load_cost  */
+  2, /* unalign_store_cost  */
+  6, /* reduc_i8_cost  */
+  6, /* reduc_i16_cost  */
+  6, /* reduc_i32_cost  */
+  6, /* reduc_i64_cost  */
+  11, /* reduc_f16_cost  */
+  11, /* reduc_f32_cost  */
+  9, /* reduc_f64_cost  */
+  17, /* reduc_f16_ordered_cost  */
+  16, /* reduc_f32_ordered_cost  */
+  12, /* reduc_f64_ordered_cost  */
+};
+
+static const scalable_vector_cost
+  xt_c9501_vla_vector_cost (xt_c9501_vls_vector_cost);
+
+static const struct cpu_vector_cost xt_c9501_vector_cost = {
+  1,				/* scalar_int_stmt_cost  */
+  2,				/* scalar_fp_stmt_cost  */
+  4,				/* scalar_load_cost  */
+  1,				/* scalar_store_cost  */
+  1,				/* cond_taken_branch_cost  */
+  1,				/* cond_not_taken_branch_cost  */
+  &xt_c9501_vls_vector_cost,	/* vls  */
+  &xt_c9501_vla_vector_cost,	/* vla  */
+  &rvv_regmove_vector_cost,	/* regmove  */
+};
+
+/* Costs to use when optimizing for XT C9501.  */
+static const struct riscv_tune_param xt_c9501_tune_info = {
+  {COSTS_N_INSNS (2), COSTS_N_INSNS (2)},	/* fp_add */
+  {COSTS_N_INSNS (3), COSTS_N_INSNS (3)},	/* fp_mul */
+  {COSTS_N_INSNS (8), COSTS_N_INSNS (13)},	/* fp_div */
+  {COSTS_N_INSNS (2), COSTS_N_INSNS (2)},	/* int_mul */
+  {COSTS_N_INSNS (20), COSTS_N_INSNS (20)},	/* int_div */
+  8,						/* issue_rate */
+  2,						/* branch_cost */
+  5,						/* memory_cost */
+  2,						/* fmv_cost */
+  false,					/* slow_unaligned_access */
+  false,					/* vector_unaligned_access */
+  true,						/* use_divmod_expansion */
+  false,					/* overlap_op_by_pieces */
+  true,						/* use_zero_stride_load */
+  false,					/* speculative_sched_vsetvl */
+  RISCV_FUSE_NOTHING,				/* fusible_ops */
+  &xt_c9501_vector_cost,			/* vector cost */
+  "32",						/* function_align */
+  "8",						/* jump_align */
+  "16",						/* loop_align */
+  true,						/* prefer-agnostic.  */
+};
+
 /* Costs to use when optimizing for Tenstorrent Ascalon 8 wide.  */
 static const struct riscv_tune_param tt_ascalon_d8_tune_info = {
   {COSTS_N_INSNS (2), COSTS_N_INSNS (2)},	/* fp_add */
