@@ -1,7 +1,7 @@
 /* { dg-do run } */
 
-short g0, __chk, g9, g6;
-_Bool g1;
+short __chk, g9, g6;
+_Bool g0, g1;
 void *g4;
 
 void __attribute__((noipa)) f5(_Bool a2, int a5)
