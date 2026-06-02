@@ -294,7 +294,7 @@ GOACC_parallel_keyed (int flags_m, void (*fn) (void *),
   /* Prepare an offload session.  */
   struct gomp_offload_session *session
     = (aq ? gomp_offload_session_new (acc_dev, gomp_malloc)
-       : gomp_offload_session_new (acc_dev, alloca));
+       : gomp_offload_session_new (acc_dev, gomp_alloca));
 
   struct target_mem_desc *tgt
     = goacc_map_vars (acc_dev, aq, mapnum, hostaddrs, NULL, sizes, kinds, true,

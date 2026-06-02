@@ -3251,7 +3251,7 @@ GOMP_target (int device, void (*fn) (void *), const void *unused,
     return gomp_target_fallback (fn, hostaddrs, devicep, NULL);
 
   struct gomp_offload_session *session
-    = gomp_offload_session_new (devicep, alloca);
+    = gomp_offload_session_new (devicep, gomp_alloca);
 
   htab_t refcount_set = htab_create (mapnum);
   struct target_mem_desc *tgt_vars
@@ -3577,7 +3577,7 @@ GOMP_target_ext (int device, void (*fn) (void *), size_t mapnum,
   htab_t refcount_set = NULL;
 
   struct gomp_offload_session *session
-    = gomp_offload_session_new (devicep, alloca);
+    = gomp_offload_session_new (devicep, gomp_alloca);
 
   if (devicep->capabilities & GOMP_OFFLOAD_CAP_SHARED_MEM)
     {
