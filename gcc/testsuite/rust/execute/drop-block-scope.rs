@@ -1,4 +1,5 @@
-// { dg-output "d\r*\n" }
+// { dg-output "d\r*\nd\r*\nd\r*\n" }
+// { dg-additional-options "-w" }
 #![feature(no_core)]
 #![feature(lang_items)]
 #![no_core]
@@ -29,6 +30,12 @@ impl Drop for Droppable {
 fn main() -> i32 {
     {
         let _x = Droppable;
+    }
+    {
+        let x = Droppable;
+    }
+    {
+        let mut x = Droppable;
     }
     0
 }
