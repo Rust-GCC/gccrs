@@ -54,7 +54,7 @@ f32x2_1 (float32_t x)
 
 /*
 ** f32x2_2:
-**	uzp1	v0\.2s, v0\.2s, v1\.2s
+**	zip1	v0\.2s, v0\.2s, v1\.2s
 **	ret
 */
 float32x2_t
@@ -166,7 +166,7 @@ f64x2_1 (float64_t x)
 
 /*
 ** f64x2_2:
-**	uzp1	v0\.2d, v0\.2d, v1\.2d
+**	zip1	v0\.2d, v0\.2d, v1\.2d
 **	ret
 */
 float64x2_t

@@ -183,15 +183,15 @@
 ** test_float16_2:
 **	fcvt	h1, s1
 **	fcvt	h0, s0
-**	uzp1	v0\.4h, v0\.4h, v1\.4h
+**	zip1	v0\.4h, v0\.4h, v1\.4h
 **	mov	z0\.s, s0
 **	ret
 */
 
 /*
 ** test_float16_3:
-**	uzp1	v2\.2s, v0\.2s, v2\.2s
-**	uzp1	v3\.2s, v1\.2s, v3\.2s
+**	zip1	v2\.2s, v0\.2s, v2\.2s
+**	zip1	v3\.2s, v1\.2s, v3\.2s
 **	zip1	v3\.4s, v2\.4s, v3\.4s
 **	fcvtn	v3\.4h, v3\.4s
 **	mov	z0\.d, d3
@@ -210,7 +210,7 @@
 ** test_float16_5:
 **	movi	v31\.4h, #0
 **	fcvt	h0, s0
-**	uzp1	v0\.4h, v31\.4h, v0\.4h
+**	zip1	v0\.4h, v31\.4h, v0\.4h
 **	mov	z0\.s, s0
 **	ret
 */
@@ -221,7 +221,7 @@
 **	fcvt	h1, s1
 **	fmov	h31, 1.0e\+0
 **	fmov	h2, h2
-**	uzp1	v1\.4h, v1\.4h, v31\.4h
+**	zip1	v1\.4h, v1\.4h, v31\.4h
 **	dup	v0\.2s, v2\.s\[0\]
 **	dup	v1\.2s, v1\.s\[0\]
 **	zip1	v0\.8h, v0\.8h, v1\.8h
@@ -235,8 +235,8 @@
 **	fcvt	h2, s1
 **	movi	v0\.4h, #0
 **	fmov	h1, 1.0e\+0
-**	uzp1	v1\.4h, v1\.4h, v2\.4h
-**	uzp1	v0\.4h, v0\.4h, v3\.4h
+**	zip1	v1\.4h, v1\.4h, v2\.4h
+**	zip1	v0\.4h, v0\.4h, v3\.4h
 **	dup	v1\.2s, v1\.s\[0\]
 **	dup	v0\.2s, v0\.s\[0\]
 **	zip1	v0\.8h, v0\.8h, v1\.8h
@@ -249,7 +249,7 @@
 **	fcvt	h1, s1
 **	fcvt	h0, s0
 **	movi	v31\.2s, 0x3c, lsl 24
-**	uzp1	v0\.4h, v0\.4h, v1.4h
+**	zip1	v0\.4h, v0\.4h, v1.4h
 **	dup	v0\.2s, v0\.s\[0\]
 **	zip1	v0\.8h, v31\.8h, v0\.8h
 **	dup	z0\.q, z0\.q\[0\]
@@ -261,8 +261,8 @@
 **	fcvt	h1, s1
 **	fcvt	h2, s2
 **	fcvt	h0, s0
-**	uzp1	v0\.4h, v0\.4h, v1\.4h
-**	uzp1	v1\.4h, v1\.4h, v2\.4h
+**	zip1	v0\.4h, v0\.4h, v1\.4h
+**	zip1	v1\.4h, v1\.4h, v2\.4h
 **	dup	v0\.2s, v0\.s\[0\]
 **	dup	v1\.2s, v1\.s\[0\]
 **	zip1	v0\.8h, v0\.8h, v1\.8h
@@ -275,7 +275,7 @@
 **	fcvt	h2, s2
 **	fcvt	h0, s0
 **	fcvt	h1, s1
-**	uzp1	v0\.4h, v0\.4h, v2\.4h
+**	zip1	v0\.4h, v0\.4h, v2\.4h
 **	dup	v1\.4h, v1\.h\[0\]
 **	dup	v0\.2s, v0\.s\[0\]
 **	zip1	v0\.8h, v0\.8h, v1\.8h
@@ -386,7 +386,7 @@
 
 /*
 ** test_float32_2:
-**	uzp1	v0\.2s, v0\.2s, v1\.2s
+**	zip1	v0\.2s, v0\.2s, v1\.2s
 **	mov	z0\.d, d0
 **	ret
 */
@@ -401,7 +401,7 @@
 /*
 ** test_float32_4:
 **	movi	v31\.2s, #0
-**	uzp1	v0\.2s, v31\.2s, v0\.2s
+**	zip1	v0\.2s, v31\.2s, v0\.2s
 **	mov	z0\.d, d0
 **	ret
 */

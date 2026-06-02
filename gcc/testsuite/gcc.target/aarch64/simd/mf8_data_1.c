@@ -66,7 +66,7 @@ mfloat8x16_t test_bslq3(mfloat8x16_t a, uint8x16_t b, mfloat8x16_t c)
 
 /*
 ** test_combine1:
-**	uzp1	v0.2d, v1.2d, v2.2d
+**	zip1	v0.2d, v1.2d, v2.2d
 **	ret
 */
 mfloat8x16_t test_combine1(mfloat8_t a, mfloat8x8_t b, mfloat8x8_t c)
@@ -1397,7 +1397,7 @@ mfloat8x8_t test_tbl1(mfloat8x8_t a, uint8x8_t b)
 
 /*
 ** test_tbl2:
-**	uzp1	v([0-9]+).2d, v0.2d, v1.2d
+**	zip1	v([0-9]+).2d, v0.2d, v1.2d
 **	tbl	v0.8b, {v\1.16b}, v2.8b
 **	ret
 */
@@ -1408,7 +1408,7 @@ mfloat8x8_t test_tbl2(mfloat8x8x2_t a, uint8x8_t b)
 
 /*
 ** test_tbl3:
-**	uzp1	v([0-9]+).2d, v0.2d, v1.2d
+**	zip1	v([0-9]+).2d, v0.2d, v1.2d
 **	fmov	d([0-9]+), d2
 **	tbl	v0.8b, {v\1.16b( - |, )v\2.16b}, v3.8b
 **	ret
@@ -1420,8 +1420,8 @@ mfloat8x8_t test_tbl3(mfloat8x8x3_t a, uint8x8_t b)
 
 /*
 ** test_tbl4:
-**	uzp1	v([0-9]+).2d, v0.2d, v1.2d
-**	uzp1	v([0-9]+).2d, v2.2d, v3.2d
+**	zip1	v([0-9]+).2d, v0.2d, v1.2d
+**	zip1	v([0-9]+).2d, v2.2d, v3.2d
 **	tbl	v0.8b, {v\1.16b( - |, )v\2.16b}, v4.8b
 **	ret
 */
@@ -1526,7 +1526,7 @@ mfloat8x8_t test_tbx1(mfloat8x8_t a, mfloat8x8_t b, uint8x8_t c)
 
 /*
 ** test_tbx2:
-**	uzp1	v([0-9]+).2d, v1.2d, v2.2d
+**	zip1	v([0-9]+).2d, v1.2d, v2.2d
 **	tbx	v[0-9]+.8b, {v\1.16b}, v3.8b
 **	ret
 */
@@ -1537,7 +1537,7 @@ mfloat8x8_t test_tbx2(mfloat8x8_t a, mfloat8x8x2_t b, uint8x8_t c)
 
 /*
 ** test_tbx3:
-**	uzp1	v([0-9]+).2d, v1.2d, v2.2d
+**	zip1	v([0-9]+).2d, v1.2d, v2.2d
 **	fmov	d([0-9]+), d3
 **	tbl	v[0-9]+.8b, {v\1.16b( - |, )v\2.16b}, v4.8b
 **	...
@@ -1552,8 +1552,8 @@ mfloat8x8_t test_tbx3(mfloat8x8_t a, mfloat8x8x3_t b, uint8x8_t c)
 
 /*
 ** test_tbx4:
-**	uzp1	v([0-9]+).2d, v1.2d, v2.2d
-**	uzp1	v([0-9]+).2d, v3.2d, v4.2d
+**	zip1	v([0-9]+).2d, v1.2d, v2.2d
+**	zip1	v([0-9]+).2d, v3.2d, v4.2d
 **	tbx	v0.8b, {v\1.16b( - |, )v\2.16b}, v5.8b
 **	ret
 */

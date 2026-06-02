@@ -80,14 +80,14 @@ CONS2_FN (2, float);
 
 /*
 ** cons2_4_float:	{ target aarch64_little_endian }
-**	uzp1	v([0-9])\.2s, v0\.2s, v1\.2s
+**	zip1	v([0-9])\.2s, v0\.2s, v1\.2s
 **	stp	d\1, d\1, \[x0\]
 **	stp	d\1, d\1, \[x0, #?16\]
 **	ret
 */
 /*
 ** cons2_4_float:	{ target aarch64_big_endian }
-**	uzp1	v([0-9])\.2s, v1\.2s, v0\.2s
+**	zip1	v([0-9])\.2s, v1\.2s, v0\.2s
 **	stp	d\1, d\1, \[x0\]
 **	stp	d\1, d\1, \[x0, #?16\]
 **	ret
@@ -96,7 +96,7 @@ CONS2_FN (4, float);
 
 /*
 ** cons2_8_float:
-**	uzp1	v1\.2s, v0\.2s, v1\.2s
+**	zip1	v1\.2s, v0\.2s, v1\.2s
 **	dup	v([0-9]+)\.2d, v1\.d\[0\]
 **	stp	q\1, q\1, \[x0\]
 **	stp	q\1, q\1, \[x0, #?32\]
@@ -124,8 +124,8 @@ CONS4_FN (2, float);
 
 /*
 ** cons4_4_float:
-**	uzp1	v[0-9]+\.2s[^\n]+
-**	uzp1	v[0-9]+\.2s[^\n]+
+**	zip1	v[0-9]+\.2s[^\n]+
+**	zip1	v[0-9]+\.2s[^\n]+
 **	zip1	v([0-9]+).4s, [^\n]+
 **	stp	q\1, q\1, \[x0\]
 **	stp	q\1, q\1, \[x0, #?32\]

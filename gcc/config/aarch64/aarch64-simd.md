@@ -4869,7 +4869,7 @@
    && (register_operand (operands[0], <VDBL>mode)
        || register_operand (operands[2], <MODE>mode))"
   {@ [ cons: =0 , 1  , 2   ; attrs: type               , arch  ]
-     [ w        , w  , w   ; neon_permute<dblq>        , simd  ] uzp1\t%0.2<single_type>, %1.2<single_type>, %2.2<single_type>
+     [ w        , w  , w   ; neon_permute<dblq>        , simd  ] zip1\t%0.2<single_type>, %1.2<single_type>, %2.2<single_type>
      [ w        , 0  , ?r  ; neon_from_gp<dblq>        , simd  ] ins\t%0.<single_type>[1], %<single_wx>2
      [ w        , 0  , ?r  ; f_mcr                     , *     ] fmov\t%0.d[1], %2
      [ w        , 0  , Utv ; neon_load1_one_lane<dblq> , simd  ] ld1\t{%0.<single_type>}[1], %2
@@ -4886,7 +4886,7 @@
   "TARGET_FLOAT
    && !BYTES_BIG_ENDIAN"
   {@ [ cons: =0 , 1  , 2   ; attrs: type               , arch  ]
-     [ w        , w  , w   ; neon_permute              , simd  ] uzp1\t%0.<Vdduptype>, %1.<Vdduptype>, %2.<Vdduptype>
+     [ w        , w  , w   ; neon_permute              , simd  ] zip1\t%0.<Vdduptype>, %1.<Vdduptype>, %2.<Vdduptype>
      [ w        , 0  , w   ; neon_move                 , simd  ] mov\t%0.<single_type>[1], %2.<single_type>[0]
      [ w        , 0  , Utv ; neon_load1_one_lane       , simd  ] ld1\t{%0.<single_type>}[1], %2
      [ w        , 0  , r   ; neon_from_gp              , simd  ] ins\t%0.<single_type>[1], %<single_wx>2
@@ -4916,7 +4916,7 @@
    && (register_operand (operands[0], <VDBL>mode)
        || register_operand (operands[2], <MODE>mode))"
   {@ [ cons: =0 , 1  , 2   ; attrs: type               , arch  ]
-     [ w        , w  , w   ; neon_permute<dblq>        , simd  ] uzp1\t%0.2<single_type>, %1.2<single_type>, %2.2<single_type>
+     [ w        , w  , w   ; neon_permute<dblq>        , simd  ] zip1\t%0.2<single_type>, %1.2<single_type>, %2.2<single_type>
      [ w        , 0  , ?r  ; neon_from_gp<dblq>        , simd  ] ins\t%0.<single_type>[1], %<single_wx>2
      [ w        , 0  , ?r  ; f_mcr                     , *     ] fmov\t%0.d[1], %2
      [ w        , 0  , Utv ; neon_load1_one_lane<dblq> , simd  ] ld1\t{%0.<single_type>}[1], %2
@@ -4933,7 +4933,7 @@
   "TARGET_FLOAT
    && BYTES_BIG_ENDIAN"
   {@ [ cons: =0 , 1  , 2   ; attrs: type               , arch  ]
-     [ w        , w  , w   ; neon_permute              , simd  ] uzp1\t%0.<Vdduptype>, %1.<Vdduptype>, %2.<Vdduptype>
+     [ w        , w  , w   ; neon_permute              , simd  ] zip1\t%0.<Vdduptype>, %1.<Vdduptype>, %2.<Vdduptype>
      [ w        , 0  , w   ; neon_move                 , simd  ] mov\t%0.<single_type>[1], %2.<single_type>[0]
      [ w        , 0  , Utv ; neon_load1_one_lane       , simd  ] ld1\t{%0.<single_type>}[1], %2
      [ w        , 0  , r   ; neon_from_gp              , simd  ] ins\t%0.<single_type>[1], %<single_wx>2
