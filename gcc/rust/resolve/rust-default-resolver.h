@@ -20,6 +20,7 @@
 #ifndef RUST_AST_DEFAULT_RESOLVER_H
 #define RUST_AST_DEFAULT_RESOLVER_H
 
+#include "rust-system.h"
 #include "rust-ast-visitor.h"
 #include "rust-name-resolution-context.h"
 
@@ -89,6 +90,8 @@ protected:
   DefaultResolver (NameResolutionContext &ctx) : ctx (ctx) {}
 
   NameResolutionContext &ctx;
+
+  std::set<NodeId> visited_crates;
 };
 
 } // namespace Resolver2_0
