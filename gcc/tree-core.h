@@ -1136,7 +1136,7 @@ typedef tree (*walk_tree_lh) (tree *, int *, tree (*) (tree *, int *, void *),
    accessor macros.  */
 
 struct GTY(()) tree_base {
-  ENUM_BITFIELD(tree_code) code : 16;
+  tree_code code : 16;
 
   unsigned side_effects_flag : 1;
   unsigned constant_flag : 1;
@@ -1805,7 +1805,7 @@ struct GTY(()) tree_type_common {
   tree attributes;
   unsigned int uid;
 
-  ENUM_BITFIELD(machine_mode) mode : MACHINE_MODE_BITSIZE;
+  machine_mode mode : MACHINE_MODE_BITSIZE;
 
   unsigned int precision : 16;
   unsigned lang_flag_0 : 1;
@@ -1898,7 +1898,7 @@ struct GTY(()) tree_decl_common {
   struct tree_decl_minimal common;
   tree size;
 
-  ENUM_BITFIELD(machine_mode) mode : MACHINE_MODE_BITSIZE;
+  machine_mode mode : MACHINE_MODE_BITSIZE;
 
   unsigned nonlocal_flag : 1;
   unsigned virtual_flag : 1;
@@ -2023,7 +2023,7 @@ struct GTY(()) tree_decl_with_vis {
  unsigned seen_in_bind_expr : 1;
  unsigned comdat_flag : 1;
  /* Used for FUNCTION_DECL, VAR_DECL and in C++ for TYPE_DECL.  */
- ENUM_BITFIELD(symbol_visibility) visibility : 2;
+ enum symbol_visibility visibility : 2;
  unsigned visibility_specified : 1;
 
  /* Belong to FUNCTION_DECL exclusively.  */
@@ -2091,7 +2091,7 @@ struct GTY(()) tree_function_decl {
   /* In a FUNCTION_DECL this is DECL_UNCHECKED_FUNCTION_CODE.  */
   unsigned int function_code;
 
-  ENUM_BITFIELD(built_in_class) built_in_class : 2;
+  enum built_in_class built_in_class : 2;
   unsigned static_ctor_flag : 1;
   unsigned static_dtor_flag : 1;
   unsigned uninlinable : 1;
@@ -2109,7 +2109,7 @@ struct GTY(()) tree_function_decl {
   unsigned looping_const_or_pure_flag : 1;
 
   /* Align the bitfield to boundary of a byte.  */
-  ENUM_BITFIELD(function_decl_type) decl_type: 2;
+  enum function_decl_type decl_type: 2;
   unsigned has_debug_args_flag : 1;
   unsigned versioned_function : 1;
   unsigned replaceable_operator : 1;

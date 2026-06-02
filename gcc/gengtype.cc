@@ -5257,6 +5257,7 @@ main (int argc, char **argv)
       POS_HERE (do_scalar_typedef ("JCF_u2", &pos));
       POS_HERE (do_scalar_typedef ("void", &pos));
       POS_HERE (do_scalar_typedef ("machine_mode", &pos));
+      POS_HERE (do_scalar_typedef ("tree_code", &pos));
       POS_HERE (do_scalar_typedef ("fixed_size_mode", &pos));
       POS_HERE (do_scalar_typedef ("CONSTEXPR", &pos));
       POS_HERE (do_typedef ("void *",
