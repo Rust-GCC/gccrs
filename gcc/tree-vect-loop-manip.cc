@@ -3506,12 +3506,11 @@ vect_do_peeling (loop_vec_info loop_vinfo, tree niters, tree nitersm1,
       /* Peel prolog and put it on preheader edge of loop.  */
       edge scalar_e = LOOP_VINFO_SCALAR_MAIN_EXIT (loop_vinfo);
       edge prolog_e = NULL;
-      bool early_break_peel_p = LOOP_VINFO_EARLY_BRK_NEEDS_EPILOG (loop_vinfo);
       prolog = slpeel_tree_duplicate_loop_to_edge_cfg (loop, exit_e,
 						       scalar_loop, scalar_e,
 						       e, &prolog_e, true, NULL,
 						       uncounted_p, uncounted_p,
-						       early_break_peel_p);
+						       false);
 
       gcc_assert (prolog);
       prolog->force_vectorize = false;
@@ -3678,7 +3677,6 @@ vect_do_peeling (loop_vec_info loop_vinfo, tree niters, tree nitersm1,
 	  /* Handle any remaining dominator updates needed after
 	     inserting the loop skip edge above.  */
 	  if (LOOP_VINFO_EARLY_BREAKS (loop_vinfo)
-	      && LOOP_VINFO_EARLY_BRK_NEEDS_EPILOG (loop_vinfo)
 	      && prolog_peeling)
 	    {
 	      /* Adding a skip edge to skip a loop with multiple exits
