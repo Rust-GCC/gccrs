@@ -28,6 +28,7 @@
 #include "rust-finalized-name-resolution-context.h"
 #include "rust-rib.h"
 #include "rust-system.h"
+#include "rust-tyty.h"
 
 namespace Rust {
 namespace Analysis {
@@ -199,6 +200,12 @@ MarkLive::visit (HIR::FieldAccessExpr &expr)
   if (receiver->get_kind () == TyTy::TypeKind::ADT)
     {
       adt = static_cast<TyTy::ADTType *> (receiver);
+
+      if (auto inner_ty = TyTy::try_get_box_inner_type (receiver))
+	{
+	  rust_assert ((*inner_ty)->get_kind () == TyTy::TypeKind::ADT);
+	  adt = static_cast<TyTy::ADTType *> (*inner_ty);
+	}
     }
   else if (receiver->get_kind () == TyTy::TypeKind::REF)
     {

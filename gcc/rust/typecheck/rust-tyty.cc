@@ -4538,5 +4538,28 @@ DynamicObjectType::get_object_items () const
   return items;
 }
 
+WARN_UNUSED_RESULT tl::optional<BaseType *>
+try_get_box_inner_type (BaseType *base)
+{
+  if (base->get_kind () != TypeKind::ADT)
+    return tl::nullopt;
+
+  ADTType *adt = static_cast<ADTType *> (base);
+  auto owned_box_lookup
+    = Analysis::Mappings::get ().lookup_lang_item (LangItem::Kind::OWNED_BOX);
+
+  if (owned_box_lookup && adt->get_id () == *owned_box_lookup)
+    {
+      auto args = adt->get_substitution_arguments ();
+      if (!args.is_empty ())
+	{
+	  auto inner = args.get_mappings ().front ().get_tyty ();
+	  rust_assert (inner != nullptr);
+	  return inner;
+	}
+    }
+  return tl::nullopt;
+}
+
 } // namespace TyTy
 } // namespace Rust
