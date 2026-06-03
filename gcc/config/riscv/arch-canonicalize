@@ -30,7 +30,7 @@ import os
 from functools import reduce
 
 SUPPORTED_ISA_SPEC = ["2.2", "20190608", "20191213"]
-CANONICAL_ORDER = "imafdqlcbkjtpvnh"
+CANONICAL_ORDER = "imafdqlcbkjtvph"
 LONG_EXT_PREFIXES = ['z', 's', 'h', 'x']
 
 def parse_define_riscv_ext(content):
