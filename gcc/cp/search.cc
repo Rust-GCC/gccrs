@@ -1144,6 +1144,7 @@ build_baselink (tree binfo, tree access_binfo, tree functions, tree optype)
 {
   tree baselink;
 
+  gcc_checking_assert (binfo && access_binfo);
   gcc_assert (OVL_P (functions) || TREE_CODE (functions) == TEMPLATE_ID_EXPR);
   gcc_assert (!optype || TYPE_P (optype));
   gcc_assert (TREE_TYPE (functions));

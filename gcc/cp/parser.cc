@@ -6204,18 +6204,22 @@ cp_parser_splice_specifier (cp_parser *parser, bool template_p = false,
 	  tree scope = DECL_CONTEXT (expr_real);
 	  if (scope && CLASS_TYPE_P (scope))
 	    {
+	      /* Use the same BASELINK_BINFO and BASELINK_ACCESS_BINFO since
+		 we don't do access checking for a splice.  */
 	      tree access_path = lookup_base (object_type, scope, ba_unique,
 					      NULL, tf_warning_or_error);
+	      if (!access_path)
+		/* Not a base, access directly for the error.  */
+		access_path = TYPE_BINFO (scope);
 	      if (access_path == error_mark_node)
 		expr = error_mark_node;
 	      else if (BASELINK_P (expr))
-		expr = build_baselink (access_path,
-				       BASELINK_ACCESS_BINFO (expr),
+		expr = build_baselink (access_path, access_path,
 				       BASELINK_FUNCTIONS (expr),
 				       BASELINK_OPTYPE (expr));
 	      else
 		expr
-		  = build_baselink (access_path, TYPE_BINFO (object_type),
+		  = build_baselink (access_path, access_path,
 				    expr,
 				    IDENTIFIER_CONV_OP_P (OVL_NAME (expr_real))
 				    ? TREE_TYPE (OVL_NAME (expr_real))
