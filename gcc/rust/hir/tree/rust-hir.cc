@@ -1309,6 +1309,15 @@ BorrowExpr::to_string () const
 }
 
 std::string
+BoxExpr::to_string () const
+{
+  std::string str = "box ";
+  rust_assert (expr != nullptr);
+  str += expr->to_string ();
+  return str;
+}
+
+std::string
 ReturnExpr::to_string () const
 {
   std::string str ("return ");
@@ -4250,6 +4259,12 @@ RangeToInclExpr::accept_vis (HIRFullVisitor &vis)
 }
 
 void
+BoxExpr::accept_vis (HIRFullVisitor &vis)
+{
+  vis.visit (*this);
+}
+
+void
 ReturnExpr::accept_vis (HIRFullVisitor &vis)
 {
   vis.visit (*this);
@@ -5127,6 +5142,12 @@ ContinueExpr::accept_vis (HIRExpressionVisitor &vis)
 
 void
 RangeToExpr::accept_vis (HIRExpressionVisitor &vis)
+{
+  vis.visit (*this);
+}
+
+void
+BoxExpr::accept_vis (HIRExpressionVisitor &vis)
 {
   vis.visit (*this);
 }

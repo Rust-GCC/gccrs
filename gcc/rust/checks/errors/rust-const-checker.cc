@@ -473,6 +473,12 @@ ConstChecker::visit (RangeToInclExpr &)
 }
 
 void
+ConstChecker::visit (BoxExpr &expr)
+{
+  expr.get_expr ().accept_vis (*this);
+}
+
+void
 ConstChecker::visit (ReturnExpr &expr)
 {
   if (expr.has_return_expr ())

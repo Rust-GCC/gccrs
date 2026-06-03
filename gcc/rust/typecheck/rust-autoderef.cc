@@ -330,6 +330,21 @@ AutoderefCycle::cycle (TyTy::BaseType *receiver)
       if (autoderef_flag)
 	return false;
 
+      // try owned_box
+      if (auto deref_r = try_get_box_inner_type (r))
+	{
+	  Adjustment box_deref (Adjustment::AdjustmentType::DEREF, r, *deref_r);
+	  adjustments.push_back (box_deref);
+
+	  rust_debug ("autoderef try owned_box: {%s}",
+		      (*deref_r)->debug_str ().c_str ());
+
+	  if (try_autoderefed (*deref_r))
+	    return true;
+
+	  adjustments.pop_back ();
+	}
+
       // try unsize
       Adjustment unsize = Adjuster::try_unsize_type (r);
       if (!unsize.is_error ())
