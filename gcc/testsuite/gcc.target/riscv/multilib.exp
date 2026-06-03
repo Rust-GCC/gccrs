@@ -1,0 +1,109 @@
+# Copyright (C) 2026 Free Software Foundation, Inc.
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with GCC; see the file COPYING3.  If not see
+# <http://www.gnu.org/licenses/>.
+#
+# gcc.cc:set_multilib_dir does textual matching of MULTILIB_OPTIONS
+# against the command line plus MULTILIB_DEFAULTS, which doesn't
+# understand RISC-V arch supersetting.  When -march is a superset of
+# one of the configured multilibs' arches but does not textually match,
+# the textual matcher can pick the wrong (default) multilib.  Before
+# the fix, riscv_compute_multilib early-returned that wrong pick;
+# afterwards it runs the smart, score-based matcher unconditionally
+# and selects the closest superset multilib.
+#
+# To exercise the bug a toolchain must be configured so that both
+# rv64gc/lp64f and rv64g_zcmp_zcmt/lp64f are present, e.g.:
+#   ./configure --enable-multilib --with-abi=lp64d --with-arch=rv64gc \
+#     --with-multilib-generator="rv64gc-lp64f--;rv64g_zcmp_zcmt-lp64f--"
+# The test only inspects --print-multi-lib output to detect that the
+# two relevant multilibs exist, and is a no-op on any toolchain that
+# is not configured this way.
+
+if ![istarget riscv*-*-*] then {
+    return
+}
+
+load_lib gcc-dg.exp
+
+dg-init
+
+if ![gcc_parallel_test_run_p options] {
+    return
+}
+gcc_parallel_test_enable 0
+
+proc gcc_run_with_flags { flags } {
+    global tool
+    set options [list "additional_flags=$flags"]
+    return [${tool}_target_compile "" "" "none" $options]
+}
+
+proc gcc_print_multi_dir { opts } {
+    return [string trim [gcc_run_with_flags [concat --print-multi-directory $opts]]]
+}
+
+proc check_multi_dir { gcc_opts multi_dir } {
+    set got [gcc_print_multi_dir $gcc_opts]
+    if { $got eq $multi_dir } {
+	pass "multilibdir $gcc_opts -> $multi_dir"
+    } else {
+	fail "multilibdir $gcc_opts -> $multi_dir (got '$got')"
+    }
+}
+
+# Detect the configured multilibs.  Each line of --print-multi-lib is
+# "<dir>;<flags>"; the default multilib appears as ".;".
+set zcmp_dir ""
+set rv64gc_dir ""
+foreach line [split [gcc_run_with_flags --print-multi-lib] "\n"] {
+    set line [string trim $line]
+    if { $line eq "" || [string match ".;*" $line] } {
+	continue
+    }
+    set dir [lindex [split $line ";"] 0]
+    if { [string match "*zcmp_zcmt*/lp64f" $dir] } {
+	set zcmp_dir $dir
+    } elseif { [string match "*zcd*/lp64f" $dir]
+	       && ![string match "*zcmp_zcmt*" $dir] } {
+	set rv64gc_dir $dir
+    }
+}
+
+if { $zcmp_dir eq "" || $rv64gc_dir eq "" } {
+    verbose "skipping: rv64gc/lp64f and rv64g_zcmp_zcmt/lp64f multilibs not both configured" 1
+    gcc_parallel_test_enable 1
+    return
+}
+
+# Sanity: exact arches must each select their own multilib.
+check_multi_dir {-march=rv64gc -mabi=lp64f} $rv64gc_dir
+check_multi_dir {-march=rv64g_zcmp_zcmt -mabi=lp64f} $zcmp_dir
+
+# An arch that is a strict superset of rv64g_zcmp_zcmt but not of
+# rv64gc (it has Zcmp/Zcmt and lacks Zcd) must select the Zc* multilib.
+# Before the fix, the generic textual matcher in gcc.cc rescued the
+# rv64gc default and riscv_compute_multilib accepted it; the smart
+# matcher now runs unconditionally and overrides that pick.
+check_multi_dir {-march=rv64g_zba_zcmp_zcmt -mabi=lp64f} $zcmp_dir
+check_multi_dir {-march=rv64g_zicond_zcmp_zcmt -mabi=lp64f} $zcmp_dir
+
+# Reverse direction: an arch that is a superset of rv64gc but not of
+# rv64g_zcmp_zcmt (it has Zcd and lacks Zcmp/Zcmt) must still select
+# the rv64gc multilib.  Guards against a future change that would
+# unconditionally favour the longer Zc*-rich multilib.
+check_multi_dir {-march=rv64gc_zba -mabi=lp64f} $rv64gc_dir
+check_multi_dir {-march=rv64gc_zicond -mabi=lp64f} $rv64gc_dir
+
+gcc_parallel_test_enable 1
