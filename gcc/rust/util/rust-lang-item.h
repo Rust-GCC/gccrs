@@ -157,7 +157,8 @@ public:
 
     MANUALLY_DROP,
 
-    EXCHANGE_MALLOC
+    EXCHANGE_MALLOC,
+    OWNED_BOX,
   };
 
   static const BiMap<std::string, Kind> lang_items;

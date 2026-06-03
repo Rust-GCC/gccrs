@@ -436,6 +436,13 @@ DefaultHIRVisitor::walk (RangeToInclExpr &expr)
 }
 
 void
+DefaultHIRVisitor::walk (BoxExpr &expr)
+{
+  visit_outer_attrs (expr);
+  expr.get_expr ().accept_vis (*this);
+}
+
+void
 DefaultHIRVisitor::walk (ReturnExpr &expr)
 {
   visit_outer_attrs (expr);

@@ -344,6 +344,12 @@ PatternChecker::visit (RangeToInclExpr &expr)
 }
 
 void
+PatternChecker::visit (BoxExpr &expr)
+{
+  expr.get_expr ().accept_vis (*this);
+}
+
+void
 PatternChecker::visit (ReturnExpr &expr)
 {
   if (expr.has_return_expr ())
