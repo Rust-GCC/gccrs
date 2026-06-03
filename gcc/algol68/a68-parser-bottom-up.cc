@@ -100,6 +100,8 @@
 #include "coretypes.h"
 #include "options.h"
 
+#include <string>
+
 #include "a68.h"
 #include "a68-pretty-print.h"
 
@@ -2836,8 +2838,10 @@ recover_from_error (NODE_T * p, enum a68_attribute expect, bool suppress)
 	}
       else
 	{
+	  std::string fmt = seq;
+	  fmt += " is an invalid %e";
 	  a68_attr_format_token a (expect);
-	  a68_error (w, "%s is an invalid %e", seq, &a);
+	  a68_error (w, fmt.c_str (), &a);
 	}
 
     if (ERROR_COUNT (&A68_JOB) >= MAX_ERRORS)
