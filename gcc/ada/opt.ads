@@ -2035,7 +2035,6 @@ private
       Fast_Math                      : Boolean;
       Initialize_Scalars             : Boolean;
       No_Component_Reordering        : Boolean;
-      Normalize_Scalars              : Boolean;
       Optimize_Alignment             : Character;
       Optimize_Alignment_Local       : Boolean;
       Persistent_BSS_Mode            : Boolean;

@@ -144,7 +144,6 @@ package body Opt is
          Fast_Math                      => Fast_Math,
          Initialize_Scalars             => Initialize_Scalars,
          No_Component_Reordering        => No_Component_Reordering,
-         Normalize_Scalars              => Normalize_Scalars,
          Optimize_Alignment             => Optimize_Alignment,
          Optimize_Alignment_Local       => Optimize_Alignment_Local,
          Persistent_BSS_Mode            => Persistent_BSS_Mode,
