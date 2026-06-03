@@ -315,6 +315,18 @@ NameResolutionContext::lookup (NodeId usage, Namespace ns1, Namespace ns2) const
   });
 }
 
+tl::optional<NameResolutionContext::NSLookup>
+NameResolutionContext::lookup (NodeId usage, Namespace ns1, Namespace ns2,
+			       Namespace ns3) const
+{
+  if (auto result = lookup (usage, ns1, ns2))
+    return result;
+
+  return lookup (usage, ns3).map ([&ns3] (NodeId id) {
+    return NSLookup (id, ns3);
+  });
+}
+
 void
 NameResolutionContext::scoped (Rib::Kind rib_kind, NodeId id,
 			       std::function<void (void)> lambda,
