@@ -946,12 +946,15 @@ public:
   tl::expected<Definition, LookupFinalizeError>
   find_leaf_definition (const NodeId &key) const;
 
+  // Flattening is not needed for now but should be used later?
+#if 0
   /**
    * Look at NameResolutionContext::flatten - This is the inner working function
    * which works on one specific namespace, while NameResolutionContext::flatten
    * calls flatten for every namespace
    */
   void flatten ();
+#endif
 
   /* Map of "usage" nodes which have been resolved to a "definition" node */
   std::map<Usage, Definition> resolved_nodes;
