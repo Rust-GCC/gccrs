@@ -34772,7 +34772,7 @@ cp_parser_constraint_expression (cp_parser *parser)
 {
   processing_constraint_expression_sentinel parsing_constraint;
   ++processing_template_decl;
-  cp_expr expr = cp_parser_binary_expression (parser, false, true,
+  cp_expr expr = cp_parser_binary_expression (parser, false, false,
 					      PREC_NOT_OPERATOR, NULL);
   --processing_template_decl;
   if (check_for_bare_parameter_packs (expr))
