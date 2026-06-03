@@ -24080,6 +24080,29 @@ defined, then the @code{__builtin_set_fpscr_rn} built-in returns the FPSCR
 fields.  If not defined, the @code{__builtin_set_fpscr_rn} does not return a
 value.  If the @option{-msoft-float} option is used, the
 @code{__builtin_set_fpscr_rn} built-in will not return a value.
+@defbuiltin{bool __builtin_ppc_atomic_cas_local (@var{type} *@var{ptr}, @var{type} *@var{expected}, @var{type} *@var{desired}, bool @var{weak}, int @var{success_memorder}, int @var{failure_memorder})}
+This built-in function implements a PowerPC-specific atomic compare and
+exchange operation.  It behaves identically to the generic
+@code{__atomic_compare_exchange} built-in function, with one key difference:
+it uses an EH (Extended Hint) value of 1 in the @code{lbarx}, @code{lharx},
+@code{lwarx}, or @code{ldarx} instruction (load-and-reserve indexed).
+
+The EH bit provides a hint to the processor that the program will perform a
+subsequent store to the specified location.  This hint helps optimize lock
+contention on PowerPC systems by keeping the lock cacheline in the local
+processor longer, reducing performance penalties from cache coherence protocol
+traffic.
+
+For details on the behavior and semantics of the arguments, refer to the
+@code{__atomic_compare_exchange} documentation.
+
+The first three pointer arguments (@var{ptr}, @var{expected}, and
+@var{desired}) must point to complete types, and the size of the types they
+point to must be the same and known at compile time.  The types themselves may
+differ.  The supported type sizes are 1, 2, 4, 8, or 16 bytes.
+
+@enddefbuiltin
+
 
 @node Basic PowerPC Built-in Functions Available on ISA 2.05
 @subsubsection Basic PowerPC Built-in Functions Available on ISA 2.05
