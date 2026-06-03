@@ -461,8 +461,6 @@ Early::finalize_simple_import (const Early::ImportPair &mapping)
 
   for (auto &&definition : data.definitions ())
     {
-      // dirty = true;
-
       ctx.map_usage (Usage (import_id),
 		     Definition (definition.definition.get_node_id ()),
 		     definition.ns);
@@ -540,8 +538,6 @@ Early::finalize_rebind_import (const Early::ImportPair &mapping)
 
   for (auto &&definition : data.definitions ())
     {
-      // dirty = true;
-
       ctx.map_usage (Usage (import_id),
 		     Definition (definition.definition.get_node_id ()),
 		     definition.ns);
