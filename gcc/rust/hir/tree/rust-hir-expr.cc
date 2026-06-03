@@ -972,6 +972,33 @@ RangeToInclExpr::operator= (RangeToInclExpr const &other)
   return *this;
 }
 
+BoxExpr::BoxExpr (Analysis::NodeMapping mappings, location_t locus,
+		  std::unique_ptr<Expr> expr, AST::AttrVec outer_attribs)
+  : ExprWithoutBlock (std::move (mappings), std::move (outer_attribs)),
+    expr (std::move (expr)), locus (locus)
+{
+  rust_assert (this->expr != nullptr);
+}
+
+BoxExpr::BoxExpr (BoxExpr const &other)
+  : ExprWithoutBlock (other), locus (other.locus)
+{
+  rust_assert (other.expr != nullptr);
+  expr = other.expr->clone_expr ();
+}
+
+BoxExpr &
+BoxExpr::operator= (BoxExpr const &other)
+{
+  ExprWithoutBlock::operator= (other);
+
+  rust_assert (other.expr != nullptr);
+  expr = other.expr->clone_expr ();
+  locus = other.locus;
+
+  return *this;
+}
+
 ReturnExpr::ReturnExpr (Analysis::NodeMapping mappings, location_t locus,
 			std::unique_ptr<Expr> returned_expr,
 			AST::AttrVec outer_attribs)

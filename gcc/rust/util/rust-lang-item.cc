@@ -125,6 +125,7 @@ const BiMap<std::string, LangItem::Kind> Rust::LangItem::lang_items = {{
   {"manually_drop", Kind::MANUALLY_DROP},
 
   {"exchange_malloc", Kind::EXCHANGE_MALLOC},
+  {"owned_box", Kind::OWNED_BOX},
 }};
 
 tl::optional<LangItem::Kind>

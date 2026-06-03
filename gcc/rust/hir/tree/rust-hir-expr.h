@@ -2267,6 +2267,52 @@ protected:
   }
 };
 
+// Box expression HIR node representation
+class BoxExpr : public ExprWithoutBlock
+{
+public:
+  std::unique_ptr<Expr> expr;
+
+  location_t locus;
+
+  std::string to_string () const override;
+
+  // Constructor for BoxExpr.
+  BoxExpr (Analysis::NodeMapping mappings, location_t locus,
+	   std::unique_ptr<Expr> expr,
+	   AST::AttrVec outer_attribs = AST::AttrVec ());
+  // Copy constructor with clone
+  BoxExpr (BoxExpr const &other);
+
+  // Overloaded assignment operator to clone expr pointer
+  BoxExpr &operator= (BoxExpr const &other);
+
+  // move constructors
+  BoxExpr (BoxExpr &&other) = default;
+  BoxExpr &operator= (BoxExpr &&other) = default;
+
+  location_t get_locus () const override final { return locus; }
+
+  void accept_vis (HIRFullVisitor &vis) override;
+  void accept_vis (HIRExpressionVisitor &vis) override;
+
+  Expr &get_expr () { return *expr; }
+
+  ExprType get_expression_type () const override final { return ExprType::Box; }
+
+protected:
+  /* Use covariance to implement clone function as returning this object rather
+   * than base */
+  BoxExpr *clone_expr_impl () const override { return new BoxExpr (*this); }
+
+  /* Use covariance to implement clone function as returning this object rather
+   * than base */
+  BoxExpr *clone_expr_without_block_impl () const override
+  {
+    return new BoxExpr (*this);
+  }
+};
+
 // Return expression HIR node representation
 class ReturnExpr : public ExprWithoutBlock
 {

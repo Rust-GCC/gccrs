@@ -507,6 +507,15 @@ ExprStmtBuilder::visit (HIR::RangeToInclExpr &expr)
 }
 
 void
+ExprStmtBuilder::visit (HIR::BoxExpr &expr)
+{
+  PlaceId result = visit_expr (expr.get_expr ());
+
+  rust_assert (result != INVALID_PLACE);
+  push_tmp_assignment (result, expr.get_locus ());
+}
+
+void
 ExprStmtBuilder::visit (HIR::ReturnExpr &ret)
 {
   if (ret.has_return_expr ())

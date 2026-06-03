@@ -3751,6 +3751,7 @@ protected:
   }
 };
 
+// Box expression AST node representation
 class BoxExpr : public ExprWithoutBlock
 {
   std::unique_ptr<Expr> expr;

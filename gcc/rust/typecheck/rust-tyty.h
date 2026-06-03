@@ -1960,6 +1960,9 @@ BaseType::try_as<const SubstitutionRef> () const
   return nullptr;
 }
 
+WARN_UNUSED_RESULT tl::optional<BaseType *>
+try_get_box_inner_type (BaseType *base);
+
 } // namespace TyTy
 } // namespace Rust
 

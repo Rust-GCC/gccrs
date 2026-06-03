@@ -589,6 +589,12 @@ PrivacyReporter::visit (HIR::RangeToInclExpr &)
 }
 
 void
+PrivacyReporter::visit (HIR::BoxExpr &expr)
+{
+  expr.get_expr ().accept_vis (*this);
+}
+
+void
 PrivacyReporter::visit (HIR::ReturnExpr &expr)
 {
   if (expr.has_expr ())
