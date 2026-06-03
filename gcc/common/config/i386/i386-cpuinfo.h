@@ -157,6 +157,9 @@ enum feature_priority
   P_X86_64_V4,
   P_AVX10_1 = 34,
   P_PROC_AVX10_1,
+  P_AVX10_2,
+  P_APX_F,
+  P_PROC_AVX10_2,
   P_PROC_DYNAMIC
 };
 
