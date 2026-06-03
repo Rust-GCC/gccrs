@@ -867,7 +867,7 @@ CompileExpr::visit (HIR::BreakExpr &expr)
   if (expr.has_break_expr () && expr.has_label ())
     {
       HIR::Lifetime &label = expr.get_label ();
-      auto tvar = lookup_temp_var (label.get_mappings ().get_nodeid ());
+      auto tvar = lookup_label_temp_var (label.get_mappings ().get_nodeid ());
       tree value = CompileExpr::Compile (expr.get_expr (), ctx);
       tree assign
 	= Backend::assignment_statement (tvar->get_tree (label.get_locus ()),
@@ -2811,7 +2811,7 @@ CompileExpr::lookup_label (NodeId to_be_resolved)
 }
 
 Bvariable *
-CompileExpr::lookup_temp_var (NodeId to_be_resolved)
+CompileExpr::lookup_label_temp_var (NodeId to_be_resolved)
 {
   // TODO: Not sure that this temp var should have been inserted in the Labels
   // namespace? Why not values?
