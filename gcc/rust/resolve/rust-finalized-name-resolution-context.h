@@ -26,18 +26,35 @@ namespace Rust {
 namespace Resolver2_0 {
 
 /**
- * Once the name resolution pass is complete, the typechecker can access it
+ * Once the name resolution pass is complete, later passes of the compiler can
+ * access it and still perform name resolution operations - for example, the
+ * typechecker is able to insert method resolution into the name resolution
+ * context.
  *
- * FIXME: More documentation
+ * Using this type instead of `NameResolutionContext` provides better APIs which
+ * are more suited to late passes, which shouldn't have to think about the inner
+ * workings of name resolution too much.
+ *
+ * This class provides wrappers around all basic name resolution operations
+ * (insertion, lookup) as well as an unsafe way to access the underlying name
+ * resolution context.
  */
 class FinalizedNameResolutionContext
 {
 public:
-  /** FIXME: Documentation */
+  /**
+   * Initialize the finalized name resolution context from a filled-out
+   * `NameResolutionContext`. This function should be called after name
+   * resolution is done, and `FinalizedNameResolutionContext` should be used
+   * instead of `NameResolutionContext` by later passes of the pipeline.
+   */
   static const FinalizedNameResolutionContext &
   init (NameResolutionContext &ctx);
 
-  /** FIXME: Documentation */
+  /**
+   * Access the finalized name resolution context that you previously
+   * initialized with `FinalizedNameResolutionContext::init`
+   */
   static FinalizedNameResolutionContext &get ();
 
   /**
