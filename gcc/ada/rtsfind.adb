@@ -1292,7 +1292,17 @@ package body Rtsfind is
       begin
          Clause := U.First_Implicit_With;
          while Present (Clause) loop
-            if Parent (Clause) = Cunit (Current_Sem_Unit) then
+
+            if Parent (Clause) = Cunit (Current_Sem_Unit)
+              and then
+                --  Skip when there is a non-ignored with clause already
+                (not Is_Ignored_Ghost_Node (Clause)
+                 or else
+                   --  Skip if we are going to add a ignored with clause when
+                   --  we already have an ignored with clause.
+                   (Is_Ignored_Ghost_Node (Clause)
+                    and then Ghost_Config.Ghost_Mode = Ignore))
+            then
                return;
             end if;
 
