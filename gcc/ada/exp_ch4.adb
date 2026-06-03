@@ -11501,20 +11501,8 @@ package body Exp_Ch4 is
       --  assignment to temporary. If there is no change of representation,
       --  then the conversion node is unchanged.
 
-      procedure Raise_Accessibility_Error;
-      --  Called when we know that an accessibility check will fail. Rewrites
-      --  node N to an appropriate raise statement and outputs warning msgs.
-      --  The Etype of the raise node is set to Target_Type. Note that in this
-      --  case the rest of the processing should be skipped (i.e. the call to
-      --  this procedure will be followed by "goto Done").
-
       procedure Real_Range_Check;
       --  Handles generation of range check for real target value
-
-      function Statically_Deeper_Relation_Applies (Targ_Typ : Entity_Id)
-        return Boolean;
-      --  Given a target type for a conversion, determine whether the
-      --  statically deeper accessibility rules apply to it.
 
       --------------------------
       -- Discrete_Range_Check --
@@ -11754,22 +11742,6 @@ package body Exp_Ch4 is
             return;
          end if;
       end Handle_Changed_Representation;
-
-      -------------------------------
-      -- Raise_Accessibility_Error --
-      -------------------------------
-
-      procedure Raise_Accessibility_Error is
-      begin
-         Error_Msg_Warn := SPARK_Mode /= On;
-         Rewrite (N,
-           Make_Raise_Program_Error (Sloc (N),
-             Reason => PE_Accessibility_Check_Failed));
-         Set_Etype (N, Target_Type);
-
-         Error_Msg_N ("accessibility check failure<<", N);
-         Error_Msg_N ("\Program_Error [<<", N);
-      end Raise_Accessibility_Error;
 
       ----------------------
       -- Real_Range_Check --
@@ -12022,25 +11994,6 @@ package body Exp_Ch4 is
 
          Rewrite (Expr, New_Occurrence_Of (Tnn, Loc));
       end Real_Range_Check;
-
-      ----------------------------------------
-      -- Statically_Deeper_Relation_Applies --
-      ----------------------------------------
-
-      function Statically_Deeper_Relation_Applies (Targ_Typ : Entity_Id)
-        return Boolean
-      is
-      begin
-         --  The case where the target type is an anonymous access type is
-         --  ignored since they have different semantics and get covered by
-         --  various runtime checks depending on context.
-
-         --  Note, the current implementation of this predicate is incomplete
-         --  and doesn't fully reflect the rules given in RM 3.10.2 (19) and
-         --  (19.1) ???
-
-         return Ekind (Targ_Typ) /= E_Anonymous_Access_Type;
-      end Statically_Deeper_Relation_Applies;
 
    --  Start of processing for Expand_N_Type_Conversion
 
@@ -12321,44 +12274,6 @@ package body Exp_Ch4 is
                Apply_Accessibility_Check_For_Conversion
                  (Operand, Target_Type, Insert_Node => Operand);
             end if;
-
-         --  If the level of the operand type is statically deeper than the
-         --  level of the target type, then force Program_Error. Note that this
-         --  can only occur for cases where the attribute is within the body of
-         --  an instantiation, otherwise the conversion will already have been
-         --  rejected as illegal.
-
-         --  Note: warnings are issued by the analyzer for the instance cases,
-         --  and, since we are late in expansion, a check is performed to
-         --  verify that neither the target type nor the operand type are
-         --  internally generated - as this can lead to spurious errors when,
-         --  for example, the operand type is a result of BIP expansion.
-
-         elsif In_Instance_Body
-           and then Statically_Deeper_Relation_Applies (Target_Type)
-           and then not Is_Internal (Target_Type)
-           and then not Is_Internal (Operand_Type)
-           and then
-             Type_Access_Level (Operand_Type) > Type_Access_Level (Target_Type)
-         then
-            Raise_Accessibility_Error;
-            goto Done;
-
-         --  When the operand is a selected access discriminant the check needs
-         --  to be made against the level of the object denoted by the prefix
-         --  of the selected name. Force Program_Error for this case as well
-         --  (this accessibility violation can only happen if within the body
-         --  of an instantiation).
-
-         elsif In_Instance_Body
-           and then Ekind (Operand_Type) = E_Anonymous_Access_Type
-           and then Nkind (Operand) = N_Selected_Component
-           and then Ekind (Entity (Selector_Name (Operand))) = E_Discriminant
-           and then Static_Accessibility_Level (Operand, Zero_On_Dynamic_Level)
-                      > Type_Access_Level (Target_Type)
-         then
-            Raise_Accessibility_Error;
-            goto Done;
          end if;
       end if;
 
