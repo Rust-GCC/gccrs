@@ -7470,7 +7470,7 @@ grokdeclarator (const struct c_declarator *declarator,
 		       an unsigned index type, which is what we'll
 		       get with build_index_type.  Create an
 		       open-ended range instead.  */
-		    itype = build_range_type (sizetype, size, NULL_TREE);
+		    itype = build_index_type (NULL_TREE);
 		  }
 		else
 		  {
@@ -8154,8 +8154,7 @@ grokdeclarator (const struct c_declarator *declarator,
 	      pedwarn_c90 (loc, OPT_Wpedantic, "ISO C90 does not "
 			   "support flexible array members");
 	    type = build_distinct_type_copy (TYPE_MAIN_VARIANT (type));
-	    TYPE_DOMAIN (type) = build_range_type (sizetype, size_zero_node,
-						   NULL_TREE);
+	    TYPE_DOMAIN (type) = build_index_type (NULL_TREE);
 	    if (orig_qual_indirect == 0)
 	      orig_qual_type = NULL_TREE;
 	  }

@@ -597,7 +597,7 @@ ubsan_instrument_bounds_pointer_address (location_t loc, tree pointer_addr,
   *index = save_expr (*index);
 
   /* Create an array_type for the corresponding pointer array.  */
-  tree itype = build_range_type (sizetype, size_zero_node, NULL_TREE);
+  tree itype = build_index_type (NULL_TREE);
   /* The array's element type can be get from the return type of the call to
      .ACCESS_WITH_SIZE.  */
   tree element_type = TREE_TYPE (TREE_TYPE (call));

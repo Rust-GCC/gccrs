@@ -141,6 +141,8 @@ static bool comptypes_internal (const_tree, const_tree,
 				struct comptypes_data *data);
 static bool comptypes_check_for_composite (tree t1, tree t2);
 static bool handle_counted_by_p (tree);
+static bool top_array_vla_p (const_tree type);
+
 
 /* Return true if EXP is a null pointer constant, false otherwise.  */
 
@@ -407,9 +409,7 @@ c_verify_type (tree type)
       /* An array has variable size if and only if it has a non-constant
 	 dimensions or its element type has variable size.  */
       if ((C_TYPE_VARIABLE_SIZE (TREE_TYPE (type))
-	   || (TYPE_DOMAIN (type) && TYPE_MAX_VALUE (TYPE_DOMAIN (type))
-	       && TREE_CODE (TYPE_MAX_VALUE (TYPE_DOMAIN (type)))
-		  != INTEGER_CST))
+	   || top_array_vla_p (type))
 	  != C_TYPE_VARIABLE_SIZE (type))
 	return false;
       /* If the element type or the array has variable size, then the
@@ -498,8 +498,7 @@ c_build_array_type (tree type, tree domain)
 
   tree ret = build_array_type (type, domain, typeless);
 
-  if (domain && TYPE_MAX_VALUE (domain)
-      && TREE_CODE (TYPE_MAX_VALUE (domain)) != INTEGER_CST)
+  if (top_array_vla_p (ret))
     {
       C_TYPE_VARIABLE_SIZE (ret) = 1;
       C_TYPE_VARIABLY_MODIFIED (ret) = 1;
@@ -831,14 +830,8 @@ composite_type_internal (tree t1, tree t2, tree cond,
 	bool d1_zero = d1 == NULL_TREE || !TYPE_MAX_VALUE (d1);
 	bool d2_zero = d2 == NULL_TREE || !TYPE_MAX_VALUE (d2);
 
-	bool d1_variable, d2_variable;
-
-	d1_variable = (!d1_zero
-		       && (TREE_CODE (TYPE_MIN_VALUE (d1)) != INTEGER_CST
-			   || TREE_CODE (TYPE_MAX_VALUE (d1)) != INTEGER_CST));
-	d2_variable = (!d2_zero
-		       && (TREE_CODE (TYPE_MIN_VALUE (d2)) != INTEGER_CST
-			   || TREE_CODE (TYPE_MAX_VALUE (d2)) != INTEGER_CST));
+	bool d1_variable = top_array_vla_p (t1);
+	bool d2_variable = top_array_vla_p (t2);
 
 	bool use1 = d1 && (d2_variable || d2_zero || !d1_variable);
 	bool use2 = d2 && (d1_variable || d1_zero || !d2_variable);
@@ -1802,8 +1795,6 @@ comptypes_internal (const_tree type1, const_tree type2,
       {
 	tree d1 = TYPE_DOMAIN (t1);
 	tree d2 = TYPE_DOMAIN (t2);
-	bool d1_variable, d2_variable;
-	bool d1_zero, d2_zero;
 
 	/* Target types must match incl. qualifiers.  */
 	if (!comptypes_internal (TREE_TYPE (t1), TREE_TYPE (t2), data))
@@ -1818,15 +1809,11 @@ comptypes_internal (const_tree type1, const_tree type2,
 	if (d1 == NULL_TREE || d2 == NULL_TREE || d1 == d2)
 	  return true;
 
-	d1_zero = !TYPE_MAX_VALUE (d1);
-	d2_zero = !TYPE_MAX_VALUE (d2);
+	bool d1_zero = !TYPE_MAX_VALUE (d1);
+	bool d2_zero = !TYPE_MAX_VALUE (d2);
 
-	d1_variable = (!d1_zero
-		       && (TREE_CODE (TYPE_MIN_VALUE (d1)) != INTEGER_CST
-			   || TREE_CODE (TYPE_MAX_VALUE (d1)) != INTEGER_CST));
-	d2_variable = (!d2_zero
-		       && (TREE_CODE (TYPE_MIN_VALUE (d2)) != INTEGER_CST
-			   || TREE_CODE (TYPE_MAX_VALUE (d2)) != INTEGER_CST));
+	bool d1_variable = top_array_vla_p (t1);
+	bool d2_variable = top_array_vla_p (t2);
 
 	if (d1_variable != d2_variable)
 	  data->different_types_p = true;
@@ -4095,24 +4082,22 @@ c_expr_sizeof_type (location_t loc, struct c_type_name *t)
 }
 
 static bool
-is_top_array_vla (tree type)
+top_array_vla_p (const_tree type)
 {
-  bool zero, var;
-  tree d;
-
   if (TREE_CODE (type) != ARRAY_TYPE)
     return false;
   if (!COMPLETE_TYPE_P (type))
     return false;
 
-  d = TYPE_DOMAIN (type);
-  zero = !TYPE_MAX_VALUE (d);
-  if (zero)
+  tree d = TYPE_DOMAIN (type);
+
+  if (!d)
+    return false;
+  if (!TYPE_MAX_VALUE (d))
     return false;
 
-  var = (TREE_CODE (TYPE_MIN_VALUE (d)) != INTEGER_CST
-	 || TREE_CODE (TYPE_MAX_VALUE (d)) != INTEGER_CST);
-  return var;
+  return TREE_CODE (TYPE_MAX_VALUE (d)) != INTEGER_CST
+	 || TREE_CODE (TYPE_MIN_VALUE (d)) != INTEGER_CST;
 }
 
 /* Return the result of countof applied to EXPR.  */
@@ -4141,7 +4126,7 @@ c_expr_countof_expr (location_t loc, struct c_expr expr)
       ret.original_code = COUNTOF_EXPR;
       ret.original_type = NULL;
       ret.m_decimal = 0;
-      if (is_top_array_vla (TREE_TYPE (folded_expr)))
+      if (top_array_vla_p (TREE_TYPE (folded_expr)))
 	{
 	  /* countof is evaluated when given a vla.  */
 	  ret.value = build2 (C_MAYBE_CONST_EXPR, TREE_TYPE (ret.value),
@@ -4149,7 +4134,7 @@ c_expr_countof_expr (location_t loc, struct c_expr expr)
 	  C_MAYBE_CONST_EXPR_NON_CONST (ret.value) = !expr_const_operands;
 	  SET_EXPR_LOCATION (ret.value, loc);
 	}
-      pop_maybe_used (is_top_array_vla (TREE_TYPE (folded_expr)));
+      pop_maybe_used (top_array_vla_p (TREE_TYPE (folded_expr)));
     }
   return ret;
 }
@@ -4179,7 +4164,7 @@ c_expr_countof_type (location_t loc, struct c_type_name *t)
     }
   else
   if ((type_expr || TREE_CODE (ret.value) == INTEGER_CST)
-      && is_top_array_vla (type))
+      && top_array_vla_p (type))
     {
       /* If the type is a [*] array, it is a VLA but is represented as
 	 having a size of zero.  In such a case we must ensure that
@@ -4194,7 +4179,7 @@ c_expr_countof_type (location_t loc, struct c_type_name *t)
 			  type_expr, ret.value);
       C_MAYBE_CONST_EXPR_NON_CONST (ret.value) = !type_expr_const;
     }
-  pop_maybe_used (type != error_mark_node ? is_top_array_vla (type) : false);
+  pop_maybe_used (type != error_mark_node ? top_array_vla_p (type) : false);
   return ret;
 }
 
