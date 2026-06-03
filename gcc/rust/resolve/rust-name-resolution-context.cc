@@ -372,6 +372,7 @@ NameResolutionContext::scoped (Rib::Kind rib_kind, Namespace ns,
     }
 }
 
+#if 0
 void
 NameResolutionContext::flatten ()
 {
@@ -380,6 +381,7 @@ NameResolutionContext::flatten ()
   macros.flatten ();
   labels.flatten ();
 }
+#endif
 
 } // namespace Resolver2_0
 } // namespace Rust
