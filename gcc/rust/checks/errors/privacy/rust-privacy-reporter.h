@@ -57,10 +57,17 @@ private:
    * @param use_id NodeId of the expression/statement referencing an item with
    * 		a visibility
    * @param locus Location of said expression/statement
+   * @param ns1, ns2 Namespaces in which to check for visibility
    */
   void check_for_privacy_violation (const NodeId &use_id,
 				    const location_t locus,
 				    Resolver2_0::Namespace ns);
+  void check_for_privacy_violation (const NodeId &use_id,
+				    const location_t locus,
+				    Resolver2_0::Namespace ns1,
+				    Resolver2_0::Namespace ns2);
+
+  void check_violation_inner (NodeId ref_node_id, const location_t inner);
 
   /**
    * Internal function used by `check_type_privacy` when dealing with complex
