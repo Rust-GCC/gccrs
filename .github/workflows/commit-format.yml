@@ -109,6 +109,38 @@ jobs:
 
           exit $retval;
 
+  check-valid-email:
+    runs-on: ubuntu-latest
+    name: check-valid-email
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Check author's email looks correct
+        run: |
+          retval=0;
+
+          rev_list="origin/${{ github.event.pull_request.base.ref }}..${{ github.event.pull_request.head.sha }}"
+          for commit in $(git rev-list --reverse "$rev_list"); do
+
+            if M=$(git show -s "$commit" | grep "noreply.github.com"); then
+               echo "$commit: KO => an invalid email was found: $M" | tee -a $GITHUB_STEP_SUMMARY
+               retval=1
+            else
+               echo "$commit: email looks OK"
+            fi
+          done
+
+          if [ "$retval" -ne 0 ]; then
+            echo "Some invalid emails were found." | tee -a $GITHUB_STEP_SUMMARY
+          else
+            echo "All emails look OK" | tee $GITHUB_STEP_SUMMARY
+          fi
+          exit $retval;
+
   check-issue-reference:
     runs-on: ubuntu-latest
     continue-on-error: true # We do not want to block merge if it is a legitimate GCC bugzilla reference.
