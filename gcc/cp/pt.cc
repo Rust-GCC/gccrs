@@ -2851,6 +2851,46 @@ warn_spec_missing_attributes (tree tmpl, tree spec, tree attrlist)
     }
 }
 
+/* Perform type checking in explicit instantiation of variable templates
+   as per CWG 1704.  That is, detect
+     template<typename T> T var = {};
+     template int *var<int>;
+   where there's a mismatch 'int' x 'int *'.  INST is the instantiation
+   of the variable template, DECL is the VAR_DECL from the template-id
+   used in the explicit instantiation.  */
+
+static bool
+check_explicit_inst_of_var_template (tree inst, tree decl)
+{
+  if (!inst || inst == error_mark_node)
+    return true;
+
+  tree type1 = TREE_TYPE (inst);
+  tree type2 = TREE_TYPE (decl);
+
+  /* Redeclaration with type auto is OK.  */
+  if (is_auto (type1) || is_auto (type2))
+    return true;
+
+  /* Absence of major array bound is permitted.  */
+  if (TREE_CODE (type1) == ARRAY_TYPE
+      && TREE_CODE (type2) == ARRAY_TYPE
+      && (!TYPE_DOMAIN (type1) || !TYPE_DOMAIN (type2)))
+    {
+      type1 = TREE_TYPE (type1);
+      type2 = TREE_TYPE (type2);
+    }
+
+  if (same_type_p (type1, type2))
+    /* All good.  */
+    return true;
+
+  error ("type %qT for explicit instantiation %qD does not match declared "
+	 "type %qT", type2, decl, type1);
+  inform (DECL_SOURCE_LOCATION (inst), "variable template declared here");
+  return false;
+}
+
 /* Check to see if the function just declared, as indicated in
    DECLARATOR, and in DECL, is a specialization of a function
    template.  We may also discover that the declaration is an explicit
@@ -3235,7 +3275,11 @@ check_explicit_specialization (tree declarator,
 		  targs = new_targs;
 		}
 
-	      return instantiate_template (tmpl, targs, tf_error);
+	      tree inst = instantiate_template (tmpl, targs, tf_error);
+	      if (variable_template_p (tmpl)
+		  && !check_explicit_inst_of_var_template (inst, decl))
+		return error_mark_node;
+	      return inst;
 	    }
 
 	  /* If we thought that the DECL was a member function, but it
