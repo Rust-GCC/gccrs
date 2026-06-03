@@ -1873,6 +1873,12 @@ vect_slp_linearize_chain (vec_info *vinfo,
     }
 }
 
+/* Distance from the node currently being discovered to the closest upthread
+   commutative operation whose operand-zero discovery may still be fixed by
+   retrying with swapped operands, or -1U if there is none.  */
+
+static unsigned least_upthread_swappable_op_distance = -1U;
+
 static slp_tree
 vect_build_slp_tree_2 (vec_info *vinfo, slp_tree node,
 		       vec<stmt_vec_info> stmts, unsigned int group_size,
@@ -2815,6 +2821,10 @@ out:
     {
       slp_tree child = nullptr;
       unsigned int j;
+      unsigned old_swap_distance;
+      bool can_swap;
+      bool can_swap_nonmatching;
+      bool *stmt_can_swap;
 
       /* We're skipping certain operands from processing, for example
 	 outer loop reduction initial defs.  */
@@ -2965,10 +2975,57 @@ out:
 	    def_stmts2.release ();
 	}
 
-      if ((child = vect_build_slp_tree (vinfo, oprnd_info->def_stmts,
-					group_size, &this_max_nunits,
-					matches, limit,
-					&this_tree_size, bst_map)) != NULL)
+      can_swap = (i == 0
+		  && (nops == 2 || nops == 3)
+		  && oprnds_info.length () > 1
+		  && oprnds_info[1]->first_dt == vect_internal_def
+		  && (is_gimple_assign (stmt_info->stmt)
+		      || is_gimple_call (stmt_info->stmt))
+		  /* Swapping operands for reductions breaks assumptions
+		     later on.  */
+		  && STMT_VINFO_REDUC_IDX (stmt_info) == -1);
+      can_swap_nonmatching = can_swap;
+      stmt_can_swap = NULL;
+      if (can_swap)
+	{
+	  stmt_can_swap = XALLOCAVEC (bool, group_size);
+	  for (j = 0; j < group_size; ++j)
+	    {
+	      stmt_can_swap[j] = false;
+	      if (!stmts[j])
+		/* NULL lanes are gaps and have no stmt to swap.  */
+		stmt_can_swap[j] = true;
+	      else if (gassign *stmt = dyn_cast <gassign *> (stmts[j]->stmt))
+		{
+		  tree_code code = gimple_assign_rhs_code (stmt);
+		  stmt_can_swap[j] = (commutative_tree_code (code)
+				      || commutative_ternary_tree_code (code));
+		}
+	      else if (gcall *call = dyn_cast <gcall *> (stmts[j]->stmt))
+		{
+		  internal_fn fn = (gimple_call_internal_p (call)
+				    ? gimple_call_internal_fn (call) : IFN_LAST);
+		  stmt_can_swap[j] = ((commutative_binary_fn_p (fn)
+				       || commutative_ternary_fn_p (fn))
+				      && first_commutative_argument (fn) == 0);
+		}
+
+	      if (j != 0 && !stmt_can_swap[j])
+		can_swap_nonmatching = false;
+	    }
+	}
+
+      old_swap_distance = least_upthread_swappable_op_distance;
+      if (can_swap_nonmatching)
+	least_upthread_swappable_op_distance = 1;
+      else if (least_upthread_swappable_op_distance != -1U)
+	least_upthread_swappable_op_distance++;
+      child = vect_build_slp_tree (vinfo, oprnd_info->def_stmts,
+				   group_size, &this_max_nunits,
+				   matches, limit,
+				   &this_tree_size, bst_map);
+      least_upthread_swappable_op_distance = old_swap_distance;
+      if (child != NULL)
 	{
 	  oprnd_info->def_stmts = vNULL;
 	  children.safe_push (child);
@@ -2978,17 +3035,9 @@ out:
       /* If the SLP build for operand zero failed and operand zero
 	 and one can be commuted try that for the scalar stmts
 	 that failed the match.  */
-      if (i == 0
-	  /* A first scalar stmt mismatch signals a fatal mismatch.  */
-	  && matches[0]
-	  /* ???  For COND_EXPRs we can swap the comparison operands
-	     as well as the arms under some constraints.  */
-	  && (nops == 2 || nops == 3)
-	  && oprnds_info[1]->first_dt == vect_internal_def
-	  && (is_gimple_assign (stmt_info->stmt)
-	      || is_gimple_call (stmt_info->stmt))
-	  /* Swapping operands for reductions breaks assumptions later on.  */
-	  && STMT_VINFO_REDUC_IDX (stmt_info) == -1)
+      if (/* A first scalar stmt mismatch signals a fatal mismatch.  */
+	  matches[0]
+	  && can_swap)
 	{
 	  /* See whether we can swap the matching or the non-matching
 	     stmt operands.  */
@@ -2999,34 +3048,13 @@ out:
 		{
 		  if (matches[j] != !swap_not_matching)
 		    continue;
-		  stmt_vec_info stmt_info = stmts[j];
 		  /* Verify if we can swap operands of this stmt.  */
-		  if (gassign *stmt = dyn_cast <gassign *> (stmt_info->stmt))
+		  if (!stmt_can_swap[j])
 		    {
-		      tree_code code = gimple_assign_rhs_code (stmt);
-		      if (! commutative_tree_code (code)
-			  && ! commutative_ternary_tree_code (code))
-			{
-			  if (!swap_not_matching)
-			    goto fail;
-			  swap_not_matching = false;
-			  break;
-			}
-		    }
-		  else if (gcall *call = dyn_cast <gcall *> (stmt_info->stmt))
-		    {
-		      internal_fn fn = (gimple_call_internal_p (call)
-					? gimple_call_internal_fn (call)
-					: IFN_LAST);
-		      if ((! commutative_binary_fn_p (fn)
-			   && ! commutative_ternary_fn_p (fn))
-			  || first_commutative_argument (fn) != 0)
-			{
-			  if (!swap_not_matching)
-			    goto fail;
-			  swap_not_matching = false;
-			  break;
-			}
+		      if (!swap_not_matching)
+			goto fail;
+		      swap_not_matching = false;
+		      break;
 		    }
 		}
 	    }
@@ -3078,6 +3106,12 @@ fail:
 	  /* ???  Rejecting patterns this way doesn't work.  We'd have to
 	     do extra work to cancel the pattern so the uses see the
 	     scalar version.  */
+	  /* Skip building vector operands from scalars while operand
+	     discovery may still be fixed by retrying with swapped operands.  */
+	  && (least_upthread_swappable_op_distance != 1
+	      /* A first scalar stmt mismatch signals a fatal mismatch
+		 that the parent commutative retry cannot recover.  */
+	      || !matches[0])
 	  && !is_pattern_stmt_p (stmt_info)
 	  && !oprnd_info->any_pattern)
 	{
