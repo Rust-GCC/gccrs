@@ -17,6 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-privacy-reporter.h"
+#include "rust-hir-map.h"
 #include "rust-rib.h"
 #include "rust-session-manager.h"
 #include "rust-hir-expr.h"
@@ -92,21 +93,10 @@ PrivacyReporter::go (HIR::Crate &crate)
     }
 }
 
-// FIXME: This function needs a lot of refactoring
 void
-PrivacyReporter::check_for_privacy_violation (const NodeId &use_id,
-					      const location_t locus,
-					      Resolver2_0::Namespace ns)
+PrivacyReporter::check_violation_inner (NodeId ref_node_id,
+					const location_t locus)
 {
-  NodeId ref_node_id;
-
-  // FIXME: Assert here. For now, we return since this causes issues when
-  // checking inferred types (#1260)
-  if (auto id = resolver.lookup (use_id, ns))
-    ref_node_id = *id;
-  else
-    return;
-
   auto vis = mappings.lookup_visibility (ref_node_id);
 
   // FIXME: Can we really return here if the item has no visibility?
@@ -155,6 +145,41 @@ PrivacyReporter::check_for_privacy_violation (const NodeId &use_id,
       rust_error_at (richloc, ErrorCode::E0603,
 		     "definition is private in this context");
     }
+}
+
+void
+PrivacyReporter::check_for_privacy_violation (const NodeId &use_id,
+					      const location_t locus,
+					      Resolver2_0::Namespace ns)
+{
+  NodeId ref_node_id;
+
+  // FIXME: Assert here. For now, we return since this causes issues when
+  // checking inferred types (#1260)
+  if (auto id = resolver.lookup (use_id, ns))
+    ref_node_id = *id;
+  else
+    return;
+
+  check_violation_inner (ref_node_id, locus);
+}
+
+void
+PrivacyReporter::check_for_privacy_violation (const NodeId &use_id,
+					      const location_t locus,
+					      Resolver2_0::Namespace ns1,
+					      Resolver2_0::Namespace ns2)
+{
+  NodeId ref_node_id;
+
+  // FIXME: Assert here. For now, we return since this causes issues when
+  // checking inferred types (#1260)
+  if (auto resolved = resolver.lookup (use_id, ns1, ns2))
+    ref_node_id = resolved->id;
+  else
+    return;
+
+  check_violation_inner (ref_node_id, locus);
 }
 
 void
@@ -298,9 +323,9 @@ PrivacyReporter::visit (HIR::TypePath &path)
 void
 PrivacyReporter::visit (HIR::QualifiedPathInExpression &path)
 {
-  check_for_privacy_violation (
-    path.get_mappings ().get_nodeid (), path.get_locus (),
-    Resolver2_0::Namespace::Types /* FIXME: Is that correct? */);
+  check_for_privacy_violation (path.get_mappings ().get_nodeid (),
+			       path.get_locus (),
+			       Resolver2_0::Namespace::Values);
 }
 
 void
