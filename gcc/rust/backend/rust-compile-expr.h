@@ -156,7 +156,7 @@ protected:
 
   tree construct_block_label (HIR::BlockExpr &expr);
   tree lookup_label (NodeId to_be_resolved);
-  Bvariable *lookup_temp_var (NodeId to_be_resolved);
+  Bvariable *lookup_label_temp_var (NodeId to_be_resolved);
   HirId resolve_nodeid (NodeId to_be_resolved, Resolver2_0::Namespace ns);
 
 private:
