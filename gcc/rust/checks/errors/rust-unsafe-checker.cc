@@ -222,8 +222,9 @@ UnsafeChecker::visit (PathInExpression &path)
   NodeId ref_node_id;
 
   if (auto resolved
-      = resolver.lookup (ast_node_id, Resolver2_0::Namespace::Values))
-    ref_node_id = resolved.value ();
+      = resolver.lookup (ast_node_id, Resolver2_0::Namespace::Values,
+			 Resolver2_0::Namespace::Types))
+    ref_node_id = resolved->id;
   else
     return;
 
