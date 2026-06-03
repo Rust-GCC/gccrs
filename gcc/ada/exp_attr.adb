@@ -2082,17 +2082,20 @@ package body Exp_Attr is
          Subp     : out Entity_Id;
          Attr_Ref : Node_Id)
       is
-         Ancestor        : Node_Id := Attr_Ref;
-         Insertion_Scope : Entity_Id := Empty;
-         Insertion_Point : Node_Id := Empty;
-         Insert_Before   : Boolean := False;
-         First_Typ       : constant Entity_Id := First_Subtype (Typ);
-         Typ_Comp_Unit   : Node_Id := Enclosing_Comp_Unit_Node (First_Typ);
 
          procedure Build;
          --  Call Build_Type_Attr_Subprogram with appropriate parameters.
 
-         procedure Skip_Non_Source_Subps;
+         function Find_Insertion_Point_For_Ancestor
+           (Ancestor, Previous_Insertion_Point : Node_Id) return Node_Id;
+         --  Return the most appropriate insertion point that's at the same
+         --  depth as Ancestor, if one exists. Otherwise return Empty. Ancestor
+         --  is an ancestor node of the node we want to call the subprogram
+         --  from. Previous_Insertion_Point is the latest insertion point we
+         --  found walking up the tree.
+
+         procedure Skip_Non_Source_Subps
+           (Cursor : in out Node_Id; Ancestor : Node_Id);
          --  Refine Insertion_Point choice (see comment inside procedure).
 
          procedure Build is
@@ -2103,7 +2106,45 @@ package body Exp_Attr is
                Subp => Subp);
          end Build;
 
-         procedure Skip_Non_Source_Subps is
+         function Find_Insertion_Point_For_Ancestor
+           (Ancestor, Previous_Insertion_Point : Node_Id) return Node_Id
+         is
+            Cursor : Node_Id := Empty;
+         begin
+            if Is_List_Member (Ancestor) then
+               Cursor := First (List_Containing (Ancestor));
+               Skip_Non_Source_Subps (Cursor, Ancestor);
+
+            --  A subprogram body usually occurs in a declaration list
+            --  (so we will take the preceding Is_List_Member = True path),
+            --  but not always. For a library unit subprogram, we want an
+            --  insertion point in the subprogram's declaration list
+            --  because later on we may need to see the inserted
+            --  declaration from within the declaration list. In the
+            --  preceding non-library-unit case, this visibility issue is
+            --  dealt with by choosing an insertion point outside of the
+            --  subprogram body, but that's not an option here. So if
+            --  Previous_Insertion_Point is a member of, for example, the
+            --  subprogram's statement list then it needs to be corrected.
+
+            elsif Nkind (Ancestor) = N_Subprogram_Body
+              and then Present (Declarations (Ancestor))
+              and then
+                (No (Previous_Insertion_Point)
+                  or else List_Containing (Previous_Insertion_Point) /=
+                    Declarations (Ancestor))
+              and then Nkind (Parent (Ancestor)) /= N_Subunit
+            then
+               Cursor := First (Declarations (Ancestor));
+               Skip_Non_Source_Subps (Cursor, Ancestor);
+            end if;
+
+            return Cursor;
+         end Find_Insertion_Point_For_Ancestor;
+
+         procedure Skip_Non_Source_Subps
+           (Cursor : in out Node_Id; Ancestor : Node_Id)
+         is
             --  A hazard to avoid is use-before-definition
             --  errors that can result when we have two of these
             --  subprograms where one calls the other (e.g., given
@@ -2134,15 +2175,24 @@ package body Exp_Attr is
             --  sharing and less duplication have been observed, so this
             --  is just speculation.
          begin
-            while Insertion_Point /= Ancestor
-              and then Nkind (Insertion_Point) = N_Subprogram_Body
-              and then not Comes_From_Source (Insertion_Point)
-              and then Present (Next (Insertion_Point))
+            while Cursor /= Ancestor
+              and then Nkind (Cursor) = N_Subprogram_Body
+              and then not Comes_From_Source (Cursor)
+              and then Present (Next (Cursor))
             loop
-               Next (Insertion_Point);
+               Next (Cursor);
             end loop;
-            pragma Assert (Present (Insertion_Point));
+            pragma Assert (Present (Cursor));
          end Skip_Non_Source_Subps;
+
+         --  Local variables
+
+         Ancestor        : Node_Id := Attr_Ref;
+         Insertion_Scope : Entity_Id := Empty;
+         Insertion_Point : Node_Id := Empty;
+         Insert_Before   : Boolean := False;
+         First_Typ       : constant Entity_Id := First_Subtype (Typ);
+         Typ_Comp_Unit   : Node_Id := Enclosing_Comp_Unit_Node (First_Typ);
 
       --  Start of processing for Build_And_Insert_Type_Attr_Subp
 
@@ -2175,33 +2225,15 @@ package body Exp_Attr is
             pragma Assert (Is_Library_Level_Entity (First_Typ));
 
             while Present (Ancestor) loop
-               if Is_List_Member (Ancestor) then
-                  Insertion_Point := First (List_Containing (Ancestor));
-                  Skip_Non_Source_Subps;
-
-               --  A subprogram body usually occurs in a declaration list
-               --  (so we will take the preceding Is_List_Member = True path),
-               --  but not always. For a library unit subprogram, we want an
-               --  insertion point in the subprogram's declaration list
-               --  because later on we may need to see the inserted
-               --  declaration from within the declaration list. In the
-               --  preceding non-library-unit case, this visibility issue is
-               --  dealt with by choosing an insertion point outside of the
-               --  subprogram body, but that's not an option here. So if
-               --  Insertion_Point is currently a member of, for example, the
-               --  subprogram's statement list then it needs to be corrected.
-
-               elsif Nkind (Ancestor) = N_Subprogram_Body
-                 and then Present (Declarations (Ancestor))
-                 and then
-                   (No (Insertion_Point)
-                     or else List_Containing (Insertion_Point) /=
-                       Declarations (Ancestor))
-                 and then Nkind (Parent (Ancestor)) /= N_Subunit
-               then
-                  Insertion_Point := First (Declarations (Ancestor));
-                  Skip_Non_Source_Subps;
-               end if;
+               declare
+                  Res : constant Node_Id :=
+                    Find_Insertion_Point_For_Ancestor
+                      (Ancestor, Insertion_Point);
+               begin
+                  if Present (Res) then
+                     Insertion_Point := Res;
+                  end if;
+               end;
 
                if Nkind (Ancestor) = N_Subunit then
                   Ancestor := Corresponding_Stub (Ancestor);
