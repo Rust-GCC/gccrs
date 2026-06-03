@@ -21871,19 +21871,6 @@ ix86_hard_regno_mode_ok (unsigned int regno, machine_mode mode)
   return false;
 }
 
-/* Implement TARGET_INSN_CALLEE_ABI.  */
-
-const predefined_function_abi &
-ix86_insn_callee_abi (const rtx_insn *insn)
-{
-  unsigned int abi_id = 0;
-  rtx pat = PATTERN (insn);
-  if (vzeroupper_pattern (pat, VOIDmode))
-    abi_id = ABI_VZEROUPPER;
-
-  return function_abis[abi_id];
-}
-
 /* Initialize function_abis with corresponding abi_id,
    currently only handle vzeroupper.  */
 void
@@ -21905,6 +21892,7 @@ ix86_expand_avx_vzeroupper (void)
   /* Initialize vzeroupper_abi here.  */
   ix86_initialize_callee_abi (ABI_VZEROUPPER);
   rtx_insn *insn = emit_call_insn (gen_avx_vzeroupper_callee_abi ());
+  CALL_INSN_ABI_ID (insn) = ABI_VZEROUPPER;
   /* Return false for non-local goto in can_nonlocal_goto.  */
   make_reg_eh_region_note (insn, 0, INT_MIN);
   /* Flag used for call_insn indicates it's a fake call.  */
@@ -28817,9 +28805,6 @@ ix86_libgcc_floating_mode_supported_p
 #undef TARGET_HARD_REGNO_CALL_PART_CLOBBERED
 #define TARGET_HARD_REGNO_CALL_PART_CLOBBERED \
   ix86_hard_regno_call_part_clobbered
-
-#undef TARGET_INSN_CALLEE_ABI
-#define TARGET_INSN_CALLEE_ABI ix86_insn_callee_abi
 
 #undef TARGET_CAN_CHANGE_MODE_CLASS
 #define TARGET_CAN_CHANGE_MODE_CLASS ix86_can_change_mode_class

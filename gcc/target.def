@@ -5486,19 +5486,6 @@ interoperability between several ABIs in the same translation unit.",
  const predefined_function_abi &, (const_tree type),
  NULL)
 
-DEFHOOK
-(insn_callee_abi,
- "This hook returns a description of the ABI used by the target of\n\
-call instruction @var{insn}; see the definition of\n\
-@code{predefined_function_abi} for details of the ABI descriptor.\n\
-Only the global function @code{insn_callee_abi} should call this hook\n\
-directly.\n\
-\n\
-Targets only need to define this hook if they support\n\
-interoperability between several ABIs in the same translation unit.",
- const predefined_function_abi &, (const rtx_insn *insn),
- NULL)
-
 /* ??? Documenting this hook requires a GFDL license grant.  */
 DEFHOOK_UNDOC
 (internal_arg_pointer,

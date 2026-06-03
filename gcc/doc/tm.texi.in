@@ -1743,8 +1743,6 @@ must be defined.  Modern ports should define @code{CALL_REALLY_USED_REGISTERS}.
 @cindex call-saved register
 @hook TARGET_FNTYPE_ABI
 
-@hook TARGET_INSN_CALLEE_ABI
-
 @cindex call-used register
 @cindex call-clobbered register
 @cindex call-saved register

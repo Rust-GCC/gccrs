@@ -10,7 +10,8 @@
            (expr_list:REG_EH_REGION (const_int 0)
               (nil)))
         (expr_list:DF (use (reg:DF xmm0))
-           (nil)))
+           (nil))
+	0)
       (edge-to exit (flags "FALLTHRU"))
     ) ;; block 2
   ) ;; insn-chain

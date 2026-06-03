@@ -1669,6 +1669,10 @@ extern const char * const reg_note_name[];
      Pseudo registers cannot be mentioned in this list.  */
 #define CALL_INSN_FUNCTION_USAGE(INSN)	XEXP(INSN, 7)
 
+/* Specifies the callee's ABI as an index in the range [0, NUM_ABI_IDS - 1].
+   See function-abi.h for more details.  */
+#define CALL_INSN_ABI_ID(INSN) XCINT(INSN, 8, CALL_INSN)
+
 /* The label-number of a code-label.  The assembler label
    is made from `L' and the label-number printed in decimal.
    Label numbers are unique in a compilation.  */

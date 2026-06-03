@@ -4036,6 +4036,9 @@ try_split (rtx pat, rtx_insn *trial, int last)
 	      p = &XEXP (*p, 1);
 	    *p = CALL_INSN_FUNCTION_USAGE (trial);
 
+	    /* Preserve the ABI information from the original call.  */
+	    CALL_INSN_ABI_ID (insn) = CALL_INSN_ABI_ID (trial);
+
 	    /* If the old call was a sibling call, the new one must
 	       be too.  */
 	    SIBLING_CALL_P (insn) = SIBLING_CALL_P (trial);
@@ -4225,6 +4228,7 @@ make_call_insn_raw (rtx pattern)
   INSN_CODE (insn) = -1;
   REG_NOTES (insn) = NULL;
   CALL_INSN_FUNCTION_USAGE (insn) = NULL;
+  CALL_INSN_ABI_ID (insn) = 0;
   INSN_LOCATION (insn) = curr_insn_location ();
   BLOCK_FOR_INSN (insn) = NULL;
 
@@ -6626,6 +6630,7 @@ emit_copy_of_insn_after (rtx_insn *insn, rtx_insn *after)
       if (CALL_INSN_FUNCTION_USAGE (insn))
 	CALL_INSN_FUNCTION_USAGE (new_rtx)
 	  = copy_insn (CALL_INSN_FUNCTION_USAGE (insn));
+      CALL_INSN_ABI_ID (new_rtx) = CALL_INSN_ABI_ID (insn);
       SIBLING_CALL_P (new_rtx) = SIBLING_CALL_P (insn);
       RTL_CONST_CALL_P (new_rtx) = RTL_CONST_CALL_P (insn);
       RTL_PURE_CALL_P (new_rtx) = RTL_PURE_CALL_P (insn);

@@ -3251,8 +3251,8 @@ riscv_call_tls_get_addr (rtx sym, rtx result)
   start_sequence ();
 
   emit_insn (riscv_got_load_tls_gd (a0, sym));
-  insn = emit_call_insn (gen_call_value (result, func, const0_rtx,
-					 gen_int_mode (RISCV_CC_BASE, SImode)));
+  insn = emit_call_insn (gen_call_value (result, func, const0_rtx, NULL_RTX));
+  CALL_INSN_ABI_ID (insn) = RISCV_CC_BASE;
   RTL_CONST_CALL_P (insn) = 1;
   use_reg (&CALL_INSN_FUNCTION_USAGE (insn), a0);
   insn = end_sequence ();
@@ -7295,8 +7295,7 @@ riscv_function_arg (cumulative_args_t cum_v, const function_arg_info &arg)
   struct riscv_arg_info info;
 
   if (arg.end_marker_p ())
-    /* Return the calling convention that used by the current function. */
-    return gen_int_mode (cum->variant_cc, SImode);
+    return nullptr;
 
   return riscv_get_arg_info (&info, cum, arg.mode, arg.type, arg.named, false);
 }
@@ -7820,30 +7819,6 @@ static const predefined_function_abi &
 riscv_fntype_abi (const_tree fntype)
 {
   return riscv_fntype_abi_1 (fntype, /* check_only */true);
-}
-
-/* Return riscv calling convention of call_insn.  */
-riscv_cc
-get_riscv_cc (const rtx use)
-{
-  gcc_assert (GET_CODE (use) == USE);
-  rtx unspec = XEXP (use, 0);
-  gcc_assert (GET_CODE (unspec) == UNSPEC
-	      && XINT (unspec, 1) == UNSPEC_CALLEE_CC);
-  riscv_cc cc = (riscv_cc) INTVAL (XVECEXP (unspec, 0, 0));
-  gcc_assert (cc < RISCV_CC_UNKNOWN);
-  return cc;
-}
-
-/* Implement TARGET_INSN_CALLEE_ABI.  */
-
-const predefined_function_abi &
-riscv_insn_callee_abi (const rtx_insn *insn)
-{
-  rtx pat = PATTERN (insn);
-  gcc_assert (GET_CODE (pat) == PARALLEL);
-  riscv_cc cc = get_riscv_cc (XVECEXP (pat, 0, 1));
-  return function_abis[cc];
 }
 
 /* Handle an attribute requiring a FUNCTION_DECL;
@@ -11795,8 +11770,8 @@ riscv_output_mi_thunk (FILE *file, tree thunk_fndecl ATTRIBUTE_UNUSED,
     }
 
   /* Jump to the target function.  */
-  rtx callee_cc = gen_int_mode (fndecl_abi (function).id (), SImode);
-  insn = emit_call_insn (gen_sibcall (fnaddr, const0_rtx, callee_cc));
+  insn = emit_call_insn (gen_sibcall (fnaddr, const0_rtx, NULL_RTX));
+  CALL_INSN_ABI_ID (insn) = fndecl_abi (function).id ();
   SIBLING_CALL_P (insn) = 1;
 
   /* Run just enough of rest_of_compilation.  This sequence was
@@ -16297,8 +16272,6 @@ riscv_memtag_tag_bitsize ()
 #define TARGET_FUNCTION_ARG_BOUNDARY riscv_function_arg_boundary
 #undef TARGET_FNTYPE_ABI
 #define TARGET_FNTYPE_ABI riscv_fntype_abi
-#undef TARGET_INSN_CALLEE_ABI
-#define TARGET_INSN_CALLEE_ABI riscv_insn_callee_abi
 
 #undef TARGET_SHRINK_WRAP_GET_SEPARATE_COMPONENTS
 #define TARGET_SHRINK_WRAP_GET_SEPARATE_COMPONENTS \

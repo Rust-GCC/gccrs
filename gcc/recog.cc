@@ -4034,6 +4034,7 @@ peep2_attempt (basic_block bb, rtx_insn *insn, int match_len, rtx_insn *attempt)
 
       CALL_INSN_FUNCTION_USAGE (new_insn)
 	= CALL_INSN_FUNCTION_USAGE (old_insn);
+      CALL_INSN_ABI_ID (new_insn) = CALL_INSN_ABI_ID (old_insn);
       SIBLING_CALL_P (new_insn) = SIBLING_CALL_P (old_insn);
 
       for (note = REG_NOTES (old_insn);

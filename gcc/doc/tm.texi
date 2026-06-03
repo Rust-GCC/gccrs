@@ -2020,17 +2020,6 @@ descriptor.  Targets only need to define this hook if they support
 interoperability between several ABIs in the same translation unit.
 @end deftypefn
 
-@deftypefn {Target Hook} {const predefined_function_abi &} TARGET_INSN_CALLEE_ABI (const rtx_insn *@var{insn})
-This hook returns a description of the ABI used by the target of
-call instruction @var{insn}; see the definition of
-@code{predefined_function_abi} for details of the ABI descriptor.
-Only the global function @code{insn_callee_abi} should call this hook
-directly.
-
-Targets only need to define this hook if they support
-interoperability between several ABIs in the same translation unit.
-@end deftypefn
-
 @cindex call-used register
 @cindex call-clobbered register
 @cindex call-saved register

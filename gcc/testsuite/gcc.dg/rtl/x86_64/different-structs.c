@@ -66,7 +66,8 @@ double __RTL test (struct foo *f, const struct bar *b)
                         (const_int 0))) "../../src/gcc/testsuite/gcc.dg/rtl/x86_64/different-structs.c":23
                  (expr_list:REG_CALL_DECL (symbol_ref:DI ("sqrt") [flags 0x41]  <function_decl 0x7fa24e331d00 sqrt>)
                     (expr_list:REG_EH_REGION (const_int 0)))
-                (expr_list:DF (use (reg:DF xmm0))))
+                (expr_list:DF (use (reg:DF xmm0)))
+                0)
       (edge-to exit (flags "ABNORMAL | SIBCALL"))
     ) ;; block 2
     (cbarrier 18)

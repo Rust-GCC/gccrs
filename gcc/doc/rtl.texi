@@ -3800,13 +3800,16 @@ function calls.  It is important to distinguish these instructions because
 they imply that certain registers and memory locations may be altered
 unpredictably.
 
-@findex CALL_INSN_FUNCTION_USAGE
 @code{call_insn} insns have the same extra fields as @code{insn} insns,
-accessed in the same way and in addition contain a field
-@code{CALL_INSN_FUNCTION_USAGE}, which contains a list (chain of
-@code{expr_list} expressions) containing @code{use}, @code{clobber} and
-sometimes @code{set} expressions that denote hard registers and
-@code{mem}s used or clobbered by the called function.
+accessed in the same way.  They have two further fields:
+
+@table @code
+@findex CALL_INSN_FUNCTION_USAGE
+@item CALL_INSN_FUNCTION_USAGE
+This field contains a list (chain of @code{expr_list} expressions)
+containing @code{use}, @code{clobber} and sometimes @code{set}
+expressions that denote hard registers and @code{mem}s used or
+clobbered by the called function.
 
 A @code{mem} generally points to a stack slot in which arguments passed
 to the libcall by reference (@pxref{Register Arguments,
@@ -3824,6 +3827,13 @@ If the list contains a @code{set} involving two registers, it indicates
 that the function returns one of its arguments.  Such a @code{set} may
 look like a no-op if the same register holds the argument and the return
 value.
+
+@findex CALL_INSN_ABI_ID
+@item CALL_INSN_ABI_ID
+This field identifies the callee's calling convention, as an index in
+the range [0, @code{NUM_ABI_IDS} - 1].  See @file{function-abi.h} for
+more details about the representation of these calling conventions.
+@end table
 
 @findex code_label
 @findex CODE_LABEL_NUMBER

@@ -61,6 +61,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "value-query.h"
 #include "tree-pretty-print.h"
 #include "tree-eh.h"
+#include "regs.h"
+#include "function-abi.h"
 
 /* Like PREFERRED_STACK_BOUNDARY but in units of bytes, not bits.  */
 #define STACK_BYTES (PREFERRED_STACK_BOUNDARY / BITS_PER_UNIT)
@@ -512,6 +514,7 @@ emit_call_1 (rtx funexp, tree fntree ATTRIBUTE_UNUSED, tree fndecl ATTRIBUTE_UNU
       cfun->calls_setjmp = 1;
     }
 
+  CALL_INSN_ABI_ID (call_insn) = (funtype ? fntype_abi (funtype).id () : 0);
   SIBLING_CALL_P (call_insn) = ((ecf_flags & ECF_SIBCALL) != 0);
 
   /* Restore this now, so that we do defer pops for this call's args

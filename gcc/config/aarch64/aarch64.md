@@ -8127,11 +8127,10 @@
   {
     if (TARGET_SVE)
       {
-	rtx abi = aarch64_gen_callee_cookie (AARCH64_ISA_MODE,
-					     aarch64_tlsdesc_abi_id (),
-					     false);
+	rtx abi = aarch64_gen_callee_cookie (AARCH64_ISA_MODE, false);
 	rtx_insn *call
 	  = emit_call_insn (gen_tlsdesc_small_sve_<mode> (operands[0], abi));
+	CALL_INSN_ABI_ID (call) = aarch64_tlsdesc_abi_id ();
 	RTL_CONST_CALL_P (call) = 1;
       }
     else

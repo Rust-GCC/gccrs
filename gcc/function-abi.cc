@@ -227,10 +227,7 @@ insn_callee_abi (const rtx_insn *insn)
     if (tree fndecl = get_call_fndecl (insn))
       return fndecl_abi (fndecl);
 
-  if (targetm.calls.insn_callee_abi)
-    return targetm.calls.insn_callee_abi (insn);
-
-  return default_function_abi;
+  return function_abis[CALL_INSN_ABI_ID (insn)];
 }
 
 /* Return the ABI of the function called by CALL_EXPR EXP.  Return the

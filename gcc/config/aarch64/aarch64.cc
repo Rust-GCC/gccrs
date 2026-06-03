@@ -2841,29 +2841,15 @@ aarch64_reg_save_mode (unsigned int regno)
 /* Return the CONST_INT that should be placed in an UNSPEC_CALLEE_ABI rtx.
    This value encodes the following information:
     - the ISA mode on entry to a callee (ISA_MODE)
-    - the ABI of the callee (PCS_VARIANT)
     - whether the callee has an indirect_return
       attribute (INDIRECT_RETURN).  */
 
 rtx
-aarch64_gen_callee_cookie (aarch64_isa_mode isa_mode, arm_pcs pcs_variant,
-			   bool indirect_return)
+aarch64_gen_callee_cookie (aarch64_isa_mode isa_mode, bool indirect_return)
 {
   unsigned int im = (unsigned int) isa_mode;
   unsigned int ir = (indirect_return ? 1 : 0) << AARCH64_NUM_ISA_MODES;
-  unsigned int pv = (unsigned int) pcs_variant
-		     << (AARCH64_NUM_ABI_ATTRIBUTES + AARCH64_NUM_ISA_MODES);
-  return gen_int_mode (im | ir | pv, DImode);
-}
-
-/* COOKIE is a CONST_INT from an UNSPEC_CALLEE_ABI rtx.  Return the
-   callee's ABI.  */
-
-static const predefined_function_abi &
-aarch64_callee_abi (rtx cookie)
-{
-  return function_abis[UINTVAL (cookie)
-	 >> (AARCH64_NUM_ABI_ATTRIBUTES + AARCH64_NUM_ISA_MODES)];
+  return gen_int_mode (im | ir, DImode);
 }
 
 /* COOKIE is a CONST_INT from an UNSPEC_CALLEE_ABI rtx.  Return the
@@ -2907,14 +2893,6 @@ aarch_fun_is_indirect_return (rtx_insn *insn)
 {
   rtx cookie = aarch64_insn_callee_cookie (insn);
   return aarch64_callee_indirect_return (cookie);
-}
-
-/* Implement TARGET_INSN_CALLEE_ABI.  */
-
-const predefined_function_abi &
-aarch64_insn_callee_abi (const rtx_insn *insn)
-{
-  return aarch64_callee_abi (aarch64_insn_callee_cookie (insn));
 }
 
 /* INSN is a call instruction.  Return the required ISA mode on entry to
@@ -8114,7 +8092,6 @@ aarch64_function_arg (cumulative_args_t pcum_v, const function_arg_info &arg)
   if (arg.end_marker_p ())
     {
       rtx abi_cookie = aarch64_gen_callee_cookie (pcum->isa_mode,
-						  pcum->pcs_variant,
 						  pcum->indirect_return);
       rtx sme_mode_switch_args = aarch64_finish_sme_mode_switch_args (pcum);
       rtx shared_za_flags = gen_int_mode (pcum->shared_za_flags, SImode);
@@ -11144,8 +11121,9 @@ aarch64_output_mi_thunk (FILE *file, tree thunk ATTRIBUTE_UNUSED,
   auto pcs_variant = aarch64_fndecl_abi (function);
   bool ir = lookup_attribute ("indirect_return",
 			      TYPE_ATTRIBUTES (TREE_TYPE (function)));
-  rtx callee_abi = aarch64_gen_callee_cookie (isa_mode, pcs_variant, ir);
+  rtx callee_abi = aarch64_gen_callee_cookie (isa_mode, ir);
   insn = emit_call_insn (gen_sibcall (funexp, const0_rtx, callee_abi));
+  CALL_INSN_ABI_ID (insn) = pcs_variant;
   SIBLING_CALL_P (insn) = 1;
 
   insn = get_insns ();
@@ -34236,9 +34214,6 @@ aarch64_libgcc_floating_mode_supported_p
 #undef TARGET_HARD_REGNO_CALL_PART_CLOBBERED
 #define TARGET_HARD_REGNO_CALL_PART_CLOBBERED \
   aarch64_hard_regno_call_part_clobbered
-
-#undef TARGET_INSN_CALLEE_ABI
-#define TARGET_INSN_CALLEE_ABI aarch64_insn_callee_abi
 
 #undef TARGET_CONSTANT_ALIGNMENT
 #define TARGET_CONSTANT_ALIGNMENT aarch64_constant_alignment
