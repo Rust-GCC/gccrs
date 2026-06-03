@@ -1558,8 +1558,9 @@ values, possibly consisting of a single value.  Currently only implemented
 for riscv*-*-elf*.  The accepted values and meanings are given below.
 
 
-Every config is constructed with four components: architecture string, ABI,
-reuse rule with architecture string and reuse rule with sub-extension.
+Every config is constructed with four mandatory components and one optional
+component: architecture string, ABI, reuse rule with architecture string,
+reuse rule with sub-extension and an optional list of extra options.
 
 Example 1: Add multi-lib support for rv32i with ilp32.
 @smallexample
@@ -1599,6 +1600,36 @@ medlow code model; rv64ima with lp64 and medany code model
 @smallexample
 rv64ima-lp64--;--cmodel=medlow,medany
 @end smallexample
+
+A config may carry an optional fifth component, a list of extra options, which
+is appended after the sub-extension reuse rule:
+@smallexample
+<arch>-<abi>-<extra-arch>-<sub-ext>[-<extra-options>]
+@end smallexample
+
+The extra options are a comma separated list, and each entry pairs an option
+name with the multilib directory it should map to, separated by a slash:
+@smallexample
+<extra-options> := <extra-option> ',' <extra-options>
+                 | <extra-option>
+
+<extra-option>  := <option> '/' <multilib-folder>
+@end smallexample
+
+Because the dash (@samp{-}) is used as the component separator, any dash in an
+option name must be rewritten as an underscore (@samp{_}), and the leading dash
+of the option must be dropped.  For example, @option{-fcf-protection=full} is
+written as @code{fcf_protection=full}.
+
+Example 7: Add multi-lib support for rv64imafdc with lp64d, plus a variant
+built with @option{-fcf-protection=full} placed in the @file{cfi} directory.
+@smallexample
+rv64imafdc_zicfiss_zicfilp-lp64d---fcf_protection=full/cfi
+@end smallexample
+
+This builds a multilib with
+@option{-march=rv64imafdc_zicfiss_zicfilp -mabi=lp64d -fcf-protection=full}
+and uses @file{rv64imafdc_zicfiss_zicfilp/lp64d/cfi} as the multilib folder.
 
 @item --with-multi-buildlist=@var{file}
 Specify a file containing a list of multilib directories to build.
