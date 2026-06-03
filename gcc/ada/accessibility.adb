@@ -668,23 +668,12 @@ package body Accessibility is
             then
                return Make_Level_Literal (Scope_Depth (Standard_Standard));
 
-            --  Return the library level for formal parameters of an anonymous
-            --  access type without extra accessiblity formal. This may happen
-            --  for subprograms with foreign convention or when expansion is
-            --  disabled, see Sem_Ch6.Create_Extra_Formals.
-
-            elsif Is_Formal (E)
-              and then Ekind (Etype (E)) = E_Anonymous_Access_Type
-              and then No (Get_Dynamic_Accessibility (E))
-            then
-               return Make_Level_Literal (Scope_Depth (Standard_Standard));
-
             --  Formal parameters with an extra accessibility formal, as well
             --  as stand-alone objects of an anonymous access type (SAOOAAAT).
 
             elsif (Is_Formal (E) or else Ekind (E) in E_Constant | E_Variable)
               and then Present (Get_Dynamic_Accessibility (E))
-              and then (Level in Dynamic_Level | Zero_On_Dynamic_Level)
+              and then Level in Dynamic_Level | Zero_On_Dynamic_Level
             then
                if Level = Zero_On_Dynamic_Level then
                   return Make_Level_Literal (Scope_Depth (Standard_Standard));
@@ -717,6 +706,19 @@ package body Accessibility is
                --  Return the dynamic level in the normal case
 
                return New_Occurrence_Of (Get_Dynamic_Accessibility (E), Loc);
+
+            --  Return the library level for formal parameters or stand-alone
+            --  objects of an anonymous access type without extra accessibility
+            --  object. This may happen for subprograms with foreign convention
+            --  or when expansion is disabled, see Sem_Ch6.Create_Extra_Formals
+            --  and Exp_Ch3.Expand_N_Object_Declaration.
+
+            elsif (Is_Formal (E) or else Ekind (E) in E_Constant | E_Variable)
+              and then Is_Anonymous_Access_Type (Etype (E))
+              and then not Is_Local_Anonymous_Access (Etype (E))
+              and then Level in Dynamic_Level | Zero_On_Dynamic_Level
+            then
+               return Make_Level_Literal (Scope_Depth (Standard_Standard));
 
             --  Initialization procedures have a special extra accessibility
             --  parameter associated with the level at which the object
@@ -1708,9 +1710,12 @@ package body Accessibility is
       -------------------------
 
       procedure Accessibility_Error is
+         Suffix : constant String :=
+           (if Is_Expression_Function_Or_Completion (Scope_Id)
+            then "in expression function"
+            else "in return");
          Message : constant String :=
-           "level of type of access discriminant value is statically too deep"
-           & " in return (RM 6.5(5.9))";
+           "level of type of access discriminant is too deep " & Suffix;
 
       begin
          --  In an instance, this is a runtime check, but one we know will fail

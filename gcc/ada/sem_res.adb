@@ -5333,9 +5333,12 @@ package body Sem_Res is
       Subtyp   : Entity_Id;
       Discrim  : Entity_Id;
       Constr   : Node_Id;
-      Aggr     : Node_Id;
+      Exp      : Node_Id;
       Assoc    : Node_Id := Empty;
       Disc_Exp : Node_Id;
+
+      procedure Accessibility_Error (Exp : Node_Id);
+      --  Give an error about the accessibility level of the allocator
 
       procedure Check_Allocator_Discrim_Accessibility
         (Disc_Exp  : Node_Id;
@@ -5343,9 +5346,7 @@ package body Sem_Res is
       --  Check that accessibility level associated with an access discriminant
       --  initialized in an allocator by the expression Disc_Exp is not deeper
       --  than the level of the allocator type Alloc_Typ. An error message is
-      --  issued if this condition is violated. Specialized checks are done for
-      --  the cases of a constraint expression which is an access attribute or
-      --  an access discriminant.
+      --  issued if this condition is violated.
 
       procedure Check_Allocator_Discrim_Accessibility_Exprs
         (Curr_Exp  : Node_Id;
@@ -5357,6 +5358,38 @@ package body Sem_Res is
       --  If the allocator is an actual in a call, it is allowed to be class-
       --  wide when the context is not because it is a controlling actual.
 
+      -------------------------
+      -- Accessibility_Error --
+      -------------------------
+
+      procedure Accessibility_Error (Exp : Node_Id) is
+         Prefix : constant String :=
+           (if Nkind (Exp) = N_Attribute_Reference
+            then "prefix of attribute"
+            else "type of access discriminant");
+         Message : constant String :=
+           Prefix & " has deeper level than allocator type";
+
+      begin
+         --  In an instance, this is a runtime check, but one we know will fail
+         --  so generate an appropriate warning. As usual, this kind of warning
+         --  is an error in SPARK mode or if No_Dynamic_Accessibility_Checks.
+
+         if In_Instance_Body then
+            Error_Msg_Warn := SPARK_Mode /= On
+                                and then not
+                                  No_Dynamic_Accessibility_Checks_Enabled (N);
+            Error_Msg_N (Message & "<<", Exp);
+            Error_Msg_F ("\Program_Error [<<", Exp);
+            Insert_Action (N,
+              Make_Raise_Program_Error (Sloc (N),
+                Reason => PE_Accessibility_Check_Failed));
+
+         else
+            Error_Msg_N (Message, Exp);
+         end if;
+      end Accessibility_Error;
+
       -------------------------------------------
       -- Check_Allocator_Discrim_Accessibility --
       -------------------------------------------
@@ -5366,43 +5399,21 @@ package body Sem_Res is
          Alloc_Typ : Entity_Id)
       is
       begin
-         if Type_Access_Level (Etype (Disc_Exp)) >
-            Deepest_Type_Access_Level (Alloc_Typ)
+         --  The accessibility level of a function call whose result type is
+         --  an anonymous access type used to define the discriminant of an
+         --  object is the level of the object (RM 3.10.2(10.3, 14.1)), and
+         --  this level is that of the access type for an allocator.
+
+         if Nkind (Disc_Exp) = N_Function_Call
+           and then Ekind (Etype (Disc_Exp)) = E_Anonymous_Access_Type
          then
-            Error_Msg_N
-              ("operand type has deeper level than allocator type", Disc_Exp);
+            return;
+         end if;
 
-         --  When the expression is an Access attribute the level of the prefix
-         --  object must not be deeper than that of the allocator's type.
-
-         elsif Nkind (Disc_Exp) = N_Attribute_Reference
-           and then Get_Attribute_Id (Attribute_Name (Disc_Exp)) =
-                      Attribute_Access
-           and then Static_Accessibility_Level
-                      (Disc_Exp, Zero_On_Dynamic_Level)
-                        > Deepest_Type_Access_Level (Alloc_Typ)
+         if Static_Accessibility_Level (Disc_Exp, Zero_On_Dynamic_Level)
+              > Deepest_Type_Access_Level (Alloc_Typ)
          then
-            Error_Msg_N
-              ("prefix of attribute has deeper level than allocator type",
-               Disc_Exp);
-
-         --  When the expression is an access discriminant the check is against
-         --  the level of the prefix object.
-
-         elsif Ekind (Etype (Disc_Exp)) = E_Anonymous_Access_Type
-           and then Nkind (Disc_Exp) = N_Selected_Component
-           and then Static_Accessibility_Level
-                      (Disc_Exp, Zero_On_Dynamic_Level)
-                        > Deepest_Type_Access_Level (Alloc_Typ)
-         then
-            Error_Msg_N
-              ("access discriminant has deeper level than allocator type",
-               Disc_Exp);
-
-         --  All other cases are legal
-
-         else
-            null;
+            Accessibility_Error (Disc_Exp);
          end if;
       end Check_Allocator_Discrim_Accessibility;
 
@@ -5564,29 +5575,29 @@ package body Sem_Res is
          --  deeper than the type of the allocator (in contrast to access
          --  parameters, where the level of the actual can be arbitrary).
 
-         --  We can't use Valid_Conversion to perform this check because in
-         --  general the type of the allocator is unrelated to the type of
-         --  the access discriminant.
+         --  We cannot use Valid_Conversion to perform this check because
+         --  in general the type of the allocator is unrelated to the type
+         --  of the access discriminant.
 
          if Ekind (Typ) /= E_Anonymous_Access_Type
            or else Is_Local_Anonymous_Access (Typ)
          then
             Subtyp := Entity (Subtype_Mark (E));
 
-            Aggr := Original_Node (Expression (E));
+            Exp := Original_Node (Expression (E));
 
-            if Has_Discriminants (Subtyp)
-              and then Nkind (Aggr) in N_Aggregate | N_Extension_Aggregate
+            if Has_Anonymous_Access_Discriminant (Subtyp)
+              and then Nkind (Exp) in N_Aggregate | N_Extension_Aggregate
             then
                Discrim := First_Discriminant (Base_Type (Subtyp));
 
                --  Get the first component expression of the aggregate
 
-               if Present (Expressions (Aggr)) then
-                  Disc_Exp := First (Expressions (Aggr));
+               if Present (Expressions (Exp)) then
+                  Disc_Exp := First (Expressions (Exp));
 
-               elsif Present (Component_Associations (Aggr)) then
-                  Assoc := First (Component_Associations (Aggr));
+               elsif Present (Component_Associations (Exp)) then
+                  Assoc := First (Component_Associations (Exp));
 
                   if Present (Assoc) then
                      Disc_Exp := Expression (Assoc);
@@ -5615,7 +5626,7 @@ package body Sem_Res is
                         Next (Disc_Exp);
 
                      else
-                        Assoc := First (Component_Associations (Aggr));
+                        Assoc := First (Component_Associations (Exp));
 
                         if Present (Assoc) then
                            Disc_Exp := Expression (Assoc);
@@ -5625,6 +5636,16 @@ package body Sem_Res is
                      end if;
                   end if;
                end loop;
+
+            --  Apply the RM 3.10.2(12.4) rule to formal parameters
+
+            elsif Has_Anonymous_Access_Discriminant (Subtyp)
+              and then Is_Entity_Name (Exp)
+              and then Is_Formal (Entity (Exp))
+              and then Static_Accessibility_Level (Exp, Zero_On_Dynamic_Level)
+                         > Deepest_Type_Access_Level (Typ)
+            then
+               Accessibility_Error (Exp);
             end if;
          end if;
 
@@ -5643,7 +5664,8 @@ package body Sem_Res is
          --  expression used to constrain an access discriminant cannot be
          --  deeper than the type of the allocator (in contrast to access
          --  parameters, where the level of the actual can be arbitrary).
-         --  We can't use Valid_Conversion to perform this check because
+
+         --  We cannot use Valid_Conversion to perform this check because
          --  in general the type of the allocator is unrelated to the type
          --  of the access discriminant.
 
@@ -5653,7 +5675,7 @@ package body Sem_Res is
          then
             Subtyp := Entity (Subtype_Mark (Original_Node (E)));
 
-            if Has_Discriminants (Subtyp) then
+            if Has_Anonymous_Access_Discriminant (Subtyp) then
                Discrim := First_Discriminant (Base_Type (Subtyp));
                Constr := First (Constraints (Constraint (Original_Node (E))));
                while Present (Discrim) and then Present (Constr) loop

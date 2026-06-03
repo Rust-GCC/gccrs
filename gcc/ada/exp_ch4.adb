@@ -832,38 +832,6 @@ package body Exp_Ch4 is
          return;
       end if;
 
-      --  Check that any anonymous access discriminants are suitable
-      --  for use in an allocator.
-
-      --  Note: This check is performed here instead of during analysis
-      --  so that we can check against the fully resolved Etype of Exp.
-
-      if Is_Entity_Name (Exp)
-        and then Has_Anonymous_Access_Discriminant (Etype (Exp))
-        and then Static_Accessibility_Level (Exp, Zero_On_Dynamic_Level)
-                   > Static_Accessibility_Level (N, Object_Decl_Level)
-      then
-         --  A dynamic check and a warning are generated when we are within
-         --  an instance.
-
-         if In_Instance then
-            Insert_Action (N,
-              Make_Raise_Program_Error (Loc,
-                Reason => PE_Accessibility_Check_Failed));
-
-            Error_Msg_Warn := SPARK_Mode /= On;
-            Error_Msg_N ("anonymous access discriminant is too deep for use"
-                         & " in allocator<<", N);
-            Error_Msg_N ("\Program_Error [<<", N);
-
-         --  Otherwise, make the error static
-
-         else
-            Error_Msg_N ("anonymous access discriminant is too deep for use"
-                          & " in allocator", N);
-         end if;
-      end if;
-
       Aggr_In_Place     := Is_Delayed_Aggregate (Exp);
       Delayed_Cond_Expr := Is_Delayed_Conditional_Expression (Exp);
 
