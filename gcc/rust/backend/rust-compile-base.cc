@@ -78,24 +78,19 @@ HIRCompileBase::setup_fndecl (tree fndecl, bool is_main_entry_point,
   // is it inline?
   for (const auto &attr : attrs)
     {
-      bool is_inline
-	= attr.get_path ().as_string () == Values::Attributes::INLINE;
-      bool is_must_use
-	= attr.get_path ().as_string () == Values::Attributes::MUST_USE;
-      bool is_cold = attr.get_path ().as_string () == Values::Attributes::COLD;
-      bool is_link_section
-	= attr.get_path ().as_string () == Values::Attributes::LINK_SECTION;
-      bool no_mangle
-	= attr.get_path ().as_string () == Values::Attributes::NO_MANGLE;
-      bool is_deprecated
-	= attr.get_path ().as_string () == Values::Attributes::DEPRECATED;
-      bool is_proc_macro
-	= attr.get_path ().as_string () == Values::Attributes::PROC_MACRO;
+      std::string attr_str = attr.get_path ().as_string ();
+
+      bool is_inline = attr_str == Values::Attributes::INLINE;
+      bool is_must_use = attr_str == Values::Attributes::MUST_USE;
+      bool is_cold = attr_str == Values::Attributes::COLD;
+      bool is_link_section = attr_str == Values::Attributes::LINK_SECTION;
+      bool no_mangle = attr_str == Values::Attributes::NO_MANGLE;
+      bool is_deprecated = attr_str == Values::Attributes::DEPRECATED;
+      bool is_proc_macro = attr_str == Values::Attributes::PROC_MACRO;
       bool is_proc_macro_attribute
-	= attr.get_path ().as_string ()
-	  == Values::Attributes::PROC_MACRO_ATTRIBUTE;
-      bool is_proc_macro_derive = attr.get_path ().as_string ()
-				  == Values::Attributes::PROC_MACRO_DERIVE;
+	= attr_str == Values::Attributes::PROC_MACRO_ATTRIBUTE;
+      bool is_proc_macro_derive
+	= attr_str == Values::Attributes::PROC_MACRO_DERIVE;
 
       if (is_inline)
 	{
