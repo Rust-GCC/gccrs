@@ -766,6 +766,7 @@ ForeverStack<N>::find_leaf_definition (const NodeId &key) const
   return find_leaf_definition_inner (Usage (key), resolved_nodes, keys_seen);
 }
 
+#if 0
 template <Namespace N>
 void
 ForeverStack<N>::flatten ()
@@ -793,6 +794,7 @@ ForeverStack<N>::flatten ()
       k_v.second = result.value ();
     }
 }
+#endif
 
 // FIXME: Can we add selftests?
 

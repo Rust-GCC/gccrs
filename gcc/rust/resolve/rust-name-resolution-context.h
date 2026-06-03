@@ -842,6 +842,9 @@ public:
 			 std::forward<Args> (args)...);
   }
 
+  // We disable this function for now as it causes regressions, but I think it
+  // is important for a more proper final nameres context - need to investigate
+#if 0
   /**
    * We've now collected every definition and import, and errored out when
    * necessary if multiple definitions are colliding. Do a final flattening of
@@ -860,6 +863,7 @@ public:
    * void function, yipee.
    */
   void flatten ();
+#endif
 
   /* If declared with #[prelude_import], the current standard library module
    */
@@ -913,9 +917,6 @@ private:
   resolve_final_segment (ForeverStack<N> &stack,
 			 typename ForeverStack<N>::Node &final_node,
 			 std::string &seg_name, bool is_lower_self);
-
-  /* Map of "usage" nodes which have been resolved to a "definition" node */
-  // std::map<Usage, Definition> resolved_nodes;
 };
 
 } // namespace Resolver2_0
