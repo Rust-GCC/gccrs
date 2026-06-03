@@ -79,6 +79,14 @@
 ; a semicolon are also treated as blank lines.
 
 
+; The following function is not overloaded, but is internally substituted by
+; __builtin_ppc_atomic_cas_local_{qi,hi,si,di,ti} based on the first 3
+; arguments.
+[PPC_ATOMIC_CAS, SKIP, __builtin_ppc_atomic_cas_local]
+  bool __builtin_ppc_atomic_cas_local (void *, void *, void *, const int, \
+				       const int, const int);
+    PPC_ATOMIC_CAS_QI PPC_ATOMIC_CAS_FAKERY
+
 [BCDADD, __builtin_bcdadd, __builtin_vec_bcdadd]
   vsq __builtin_vec_bcdadd (vsq, vsq, const int);
     BCDADD_V1TI

@@ -127,7 +127,7 @@ extern bool rs6000_emit_set_const (rtx, rtx);
 extern bool rs6000_emit_cmove (rtx, rtx, rtx, rtx);
 extern bool rs6000_emit_int_cmove (rtx, rtx, rtx, rtx);
 extern void rs6000_emit_minmax (rtx, enum rtx_code, rtx, rtx);
-extern void rs6000_expand_atomic_compare_and_swap (rtx op[]);
+extern void rs6000_expand_atomic_compare_and_swap (rtx op[], bool local);
 extern rtx swap_endian_selector_for_mode (machine_mode mode);
 
 extern void rs6000_expand_atomic_exchange (rtx op[]);

@@ -929,7 +929,7 @@ altivec_build_resolved_builtin (tree *args, int n, tree fntype, tree ret_type,
 
   /* If the number of arguments to an overloaded function increases,
      we must expand this switch.  */
-  gcc_assert (MAX_OVLD_ARGS <= 4);
+  gcc_assert (MAX_OVLD_ARGS <= 6);
 
   tree call;
   switch (n)
@@ -948,6 +948,10 @@ altivec_build_resolved_builtin (tree *args, int n, tree fntype, tree ret_type,
       break;
     case 4:
       call = build_call_expr (fndecl, 4, args[0], args[1], args[2], args[3]);
+      break;
+    case 6:
+      call = build_call_expr (fndecl, 6, args[0], args[1], args[2], args[3],
+			      args[4], args[5]);
       break;
     default:
       gcc_unreachable ();
@@ -1710,10 +1714,121 @@ find_instance (bool *unsupported_builtin, int *instance,
 
 tree
 altivec_resolve_overloaded_builtin (location_t loc, tree fndecl,
-				    void *passed_arglist, bool)
+				    void *passed_arglist, bool complain)
 {
   rs6000_gen_builtins fcode
     = (rs6000_gen_builtins) DECL_MD_FUNCTION_CODE (fndecl);
+
+  /* Handle __builtin_ppc_atomic_cas_local before standard overload
+     processing.  */
+  if (fcode == RS6000_OVLD_PPC_ATOMIC_CAS)
+    {
+      vec<tree, va_gc> *arglist
+	= static_cast<vec<tree, va_gc> *> (passed_arglist);
+
+      /* Expected: (void *ptr, void *expected, void *desired,
+      bool weak, int success_order, int failure_order).  */
+      if (vec_safe_length (arglist) != 6)
+	{
+	  if (complain)
+	    error_at (loc, "%qE requires 6 arguments", fndecl);
+	  return error_mark_node;
+	}
+
+      /* Get the first argument to determine the actual type.  */
+      tree arg0 = (*arglist)[0];
+      tree type0 = TREE_TYPE (arg0);
+
+      /* Must be a pointer.  */
+      if (!POINTER_TYPE_P (type0))
+	{
+	  if (complain)
+	    error_at (loc, "first argument to %qE must be a pointer", fndecl);
+	  return error_mark_node;
+	}
+
+      /* Get the pointee type.  */
+      tree pointee_type = TREE_TYPE (type0);
+
+      /* Must be a complete type.  */
+      if (!COMPLETE_TYPE_P (pointee_type))
+	{
+	  if (complain)
+	    error_at (loc, "first argument to %qE must point to a complete"
+		      " type", fndecl);
+	  return error_mark_node;
+	}
+
+      /* Get size in bytes.  */
+      tree size_tree = TYPE_SIZE_UNIT (pointee_type);
+      if (!tree_fits_uhwi_p (size_tree))
+	{
+	  if (complain)
+	    error_at (loc, "type size must be constant");
+	  return error_mark_node;
+	}
+
+      unsigned HOST_WIDE_INT size = tree_to_uhwi (size_tree);
+
+      /* Determine which size-specific builtin to use.  */
+      rs6000_gen_builtins target_fcode;
+      tree int_type;
+
+      switch (size)
+	{
+	case 1:
+	  target_fcode = RS6000_BIF_PPC_ATOMIC_CAS_QI;
+	  int_type = unsigned_char_type_node;
+	  break;
+	case 2:
+	  target_fcode = RS6000_BIF_PPC_ATOMIC_CAS_HI;
+	  int_type = short_unsigned_type_node;
+	  break;
+	case 4:
+	  target_fcode = RS6000_BIF_PPC_ATOMIC_CAS_SI;
+	  int_type = unsigned_intSI_type_node;
+	  break;
+	case 8:
+	  target_fcode = RS6000_BIF_PPC_ATOMIC_CAS_DI;
+	  int_type = long_long_unsigned_type_node;
+	  break;
+	case 16:
+	  target_fcode = RS6000_BIF_PPC_ATOMIC_CAS_TI;
+	  int_type = unsigned_intTI_type_node;
+	  break;
+	default:
+	  if (complain)
+	    error_at (loc, "size %wu not supported for %qE "
+		      "(must be 1, 2, 4, 8, or 16 bytes)", size, fndecl);
+	  return error_mark_node;
+	}
+
+      /* Create pointer type to the appropriate integer type.  */
+      tree int_ptr_type = build_pointer_type (int_type);
+
+      /* Cast the three pointer arguments to the appropriate integer
+      pointer type.  */
+      tree new_arg0 = build1 (VIEW_CONVERT_EXPR, int_ptr_type, (*arglist)[0]);
+      tree new_arg1 = build1 (VIEW_CONVERT_EXPR, int_ptr_type, (*arglist)[1]);
+      tree new_arg2 = build1 (VIEW_CONVERT_EXPR, int_ptr_type, (*arglist)[2]);
+
+      /* Build new argument list with casted pointers.  */
+      vec<tree, va_gc> *new_arglist;
+      vec_alloc (new_arglist, 6);
+      new_arglist->quick_push (new_arg0);
+      new_arglist->quick_push (new_arg1);
+      new_arglist->quick_push (new_arg2);
+      new_arglist->quick_push ((*arglist)[3]);  /* weak (bool).  */
+      new_arglist->quick_push ((*arglist)[4]);  /* success_memorder.  */
+      new_arglist->quick_push ((*arglist)[5]);  /* failure_memorder.  */
+
+      /* Get the target builtin function.  */
+      tree new_fndecl = rs6000_builtin_decls[target_fcode];
+
+      /* Build and return the function call.  */
+      return build_function_call_vec (loc, vNULL, new_fndecl, new_arglist,
+				      NULL, fndecl);
+    }
 
   /* Return immediately if this isn't an overload.  */
   if (fcode <= RS6000_OVLD_NONE)
