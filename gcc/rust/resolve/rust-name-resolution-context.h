@@ -553,6 +553,8 @@ public:
    */
   tl::optional<NSLookup> lookup (NodeId usage, Namespace ns1,
 				 Namespace ns2) const;
+  tl::optional<NSLookup> lookup (NodeId usage, Namespace ns1, Namespace ns2,
+				 Namespace ns3) const;
 
   Resolver::CanonicalPath to_canonical_path (NodeId id, Namespace ns) const
   {
