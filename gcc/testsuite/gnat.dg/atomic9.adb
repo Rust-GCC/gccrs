@@ -14,8 +14,9 @@ procedure Atomic9 is
       with
         Import,
         Atomic,
-        Size    => 32,
-        Address => Register'Address;
+        Alignment => 4,
+        Size      => 32,
+        Address   => Register'Address;
 
    begin
       NVIC_STIR := IRQ;
