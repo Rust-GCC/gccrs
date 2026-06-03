@@ -75,6 +75,7 @@ public:
     InlineAsm,
     LlvmInlineAsm,
     OffsetOf,
+    Box,
   };
 
   BaseKind get_hir_kind () override final { return Node::BaseKind::EXPR; }

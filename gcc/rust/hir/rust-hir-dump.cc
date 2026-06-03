@@ -1413,6 +1413,17 @@ Dump::visit (RangeToInclExpr &e)
 }
 
 void
+Dump::visit (BoxExpr &e)
+{
+  begin ("BoxExpr");
+  do_mappings (e.get_mappings ());
+
+  visit_field ("box_expr", e.get_expr ());
+
+  end ("BoxExpr");
+}
+
+void
 Dump::visit (ReturnExpr &e)
 {
   begin ("ReturnExpr");

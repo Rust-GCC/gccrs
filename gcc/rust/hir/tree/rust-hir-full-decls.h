@@ -106,6 +106,7 @@ class RangeToExpr;
 class RangeFullExpr;
 class RangeFromToInclExpr;
 class RangeToInclExpr;
+class BoxExpr;
 class ReturnExpr;
 class UnsafeBlockExpr;
 class LoopLabel;

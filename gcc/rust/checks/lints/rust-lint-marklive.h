@@ -139,6 +139,11 @@ public:
     function.get_definition ().accept_vis (*this);
   }
 
+  void visit (HIR::BoxExpr &expr) override
+  {
+    expr.get_expr ().accept_vis (*this);
+  }
+
   void visit (HIR::ReturnExpr &expr) override
   {
     if (expr.has_return_expr ())

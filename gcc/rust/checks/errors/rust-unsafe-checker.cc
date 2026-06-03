@@ -574,6 +574,12 @@ UnsafeChecker::visit (RangeToInclExpr &expr)
 }
 
 void
+UnsafeChecker::visit (BoxExpr &expr)
+{
+  expr.get_expr ().accept_vis (*this);
+}
+
+void
 UnsafeChecker::visit (ReturnExpr &expr)
 {
   if (expr.has_return_expr ())

@@ -185,6 +185,65 @@ TypeCheckExpr::visit (HIR::TupleExpr &expr)
 }
 
 void
+TypeCheckExpr::visit (HIR::BoxExpr &expr)
+{
+  auto owned_box_defid
+    = mappings.get_lang_item (LangItem::Kind::OWNED_BOX, expr.get_locus ());
+
+  HIR::Item *item = mappings.lookup_defid (owned_box_defid).value ();
+  TyTy::BaseType *item_type = nullptr;
+
+  bool ok
+    = context->lookup_type (item->get_mappings ().get_hirid (), &item_type);
+  rust_assert (ok);
+  if (item_type->get_kind () != TyTy::TypeKind::ADT)
+    {
+      rust_error_at (item->get_locus (), ErrorCode::E0718,
+		     "%qs language item must be applied to a struct",
+		     "owned_box");
+      return;
+    }
+  TyTy::ADTType *adt = static_cast<TyTy::ADTType *> (item_type);
+  if (!adt->is_tuple_struct () && !adt->is_struct_struct ())
+    {
+      rust_error_at (item->get_locus (), ErrorCode::E0718,
+		     "%qs language item must be applied to a struct",
+		     "owned_box");
+      return;
+    }
+
+  // this is at least one generic item
+  if (adt->get_num_substitutions () < 1)
+    {
+      rust_error_at (expr.get_locus (),
+		     "%qs lang item must be applied to a struct with at least "
+		     "1 generic argument",
+		     "owned_box");
+      return;
+    }
+
+  TyTy::BaseType *inner_ty = TypeCheckExpr::Resolve (expr.get_expr ());
+  if (inner_ty->get_kind () == TyTy::TypeKind::ERROR)
+    {
+      infered = inner_ty;
+      return;
+    }
+
+  auto lookup = SubstMapper::InferSubst (adt, expr.get_locus ());
+  rust_assert (lookup->get_kind () == TyTy::TypeKind::ADT);
+  TyTy::ADTType *adt_box = static_cast<TyTy::ADTType *> (lookup);
+
+  TyTy::BaseType *infer = adt_box->get_substs ().at (0).get_param_ty ();
+
+  unify_site (expr.get_mappings ().get_hirid (),
+	      TyTy::TyWithLocation (infer, expr.get_locus ()),
+	      TyTy::TyWithLocation (inner_ty, expr.get_locus ()),
+	      expr.get_locus ());
+
+  infered = adt_box;
+}
+
+void
 TypeCheckExpr::visit (HIR::ReturnExpr &expr)
 {
   if (!context->have_function_context ())
@@ -1285,6 +1344,12 @@ TypeCheckExpr::visit (HIR::FieldAccessExpr &expr)
 {
   auto struct_base = TypeCheckExpr::Resolve (expr.get_receiver_expr ());
 
+  // Box<T> autoderef
+  if (auto try_struct_base = TyTy::try_get_box_inner_type (struct_base))
+    {
+      struct_base = *try_struct_base;
+    }
+
   // FIXME does this require autoderef here?
   if (struct_base->get_kind () == TyTy::TypeKind::REF)
     {
@@ -1728,14 +1793,21 @@ TypeCheckExpr::visit (HIR::DereferenceExpr &expr)
 
   bool is_valid_type = resolved_base->get_kind () == TyTy::TypeKind::REF
 		       || resolved_base->get_kind () == TyTy::TypeKind::POINTER;
-  if (!is_valid_type)
+
+  auto try_owned_box = TyTy::try_get_box_inner_type (resolved_base);
+
+  if (!is_valid_type && !try_owned_box)
     {
       rust_error_at (expr.get_locus (), "expected reference type got %s",
 		     resolved_base->as_string ().c_str ());
       return;
     }
 
-  if (resolved_base->get_kind () == TyTy::TypeKind::REF)
+  if (try_owned_box)
+    {
+      infered = (*try_owned_box)->clone ();
+    }
+  else if (resolved_base->get_kind () == TyTy::TypeKind::REF)
     {
       TyTy::ReferenceType *ref_base
 	= static_cast<TyTy::ReferenceType *> (resolved_base);
