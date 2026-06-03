@@ -1119,10 +1119,12 @@ backprop::execute ()
 	commit_replacement (v);
 
   /* Phase 5: Remove any statements that might have become dead.  */
+  auto_bitmap deleted_vars;
   for (unsigned int i = 0; i < m_vars.length (); ++i)
     if (var_info *v = m_vars[i])
       if (TREE_CODE (v->new_value) == SSA_NAME
-	  && has_zero_uses (v->new_value))
+	  && has_zero_uses (v->new_value)
+	  && bitmap_set_bit (deleted_vars, SSA_NAME_VERSION (v->new_value)))
 	{
 	  gimple *stmt = SSA_NAME_DEF_STMT (v->new_value);
 	  gimple_stmt_iterator gsi = gsi_for_stmt (stmt);
