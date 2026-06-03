@@ -40,6 +40,7 @@
 
 #define __glibcxx_want_mdspan
 #define __glibcxx_want_aligned_accessor
+#define __glibcxx_want_hardened_mdspan
 #define __glibcxx_want_submdspan
 #include <bits/version.h>
 
@@ -3062,17 +3063,24 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	{
 	  if constexpr (rank() == 0)
 	    return _M_accessor.access(_M_handle, _M_mapping());
-	  else if constexpr (!(is_same_v<_OIndexTypes, index_type> && ...))
-	    return operator[](
-	      __mdspan::__index_type_cast<index_type>(std::move(__indices))...);
+	  else if constexpr (!(is_integral_v<_OIndexTypes> && ...))
+	    return operator[](__index_int_t<_OIndexTypes>(std::move(__indices))...);
 	  else
 	   {
+	     auto __is_valid_index = [&]<typename _OIntType>(size_t __dim, _OIntType __index)
+	     {
+	       if constexpr (is_signed_v<_OIntType>)
+		 if (__index < 0)
+		   return false;
+	       return std::cmp_less(__index, extents().extent(__dim));
+	     };
 	     auto __is_multi_index = [&]<size_t... _Counts>(index_sequence<_Counts...>)
-	     { return ((__indices < extents().extent(_Counts)) && ...); };
+	     { return (__is_valid_index(_Counts, __indices) && ...); };
 
 	     __glibcxx_assert(__is_multi_index(make_index_sequence<rank()>()));
-	     return _M_accessor.access(_M_handle, _M_mapping(__indices...));
-	   }
+	     auto __index = _M_mapping(static_cast<index_type>(__indices)...);
+	     return _M_accessor.access(_M_handle, __index);
+    	   }
 	}
 
       template<typename _OIndexType>
@@ -3084,7 +3092,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	    -> reference
 	    {
 	       return operator[](
-		 __mdspan::__index_type_cast<index_type>(as_const(__indices[_Counts]))...);
+		 __index_int_t<_OIndexType>(as_const(__indices[_Counts]))...);
 	    };
 	  return __call(make_index_sequence<rank()>());
 	}

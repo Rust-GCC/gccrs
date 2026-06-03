@@ -2452,6 +2452,14 @@ ftms = {
   };
 };
 
+ftms = {
+  name = hardened_mdspan;
+  values = {
+    v = 202502;
+    extra_cond = "defined(__glibcxx_mdspan) && defined(_GLIBCXX_ASSERTIONS)";
+  };
+};
+
 // Standard test specifications.
 stds[97] = ">= 199711L";
 stds[03] = ">= 199711L";

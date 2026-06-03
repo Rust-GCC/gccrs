@@ -2710,4 +2710,14 @@
 #endif /* !defined(__cpp_lib_valarray) */
 #undef __glibcxx_want_valarray
 
+#if !defined(__cpp_lib_hardened_mdspan)
+# if (defined(__glibcxx_mdspan) && defined(_GLIBCXX_ASSERTIONS))
+#  define __glibcxx_hardened_mdspan 202502L
+#  if defined(__glibcxx_want_all) || defined(__glibcxx_want_hardened_mdspan)
+#   define __cpp_lib_hardened_mdspan 202502L
+#  endif
+# endif
+#endif /* !defined(__cpp_lib_hardened_mdspan) */
+#undef __glibcxx_want_hardened_mdspan
+
 #undef __glibcxx_want_all
