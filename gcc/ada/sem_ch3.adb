@@ -4661,9 +4661,7 @@ package body Sem_Ch3 is
       --  set the link in both the anonymous base type and anonymous subtype
       --  that are built to represent the array type to point to the object.
 
-      if Nkind (Object_Definition (Declaration_Node (Id))) =
-                        N_Constrained_Array_Definition
-      then
+      if Nkind (Object_Definition (N)) = N_Constrained_Array_Definition then
          Set_Related_Array_Object (T, Id);
          Set_Related_Array_Object (Base_Type (T), Id);
       end if;
