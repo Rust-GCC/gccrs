@@ -1,3 +1,29 @@
+2026-06-03  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* ga68.texi (Worthy characters): Remove spurious @ entry in the
+	list of worthy characters.
+
+2026-06-03  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* ga68.vw (Modes and nests): Incorporate syntax from the RR
+	chapter 7.
+
+2026-06-03  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-parser-bottom-up.cc (recover_from_error): Use the output of
+	a68_phrase_to_text as format string so format tags are honored.
+
+2026-06-02  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-parser-modes.cc (WELL): Define.
+	(NO_YIN): Likewise.
+	(NO_YANG): Likewise.
+	(UNWELL): Likewise.
+	(is_well_formed): Discriminate reason for the given mode to not be
+	well formed.
+	(a68_make_moid_list): Emit note explaining why a mode is not well
+	formed.
+
 2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* a68-imports-archive.cc (struct Archive_fl_header): Fix typos.

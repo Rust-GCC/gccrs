@@ -1,3 +1,433 @@
+2026-06-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/decl.cc (gnat_to_gnu_entity) <E_Variable>: Validate
+	a known alignment on the object even if there is an address clause.
+
+2026-06-02  Marc Poulhiès  <poulhies@adacore.com>
+
+	* gcc-interface/trans.cc (gnat_to_gnu) <N_Exit_Statement>: Mark
+	the label tree as used.
+	(gnat_gimplify_stmt) <LOOP_STMT>: Do not emit end label
+	definition in unused.
+
+2026-06-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/decl.cc (gnat_to_gnu_entity) <E_Variable>: Do not
+	give the warning about too large a size here but...
+	* gcc-interface/utils2.cc (build_allocator): ...here instead.
+
+2026-06-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/decl.cc (gnat_to_gnu_entity) <E_Record_Type>: Do not
+	derive the layout of C-compatible unchecked union types.
+
+2026-06-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/decl.cc (components_to_record): Tweak comment.
+	(build_position_list): Deal with unchecked union types.
+	(build_variant_list): Likewise.
+	(get_variant_part): Likewise.
+	(create_variant_part_from): Likewise.
+	(copy_and_substitute_in_layout): Likewise.
+
+2026-06-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/decl.cc (gnat_to_gnu_entity) <E_Record_Subtype>: Do
+	not repeat conditions in chained tests.
+	(copy_and_substitute_in_layout): For a tagged subtype, inherit the
+	non-stored dicriminants from the old type explicitely.
+	* gcc-interface/trans.cc (gnat_to_gnu): Exclude more contexts for
+	the transformation of boolean rvalues.
+
+2026-06-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/89609
+	* gcc-interface/gigi.h (adjust_result_decl_for_invisible_reference):
+	New inline function.
+	* gcc-interface/decl.cc (update_profile): Adjust the RESULT_DECL of
+	the function if it returns by invisible reference.
+	* gcc-interface/trans.cc (Subprogram_Body_to_gnu): Replace manual
+	adjustment by a call to adjust_result_decl_for_invisible_reference.
+	(maybe_make_gnu_thunk): Likewise.
+	* gcc-interface/targtyps.cc: Include stor-layout.h header file.
+
+2026-06-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/utils.cc (maybe_pad_type): Propagate the flag
+	TYPE_REVERSE_STORAGE_ORDER from the inner type to the record type
+	if the former is also an aggregate type.
+
+2026-06-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* accessibility.adb (Apply_Accessibility_Check_For_Return): Bail out
+	for the return synthesized in a function with _Wrapped_Statements.
+
+2026-06-02  Tom Tromey  <tromey@adacore.com>
+
+	* doc/gnat_ugn/building_executable_programs_with_gnat.rst
+	(GNATLLVM): Remove note about nested functions.
+	* gnat_ugn.texi: Regenerate.
+
+2026-06-02  Marc Poulhiès  <poulhies@adacore.com>
+
+	* sem_ch6.adb (Analyze_Subprogram_Body_Helper): Do not disable
+	expander if body comes from an expression function.
+
+2026-06-02  Viljar Indus  <indus@adacore.com>
+
+	* sem_prag.adb (Analyze_Pragma): Remove overflow supression
+	workaround.
+
+2026-06-02  Viljar Indus  <indus@adacore.com>
+
+	* rtsfind.adb (Maybe_Add_With): Ensure conistent Implicit_With nodes
+	traversal after ignored ghost nodes have been removed.
+	Omit checks on ignored WITH clauses.
+
+2026-06-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* krunch.ads: Fix a few typos in the description.
+
+2026-06-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gen_il-gen-gen_entities.adb (Access_Kind): Add Root_Type_Only for
+	the Master_Id field.
+	* einfo.ads (Master_Id): Document that it lives on root types only.
+	* accessibility.adb (Apply_Accessibility_Check_For_Allocator): Avoid
+	generating secondary useless checks.
+	* exp_ch3.adb (Build_Initialization_Call): Use the Master_Id of the
+	type of target reference directly.
+	(Build_Master): Minor tweak.
+	(Expand_N_Full_Type_Declaration): Do not call Build_Master for a
+	derived access type declaration.
+	* exp_ch4.adb (Expand_N_Allocator): Test Master_Id directly on the
+	access type.
+	* sem_res.adb (Resolve_Actuals): In the case of an allocator, if the
+	designated type is a CW interface, call Convert_To_And_Rewrite to
+	add the special conversion but nevertheless resolve the allocator to
+	the type of the formal afterward; do not establish a transient scope
+	if the type is a named access type.
+
+2026-06-02  Piotr Trojanek  <trojanek@adacore.com>
+
+	* libgnat/s-os_lib.adb (Get_Debuggable_Suffix, Get_Executable_Suffix,
+	Get_Object_Suffix, Get_Target_Debuggable_Suffix,
+	Get_Target_Executable_Suffix, Get_Target_Object_Suffix): Access strings
+	like we do in Gnatlink.
+	* adaint.c (__gnat_object_suffix, __gnat_executable_suffix,
+	__gnat_debuggable_suffix): Now constants, just like the ones for target
+	suffixes.
+
+2026-06-02  Marc Poulhiès  <poulhies@adacore.com>
+
+	* sinfo.ads <Expression_Copy>: Mention it is present in
+	N_Aspect_Specification nodes.
+	<N_Aspect_Specification>: Add Expression_Copy field.
+
+2026-06-02  Mathias Aparicio  <aparicio@adacore.com>
+
+	* env.c (__gnat_setenv): Add _POSIX_VERSION >= 200112L to setenv
+	availability check.
+
+2026-06-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* doc/gnat_ugn/building_executable_programs_with_gnat.rst: Fix a
+	couple of glitches.
+	* gnat_ugn.texi: Regenerate.
+
+2026-06-02  Gary Dismukes  <dismukes@adacore.com>
+
+	* sem_ch3.adb (Copy_Parent_Attributes): Inherit Linker_Section_Pragma.
+
+2026-06-02  Sebastian Poeplau  <poeplau@adacore.com>
+
+	* doc/gnat_ugn/building_executable_programs_with_gnat.rst: Mention
+	inline assembler limitations.
+	* gnat_ugn.texi: Regenerate.
+
+2026-06-02  Piotr Trojanek  <trojanek@adacore.com>
+
+	* adaint.c, adaint.h (__gnat_to_gm_time): Adapt C side, while keeping
+	the explicit conversion to time_t, if this ever needs to be debugged.
+	* libgnat/s-os_lib.adb (To_GM_Time): Adapt Ada side.
+
+2026-06-02  Piotr Trojanek  <trojanek@adacore.com>
+
+	* libgnat/a-calend.adb (localtime_tzoff): Simplify interface.
+	* sysdep.c (__gnat_localtime_tzoff): Remove duplicated specs; pass
+	"in" parameters via copy and "out" parameters via pointers.
+
+2026-06-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/42413
+	* exp_ch4.adb (Process_Transients_In_Expression): Deal with a task
+	activation chain present in the statement list.
+	* exp_ch6.adb (Make_Build_In_Place_Call_In_Anonymous_Context): Also
+	establish a transient scope if the result type has tasks.
+	* exp_ch7.adb (Make_Transient_Block): Deal with Has_Master_Entity
+	and Has_Activation_Chain_Entity set on the transient scope.
+	* exp_ch9.ads (Make_Task_Activation_Call): New declaration from...
+	* exp_ch9.adb (Make_Task_Activation_Call): ...here.
+	(Build_Activation_Chain_Entity): Deal with transient scopes.
+	(Build_Master_Entity): Likewise.
+	(Find_Enclosing_Context): Likewise.
+	* sem_elab.adb (Activation_Processor.Process_Activation): Deal with
+	N_Expression_With_Actions nodes.
+	* sem_util.adb (Current_Entity_In_Scope): Prevent transient scopes
+	from being transparent for _Chain and _Master entities.
+
+2026-06-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/42413
+	* exp_aggr.adb (Build_Record_Aggr_Code): Minor tweak.
+	* exp_ch9.adb (Make_Task_Activation_Call): New helper function.
+	(Build_Activation_Chain_Entity): Streamline.
+	(Build_Master_Entity): Rename local variable.
+	(Build_Task_Activation_Call): Call Make_Task_Activation_Call.
+	(Build_Task_Allocate_Block): Likewise.  Set Is_Task_Allocation_Block
+	separately after having created the block.
+	* gen_il-gen-gen_nodes.adb (N_Block_Statement): Change the category
+	of Is_Task_Allocation_Block flag from syntactic to semantic.
+
+2026-06-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/42413
+	* gen_il-fields.ads (Opt_Field_Enum): Remove Activation_Chain_Entity
+	and add Has_Activation_Chain_Entity.
+	* gen_il-gen-gen_entities.adb (Entity_Kind): Add new semantic flag
+	Has_Activation_Chain_Entity.
+	* gen_il-gen-gen_nodes.adb (N_Subprogram_Body): Remove
+	Activation_Chain_Entity field.
+	(N_Task_Body): Likewise.
+	(N_Package_Declaration): Likewise.
+	(N_Block_Statement): Likewise.
+	(N_Extended_Return_Statement): Likewise.
+	(N_Entry_Body): Likewise.
+	* einfo.ads (Has_Activation_Chain_Entity): Document new flag.
+	* sinfo.ads (Activation_Chain_Entity): Delete documentation.
+	* exp_ch9.adb (Build_Activation_Chain_Entity): Replace uses of
+	Activation_Chain_Entity by Has_Activation_Chain_Entity.
+	(Build_Task_Activation_Call): Retrieve the activation chain entity
+	by means of new helper function Activation_Chain_Entity.
+	(Build_Task_Allocate_Block): Set Has_Activation_Chain_Entity in
+	lieu of Activation_Chain_Entity.
+	(Expand_N_Task_Body): Likewise.
+	(Find_Enclosing_Context): Fix handling of N_Entry_Body.
+	* sem_ch7.adb (May_Need_Implicit_Body): Replace test on
+	Activation_Chain_Entity by Has_Activation_Chain_Entity.
+
+2026-06-02  Viljar Indus  <indus@adacore.com>
+
+	* exp_ch7.adb (Processing_Actions): Avoid processing
+	ignored ghost declarations.
+
+2026-06-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/18205
+	* exp_attr.adb (Rewrite_Attribute_Proc_Call): Skip the conversion to
+	the formal type only if the actual is of a class-wide type. Generate
+	a dispatching call when both the prefix is a class-wide type and the
+	subprogram is a dispatching operation.
+	(Expand_N_Attribute_Reference) <Input>: Use U_Type consistently and
+	remove an useless invocation of Root_Type.
+	<Put_Image>: Minor comment tweak.
+	<Read>: Likewise.
+	<Write>: Likewise.
+
+2026-06-02  Marc Poulhiès  <poulhies@adacore.com>
+
+	* sysdep.c (getc_immediate_common): Cleanup macro test.
+
+2026-06-02  Ronan Desplanques  <desplanques@adacore.com>
+
+	* sem_util.ads (Partially_Visible_Subcomponent): Rename into ...
+	(Partially_Visible_Part): ...this. Improve documentation.
+	* sem_util.adb: Likewise.
+	* sem_ch3.adb (Analyze_Component_Declaration,
+	Array_Type_Declaration): Adapt to renaming.
+	* sem_ch7.adb (Install_Composite_Operations): Likewise.
+
+2026-06-02  Ronan Desplanques  <desplanques@adacore.com>
+
+	* einfo.ads (Contains_Ignored_Ghost_Code): Remove documentation.
+
+2026-06-02  Mathias Aparicio  <aparicio@adacore.com>
+
+	* sem_util.adb (Has_Assertion_Level_Argument): Invert the final
+	check in aspect branch and the check in pragma branch to use
+	early returns for consistency.
+
+2026-06-02  Ronan Desplanques  <desplanques@adacore.com>
+
+	* par.adb, par-util.adb (Check_Bad_Layout_At): New procedure.
+	* par-ch3.adb (P_Declarative_Item): Use new procedure.
+	* par-ch5.adb (P_Sequence_Of_Statements): Likewise.
+
+2026-06-02  Viljar Indus  <indus@adacore.com>
+
+	* sem_util.adb (Has_Assertion_Level_Argument): Check for
+	the correct type of association.
+
+2026-06-02  Viljar Indus  <indus@adacore.com>
+
+	* err_vars.ads (Error_Msg_Qual_For_Standard): New Variable.
+	* errout.ads (Error_Msg_Qual_For_Standard): Likewise.
+	* errout.adb (Set_Qualification): Print all qualified names
+	when Error_Msg_Qual_For_Standard is set.
+	* sem_util.adb (Normalize_Actuals): Improve error message.
+
+2026-06-02  Viljar Indus  <indus@adacore.com>
+
+	* sem_util.adb (Normalize_Actuals): Improve error message.
+
+2026-06-02  Mathias Aparicio  <aparicio@adacore.com>
+
+	* env.c (__gnat_setenv): Add __linux__ preprocessor macro
+	directive to the setenv block.
+
+2026-06-02  Viljar Indus  <indus@adacore.com>
+
+	* ghost.adb (Check_Ghost_Equality_Op): Use Underlying_Type to
+	look through the private view before checking Is_Record_Type and
+	Is_Limited_Record.
+	* sem_ch3.adb (Process_Full_View): After completing the full view,
+	re-check any primitive equality operators on the private type
+	against SPARK RM 6.9(23) via Check_Ghost_Equality_Op.
+
+2026-06-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* exp_ch9.ads (Build_Task_Allocate_Block): Change return type.
+	* exp_ch9.adb (Build_Task_Allocate_Block): Likewise.  Build an
+	internal block entity instead of declaring an implicit label.
+	* exp_aggr.adb (Convert_Aggr_In_Allocator): Adjust to above change.
+	* exp_ch4.adb (Expand_N_Allocator): Likewise.
+	* exp_ch6.adb (Add_Task_Actuals_To_Build_In_Place_Call): Add default
+	value for Master_Actual parameter, change name of 4th parameter to
+	Chain_Actual and deal with them consistently.
+	(Make_Build_In_Place_Call_In_Allocator): Flatten block statement.
+	Adjust call to Add_Task_Actuals_To_Build_In_Place_Call.
+	(Make_Build_In_Place_Call_In_Anonymous_Context): Likewise.
+	(Make_Build_In_Place_Call_In_Assignment): Likewise.
+	(Make_Build_In_Place_Call_In_Object_Declaration): Likewise.
+	* exp_ch7.adb (Build_Cleanup_Statements): Minor tweak.
+
+2026-06-02  Ronan Desplanques  <desplanques@adacore.com>
+
+	* sem_aux.ads: Add note.
+
+2026-06-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* sem.ads (Suppress_Stack_Entry): Move down Suppress component.
+	(Scope_Stack_Entry): Reorder components to eliminate holes.
+
+2026-06-02  Tom Tromey  <tromey@adacore.com>
+
+	* doc/gnat_ugn/building_executable_programs_with_gnat.rst
+	(GNATLLVM): Update debugging documentation.
+	* gnat_ugn.texi: Regenerate.
+
+2026-06-02  Bob Duff  <duff@adacore.com>
+
+	* sem_ch13.adb
+	(Insert_Aitem): Remove Ins_Node formal parameter.
+	(Analyze_One_Aspect): Likewise.
+	(Analyze_Aspect_Specifications): Remove Ins_Node local variable.
+	(Insert_After_Place): New function containing the
+	special case for Annotate.
+
+2026-06-02  Piotr Trojanek  <trojanek@adacore.com>
+
+	* doc/gnat_rm/implementation_defined_attributes.rst (Attribute_Ref):
+	New section based on comment in sem_attr.ads.
+	* gnat_rm.texi: Regenerate.
+
+2026-06-02  Ronan Desplanques  <desplanques@adacore.com>
+
+	* sem_util.adb, sem_util.ads (Partially_Visible_Subcomponent): Move
+	to right spot.
+
+2026-06-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* exp_aggr.adb (Build_Array_Aggr_Code): Adjust actual parameter in
+	the call to Build_Master_Entity.
+	* exp_ch3.adb (Expand_N_Full_Type_Declaration): Likewise.
+	(Expand_N_Object_Declaration): Likewise.
+	(Expand_Previous_Access_Type): Likewise.
+	* exp_ch6.adb (Make_Build_In_Place_Call_In_Anonymous_Context):
+	Likewise.
+	(Make_Build_In_Place_Iface_Call_In_Allocator): Likewise.
+	(Make_Build_In_Place_Iface_Call_In_Anonymous_Context): Likewise.
+	* sem_ch3.adb (Access_Definition): Likewise.
+	(Access_Type_Declaration): Likewise.
+	* exp_ch9.ads (Build_Activation_Chain_Entity): Tweak description.
+	(Build_Master_Entity): Change parameter and tweak description.
+	* exp_ch9.adb (Build_Master_Entity): Change parameter and adjust.
+
+2026-06-02  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/124143
+	* libgnat/s-spsufi.ads (Finalize_And_Deallocate): Adjust comment.
+	* libgnat/s-spsufi.adb: Remove clause for Ada.Unchecked_Deallocation
+	(Finalize_And_Deallocate): Adjust and implement AI12-0331.
+	* libgnat/s-stposu.ads (Allocate_From_Subpool): Remove ??? comment.
+	(Deallocate_Subpool): Likewise.
+	(SP_Node): Delete.
+	(SP_Node_Ptr): Likewise.
+	(Root_Storage_Pool_With_Subpools): Adjust type of Subpools component
+	(Root_Subpool): Remove Node, add Prev and Next components.
+	(Detach): Adjust signature.
+	(Initialize): Delete.
+	(Initialize_Pool): Likewise.
+	* libgnat/s-stposu.adb (Allocate_Any_Controlled): Adjust.
+	(Attach): Reimplement.
+	(Detach): Likewise.
+	(Finalize_Pool): Loop over a simple doubly linked list.
+	(Initialize): Delete.
+	(Initialize_Pool): Likewise.
+	(Print_Pool): Adjust.
+	(Print_Subpool): Likewise.
+	(Set_Pool_Of_Subpool): Remove obsolete code.
+
+2026-06-02  Ronan Desplanques  <desplanques@adacore.com>
+
+	* sem_util.ads (Has_Private_Component): Rename into...
+	(Is_Incompletely_Defined): ...this.
+	* sem_util.adb (Has_Private_Component): Rename into...
+	(Is_Incompletely_Defined): ...this.
+	(Check_Fully_Declared): Adapt to above renaming.
+	* exp_ch3.adb (Freeze_Type): Likewise.
+	* freeze.adb (Check_And_Freeze_Type): Likewise.
+	* sem_aggr.adb (Array_Aggr_Subtype): Likewise.
+	* sem_ch12.adb (Instantiate_Type): Likewise.
+	* sem_ch13.adb (Rep_Item_Too_Early): Likewise.
+	* sem_ch3.adb (Access_Definition, Analyze_Full_Type_Declaration,
+	Analyze_Subtype_Declaration, Build_Derived_Access_Type,
+	Copy_And_Build, Complete_Private_Subtype, Constrain_Access,
+	Constrain_Array, Build_Constrained_Access_Type, Constrain_Concurrent,
+	Constrain_Corresponding_Record, Copy_Array_Subtype_Attributes,
+	Derived_Type_Declaration): Likewise.
+	* sem_ch6.adb (Create_Extra_Formals): Likewise.
+	* sem_res.adb (Make_Call_Into_Operator): Likewise.
+
+2026-06-02  Ronan Desplanques  <desplanques@adacore.com>
+
+	* gen_il-gen-gen_entities.adb (Gen_Entities): Move
+	Is_Limited_Composite.
+	* einfo.ads (Is_Limited_Composite): Update documentation.
+
+2026-06-02  Viljar Indus  <indus@adacore.com>
+
+	* sem_prag.adb (Analyze_Abstract_State): make error checks
+	exclusive.
+
+2026-06-02  Ronan Desplanques  <desplanques@adacore.com>
+
+	* sem_util.ads, sem_util.adb (Private_Component): Rename into...
+	(Partially_Visible_Subcomponent): ...this.
+	* sem_ch3.adb (Analyze_Component_Declaration, Array_Type_Declaration):
+	Adapt to above renaming.
+	* sem_ch7.adb (Install_Composite_Operations): Likewise.
+
 2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* gnathtml.pl: Reflow long line.

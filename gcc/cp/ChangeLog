@@ -1,3 +1,66 @@
+2026-06-03  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/125378
+	* tree.cc (build_min_non_dep_op_overload): Handle comparison
+	operator expressions rewritten from a <=> that contain an
+	integer promotion.
+
+2026-06-03  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/125490
+	* parser.cc (cp_parser_constraint_expression): Pass
+	no_toplevel_fold_p=false instead of =true to
+	cp_parser_binary_expression.
+
+2026-06-03  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/107124
+	* cp-tree.h: Adjust comments to mention
+	maybe_build_nontype_implicit_conv instead of
+	maybe_convert_nontype_argument.
+	* pt.cc (maybe_convert_nontype_argument): Rename to...
+	(maybe_build_nontype_implicit_conv): ...this.
+	(convert_nontype_argument_maybe_dependent): New, factored
+	out of...
+	(convert_template_argument): ...here.
+	(unify) <case TEMPLATE_PARM_INDEX>: Call
+	convert_nontype_argument_maybe_dependent and return unify_invalid
+	if it failed.  Don't call strip_typedefs_expr.
+
+2026-06-03  Jason Merrill  <jason@redhat.com>
+
+	PR c++/124794
+	* parser.cc (cp_parser_splice_specifier): Use TYPE_BINFO (scope)
+	for not-derived case.
+	* search.cc (build_baselink): Assert that binfos aren't null.
+
+2026-06-03  feedable  <feedabl3@gmail.com>
+
+	PR c++/124794
+	PR c++/125069
+	* parser.cc (cp_parser_splice_specifier): Do not strip BASELINKs.
+	(cp_parser_splice_expression): Add parsing for member function
+	template specializations without the "template" keyword.
+	* pt.cc (tsubst_splice_expr): Handle TEMPLATE_ID_EXPR where the
+	template part is a SPLICE_EXPR.
+	(tsubst_expr): Defer to tsubst_splice_expr when the template part of
+	TEMPLATE_ID_EXPR is a SPLICE_EXPR.
+	* reflect.cc (check_splice_expr): Add handling for BASELINKs.
+
+2026-06-02  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR c/121911
+	* decl.cc (cxx_init_decl_processing ): Declare stack protection
+	guard after calling c_common_nodes_and_builtins.
+
+2026-06-02  Peter Damianov  <peter0x44@disroot.org>
+
+	* class.cc (dump_vtable_entry): New function.
+	(dump_array): Use it.
+	(dump_class_hierarchy_r): Drop redundant literal 0x from
+	HOST_WIDE_INT_PRINT_HEX formatting.
+	(dump_vtable): Likewise.
+
 2026-06-01  Joe Natter  <johannes.natter@outlook.at>
 
 	PR c++/125422

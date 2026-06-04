@@ -1,3 +1,504 @@
+2026-06-04  Jeevitha Palanisamy  <jeevitha@linux.ibm.com>
+
+	PR target/106895
+	* config/rs6000/rs6000.h (enum rs6000_builtin_type_index): Add
+	RS6000_BTI_INTPTI and RS6000_BTI_UINTPTI.
+	(intPTI_type_internal_node, uintPTI_type_internal_node): New
+	PTImode type macros.
+	* config/rs6000/rs6000-builtin.cc (rs6000_init_builtins): Register
+	signed and unsigned PTImode internal builtin types.
+	* config/rs6000/sync.md (trunctipti2): New splitter.
+	(extendptiti2): Likewise.
+	(zero_extendptiti2): Likewise.
+
+2026-06-04  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR middle-end/125588
+	* match.pd (`if (cond) (A | CST1) : (A & ~CST1)`): Enable
+	for GIMPLE only.
+
+2026-06-04  Kevin Stefanov  <kevinstefanov15@gmail.com>
+
+	* config/m68k/m68k.cc (m68k_conditional_register_usage): Replace TEST_HARD_REG_BIT
+	with EXECUTE_IF_SET_IN_HARD_REG_SET in applicable loops.
+	(m68k_zero_call_used_regs): Likewise.
+	* config/pdp11/pdp11.cc (pdp11_conditional_register_usage): Likewise.
+	* ira-color.cc (create_new_allocno_hard_regs_node): Replace call to hard_reg_set_size
+	with hard_reg_set_popcount.
+	* ira-int.h (hard_reg_set_size): Remove.
+	* ira-lives.cc (process_bb_node_lives): Replace TEST_HARD_REG_BIT
+	with EXECUTE_IF_SET_IN_HARD_REG_SET in applicable loops.
+	* ira.cc (setup_class_hard_regs): Likewise.
+	(update_equiv_regs_prescan): Likewise.
+	(build_insn_chain): Likewise.
+	(setup_stack_reg_pressure_class): Replace call to hard_reg_set_size
+	with hard_reg_set_popcount.
+	* lra-eliminations.cc (spill_pseudos): Replace TEST_HARD_REG_BIT
+	with EXECUTE_IF_SET_IN_HARD_REG_SET in applicable loops.
+	* optabs.cc (expand_asm_reg_clobber_mem_blockage): Replace
+	TEST_HARD_REG_BIT with EXECUTE_IF_SET_IN_HARD_REG_SET in one instance
+	and with hard_reg_set_popcount in another.
+	* postreload.cc (reload_combine): Replace TEST_HARD_REG_BIT
+	with EXECUTE_IF_SET_IN_HARD_REG_SET in applicable loops.
+	* reginfo.cc (init_reg_sets_1): Likewise.
+	* regrename.cc (init_rename_info): Likewise.
+	* reload1.cc (maybe_fix_stack_asms): Likewise.
+	(update_eliminables_and_spill): Likewise.
+	* rtl-ssa/insns.cc (function_info::record_call_clobbers): Likewise.
+	* sched-deps.cc (sched_analyze_insn): Likewise.
+	* sel-sched-dump.cc (print_hard_reg_set): Likewise.
+
+2026-06-04  Xiaomei Xue  <xuexiaomei@hygon.cn>
+
+	* config/i386/sse.md (define_mode_attr sse2): Add V4SI/V8SI/V16SI/
+	V8HI/V16HI/V32HI.
+	(<sse2>_movnt<mode>): Change mode iterator from VI8 to VI_AVX_AVX512F.
+	(define_mode_iterator STORENT_MODE): Add V4SI/V8SI/V16SI/V8HI/V16HI/
+	V32HI/V16QI/V32QI/V64QI.
+
+2026-06-03  Pengxuan Zheng  <pengxuan.zheng@oss.qualcomm.com>
+
+	PR tree-optimization/124405
+	* tree-ssa-phiopt.cc (cond_store_replacement): Make ASSIGN (the
+	candidate store for cselim) an argument of the function instead. Update
+	legality check due to relaxing the restriction that middle_bb can have
+	only a single statement.
+	(cselim_candidate): New.
+	(pass_cselim::execute): Call cselim_candidate and pass the result to
+	cond_store_replacement.
+
+2026-06-03  Milan Tripkovic  <Milan.Tripkovic@rt-rk.com>
+
+	* config/riscv/riscv-cores.def (RISCV_TUNE): Changed xt-c908
+	PIPELINE_MODEL and TUNE_INFO
+	* config/riscv/riscv-opts.h (enum riscv_microarchitecture_type): Add entry
+	for xt-c908 design
+	* config/riscv/riscv.cc: New tune structure
+	for the xt-c908 design.
+	* config/riscv/riscv.md: Add xt-c908 .
+	Include xt-c908.md.
+	* config/riscv/xt-c908.md: New file.
+
+2026-06-03  Abhishek Kaushik  <abhishek.kaushik@arm.com>
+
+	* tree-scalar-evolution.cc
+	(compute_final_value_from_loop_phi_latch): New function.
+	(final_value_replacement_loop): Use it.
+
+2026-06-03  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/103221
+	* passes.def (early_optimizations): Move sccopy
+	to after evrp.
+
+2026-06-03  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* gimple-ssa-sccopy.cc (stmt_may_generate_copy): Remove restriction
+	on the ssa info being different for the "copy".
+	(scc_copy_prop::replace_scc_by_value): Call maybe_duplicate_ssa_info_at_copy
+	when copyproping a ssa name.
+
+2026-06-03  Pan Li  <pan2.li@intel.com>
+
+	* match-sat-alu.pd: Add pattern for unsigned scalar
+	SAT_MUL form 11.
+
+2026-06-03  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* rtl.def (CALL_INSN): Add a new integer field.
+	* rtl.h (CALL_INSN_ABI_ID): New macro.
+	* target.def (insn_callee_abi): Delete.
+	* doc/rtl.texi: Document CALL_INSN_ABI_ID.
+	* doc/tm.texi.in (TARGET_INSN_CALLEE_ABI): Remove.
+	* doc/tm.texi: Regenerate.
+	* calls.cc: Include regs.h and function-abi.h.
+	(emit_call_1): Initialize CALL_INSN_ABI_ID.
+	* cfgcleanup.cc (old_insns_match_p): Compare CALL_INSN_ABI_IDs.
+	* emit-rtl.cc (try_split): Copy the original insn's CALL_INSN_ABI_ID
+	to the new call.
+	(emit_copy_of_insn_after): Likewise.
+	(make_call_insn_raw): Initialise CALL_INSN_ABI_ID.
+	* function-abi.cc (insn_callee_abi): Remove use of the insn_callee_abi
+	hook and instead use CALL_INSN_ABI_ID.
+	* recog.cc (peep2_attempt): Copy the original insn's CALL_INSN_ABI_ID
+	to the new call.
+	* config/aarch64/aarch64-protos.h (aarch64_gen_callee_cookie): Remove
+	arm_pcs parameter.
+	* config/aarch64/aarch64.cc (aarch64_gen_callee_cookie): Likewise.
+	(aarch64_callee_abi): Delete.
+	(aarch64_insn_callee_abi): Likewise.
+	(aarch64_function_arg): Update call to aarch64_callee_abi.
+	(aarch64_output_mi_thunk): Likewise.  Set CALL_INSN_ABI_ID instead.
+	(TARGET_INSN_CALLEE_ABI): Delete.
+	* config/aarch64/aarch64.md (tlsdesc_small_<mode>): Update call
+	to aarch64_callee_abi and set CALL_INSN_ABI_ID instead.
+	* config/i386/i386.cc (ix86_insn_callee_abi): Delete.
+	(ix86_expand_avx_vzeroupper): Set CALL_INSN_ABI_ID.
+	(TARGET_INSN_CALLEE_ABI): Delete.
+	* config/riscv/riscv-sr.cc (riscv_remove_unneeded_save_restore_calls):
+	Remove coding convention from calls to gen_sibcall_internal and
+	gen_sibcall_value_internal.  Store the ABI identifier in
+	CALL_INSN_ABI_ID instead.
+	* config/riscv/riscv.cc (riscv_output_mi_thunk): Likewise.
+	(riscv_call_tls_get_addr): Likewise, but calling gen_call_value.
+	(riscv_function_arg): Return null for the end marker.
+	(get_riscv_cc, riscv_insn_callee_abi): Delete.
+	(TARGET_INSN_CALLEE_ABI): Delete.
+	* config/riscv/riscv.md (UNSPEC_CALLEE_CC): Delete.
+	(sibcall): Revert to treating operand 2 as a placeholder.
+	Do not pass it to gen_sibcall_internal.
+	(sibcall_value): Likewise operand 3 and gen_sibcall_value_internal.
+	(call): Likewise operand 2 and gen_call_internal.
+	(call_value): Likewise operand 3 and gen_call_value_internal.
+	(sibcall_internal, call_internal): Remove operand 2.
+	(sibcall_value_internal, call_value_internal): Remove operand 3.
+	(untyped_call): Update call to gen_call.
+
+2026-06-03  Alex Coplan  <alex.coplan@arm.com>
+
+	* config/aarch64/constraints.md (Uci): Drop @internal, slightly tweak
+	doc string.
+	(Ucj): Likewise.
+	* doc/md.texi (Machine Constraints): Document Uci and Ucj under AArch64
+	family.
+
+2026-06-03  Alex Coplan  <alex.coplan@arm.com>
+
+	* doc/ifn.texi (Direct Internal Functions): Flesh out
+	documentation for IFN_MASK_LOAD.
+	* doc/md.texi (Standard Names): Add anchor for maskloadmn so it
+	can be cross-referenced.
+
+2026-06-03  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	PR tree-optimization/125579
+	* gimple-ssa-backprop.cc (backprop::execute): Avoid double deletions.
+
+2026-06-03  Tamar Christina  <tamar.christina@arm.com>
+
+	PR tree-optimization/125431
+	* tree-vect-slp-patterns.cc (complex_mul_pattern::matches,
+	complex_fms_pattern::matches): Gate on FP contraction.
+
+2026-06-03  Tamar Christina  <tamar.christina@arm.com>
+
+	PR tree-optimization/125509
+	* tree-vect-loop-manip.cc (vect_do_peeling): Re-enable dominators
+	update for prolog peeling.
+
+2026-06-03  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125477
+	* tree-vect-loop-manip.cc (vect_loop_versioning): Verify we
+	can duplicate an outer loop before considering to version it.
+
+2026-06-03  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR middle-end/125507
+	* gengtype.cc (main): Add tree_code.
+	* tree-core.h (struct tree_base): Remove ENUM_BITFIELD.
+	(struct tree_type_common): Likewise.
+	(struct tree_decl_common): Likewise.
+	(struct tree_decl_with_vis): Likewise.
+	(struct tree_function_decl): Likewise.
+
+2026-06-03  Jin Ma  <jinma@linux.alibaba.com>
+
+	* config/riscv/riscv.cc (riscv_sched_reorder): Remove dead
+	return after the early-return guard.
+
+2026-06-02  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* bitmap.h (bitmap_element): Fix left/right distinction in comments.
+
+2026-06-02  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* gimple-ssa-backprop.cc: Update the comment at head of the file.
+	(var_info::new_value, var_info::seq): New member variables.
+	(var_info::var_info): Initialize them.
+	(remove_unused_var): Replace with...
+	(remove_dead_stmt): ...this new function.
+	(note_replacement): Delete.
+	(backprop::prepare_change): Likewise.
+	(backprop::complete_change): Likewise.
+	(backprop::set_new_value): New function.
+	(backprop::subst_operand): Likewise.
+	(backprop::finish_stmt): Likewise.
+	(backprop::optimize_builtin_call): Replace the lhs and info parameters
+	with a var_info parameter.  Create a new statement rather than
+	changing the existing one.
+	(backprop::optimize_assign): Likewise.
+	(backprop::optimize_phi): Likewise.
+	(backprop::replace_assign_rhs): Likewise, but replace gassign and lhs
+	parameters.
+	(backprop::propagate_change): New function.
+	(backprop::commit_replacement): Likewise.
+	(backprop::execute): Update phase 3 for the above changes.  Do not
+	alter the original statements during phase 3.  If one SSA name
+	is scheduled to be replaced, also require all its users in m_vars
+	to be replaced.  Add a new phase that performs the scheduled
+	replacements.
+
+2026-06-02  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* gimple-ssa-backprop.cc: Remove the claim at the head of the file
+	that we only need to revisit a statement once.
+	(backprop::m_worklist, backprop::m_worklist_names): Delete.
+	(backprop::m_worklist1): New member variable.
+	(backprop::m_worklist2, backprop::m_this_worklist): Likewise.
+	(backprop::m_next_worklist, backprop::m_worklist_threshold): Likewise.
+	(backprop::backprop): Update accordingly.
+	(backprop::~backprop): Likewise.
+	(backprop::push_to_worklist): Switch to using bitmap worklists that
+	use m_vars indices instead of SSA_NAME_VERSIONs.  Decide which
+	worklist should be used based on m_worklist_threshold.
+	(backprop::pop_from_worklist): Pop the first bit from m_this_worklist.
+	Set m_worklist_threshold.
+	(backprop::execute): Use a double-worklist update in which each
+	iteration makes a post order walk.
+
+2026-06-02  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* gimple-ssa-backprop.cc (var_info): New structure.
+	(var_info_hasher): Likewise.
+	(backprop::m_info_pool): Replace with...
+	(backprop::m_var_pool): ...this new member variable.
+	(backprop::m_info_map): Replace with...
+	(backprop::m_var_table): ...this new member variable.
+	(backprop::m_worklist): Store var_info pointers instead of SSA names.
+	(backprop::backprop): Update accordingly.
+	(backprop::~backprop): Likewise.
+	(backprop::lookup_operand): Return a var_info pointer instead of
+	a usage_info pointer.
+	(backprop::push_to_worklist): Take a var_info pointer instead
+	of an SSA name.
+	(backprop::pop_from_worklist): Return a var_info pointer instead
+	of an SSA name.
+	(backprop::process_builtin_call_use): Update calls accordingly.
+	(backprop::process_assign_use): Likewise.
+	(backprop::process_phi_use): Likewise.
+	(backprop::reprocess_inputs): Likewise.
+	(backprop::process_var): Take a pointer to the var_info entry
+	as a second parameter.  Update for the above data structure changes.
+	(backprop::process_block): Update calls to process_var.
+	(backprop::execute): Likewise.  Update for the above data structure
+	changes.
+
+2026-06-02  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* gimple-ssa-backprop.cc (backprop::process_var): Don't try to
+	optimize SSA names that occur as a phi input for an abnormal edge,
+	moving the restriction from...
+	(backprop::optimize_phi): ...here.
+
+2026-06-02  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* gimple-iterator.cc (completely_unused): New function.
+	(gsi_replace): Allow changes in lhs if the caller has updated
+	all uses of the old name, including all debug uses.
+	* gimple-fold.cc (gsi_replace_with_seq_vops): Likewise.
+
+2026-06-02  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* bitmap.h: Document the complexity of pop_largest aka
+	bitmap_clear_last_set_bit.
+	(bitmap_clear_last_set_bit): Declare.
+	* bitmap.cc (bitmap_last_set_bit_worker): New function,
+	split out from...
+	(bitmap_last_set_bit): ...here.
+	(bitmap_clear_last_set_bit): New function.
+
+2026-06-02  Jonathan Yong  <10walls@gmail.com>
+
+	Revert:
+	2026-05-27  oltolm  <oleg.tolmatcev@gmail.com>
+
+	PR target/54412
+	* target.def (overaligned_stack_slot_required): New calls hook.
+	* calls.cc (allocate_call_dynamic_stack_space): New helper.
+	(initialize_argument_information): Use
+	targetm.calls.overaligned_stack_slot_required for over-aligned
+	by-reference argument copies.
+	(expand_call): Use
+	targetm.calls.overaligned_stack_slot_required for over-aligned
+	hidden return slots.
+	* function.cc (assign_stack_local_aligned): New helper.
+	(assign_parm_setup_block): Use
+	targetm.calls.overaligned_stack_slot_required for over-aligned
+	stack parm slots.
+	(assign_parm_setup_reg): Likewise.
+	* config/i386/i386.cc (ix86_overaligned_stack_slot_required): New.
+	(TARGET_OVERALIGNED_STACK_SLOT_REQUIRED): Define for i386.
+	* doc/tm.texi.in: Add hook placement.
+	* doc/tm.texi: Regenerate.
+
+2026-06-02  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125545
+	* tree-ssa-reassoc.cc (insert_stmt_after): Allow asm goto
+	with a single successor.
+
+2026-06-02  Lino Hsing-Yu Peng  <linopeng@andestech.com>
+
+	* common/config/riscv/riscv-common.cc: Add zvfofp8min support.
+	* config/riscv/riscv-ext.def: Add zvfofp8min entry.
+	* config/riscv/riscv-ext.opt: Add zvfofp8min option.
+	* config/riscv/riscv-vector-builtins.cc: Require zvfofp8min.
+	* config/riscv/riscv-vector-builtins.h: Add zvfofp8min handling.
+	* doc/riscv-ext.texi: Document the new extension.
+
+2026-06-02  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125553
+	* tree-ssa-sccvn.cc (visit_nary_op): Valueize the BIT_FIELD_REF
+	operand before looking at its definition.
+
+2026-06-02  Wang Yaduo  <wangyaduo@linux.alibaba.com>
+
+	* config/riscv/riscv-cores.def: Switch xt-c9501fdvt tune to
+	xt_c9501_tune_info.
+	* config/riscv/riscv.cc (xt_c9501_vls_vector_cost): New.
+	(xt_c9501_vla_vector_cost): New.
+	(xt_c9501_vector_cost): New.
+	(xt_c9501_tune_info): New.
+
+2026-06-02  Jin Ma  <jinma@linux.alibaba.com>
+
+	* config/riscv/riscv-v.cc (expand_vec_perm): Add missing return
+	after emit_vlmax_gather_insn.
+
+2026-06-02  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125502
+	* tree-ssa-forwprop.cc (optimize_vector_load): Do not
+	move defs of abnormals.
+
+2026-06-02  Uros Bizjak  <ubizjak@gmail.com>
+
+	* config/i386/i386.md (crotate): Rename to inv_rotate.
+	Update all uses accordingly.
+
+2026-06-02  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* config/sol2.h (TARGET_OS_CPP_BUILTINS): Don't define
+	_XOPEN_SOURCE=600 for C++.
+
+2026-06-02  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/120702
+	* gimple-fold.cc (maybe_fold_reference): Only fold
+	register type reads.
+
+2026-06-02  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/125517
+	* wide-int.cc (wi::bitreverse_large): Rename LEN argument to XLEN and
+	use it as safe_uhwi argument.  Add LEN automatic variable set to
+	BLOCKS_NEEDED (precision).  Replace loop clearing val with memset.
+	Remove I automatic variable.
+
+2026-06-02  Jin Ma  <jinma@linux.alibaba.com>
+
+	* common/config/riscv/riscv-common.cc: Fix typos in comments.
+	* config/riscv/andes-25-series.md: Likewise.
+	* config/riscv/autovec-opt.md: Likewise.
+	* config/riscv/autovec.md: Likewise.
+	* config/riscv/bitmanip.md: Likewise.
+	* config/riscv/constraints.md: Likewise.
+	* config/riscv/gen-riscv-ext-opt.cc: Likewise.
+	* config/riscv/gen-riscv-mcpu-texi.cc: Likewise.
+	* config/riscv/generic-vector-ooo.md: Likewise.
+	* config/riscv/multilib-generator: Likewise.
+	* config/riscv/riscv-avlprop.cc: Likewise.
+	* config/riscv/riscv-ext.def: Likewise.
+	* config/riscv/riscv-ext.opt: Likewise.
+	* config/riscv/riscv-modes.def: Likewise.
+	* config/riscv/riscv-opt-popretz.cc: Likewise.
+	* config/riscv/riscv-profiles.def: Likewise.
+	* config/riscv/riscv-protos.h: Likewise.
+	* config/riscv/riscv-selftests.cc: Likewise.
+	* config/riscv/riscv-sr.cc: Likewise.
+	* config/riscv/riscv-string.cc: Likewise.
+	* config/riscv/riscv-subset.h: Likewise.
+	* config/riscv/riscv-target-attr.cc: Likewise.
+	* config/riscv/riscv-v.cc: Likewise.
+	* config/riscv/riscv-vect-permconst.cc: Likewise.
+	* config/riscv/riscv-vector-builtins-bases.cc: Likewise.
+	* config/riscv/riscv-vector-builtins-functions.def: Likewise.
+	* config/riscv/riscv-vector-builtins-shapes.cc: Likewise.
+	* config/riscv/riscv-vector-builtins-types.def: Likewise.
+	* config/riscv/riscv-vector-builtins.cc: Likewise.
+	* config/riscv/riscv-vector-builtins.def: Likewise.
+	* config/riscv/riscv-vector-builtins.h: Likewise.
+	* config/riscv/riscv-vector-costs.cc: Likewise.
+	* config/riscv/riscv-vector-costs.h: Likewise.
+	* config/riscv/riscv-vsetvl.cc: Likewise.
+	* config/riscv/riscv-vsetvl.def: Likewise.
+	* config/riscv/riscv-zicfilp.cc: Likewise.
+	* config/riscv/riscv.cc: Likewise.
+	(riscv_zcmp_valid_stack_adj_bytes_p): Rename misspelled
+	variable additioanl_bytes to additional_bytes.
+	* config/riscv/riscv.h: Likewise.
+	* config/riscv/riscv.md: Likewise.
+	* config/riscv/sifive-vector-builtins-functions.def: Likewise.
+	* config/riscv/sifive_vector.h: Likewise.
+	* config/riscv/spacemit-x60.md: Likewise.
+	* config/riscv/thead.cc: Likewise.
+	* config/riscv/tt-ascalon-d8.md: Likewise.
+	* config/riscv/vector-crypto.md: Likewise.
+	* config/riscv/vector-iterators.md: Likewise.
+	* config/riscv/vector.md: Likewise.
+	* config/riscv/zicond.md: Likewise.
+	* doc/riscv-mcpu.texi: Regenerate.
+
+2026-06-02  Jin Ma  <jinma@linux.alibaba.com>
+
+	* common/config/riscv/riscv-common.cc: Fix formatting.
+	* config/riscv/gen-riscv-mcpu-texi.cc: Likewise.
+	* config/riscv/gen-riscv-mtune-texi.cc: Likewise.
+	* config/riscv/genrvv-type-indexer.cc: Remove unused <assert.h>
+	include.
+	* config/riscv/riscv-string.cc: Fix formatting.
+	* config/riscv/riscv-target-attr.cc: Likewise.
+	* config/riscv/riscv-v.cc: Remove duplicate "targhooks.h" include.
+	Fix formatting.
+	* config/riscv/riscv-v.h: Fix formatting.
+	* config/riscv/riscv-vsetvl.cc: Likewise.
+	* config/riscv/riscv.cc (riscv_pass_by_reference): Remove stray
+	double semicolon.  Fix formatting elsewhere.
+	(riscv_output_move): Use gcc_unreachable () instead of abort ().
+	(riscv_save_libcall_count): Use gcc_unreachable () instead of
+	abort ().
+	* config/riscv/riscv.h: Fix formatting.
+	* config/riscv/thead.cc: Likewise.
+
+2026-06-02  Tianle Shi  <shitianle@hygon.cn>
+
+	* config/i386/i386.cc (ix86_vector_costs): Add
+	m_num_avx512_vec_perm.
+	(ix86_vector_costs::ix86_vector_costs): Initialize it.
+	(ix86_count_cross_lane_perm_p): New helper to classify
+	cross-lane vec_perm for AVX256 and AVX512 handling.
+	(ix86_vector_costs::add_stmt_cost): Use the helper for
+	vec_perm accounting, record 256-bit and 512-bit counts,
+	and print detected width as avx%u.
+	(ix86_vector_costs::finish_cost): Reject AVX512 costs
+	when TARGET_AVX512_AVOID_VEC_PERM is set and 512-bit
+	cross-lane vec_perm is present.
+	* config/i386/i386.h (TARGET_AVX512_AVOID_VEC_PERM):
+	New macro.
+	* config/i386/x86-tune.def (X86_TUNE_AVX512_AVOID_VEC_PERM):
+	New tune for c86-4g-m7.
+
+2026-06-02  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR middle-end/125558
+	* common.opt (Wstrict-overflow): Mark as Ignore.
+	(Wstrict-overflow=): Fix up and mark as igore.
+	* gcc-diagnostic-spec.cc (nowarn_spec_t::nowarn_spec_t):
+	Remove OPT_Wstrict_overflow.
+	* opts.cc (common_handle_option): Likewise.
+
 2026-06-01  Kyrylo Tkachov  <ktkachov@nvidia.com>
 
 	PR target/122827

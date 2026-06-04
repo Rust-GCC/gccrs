@@ -1,3 +1,251 @@
+2026-06-04  Jeevitha Palanisamy  <jeevitha@linux.ibm.com>
+
+	PR target/106895
+	* gcc.target/powerpc/pr106895-1.c: New test.
+	* gcc.target/powerpc/pr106895-2.c: New test.
+
+2026-06-04  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR middle-end/125588
+	* gcc.dg/pr125588-1.c: New test.
+
+2026-06-03  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/125378
+	* g++.dg/lookup/operator-8b.C: New test.
+	* g++.dg/lookup/operator-8c.C: New test.
+	* g++.dg/lookup/operator-9a.C: New test.
+	* g++.dg/lookup/operator-9b.C: New test.
+
+2026-06-03  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/125490
+	* g++.dg/cpp2a/concepts-pr125490.C: New test.
+	* g++.dg/cpp2a/concepts-pr125490a.C: New test.
+
+2026-06-03  Henri Menke  <henri@henrimenke.de>
+
+	* gfortran.dg/always_inline_1.f90: New test.
+	* gfortran.dg/always_inline_2.f90: New test.
+	* gfortran.dg/inline_1.f90: New test.
+	* gfortran.dg/inline_2.f90: New test.
+
+2026-06-03  Pengxuan Zheng  <pengxuan.zheng@oss.qualcomm.com>
+
+	PR tree-optimization/124405
+	* gcc.dg/tree-ssa/pr124405.c: New test.
+
+2026-06-03  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/125252
+	* gcc.dg/pr125252.c
+
+2026-06-03  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/107124
+	* g++.dg/template/deduce11.C: New test.
+	* g++.dg/template/deduce12.C: New test.
+
+2026-06-03  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/123569
+	* gcc.dg/pr123569.c: New test.
+
+2026-06-03  Abhishek Kaushik  <abhishek.kaushik@arm.com>
+
+	* gcc.dg/tree-ssa/sccp-loop-phi.c: New test.
+	* gcc.dg/tree-ssa/sccp-loop-phi-not-optimized.c: New test.
+
+2026-06-03  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/103221
+	* gcc.dg/tree-ssa/dse-points-to.c: Disable sccopy1.
+	* gcc.dg/tree-ssa/pr45397.c: Remove the xfail.
+	* gcc.dg/ubsan/pr81981.c: Swap around which one is xfailed.
+
+2026-06-03  Pan Li  <pan2.li@intel.com>
+
+	* gcc.target/riscv/sat/sat_arith.h: Add test helper macros.
+	* gcc.target/riscv/sat/sat_u_mul-12-u16-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-12-u16-from-u32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-12-u16-from-u64.rv32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-12-u16-from-u64.rv64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-12-u32-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-12-u32-from-u64.rv32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-12-u32-from-u64.rv64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-12-u64-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-12-u8-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-12-u8-from-u16.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-12-u8-from-u32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-12-u8-from-u64.rv32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-12-u8-from-u64.rv64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-12-u16-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-12-u16-from-u32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-12-u16-from-u64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-12-u32-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-12-u32-from-u64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-12-u64-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-12-u8-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-12-u8-from-u16.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-12-u8-from-u32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-12-u8-from-u64.c: New test.
+
+2026-06-03  feedable  <feedabl3@gmail.com>
+
+	PR c++/124794
+	PR c++/125069
+	* g++.dg/reflect/member19.C: Enable tests.
+	* g++.dg/reflect/splice15.C: New test.
+	* g++.dg/reflect/splice16.C: New test.
+
+2026-06-03  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* gcc.dg/rtl/x86_64/different-structs.c: Initialize CALL_INSN_ABI_ID.
+	* selftests/x86_64/call-insn.rtl: Likewise.
+
+2026-06-03  Steven G. Kargl  <kargl@gcc.gnu.org>
+
+	PR fortran/105594
+	* gfortran.dg/pr105594.f90: New test.
+
+2026-06-03  Alex Coplan  <alex.coplan@arm.com>
+
+	* gcc.target/aarch64/sme/inline-asm.c: New test.
+
+2026-06-03  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	PR tree-optimization/125579
+	* gcc.dg/pr125579.c: New test.
+
+2026-06-03  Eric Botcazou  <ebotcazou@adacore.com>
+
+	PR ada/125581
+	* gnat.dg/atomic9.adb (NVIC_STIR): Add alignment clause.
+
+2026-06-03  Tamar Christina  <tamar.christina@arm.com>
+
+	PR tree-optimization/125431
+	* gfortran.dg/vect/pr125431.f90: New test.
+
+2026-06-03  Tamar Christina  <tamar.christina@arm.com>
+
+	PR tree-optimization/125509
+	* gcc.dg/vect/pr125509.c: New test.
+
+2026-06-03  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* g++.dg/modules/pr120458-1_a.C: Skip on non-UCN targets.
+	* g++.dg/modules/pr120458-2_a.C: Likewise.
+
+2026-06-03  Gaius Mulley  <gaiusmod2@gmail.com>
+
+	PR modula2/125512
+	* gm2.dg/spell/iso/fail/badmodule.mod: New test.
+	* gm2.dg/spell/iso/fail/badrecord.mod: New test.
+	* gm2.dg/spell/iso/fail/color.def: New test.
+
+2026-06-03  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125477
+	* gcc.dg/torture/pr125477.c: New testcase.
+
+2026-06-03  Jin Ma  <jinma@linux.alibaba.com>
+
+	PR target/111037
+	PR target/113248
+	* gcc.target/riscv/rvv/vsetvl/pr111037-1.c: Update vsetvl
+	patterns to match post-reorder asm sequence.
+	* gcc.target/riscv/rvv/vsetvl/pr111037-4.c: Likewise.
+	* gcc.target/riscv/rvv/vsetvl/pr113248.c: Likewise.
+
+2026-06-02  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* gcc.dg/tree-ssa/backprop-7.c: New test.
+
+2026-06-02  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* algol68/compile/malformed-mode-1.a68: New test.
+	* algol68/compile/malformed-mode-2.a68: Likewise.
+
+2026-06-02  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125545
+	* gcc.dg/torture/pr125545.c: New testcase.
+
+2026-06-02  Lino Hsing-Yu Peng  <linopeng@andestech.com>
+
+	* gcc.target/riscv/arch-61.c: New test.
+
+2026-06-02  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125553
+	* gcc.dg/torture/pr125553.c: New testcase.
+
+2026-06-02  Wang Yaduo  <wangyaduo@linux.alibaba.com>
+
+	* gcc.dg/vect/costmodel/riscv/rvv/xt-c9501fdvt-vect-stmt-cost.c:
+	New test.
+	* gcc.dg/vect/costmodel/riscv/rvv/xt-c9501fdvt-vect-ldst-cost.c:
+	New test.
+	* gcc.dg/vect/costmodel/riscv/rvv/xt-c9501fdvt-reduc-unordered.c:
+	New test.
+	* gcc.dg/vect/costmodel/riscv/rvv/xt-c9501fdvt-reduc-ordered.c:
+	New test.
+
+2026-06-02  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125250
+	* gcc.dg/torture/pr125250.c: Declare g0 as _Bool.
+
+2026-06-02  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125502
+	* gcc.dg/torture/pr125502.c: New testcase.
+
+2026-06-02  Christopher Bazley  <chris.bazley@arm.com>
+
+	* gcc.target/powerpc/pr125327.c: New test.
+
+2026-06-02  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/120702
+	* gcc.dg/tree-ssa/pr120702.c: New testcase.
+
+2026-06-02  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/125517
+	* gcc.dg/builtin-bitreverse-9.c: New test.
+
+2026-06-02  Jakub Jelinek  <jakub@redhat.com>
+
+	* gfortran.dg/gomp/allocate-6.f90: Adjust dg-error wording after
+	recent spelling fixes.
+	* gfortran.dg/gomp/allocate-7.f90: Likewise.
+	* gfortran.dg/gomp/allocate-14.f90: Likewise.
+	* gcc.target/sparc/struct-ret-check-1.c: Fix comment spelling,
+	specificed -> specified.
+
+2026-06-02  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/88632
+	PR fortran/104630
+	* gfortran.dg/submodule_35.f90: New test.
+	* gfortran.dg/submodule_35_aux.f90: Submodule and program for
+	for the new test.
+	Assisted by: Claude Sonnet 4.6
+
+2026-06-02  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR c/121911
+	* gcc.dg/Wnested-externs-1.c: Add -mstack-protector-guard=global
+	for x86.
+
+2026-06-02  Tianle Shi  <shitianle@hygon.cn>
+
+	* gcc.target/i386/avx512_avoid_vec_perm-1.c: New test.
+	* gcc.target/i386/avx512_avoid_vec_perm-2.c: New test.
+	* gcc.target/i386/avx512_avoid_vec_perm-3.c: New test.
+
 2026-06-01  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
 
 	PR fortran/125527

@@ -1,3 +1,9 @@
+2026-06-02  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* sanitizer_common/sanitizer_platform_limits_solaris.cpp:
+	Cherry-pick llvm-project revision
+	0e92b557a78eddc7493ade4cfc0a3b6b93ee61cf.
+
 2026-04-29  Jakub Jelinek  <jakub@redhat.com>
 
 	* sanitizer_common/sanitizer_platform_limits_posix.cpp: Cherry picked

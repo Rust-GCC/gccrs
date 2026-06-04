@@ -1,3 +1,162 @@
+2026-06-03  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/version.def: Define macros for hardened
+	preconditions.
+	* include/bits/version.h: Regenerate.
+	* include/std/array: Define "want" macro for hardened
+	precondition macro.
+	* include/std/bitset: Likewise.
+	* include/std/deque: Likewise.
+	* include/std/expected: Likewise.
+	* include/std/forward_list: Likewise.
+	* include/std/inplace_vector: Likewise.
+	* include/std/iterator: Likewise.
+	* include/std/list: Likewise.
+	* include/std/memory: Likewise.
+	* include/std/optional: Likewise.
+	* include/std/ranges: Likewise.
+	* include/std/span: Likewise.
+	* include/std/stacktrace: Likewise.
+	* include/std/string: Likewise.
+	* include/std/string_view: Likewise.
+	* include/std/valarray: Likewise.
+	* include/std/vector: Likewise.
+	* testsuite/23_containers/array/tuple_interface/get_neg.cc:
+	Adjust dg-error line numbers.
+
+2026-06-03  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/version.def (hardened_mdspan): Define.
+	* include/bits/version.h: Regenerate.
+	* include/std/mdspan (__cpp_lib_hardened_mdspan): Define.
+	(mdspan::operator[]): Replace __mdspan::__index_type_cast
+	with cast to __index_int_t, and inline negative value checks.
+
+2026-06-03  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/fs_path.h (path::string, path::generic_string):
+	Add deprecated attribute in C++26 via _GLIBCXX26_DEPRECATED_SUGGEST.
+	(path::display_string, path::native_encoded_string)
+	(path::generic_display_string, path::generic_native_encoded_string)
+	[__glibcxx_format_path >= 202506L]: Define.
+	* include/bits/version.def (format_path): Bump to 202506.
+	* include/bits/version.h: Regenerate.
+	* testsuite/util/testsuite_fs.h (__gnu_test::compare_paths):
+	Ignored deprecated declarations warning.
+	* testsuite/27_io/filesystem/filesystem_error/cons.cc:
+	Disable -Wdeprecated-declarations warning with pragmas.
+	* testsuite/27_io/filesystem/operations/canonical.cc: Likewise.
+	* testsuite/27_io/filesystem/operations/copy_file.cc: Likewise.
+	* testsuite/27_io/filesystem/path/concat/strings.cc: Likwise.
+	* testsuite/27_io/filesystem/path/itr/traversal.cc: Likewise.
+	* testsuite/27_io/filesystem/operations/temp_directory_path.cc:
+	Likewise.
+	* testsuite/27_io/filesystem/path/decompose/root_directory.cc:
+	Likewise.
+	* testsuite/27_io/filesystem/path/generic/generic_string.cc:
+	Likewise.
+	* testsuite/27_io/print/1.cc: Likewise.
+	* testsuite/27_io/print/2.cc: Likewise.
+	* testsuite/27_io/print/3.cc: Likewise.
+	* testsuite/27_io/filesystem/path/append/source.cc:
+	Add dg-warning for deprecated functions use.
+	* testsuite/27_io/filesystem/path/decompose/stem.cc: Likewise.
+	* testsuite/27_io/filesystem/path/native/string-char8_t.cc:
+	Likewise.
+	* testsuite/27_io/filesystem/path/generic/display_native_string.cc:
+	New test.
+	* testsuite/27_io/filesystem/path/native/display_native_string.cc:
+	New test.
+
+2026-06-02  Yuao Ma  <c8ef@outlook.com>
+
+	* include/bits/stl_queue.h: Add constexpr.
+	* testsuite/23_containers/priority_queue/constexpr.cc: New test.
+
+2026-06-02  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/random.h (__rand_uint128::operator bool):
+	(__rand_uint128::operator-=(const type& __r))
+	(__rand_uint128::operator-(type __l, const type& __r)):
+	Implement.
+	(__rand_uint128::operator/=(uint64_t __r))
+	(__rand_uint128::operator/(type __l, uint64_t __r)):
+	Define by converting to type.
+	(__rand_uint128::operator*=(const type& __r)): Remove
+	precondition and handle _M_hi != 0.
+
+2026-06-02  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/version.tpl: Fix typo.
+
+2026-06-02  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/std/format (__format::__write_escaped_ascii): Mark as
+	_GLIBCXX_CONSTEXPR_FORMAT and at compile time, reject strings
+	containing characters other than printable ASCII and standard
+	escapes.
+	* testsuite/std/format/debug.cc: Test basic_escapes and \0
+	at compile-time.
+	* testsuite/std/format/debug_nonunicode_neg.cc: New test.
+
+2026-06-02  Ivan Lazaric  <ivan.lazaric1@gmail.com>
+	    Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/version.def (constexpr_exceptions): Move before
+	format.
+	(constexpr_format): Define.
+	* include/bits/version.h: Regenerate.
+	* include/std/format (_GLIBCXX_CONSTEXPR_FORMAT): Define and
+	apply to all of functions except __write_escaped_ascii and
+	__formatter_fp members.
+	(_GLIBCXX_CONSTEXPR_FORMAT_ERROR): Replace with
+	_GLIBCXX_CONSTEXPR_FORMAT.
+	(basic_format_string::basic_format_string(const _Tp&)):
+	Mark as noexcept.
+	(__format::__toupper_numeric): Define.
+	(__formatter_int::format): Use __format::__toupper_numeric
+	and replace __builtin_memcpy with ranges::copy.
+	(__formatter_fp::format): Use __format::__toupper_numeric.
+	(__formatter_ptr::format): Avoid reinterpret_cast for
+	null-pointer value to support std::nullptr_t formatting.
+	(__format::__do_vformat_to): Replace __builtin_memcpy with
+	ranges::copy.
+	(basic_format_parse_context::__check_dynamic_spec):
+	Skip checks if __args pointer is null.
+	* testsuite/std/format/arguments/args_neg.cc: Diagnostics change.
+	* testsuite/std/format/constexpr.cc: New test.
+	* testsuite/std/format/debug.cc: Test at compile-time in C++26
+	and update iteration limit for paddding tests.
+	* testsuite/std/format/tuple.cc: Likewise.
+	* testsuite/std/format/functions/format.cc: Test at compile-time
+	in C++26.
+	* testsuite/std/format/dynamic_format.cc: Likewise.
+	* testsuite/std/format/functions/format_to.cc: Likewise.
+	* testsuite/std/format/functions/size.cc: Likewise.
+	* testsuite/std/format/ranges/format_kind.cc: Likewise.
+	* testsuite/std/format/ranges/formatter.cc: Likewise.
+	* testsuite/std/format/ranges/sequence.cc: Likewise.
+	* testsuite/std/format/string.cc: Likewise.
+	* testsuite/std/time/format/data_not_present_neg.cc: Diagnostics
+	change.
+
+2026-06-02  Ivan Lazaric  <ivan.lazaric1@gmail.com>
+	    Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/version.def (constexpr_string): Bump to 202511.
+	* include/bits/version.h: Regenerate.
+	* include/bits/basic_string.h (std::to_string, std::to_wstring)
+	[__glibcxx_constexpr_string >= 202511L]: Mark as constexpr.
+	* testsuite/21_strings/basic_string/numeric_conversions/char/to_string_constexpr.cc:
+	New test.
+	* testsuite/21_strings/basic_string/numeric_conversions/wchar_t/to_wstring_constexpr.cc:
+	New test.
+	* testsuite/21_strings/basic_string/cons/char/constexpr.cc: Update
+	__cpp_lib_constexpr_string check.
+	* testsuite/21_strings/basic_string/cons/wchar_t/constexpr.cc: Likewise.
+	* testsuite/21_strings/basic_string/version.cc: Add check for value of
+	__cpp_lib_constexpr_string in C++26.
+
 2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* config/os/vxworks/os_defines.h: Fix typos.

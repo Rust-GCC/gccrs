@@ -1,3 +1,22 @@
+2026-06-02  Robert Dubner  <rdubner@symas.com>
+
+	* compare.cc (cobol_compare_relop): Rename the cobol_compare_relop
+	function.
+	(cobol_compare): Likewise.
+	* compare.h (cobol_compare_relop): Likewise.
+	(cobol_compare): Likewise.
+	* genapi.cc (parser_display): Refine the use of SYSPUNCH_e for
+	inserting debugging comments into the assembly language.
+	(parser_relop): Use "cobol_compare".
+	(handle_gg_trim): Break out SBC TRIM logic.
+	(parser_intrinsic_call_2): Likewise.
+	(parser_bsearch_when): Use "cobol_compare"
+	* genutil.cc (refer_is_super_clean): FldLiteralN is always "super
+	clean".
+	(is_pure_integer): Make binary_from_FldNumericBin5 "static bool".
+	(binary_from_FldLiteralN): New function.
+	(get_binary_value): Use the new function.
+
 2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* compare.cc (alpha_compare): Fix typos.

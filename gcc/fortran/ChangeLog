@@ -1,3 +1,42 @@
+2026-06-03  Henri Menke  <henri@henrimenke.de>
+
+	* gfortran.h (enum ext_attr_id_t): Add EXT_ATTR_INLINE and
+	EXT_ATTR_ALWAYS_INLINE at the end.  Document that new attributes
+	must be appended to preserve module compatibility.
+	* decl.cc (ext_attr_list): Add "inline" and "always_inline".
+	(gfc_match_gcc_attributes): Warn about and drop INLINE or
+	ALWAYS_INLINE when combined with NOINLINE on the same symbol.
+	* trans-decl.cc (build_function_decl): Handle EXT_ATTR_INLINE and
+	EXT_ATTR_ALWAYS_INLINE by setting DECL_DECLARED_INLINE_P, and
+	DECL_DISREGARD_INLINE_LIMITS for ALWAYS_INLINE.
+	* gfortran.texi (ATTRIBUTES directive): Document INLINE and
+	ALWAYS_INLINE.
+
+2026-06-03  Steven G. Kargl  <kargl@gcc.gnu.org>
+
+	PR fortran/105594
+	* module.cc (gfc_use_module): Suppress bogus warning for a missing
+	ONLY clause on a submodule.
+
+2026-06-02  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	Backported from master:
+	2026-06-02  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/125324
+	* gfortranspec.cc (lang_specific_driver): Also append -lpthread
+	when need_caf_shmem is set.
+
+2026-06-02  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/88632
+	PR fortran/104630
+	* module.cc (write_symtree): Do not filter out private symbols
+	when writing a submodule interface file (.smod).  Submodules are
+	descendants of their ancestor module and access private symbols
+	in the module's contains section via host association per
+	Fortran 2018 section 14.2.2.
+
 2026-06-01  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
 
 	PR fortran/125527

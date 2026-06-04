@@ -1,3 +1,24 @@
+2026-06-03  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/125252
+	* c-typeck.cc (ptr_to_tagged_member): Return type of member.
+	(c_type_canonical): Use incomplete type.
+
+2026-06-03  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/123569
+	* c-parser.cc (mark_exp_read_cond): New function.
+	(c_parser_unary_expression): Use mark_exp_read_cond.
+	(c_parser_postfix_expression_after_primary): Likewise.
+	* c-typeck.cc (build_unary_op): Remove dead code and
+	add checking assertion.
+
+2026-06-02  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR c/121911
+	* c-decl.cc (push_file_scope): Add stack protection guard to
+	visible_builtins.
+
 2026-05-31  Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
 
 	* c-fold.cc (c_disable_warnings): Likewise.

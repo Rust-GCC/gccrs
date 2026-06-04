@@ -1,3 +1,13 @@
+2026-06-02  Christopher Bazley  <chris.bazley@arm.com>
+
+	* d-attribs.cc (d_handle_optimize_attribute):
+	Save the global target options before modifying
+	them. If the function with the optimize attribute
+	already has a target option node then restore those
+	target options as the global options, so that they
+	are used as the basis for any new optimization and
+	target options attached to the function.
+
 2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* d-attribs.cc (d_handle_alloc_size_attribute): Fix typos.

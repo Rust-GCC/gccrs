@@ -1,3 +1,10 @@
+2026-06-02  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* oacc-parallel.c (GOACC_parallel_keyed): Use gomp_alloca instead
+	of alloca.
+	* target.c (GOMP_target): Likewise.
+	(GOMP_target_ext): Likewise.
+
 2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* config/gcn/simple-bar.h: Fix typos.

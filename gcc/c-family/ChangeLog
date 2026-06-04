@@ -1,3 +1,19 @@
+2026-06-02  Christopher Bazley  <chris.bazley@arm.com>
+
+	* c-attribs.cc (handle_optimize_attribute):
+	Save the global target options before modifying
+	them. If the function with the optimize attribute
+	already has a target option node then restore those
+	target options as the global options, so that they
+	are used as the basis for any new optimization and
+	target options attached to the function.
+
+2026-06-02  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR c/121911
+	* c-common.cc (c_common_nodes_and_builtins): Don't declare stack
+	protection guard here.
+
 2026-06-01  Martin Uecker  <uecker@tugraz.at>
 
 	PR c/98539
