@@ -569,13 +569,32 @@ gcc_version := $(shell @get_gcc_base_ver@ $(top_srcdir)/../gcc/BASE-VER)
 @BUILD_LIBGCOBOL_TRUE@	$(LC_COPYDIR_BUILD)/stored-char-length.cpy
 
 
+# Bring posix copybooks into the build tree.
+@BUILD_LIBGCOBOL_TRUE@LP_COPYDIR_BUILD = $(PWD)/posix/cpy
+@BUILD_LIBGCOBOL_TRUE@LP_COPYBOOKS = \
+@BUILD_LIBGCOBOL_TRUE@	$(LP_COPYDIR_BUILD)/posix-errno.cpy \
+@BUILD_LIBGCOBOL_TRUE@	$(LP_COPYDIR_BUILD)/posix-exit.cpy \
+@BUILD_LIBGCOBOL_TRUE@	$(LP_COPYDIR_BUILD)/posix-fstat.cpy \
+@BUILD_LIBGCOBOL_TRUE@	$(LP_COPYDIR_BUILD)/posix-ftruncate.cpy \
+@BUILD_LIBGCOBOL_TRUE@	$(LP_COPYDIR_BUILD)/posix-localtime.cpy \
+@BUILD_LIBGCOBOL_TRUE@	$(LP_COPYDIR_BUILD)/posix-lseek.cpy \
+@BUILD_LIBGCOBOL_TRUE@	$(LP_COPYDIR_BUILD)/posix-mkdir.cpy \
+@BUILD_LIBGCOBOL_TRUE@	$(LP_COPYDIR_BUILD)/posix-open.cpy \
+@BUILD_LIBGCOBOL_TRUE@	$(LP_COPYDIR_BUILD)/posix-read.cpy \
+@BUILD_LIBGCOBOL_TRUE@	$(LP_COPYDIR_BUILD)/posix-stat.cpy \
+@BUILD_LIBGCOBOL_TRUE@	$(LP_COPYDIR_BUILD)/psx-lseek.cpy \
+@BUILD_LIBGCOBOL_TRUE@	$(LP_COPYDIR_BUILD)/psx-open.cpy \
+@BUILD_LIBGCOBOL_TRUE@	$(LP_COPYDIR_BUILD)/statbuf.cpy \
+@BUILD_LIBGCOBOL_TRUE@	$(LP_COPYDIR_BUILD)/tm.cpy
+
+
 # We want to link with the c++ runtime.
 @BUILD_LIBGCOBOL_TRUE@libgcobol_la_LINK = $(CXXLINK) $(libgcobol_la_LDFLAGS)
 @BUILD_LIBGCOBOL_TRUE@version_arg = -version-info $(LIBGCOBOL_VERSION)
 @BUILD_LIBGCOBOL_TRUE@libgcobol_la_LDFLAGS = $(LTLDFLAGS) $(LIBQUADLIB) $(LTLIBICONV) \
 @BUILD_LIBGCOBOL_TRUE@	$(extra_ldflags_libgcobol) $(LIBS) $(LIBXML2_LIBS) $(version_arg)
 
-@BUILD_LIBGCOBOL_TRUE@libgcobol_la_DEPENDENCIES = libgcobol.spec $(LIBQUADLIB_DEP) $(LC_COPYBOOKS)
+@BUILD_LIBGCOBOL_TRUE@libgcobol_la_DEPENDENCIES = libgcobol.spec $(LIBQUADLIB_DEP)
 
 # Rules for libgcobol_posix.so and libgcobol_compat_gnu.so, which have
 # COBOL sources.  They require gcobol and libgcobol to have already
@@ -590,12 +609,16 @@ gcc_version := $(shell @get_gcc_base_ver@ $(top_srcdir)/../gcc/BASE-VER)
 @BUILD_LIBGCOBOL_TRUE@libgcobol_posix_la_LDFLAGS = $(LTLDFLAGS) $(LIBQUADLIB) $(LTLIBICONV) \
 @BUILD_LIBGCOBOL_TRUE@	$(extra_ldflags_libgcobol) $(LIBS) $(LIBXML2_LIBS) $(version_arg)
 
-@BUILD_LIBGCOBOL_TRUE@libgcobol_posix_la_DEPENDENCIES = libgcobol.spec $(LIBQUADLIB_DEP)
+@BUILD_LIBGCOBOL_TRUE@libgcobol_posix_la_DEPENDENCIES = libgcobol.spec $(LIBQUADLIB_DEP) \
+@BUILD_LIBGCOBOL_TRUE@	$(LP_COPYBOOKS)
+
 @BUILD_LIBGCOBOL_TRUE@libgcobol_compat_gnu_la_LINK = $(CXXLINK) $(libgcobol_compat_gnu_la_LDFLAGS)
 @BUILD_LIBGCOBOL_TRUE@libgcobol_compat_gnu_la_LDFLAGS = $(LTLDFLAGS) $(LIBQUADLIB) $(LTLIBICONV) \
 @BUILD_LIBGCOBOL_TRUE@	$(extra_ldflags_libgcobol) $(LIBS) $(LIBXML2_LIBS) $(version_arg)
 
-@BUILD_LIBGCOBOL_TRUE@libgcobol_compat_gnu_la_DEPENDENCIES = libgcobol.spec $(LIBQUADLIB_DEP)
+@BUILD_LIBGCOBOL_TRUE@libgcobol_compat_gnu_la_DEPENDENCIES = libgcobol.spec $(LIBQUADLIB_DEP) \
+@BUILD_LIBGCOBOL_TRUE@	$(LC_COPYBOOKS)
+
 @BUILD_LIBGCOBOL_TRUE@LTCOBCOMPILE = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 @BUILD_LIBGCOBOL_TRUE@	--mode=compile $(AM_COBC) $(AM_COBFLAGS)
 
@@ -1101,6 +1124,10 @@ uninstall-am: uninstall-nobase_libsubincludeHEADERS \
 
 
 @BUILD_LIBGCOBOL_TRUE@$(LC_COPYDIR_BUILD)/%.cpy: ${srcdir}/compat/gnu/cpy/%.cpy
+@BUILD_LIBGCOBOL_TRUE@	mkdir -p `dirname $@`
+@BUILD_LIBGCOBOL_TRUE@	cp $< $@
+
+@BUILD_LIBGCOBOL_TRUE@$(LP_COPYDIR_BUILD)/%.cpy: ${srcdir}/posix/cpy/%.cpy
 @BUILD_LIBGCOBOL_TRUE@	mkdir -p `dirname $@`
 @BUILD_LIBGCOBOL_TRUE@	cp $< $@
 

@@ -103,6 +103,8 @@ struct GTY (()) language_function
     int dummy;
     };
 
+static const char dir_separator[] = {DIR_SEPARATOR, 0};
+
 /*
  *  Language hooks.
  */
@@ -367,6 +369,75 @@ enable_exceptions( bool enable ) {
   }
 }
 
+static void
+libcompat_copybook(const char *dir)
+  {
+  char *gnu = concat(dir, NULL);
+
+  if (gnu[strlen(gnu) - 1] != DIR_SEPARATOR)
+      gnu = concat(gnu, dir_separator, NULL);
+
+  gnu = concat(gnu, "compat", dir_separator, "gnu", NULL);
+
+  char *paths[] =
+      {
+          concat(gnu, dir_separator, "lib", NULL),
+          concat(gnu, dir_separator, "cpy", NULL),
+          concat(gnu, dir_separator, "udf", NULL)
+      };
+
+  for (size_t i = 0; i < sizeof paths / sizeof *paths; i++)
+      {
+      // Inject the installation prefix paths to the libcompat copybooks.
+      copybook_directory_add(paths[i]);
+      free(paths[i]);
+      }
+
+  free(gnu);
+  }
+
+static void
+libposix_copybook(const char *dir)
+  {
+  char *posix = concat(dir, NULL);
+
+  if (posix[strlen(posix) - 1] != DIR_SEPARATOR)
+    posix = concat(posix, dir_separator, NULL);
+
+  posix = concat(posix, "posix", NULL);
+
+  char *paths[] =
+      {
+      concat(posix, dir_separator, "cpy", NULL),
+      concat(posix, dir_separator, "udf", NULL),
+      };
+
+  for (size_t i = 0; i < sizeof paths / sizeof *paths; i++)
+      {
+      copybook_directory_add(paths[i]);
+      free(paths[i]);
+      }
+
+  free(posix);
+  }
+
+static void
+append_copybook_prefix(const char *prefix, void (*fn)(const char *))
+  {
+    char *opts[] =
+        {
+        concat(prefix, dir_separator, "cobol", NULL),
+        concat(prefix, NULL),
+        NULL
+        };
+
+    for (char **s = opts; *s; ++s)
+        {
+        fn(*s);
+        free(*s);
+        }
+  }
+
 void cobol_warning( cbl_diag_id_t id, int yn, bool );
 void cobol_warning_suppress( cbl_dialect_t dialect );
 
@@ -386,6 +457,10 @@ cobol_langhook_handle_option (size_t scode,
 
     switch(code)
         {
+        case OPT_B:
+            append_copybook_prefix(arg, libcompat_copybook);
+            append_copybook_prefix(arg, libposix_copybook);
+            return true;
         case OPT_D:
             defined_cmd(arg);
             return true;
@@ -397,7 +472,9 @@ cobol_langhook_handle_option (size_t scode,
             copybook_directory_add(arg);
             return true;
         case OPT_copyext:
-            copybook_extension_add(cobol_copyext);
+        case OPT_isystem:
+        case OPT_idirafter:
+            copybook_extension_add(arg);
             return true;
 
         case OPT_fexec_charset_:
@@ -804,6 +881,14 @@ cobol_langhook_getdecls (void)
     return NULL;
     }
 
+static bool
+cobol_langhook_post_options (const char **pfilename ATTRIBUTE_UNUSED)
+    {
+    append_copybook_prefix(LIBSUBDIR, libcompat_copybook);
+    append_copybook_prefix(LIBSUBDIR, libposix_copybook);
+    return false;
+    }
+
 char *
 cobol_name_mangler(const char *cobol_name_)
     {
@@ -909,6 +994,7 @@ cobol_get_sarif_source_language(const char *)
 #undef LANG_HOOKS_GETDECLS
 #undef LANG_HOOKS_GLOBAL_BINDINGS_P
 #undef LANG_HOOKS_HANDLE_OPTION
+#undef LANG_HOOKS_POST_OPTIONS
 #undef LANG_HOOKS_INIT
 #undef LANG_HOOKS_INIT_OPTIONS_STRUCT
 #undef LANG_HOOKS_NAME
@@ -930,6 +1016,7 @@ cobol_get_sarif_source_language(const char *)
 
 #define LANG_HOOKS_INIT_OPTIONS_STRUCT      cobol_langhook_init_options_struct
 #define LANG_HOOKS_HANDLE_OPTION            cobol_langhook_handle_option
+#define LANG_HOOKS_POST_OPTIONS             cobol_langhook_post_options
 
 #define LANG_HOOKS_BUILTIN_FUNCTION         cobol_langhook_builtin_function
 #define LANG_HOOKS_GETDECLS                 cobol_langhook_getdecls

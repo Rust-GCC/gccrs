@@ -157,12 +157,34 @@ $(LC_COPYDIR_BUILD)/%.cpy: ${srcdir}/compat/gnu/cpy/%.cpy
 	mkdir -p `dirname $@`
 	cp $< $@
 
+# Bring posix copybooks into the build tree.
+LP_COPYDIR_BUILD = $(PWD)/posix/cpy
+LP_COPYBOOKS = \
+	$(LP_COPYDIR_BUILD)/posix-errno.cpy \
+	$(LP_COPYDIR_BUILD)/posix-exit.cpy \
+	$(LP_COPYDIR_BUILD)/posix-fstat.cpy \
+	$(LP_COPYDIR_BUILD)/posix-ftruncate.cpy \
+	$(LP_COPYDIR_BUILD)/posix-localtime.cpy \
+	$(LP_COPYDIR_BUILD)/posix-lseek.cpy \
+	$(LP_COPYDIR_BUILD)/posix-mkdir.cpy \
+	$(LP_COPYDIR_BUILD)/posix-open.cpy \
+	$(LP_COPYDIR_BUILD)/posix-read.cpy \
+	$(LP_COPYDIR_BUILD)/posix-stat.cpy \
+	$(LP_COPYDIR_BUILD)/psx-lseek.cpy \
+	$(LP_COPYDIR_BUILD)/psx-open.cpy \
+	$(LP_COPYDIR_BUILD)/statbuf.cpy \
+	$(LP_COPYDIR_BUILD)/tm.cpy
+
+$(LP_COPYDIR_BUILD)/%.cpy: ${srcdir}/posix/cpy/%.cpy
+	mkdir -p `dirname $@`
+	cp $< $@
+
 # We want to link with the c++ runtime.
 libgcobol_la_LINK = $(CXXLINK) $(libgcobol_la_LDFLAGS)
 version_arg = -version-info $(LIBGCOBOL_VERSION)
 libgcobol_la_LDFLAGS = $(LTLDFLAGS) $(LIBQUADLIB) $(LTLIBICONV) \
 	$(extra_ldflags_libgcobol) $(LIBS) $(LIBXML2_LIBS) $(version_arg)
-libgcobol_la_DEPENDENCIES = libgcobol.spec $(LIBQUADLIB_DEP) $(LC_COPYBOOKS)
+libgcobol_la_DEPENDENCIES = libgcobol.spec $(LIBQUADLIB_DEP)
 
 # Rules for libgcobol_posix.so and libgcobol_compat_gnu.so, which have
 # COBOL sources.  They require gcobol and libgcobol to have already
@@ -178,12 +200,14 @@ libgcobol_la_DEPENDENCIES = libgcobol.spec $(LIBQUADLIB_DEP) $(LC_COPYBOOKS)
 libgcobol_posix_la_LINK = $(CXXLINK) $(libgcobol_posix_la_LDFLAGS)
 libgcobol_posix_la_LDFLAGS = $(LTLDFLAGS) $(LIBQUADLIB) $(LTLIBICONV) \
 	$(extra_ldflags_libgcobol) $(LIBS) $(LIBXML2_LIBS) $(version_arg)
-libgcobol_posix_la_DEPENDENCIES = libgcobol.spec $(LIBQUADLIB_DEP)
+libgcobol_posix_la_DEPENDENCIES = libgcobol.spec $(LIBQUADLIB_DEP) \
+	$(LP_COPYBOOKS)
 
 libgcobol_compat_gnu_la_LINK = $(CXXLINK) $(libgcobol_compat_gnu_la_LDFLAGS)
 libgcobol_compat_gnu_la_LDFLAGS = $(LTLDFLAGS) $(LIBQUADLIB) $(LTLIBICONV) \
 	$(extra_ldflags_libgcobol) $(LIBS) $(LIBXML2_LIBS) $(version_arg)
-libgcobol_compat_gnu_la_DEPENDENCIES = libgcobol.spec $(LIBQUADLIB_DEP)
+libgcobol_compat_gnu_la_DEPENDENCIES = libgcobol.spec $(LIBQUADLIB_DEP) \
+	$(LC_COPYBOOKS)
 
 
 LTCOBCOMPILE = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \

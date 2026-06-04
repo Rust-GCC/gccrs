@@ -507,11 +507,6 @@ lang_specific_driver (struct cl_decoded_option **in_decoded_options,
       }
     }
 
-    char dir_separator[] = {DIR_SEPARATOR, 0},
-      *tooldir = concat (STANDARD_EXEC_PREFIX, DEFAULT_TARGET_MACHINE,
-                         dir_separator, DEFAULT_TARGET_VERSION,
-                         dir_separator, "cobol", NULL);
-
   /*  As described above, we have empirically noticed that when the command line
       explicitly specifies libgcobol.a as an input, a following -lgcobol causes
       the "on exit" functions of the library to be executed twice.  This can
@@ -543,21 +538,7 @@ lang_specific_driver (struct cl_decoded_option **in_decoded_options,
     }
   if( need_libcompat )
     {
-    char *gnu = concat(tooldir, dir_separator, "compat", dir_separator, "gnu", NULL);
     add_arg_lib(COMPAT_LIBRARY, static_libcompat);
-
-    // Inject the installation prefix paths to the libcompat copybooks.
-    // Note that these paths are inevitably leaked as append_option
-    // takes a const char *, but does not copy the string.
-    // Ideally, these paths could be constructed at preprocessor-time,
-    // but unfortunately DIR_SEPARATOR defines an integer, not a string.
-    // Maybe a DIR_SEPARATOR-like macro could be defined instead, but that
-    // can be fragile in terms of portability, and the usual practice in
-    // gcc is to dynamically define it as a 2-element array, anyway.
-    append_option(OPT_I, concat(gnu, dir_separator, "lib", NULL), 1);
-    append_option(OPT_I, concat(gnu, dir_separator, "cpy", NULL), 1);
-    append_option(OPT_I, concat(gnu, dir_separator, "udf", NULL), 1);
-    free(gnu);
     }
   if( need_libdl )
     {
@@ -569,14 +550,7 @@ lang_specific_driver (struct cl_decoded_option **in_decoded_options,
     }
   if( need_libposix )
     {
-    char *posix = concat(tooldir, dir_separator, "posix", NULL);
-
     add_arg_lib(POSIX_LIBRARY, static_libposix);
-    // Inject the paths to the libposix copybooks.
-    // As explained above, note that these paths are inevitably leaked.
-    append_option(OPT_I, concat(posix, dir_separator, "cpy", NULL), 1);
-    append_option(OPT_I, concat(posix, dir_separator, "udf", NULL), 1);
-    free(posix);
     }
 
   if( prior_main )
@@ -584,8 +558,6 @@ lang_specific_driver (struct cl_decoded_option **in_decoded_options,
     char ach[] = "\"-main\" without a source file";
     fatal_error(input_location, "%s", ach);
     }
-
-  free(tooldir);
 
   // We now take the new_opt vector, and turn it into an array of
   // cl_decoded_option

@@ -25,6 +25,10 @@
 Language
 Cobol
 
+B
+Cobol
+; Documented in c.opt
+
 D
 Cobol Joined Separate
 ; Documented in c.opt
@@ -394,6 +398,10 @@ Cobol Joined Separate
 isystem
 Cobol Joined Separate
 ; Documented in C
+
+idirafter
+Cobol Joined Separate
+; Documented in c.opt
 
 main
 Cobol

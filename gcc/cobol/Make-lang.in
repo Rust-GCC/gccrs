@@ -125,6 +125,8 @@ cobol_OBJS = \
 #
 CFLAGS-cobol/gcobolspec.o += $(DRIVER_DEFINES)
 
+CFLAGS-cobol/cobol1.o += -DLIBSUBDIR=\"$(libsubdir)\"
+
 #
 # This controls the build of the gcobol "driver"
 #
