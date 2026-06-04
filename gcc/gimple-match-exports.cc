@@ -1413,3 +1413,82 @@ get_conditional_internal_fn (code_helper code, tree type)
   auto cfn = combined_fn (code);
   return get_conditional_internal_fn (associated_internal_fn (cfn, type));
 }
+
+/* Find the operand which is different between ARG0_OP and ARG1_OP.
+   Returns the operand num where the difference is.
+   Set NEWARG0 and NEWARG1 from the different argument.
+   Returns -1 if none is found.
+   If ARG0_OP/ARG1_OP is commutative also try swapping the
+   two commutative operands and return the operand number where
+   the difference happens in ARG0_OP. */
+
+int
+find_different_opnum (const gimple_match_op &arg0_op,
+		      const gimple_match_op &arg1_op,
+		      tree *new_arg0, tree *new_arg1)
+{
+  unsigned opnum = -1;
+  unsigned first;
+  first = first_commutative_argument (arg1_op.code, arg1_op.type);
+  for (unsigned i = 0; i < arg0_op.num_ops; i++)
+    {
+      if (!operand_equal_for_phi_arg_p (arg0_op.ops[i],
+					arg1_op.ops[i]))
+	{
+	  /* Can handle only one non equal operand. */
+	  if (opnum != -1u)
+	    {
+	      /* Though if opnum is right before i and opnum is equal
+		 to the first communtative argument, handle communtative
+		 specially. */
+	      if (i == opnum + 1 && opnum == first)
+		goto commutative;
+	      return -1;
+	    }
+	  opnum = i;
+	}
+  }
+  /* If all operands are equal only do this is there was single
+     operand.  */
+  if (opnum == -1u)
+    {
+      if (arg0_op.num_ops != 1)
+	return -1;
+      opnum = 0;
+    }
+  *new_arg0 = arg0_op.ops[opnum];
+  *new_arg1 = arg1_op.ops[opnum];
+  return opnum;
+
+/* Handle commutative operations. */
+commutative:
+  gcc_assert (first != -1u);
+
+  /* Check the rest of the arguments to make sure they are the same. */
+  for (unsigned i = first + 2; i < arg0_op.num_ops; i++)
+    if (!operand_equal_for_phi_arg_p (arg0_op.ops[i],
+				      arg1_op.ops[i]))
+      return -1;
+
+  /* If the arg0[first+1] and arg1[first] are the same
+     then the one which is different is arg0[first] and arg1[first+1]
+     return first since this is based on arg0.  */
+  if (operand_equal_for_phi_arg_p (arg0_op.ops[first + 1],
+				   arg1_op.ops[first]))
+    {
+       *new_arg0 = arg0_op.ops[first];
+       *new_arg1 = arg1_op.ops[first + 1];
+       return first;
+    }
+  /* If the arg0[first] and arg1[first+1] are the same
+     then the one which is different is arg0[first+1] and arg1[first]
+     return first+1 since this is based on arg0.  */
+  if (operand_equal_for_phi_arg_p (arg0_op.ops[first],
+				   arg1_op.ops[first + 1]))
+    {
+       *new_arg0 = arg0_op.ops[first + 1];
+       *new_arg1 = arg1_op.ops[first];
+       return first + 1;
+    }
+  return -1;
+}

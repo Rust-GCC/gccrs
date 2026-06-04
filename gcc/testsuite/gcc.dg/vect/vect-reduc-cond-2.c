@@ -1,6 +1,6 @@
 /* { dg-require-effective-target vect_int } */
 /* { dg-require-effective-target vect_condition } */
-/* { dg-additional-options "-fdump-tree-ifcvt-details" } */
+/* { dg-additional-options "-fdump-tree-phiopt1-details" } */
 
 #include <stdarg.h>
 #include "tree-vect.h"
@@ -59,4 +59,4 @@ int main (void)
 }
 
 /* { dg-final { scan-tree-dump-times "vectorized 1 loops" 1 "vect" { xfail { vect_no_int_add } } } } */
-/* { dg-final { scan-tree-dump-times "changed to factor operation out from COND_EXPR" 2 "ifcvt" } } */
+/* { dg-final { scan-tree-dump-times "changed to factor operation out from COND_EXPR" 2 "phiopt1" } } */

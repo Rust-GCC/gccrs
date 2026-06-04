@@ -5805,6 +5805,27 @@ trunc_or_exact_div_p (tree_code code)
   return code == TRUNC_DIV_EXPR || code == EXACT_DIV_EXPR;
 }
 
+/* Return true if CODE is an integer division or integer mod code. */
+inline bool
+int_divide_or_mod_p (const code_helper &code)
+{
+  switch (code.get_rep())
+    {
+    case TRUNC_DIV_EXPR:
+    case CEIL_DIV_EXPR:
+    case FLOOR_DIV_EXPR:
+    case ROUND_DIV_EXPR:
+    case EXACT_DIV_EXPR:
+    case TRUNC_MOD_EXPR:
+    case FLOOR_MOD_EXPR:
+    case CEIL_MOD_EXPR:
+    case ROUND_MOD_EXPR:
+      return true;
+    default:
+      return false;
+    }
+}
+
 /* Return nonzero if CODE is a tree code that represents a truth value.  */
 inline bool
 truth_value_p (enum tree_code code)

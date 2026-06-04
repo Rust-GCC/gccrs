@@ -27,8 +27,9 @@ bardi (long long x)
   return x > 100 ? x + 4 : x + 3;
 }
 
-/* { dg-final { scan-assembler-times "cs?inc\tw\[0-9\]*" 2 } } */
-/* { dg-final { scan-assembler-times "cs?inc\tx\[0-9\]*" 2 } } */
+/* xfailed due to PR112304. */
+/* { dg-final { scan-assembler-times "cs?inc\tw\[0-9\]*" 2 { xfail *-*-* } } } */
+/* { dg-final { scan-assembler-times "cs?inc\tx\[0-9\]*" 2 { xfail *-*-* } } } */
 
 int
 main (void)

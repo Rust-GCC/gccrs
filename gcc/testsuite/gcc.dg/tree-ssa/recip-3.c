@@ -5,6 +5,9 @@
    to optimize a sequence.  With a FP enabled ranger, we eliminate one of them
    earlier, causing the pass to skip this optimization.  */
 /* { dg-additional-options "-fno-thread-jumps -fno-tree-dominator-opts" } */
+/* PHI-OPT will factor out the `/d` from the `?:` expression which means there will
+   only be 2 `/d` left so disable that. */
+/* { dg-additional-options "-fno-ssa-phiopt" } */
 
 double F[5] = { 0.0, 0.0 }, e;
 

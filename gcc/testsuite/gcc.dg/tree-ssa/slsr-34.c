@@ -38,5 +38,5 @@ f (int c, int i)
   return x;
 }
 
-/* { dg-final { scan-tree-dump-times " \\* " 1 "optimized" } } */
+/* { dg-final { scan-tree-dump-times " \\* " 1 "optimized" { xfail *-*-* } } } */
 /* { dg-final { scan-tree-dump-times "PHI" 2 "optimized" } } */

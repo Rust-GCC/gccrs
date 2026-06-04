@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-tree-ifcvt-details" } */
+/* { dg-options "-O2 -fdump-tree-ifcvt-details -fdump-tree-phiopt-details" } */
 /* PR tree-optimization/122629 */
 
 typedef int ix4 __attribute__((vector_size(4*sizeof(int))));
@@ -33,4 +33,4 @@ int g(ix4 *a, int l, int *b, ix4 *c)
 }
 
 /* Make sure BIT_INSERT_EXPR/BIT_FIELD_REF is still factored out for the case if operand 0 is different. */
-/* { dg-final { scan-tree-dump-times "changed to factor operation out from" 2 "ifcvt" } } */
+/* { dg-final { scan-tree-dump-times "changed to factor operation out from" 2 "phiopt1" } } */

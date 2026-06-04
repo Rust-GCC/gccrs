@@ -1,4 +1,4 @@
-/* { dg-options "-O1 -funsafe-math-optimizations -fno-trapping-math -fdump-tree-recip" } */
+/* { dg-options "-O1 -funsafe-math-optimizations -fno-trapping-math -fdump-tree-recip -fno-ssa-phiopt" } */
 /* { dg-do compile } */
 
 /* Test inserting in a block that does not contain a division.  */

@@ -221,24 +221,15 @@ replace_phi_edge_with_variable (basic_block cond_block,
 	      bb->index);
 }
 
-/* Returns true if the ARG used from DEF_STMT is profitable to move
-   to a PHI node of the basic block MERGE where the new statement
+/* Returns true if the operands of arg_op defined from DEF_STMT is profitable to move
+   to the usage into the basic block MERGE where the new statement
    will be located.  */
 static bool
-is_factor_profitable (gimple *def_stmt, basic_block merge, tree arg)
+is_factor_profitable (gimple *def_stmt, basic_block merge, const gimple_match_op &arg_op)
 {
   /* The defining statement should be conditional.  */
   if (dominated_by_p (CDI_DOMINATORS, merge,
 		      gimple_bb (def_stmt)))
-    return false;
-
-  /* If the arg is invariant, then there is
-     no extending of the live range. */
-  if (is_gimple_min_invariant (arg))
-    return true;
-
-  /* Otherwise, the arg needs to be a ssa name. */
-  if (TREE_CODE (arg) != SSA_NAME)
     return false;
 
   /* We should not increase the live range of arg
@@ -257,23 +248,11 @@ is_factor_profitable (gimple *def_stmt, basic_block merge, tree arg)
   if (gsi_end_p (gsi))
     return true;
 
-  /* Check if the uses of arg is dominated by merge block, this is a quick and
-     rough estimate if arg is still alive at the merge bb.  */
-  /* FIXME: extend to a more complete live range detection.  */
-  use_operand_p use_p;
-  imm_use_iterator iter;
-  FOR_EACH_IMM_USE_FAST (use_p, iter, arg)
-    {
-      gimple *use_stmt = USE_STMT (use_p);
-      basic_block use_bb = gimple_bb (use_stmt);
-      if (dominated_by_p (CDI_DOMINATORS, merge, use_bb))
-	return true;
-    }
-
   /* If there are a few (non-call/asm) statements between
      the old defining statement and end of the bb, then
-     the live range of new arg does not increase enough.  */
+     the live range of operands will increase enough.  */
   int max_statements = param_phiopt_factor_max_stmts_live;
+  bool stmts_extending_ok = true;
 
   while (!gsi_end_p (gsi))
     {
@@ -288,11 +267,52 @@ is_factor_profitable (gimple *def_stmt, basic_block merge, tree arg)
 	}
       /* Non-assigns will extend the live range too much.  */
       if (gcode != GIMPLE_ASSIGN)
-	return false;
+	{
+	  stmts_extending_ok = false;
+	  break;
+	}
       max_statements --;
       if (max_statements == 0)
-	return false;
+	{
+	  stmts_extending_ok = false;
+	  break;
+	}
       gsi_next_nondebug (&gsi);
+  }
+  if (stmts_extending_ok)
+    return true;
+
+  /* Loop over all of the operands to see if all are used after anyways.  */
+  for (unsigned i = 0; i < arg_op.num_ops; i++)
+    {
+      tree arg = arg_op.ops[i];
+      /* If the arg is invariant, then there is
+	 no extending of the live range. */
+      if (is_gimple_min_invariant (arg))
+	continue;
+
+      /* Otherwise, the arg needs to be a ssa name. */
+      if (TREE_CODE (arg) != SSA_NAME)
+	return false;
+
+      /* Check if the uses of arg is dominated by merge block, this is a quick and
+	 rough estimate if arg is still alive at the merge bb.  */
+      /* FIXME: extend to a more complete live range detection.  */
+      use_operand_p use_p;
+      imm_use_iterator iter;
+      bool usedafter = false;
+      FOR_EACH_IMM_USE_FAST (use_p, iter, arg)
+	{
+	  gimple *use_stmt = USE_STMT (use_p);
+	  basic_block use_bb = gimple_bb (use_stmt);
+	  if (dominated_by_p (CDI_DOMINATORS, merge, use_bb))
+	    {
+	      usedafter = true;
+	      break;
+	    }
+	}
+      if (!usedafter)
+	return false;
     }
   return true;
 }
@@ -304,7 +324,8 @@ is_factor_profitable (gimple *def_stmt, basic_block merge, tree arg)
 
 static bool
 factor_out_conditional_operation (edge e0, edge e1, basic_block merge,
-				  gphi *phi, gimple *cond_stmt)
+				  gphi *phi, gimple *cond_stmt,
+				  bool early_p)
 {
   gimple *arg0_def_stmt = NULL, *arg1_def_stmt = NULL;
   tree temp, result;
@@ -358,18 +379,13 @@ factor_out_conditional_operation (edge e0, edge e1, basic_block merge,
   if (arg0_op.operands_occurs_in_abnormal_phi ())
    return false;
 
-  /* Currently just support one operand expressions. */
-  if (arg0_op.num_ops != 1)
-    return false;
-
-  tree new_arg0 = arg0_op.ops[0];
+  tree new_arg0;
   tree new_arg1;
+  int opnum = -1;
 
   /* If arg0 have > 1 use, then this transformation actually increases
      the number of expressions evaluated at runtime.  */
   if (!has_single_use (arg0))
-    return false;
-  if (!is_factor_profitable (arg0_def_stmt, merge, new_arg0))
     return false;
   if (gimple_has_location (arg0_def_stmt))
     narg0_loc = gimple_location (arg0_def_stmt);
@@ -387,14 +403,67 @@ factor_out_conditional_operation (edge e0, edge e1, basic_block merge,
       if (arg1_op.operands_occurs_in_abnormal_phi ())
 	return false;
 
+      /* For the complex expression, don't factor
+	 out, that will confuse the uninitializing
+	 warnings.  */
+      if (arg1_op.code == COMPLEX_EXPR)
+	return false;
+
       /* If arg1 have > 1 use, then this transformation actually increases
 	 the number of expressions evaluated at runtime.  */
       if (!has_single_use (arg1))
 	return false;
 
-      new_arg1 = arg1_op.ops[0];
-      if (!is_factor_profitable (arg1_def_stmt, merge, new_arg1))
+      opnum = find_different_opnum (arg0_op, arg1_op, &new_arg0, &new_arg1);
+      if (opnum == -1)
 	return false;
+
+      /* Check to make sure extending the lifetimes of all operands is ok.  */
+      if (!is_factor_profitable (arg0_def_stmt, merge, arg0_op))
+	return false;
+      if (!is_factor_profitable (arg1_def_stmt, merge, arg1_op))
+	return false;
+
+      /* If this was a division and the operand is the divisor
+	 and either divisor was a constant, don't factor out
+	 the division; dividing by an explicit constant can be
+	 expanded better than without an constant.
+	 FIXME: maybe isel could undo this case.  */
+      if (int_divide_or_mod_p (arg1_op.code)
+	  && opnum == 1
+	  && (poly_int_tree_p (new_arg0)
+	      || poly_int_tree_p (new_arg1)))
+	return false;
+
+      /* For early phiopt, don't factor out constants for pointer plus.
+	 BOS pass does not like that factoring.  */
+      if (early_p && arg1_op.code == POINTER_PLUS_EXPR
+	  && opnum == 1
+	  && TREE_CODE (new_arg0) != SSA_NAME
+	  && TREE_CODE (new_arg1) != SSA_NAME)
+	return false;
+
+      /* BIT_FIELD_REF and BIT_INSERT_EXPR can't be factored out for non-0 operands
+	 as the other operands require constants. */
+      if ((arg1_op.code == BIT_FIELD_REF
+	   || arg1_op.code == BIT_INSERT_EXPR)
+	  && opnum != 0)
+	return false;
+
+      /* It is not profitability to factor out vec_perm with
+	 constant masks (operand 2).  The target might not support it
+	 and that might be invalid to do as such. Also with constants
+	 masks, the number of elements of the mask type does not need
+	 to match the number of elements of other operands and can be
+	 arbitrary integral vector type so factoring that out can't work.
+	 Note in the case where one mask is a constant and the other is not,
+	 the check for compatible types will reject the case the
+	 constant mask has the incompatible type.  */
+      if (arg1_op.code == VEC_PERM_EXPR && opnum == 2
+	  && TREE_CODE (new_arg0) == VECTOR_CST
+	  && TREE_CODE (new_arg1) == VECTOR_CST)
+	return false;
+
       if (gimple_has_location (arg1_def_stmt))
 	narg1_loc = gimple_location (arg1_def_stmt);
 
@@ -409,17 +478,19 @@ factor_out_conditional_operation (edge e0, edge e1, basic_block merge,
 	    locus = narg0_loc;
 	}
     }
+  else if (arg0_op.num_ops != 1)
+    return false;
   else
     {
+      new_arg0 = arg0_op.ops[0];
+      opnum = 0;
       /* For constants only handle if the phi was the only one. */
       if (single_non_singleton_phi_for_edges (phi_nodes (merge), e0, e1) == NULL)
 	return false;
       /* TODO: handle more than just casts here. */
       if (!gimple_assign_cast_p (arg0_def_stmt))
 	return false;
-
-      /* arg0_def_stmt should be conditional.  */
-      if (dominated_by_p (CDI_DOMINATORS, gimple_bb (phi), gimple_bb (arg0_def_stmt)))
+      if (!is_factor_profitable (arg0_def_stmt, merge, arg0_op))
 	return false;
 
       /* If arg1 is an INTEGER_CST, fold it to new type if it fits, or else
@@ -509,7 +580,7 @@ factor_out_conditional_operation (edge e0, edge e1, basic_block merge,
   gimple_match_op new_op = arg0_op;
 
   /* Create the operation stmt if possible and insert it.  */
-  new_op.ops[0] = temp;
+  new_op.ops[opnum] = temp;
   gimple_seq seq = NULL;
   result = maybe_push_res_to_seq (&new_op, &seq, result);
 
@@ -4108,7 +4179,7 @@ pass_phiopt::execute (function *)
 	      gphi *phi = as_a <gphi *> (gsi_stmt (gsi));
 
 	      if (factor_out_conditional_operation (e1, e2, merge, phi,
-		  cond_stmt))
+		  cond_stmt, early_p))
 		{
 		  /* Start over if there was an operation that was factored out because the new phi might have another opportunity.  */
 		  phis = phi_nodes (merge);

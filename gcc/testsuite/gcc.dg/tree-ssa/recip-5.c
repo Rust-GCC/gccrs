@@ -1,4 +1,4 @@
-/* { dg-options "-O1 -funsafe-math-optimizations -ftrapping-math -fdump-tree-recip -fdump-tree-optimized" } */
+/* { dg-options "-O1 -funsafe-math-optimizations -ftrapping-math -fdump-tree-recip -fdump-tree-optimized -fno-ssa-phiopt" } */
 /* { dg-do compile } */
 /* { dg-warning "'-fassociative-math' disabled" "" { target *-*-* } 0 } */
 

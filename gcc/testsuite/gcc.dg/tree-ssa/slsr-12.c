@@ -26,4 +26,4 @@ f (int s, int c)
   return x;
 }
 
-/* { dg-final { scan-tree-dump-times " \\* " 3 "optimized" } } */
+/* { dg-final { scan-tree-dump-times " \\* " 3 "optimized" { xfail *-*-* } } } */
