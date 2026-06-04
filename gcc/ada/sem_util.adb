@@ -20168,6 +20168,10 @@ package body Sem_Util is
       Obj_Ref       : Node_Id;
       Check_Actuals : Boolean) return Boolean
    is
+      function Is_OK_Modifies_Context (Nod : Node_Id) return Boolean;
+      --  Determine whether an arbitrary node appears in the Modifies contract
+      --  as a modified object with no guard.
+
       function Is_Protected_Operation_Call (Nod : Node_Id) return Boolean;
       --  Determine whether an arbitrary node denotes a call to a protected
       --  entry, function, or procedure in prefixed form where the prefix is
@@ -20178,6 +20182,40 @@ package body Sem_Util is
 
       function Within_Volatile_Function (Id : Entity_Id) return Boolean;
       --  Determine whether an arbitrary entity appears in a volatile function
+
+      ----------------------------
+      -- Is_OK_Modifies_Context --
+      ----------------------------
+
+      function Is_OK_Modifies_Context (Nod : Node_Id) return Boolean is
+         Aggregate  : Node_Id;
+         Pragma_Arg : Node_Id;
+         Pragma_Nod : Node_Id;
+
+      begin
+         Aggregate := Parent (Nod);
+
+         if Nkind (Aggregate) = N_Aggregate
+           and then List_Containing (Nod) = Expressions (Aggregate)
+         then
+            Pragma_Arg := Parent (Aggregate);
+         else
+            return False;
+         end if;
+
+         if Nkind (Pragma_Arg) = N_Pragma_Argument_Association
+           and then Aggregate = Expression (Pragma_Arg)
+         then
+            Pragma_Nod := Parent (Pragma_Arg);
+         else
+            return False;
+         end if;
+
+         return Nkind (Pragma_Nod) = N_Pragma
+           and then List_Containing (Pragma_Arg) =
+             Pragma_Argument_Associations (Pragma_Nod)
+           and then Get_Pragma_Id (Pragma_Nod) = Pragma_Modifies;
+      end Is_OK_Modifies_Context;
 
       ---------------------------------
       -- Is_Protected_Operation_Call --
@@ -20434,6 +20472,9 @@ package body Sem_Util is
          else
             return True;
          end if;
+
+      elsif Is_OK_Modifies_Context (Obj_Ref) then
+         return True;
       else
          return False;
       end if;
