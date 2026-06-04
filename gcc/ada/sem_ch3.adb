@@ -21276,9 +21276,9 @@ package body Sem_Ch3 is
 
    procedure Preanalyze_And_Resolve_Assert_Expression (N : Node_Id) is
    begin
-      In_Assertion_Expr  := In_Assertion_Expr + 1;
+      In_Assertion_Expr := In_Assertion_Expr + 1;
       Preanalyze_And_Resolve_Spec_Expression (N);
-      In_Assertion_Expr  := In_Assertion_Expr - 1;
+      In_Assertion_Expr := In_Assertion_Expr - 1;
    end Preanalyze_And_Resolve_Assert_Expression;
 
    -----------------------------------------------
