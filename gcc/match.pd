@@ -6314,6 +6314,7 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
       && INTEGRAL_TYPE_P (TREE_TYPE (@0)))
   (cond @1 (convert @2) (convert @3))))
 
+#if GIMPLE
 /* PR123967: if (cond) A | CST1 : A & ~CST1
 
    Make both bitops unconditional: (A & ~CST1) | (cond * CST1).  */
@@ -6326,6 +6327,7 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 	&& TYPE_PRECISION (type) <= BITS_PER_WORD
 	&& wi::to_wide (@1) == ~wi::to_wide (@2))
     (bit_ior @3 (mult (convert:type @4) (convert:type @1))))))
+#endif
 
 /* Simplification moved from fold_cond_expr_with_comparison.  It may also
    be extended.  */
