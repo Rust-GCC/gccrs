@@ -66,6 +66,7 @@ extern const char *riscv_arch_help (int argc, const char **argv);
    --with-tune is ignored if -mtune or -mcpu is specified.
    --with-isa-spec is ignored if -misa-spec is specified.
    --with-tls is ignored if -mtls-dialect is specified.
+   --with-cmodel is ignored if -mcmodel is specified.
 
    Uses default values if -mcpu doesn't have a valid option.  */
 #define OPTION_DEFAULT_SPECS \
@@ -79,6 +80,7 @@ extern const char *riscv_arch_help (int argc, const char **argv);
   {"abi", "%{!mabi=*:-mabi=%(VALUE)}" },				\
   {"isa_spec", "%{!misa-spec=*:-misa-spec=%(VALUE)}" },			\
   {"tls", "%{!mtls-dialect=*:-mtls-dialect=%(VALUE)}"},         	\
+  {"cmodel", "%{!mcmodel=*:-mcmodel=%(VALUE)}" },			\
 
 #ifdef IN_LIBGCC2
 #undef TARGET_64BIT
