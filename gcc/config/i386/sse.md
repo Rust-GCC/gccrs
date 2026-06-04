@@ -1024,6 +1024,8 @@
 
 (define_mode_attr sse2
   [(V16QI "sse2") (V32QI "avx") (V64QI "avx512f")
+   (V8HI "sse2") (V16HI "avx") (V32HI "avx512f")
+   (V4SI "sse2") (V8SI "avx") (V16SI "avx512f")
    (V2DI "sse2") (V4DI "avx") (V8DI "avx512f")])
 
 (define_mode_attr sse3
@@ -2057,9 +2059,10 @@
    (set_attr "mode" "<MODE>")])
 
 (define_insn "<sse2>_movnt<mode>"
-  [(set (match_operand:VI8 0 "memory_operand" "=m")
-	(unspec:VI8 [(match_operand:VI8 1 "register_operand" "v")]
-		    UNSPEC_MOVNT))]
+  [(set (match_operand:VI_AVX_AVX512F 0 "memory_operand" "=m")
+	(unspec:VI_AVX_AVX512F
+	  [(match_operand:VI_AVX_AVX512F 1 "register_operand" "v")]
+	  UNSPEC_MOVNT))]
   "TARGET_SSE2"
   "%vmovntdq\t{%1, %0|%0, %1}"
   [(set_attr "type" "ssecvt")
@@ -2080,9 +2083,12 @@
 (define_mode_iterator STORENT_MODE
   [(DI "TARGET_SSE2 && TARGET_64BIT") (SI "TARGET_SSE2")
    (SF "TARGET_SSE4A") (DF "TARGET_SSE4A")
-   (V8DI "TARGET_AVX512F") (V4DI "TARGET_AVX") (V2DI "TARGET_SSE2")
    (V16SF "TARGET_AVX512F") (V8SF "TARGET_AVX") V4SF
-   (V8DF "TARGET_AVX512F") (V4DF "TARGET_AVX") (V2DF "TARGET_SSE2")])
+   (V8DF "TARGET_AVX512F") (V4DF "TARGET_AVX") (V2DF "TARGET_SSE2")
+   (V8DI "TARGET_AVX512F") (V4DI "TARGET_AVX") (V2DI "TARGET_SSE2")
+   (V16SI "TARGET_AVX512F") (V8SI "TARGET_AVX") (V4SI "TARGET_SSE2")
+   (V32HI "TARGET_AVX512F") (V16HI "TARGET_AVX") (V8HI "TARGET_SSE2")
+   (V64QI "TARGET_AVX512F") (V32QI "TARGET_AVX") (V16QI "TARGET_SSE2")])
 
 (define_expand "storent<mode>"
   [(set (match_operand:STORENT_MODE 0 "memory_operand")
