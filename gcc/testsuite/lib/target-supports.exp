@@ -8061,6 +8061,54 @@ proc check_effective_target_power10_ok { } {
     }
 }
 
+# Return 1 if this is a PowerPC target where the compiler supports
+# compiling with -mcpu=future (i.e., the compiler recognizes _ARCH_FUTURE),
+# return 0 otherwise.
+
+proc check_effective_target_powerpc_future_compile_ok { } {
+    return [check_no_compiler_messages_nocache powerpc_future_compile_ok assembly {
+	void test (void) {
+	    #ifndef _ARCH_FUTURE
+	      #error does not have powerpc future support.
+	    #else
+	      /* "has powerpc future support" */
+	    #endif
+	}
+    } "-mcpu=future"]
+}
+
+# Return 1 if this is a PowerPC target where the assembler supports
+# assembling future instructions with -mcpu=future (i.e., the assembler
+# can assemble the subwus instruction), return 0 otherwise.
+
+proc check_effective_target_powerpc_future_assemble_ok { } {
+    return [check_no_compiler_messages_nocache powerpc_future_assemble_ok object {
+	unsigned int a, b, c;
+	int main (void) {
+	    asm ("subwus %0,%1,%2" : "=r" (a) : "r" (b), "r" (c));
+	    return 0;
+	}
+    } "-mcpu=future"]
+}
+
+# Return 1 if the target hardware supports executing PowerPC future
+# instructions at runtime (i.e., the subwus instruction executes
+# correctly), return 0 otherwise.
+
+proc check_powerpc_future_hw_available { } {
+    return [check_cached_effective_target powerpc_future_hw_available {
+	check_runtime_nocache powerpc_future_hw_available {
+	    int main() {
+		unsigned int a = 5, b = 3, result = 0xDEADBEEF;
+		asm ("subwus %0,%1,%2" : "=r" (result) : "r" (a), "r" (b));
+		if (result == 0)
+		  return 0;
+		return 1;
+	    }
+	} "-mcpu=future"
+    }]
+}
+
 # Return 1 if this is a PowerPC target supporting -mfloat128 via either
 # software emulation on power7/power8 systems or hardware support on power9.
 
@@ -10715,6 +10763,7 @@ proc is-effective-target { arg } {
 	  "p9vector_hw"    { set selected [check_p9vector_hw_available] }
 	  "p9modulo_hw"    { set selected [check_p9modulo_hw_available] }
 	  "power10_hw"     { set selected [check_power10_hw_available] }
+	  "powerpc_future_hw" { set selected [check_powerpc_future_hw_available] }
 	  "ppc_float128_sw" { set selected [check_ppc_float128_sw_available] }
 	  "ppc_float128_hw" { set selected [check_ppc_float128_hw_available] }
 	  "ppc_recip_hw"   { set selected [check_ppc_recip_hw_available] }
@@ -10748,6 +10797,7 @@ proc is-effective-target-keyword { arg } {
 	  "p9vector_hw"    { return 1 }
 	  "p9modulo_hw"    { return 1 }
 	  "power10_hw"     { return 1 }
+	  "powerpc_future_hw" { return 1 }
 	  "ppc_float128_sw" { return 1 }
 	  "ppc_float128_hw" { return 1 }
 	  "ppc_recip_hw"   { return 1 }
