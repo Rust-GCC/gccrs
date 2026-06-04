@@ -1295,6 +1295,11 @@ package Sem_Util is
    --  has not yet been rewritten as a package declaration, and the entity has
    --  to be retrieved from the Instance_Spec of the unit.
 
+   function Get_Pool_Object_Or_Dereference (Pool : Entity_Id)
+     return Node_Or_Entity_Id;
+   --  Return the entity or dereference of which Pool is a part, if it exists.
+   --  Otherwise return Empty.
+
    function Get_Pragma_Id (N : Node_Id) return Pragma_Id;
    pragma Inline (Get_Pragma_Id);
    --  Obtains the Pragma_Id from Pragma_Name_Unmapped (N)

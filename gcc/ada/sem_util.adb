@@ -10597,6 +10597,44 @@ package body Sem_Util is
       end if;
    end Get_Enclosing_Object;
 
+   ------------------------------------
+   -- Get_Pool_Object_Or_Dereference --
+   ------------------------------------
+
+   function Get_Pool_Object_Or_Dereference (Pool : Entity_Id)
+     return Node_Or_Entity_Id
+   is
+      N : Node_Or_Entity_Id;
+
+   begin
+      if Present (Renamed_Object (Pool)) then
+         N := Renamed_Object (Pool);
+      else
+         N := Pool;
+      end if;
+
+      while Present (N) loop
+         case Nkind (N) is
+            when N_Defining_Identifier | N_Explicit_Dereference =>
+               return N;
+
+            when N_Identifier | N_Expanded_Name =>
+               return Entity (N);
+
+            when N_Indexed_Component | N_Selected_Component | N_Slice =>
+               N := Prefix (N);
+
+            when N_Type_Conversion | N_Unchecked_Type_Conversion =>
+               N := Expression (N);
+
+            when others =>
+               exit;
+         end case;
+      end loop;
+
+      return Empty;
+   end Get_Pool_Object_Or_Dereference;
+
    ---------------------------
    -- Get_Enum_Lit_From_Pos --
    ---------------------------

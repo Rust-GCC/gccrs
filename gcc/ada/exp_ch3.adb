@@ -10014,34 +10014,63 @@ package body Exp_Ch3 is
             --    Rep Clause "for Def_Id'Storage_Pool use a_Pool_Object"
             --    ---> Storage Pool is the specified one
 
-            --  When compiling in Ada 2012 mode, ensure that the accessibility
-            --  level of the subpool access type is not deeper than that of the
-            --  pool_with_subpools.
+            --  When compiling in Ada 2012 mode, apply the RM 13.11.4(24-27)
+            --  rules, which are dynamic but can be applied statically for
+            --  the most part, and therefore are only concerned with pools
+            --  that have escaped the RM 13.11.4(22-23) legality checks and
+            --  thus are not descendants of Root_Storage_Pool_With_Subpools,
+            --  but may nevertheless have a tag that identifies them as such.
 
             elsif Ada_Version >= Ada_2012
+              and then not Accessibility_Checks_Suppressed (Def_Id)
               and then Present (Associated_Storage_Pool (Def_Id))
+              and then not
+                Is_RTE (Associated_Storage_Pool (Def_Id), RE_RS_Pool)
+              and then not
+                Is_RTE (Associated_Storage_Pool (Def_Id), RE_SS_Pool)
+              and then not
+                Accessibility_Checks_Suppressed
+                  (Associated_Storage_Pool (Def_Id))
               and then RTU_Loaded (System_Storage_Pools_Subpools)
+              and then not
+                Is_Ancestor (RTE (RE_Root_Storage_Pool_With_Subpools),
+                             Etype (Associated_Storage_Pool (Def_Id)))
             then
                declare
-                  Loc   : constant Source_Ptr := Sloc (Def_Id);
-                  Pool  : constant Entity_Id :=
-                            Associated_Storage_Pool (Def_Id);
+                  ADC  : constant Node_Id :=
+                           Get_Attribute_Definition_Clause
+                             (Def_Id, Attribute_Storage_Pool);
+                  Loc  : constant Source_Ptr := Sloc (ADC);
+                  Pool : constant Entity_Id :=
+                           Associated_Storage_Pool (Def_Id);
+                  Base : constant Node_Or_Entity_Id :=
+                           Get_Pool_Object_Or_Dereference (Pool);
+
+                  Is_Part_Of_Formal : constant Boolean :=
+                    Present (Base)
+                      and then Nkind (Base) = N_Defining_Identifier
+                      and then Is_Formal (Base);
+                  --  Whether the pool denotes part of a formal parameter
+
+                  Is_Part_Of_Dereference : constant Boolean :=
+                    Present (Base)
+                      and then Nkind (Base) = N_Explicit_Dereference
+                      and then
+                        Ekind (Etype (Prefix (Base))) = E_General_Access_Type
+                      and then not
+                        Is_Library_Level_Entity (Etype (Prefix (Base)));
+                  --  Whether the pool denotes part of a dereference of a
+                  --  value of a non-library-level general access type.
 
                begin
-                  --  It is known that the accessibility level of the access
-                  --  type is deeper than that of the pool.
-
-                  if Type_Access_Level (Def_Id)
-                       > Static_Accessibility_Level (Pool, Object_Decl_Level)
-                    and then Is_Class_Wide_Type (Etype (Pool))
-                    and then not Accessibility_Checks_Suppressed (Def_Id)
-                    and then not Accessibility_Checks_Suppressed (Pool)
+                  if Is_Part_Of_Formal
+                    or else Is_Part_Of_Dereference
+                    or else
+                      Type_Access_Level (Def_Id)
+                        > Static_Accessibility_Level (Pool, Object_Decl_Level)
                   then
-                     --  When the pool is of a class-wide type, it may or may
-                     --  not support subpools depending on the path of
-                     --  derivation. Generate:
-
-                     --    if Def_Id in RSPWS'Class then
+                     --  Generate:
+                     --    if RSP'Class?(Def_Id) in RSPWS'Class then
                      --       raise Program_Error;
                      --    end if;
 
@@ -10049,7 +10078,10 @@ package body Exp_Ch3 is
                        Make_If_Statement (Loc,
                          Condition       =>
                            Make_In (Loc,
-                             Left_Opnd  => New_Occurrence_Of (Pool, Loc),
+                             Left_Opnd  =>
+                               OK_Convert_To
+                                 (Class_Wide_Type (RTE (RE_Root_Storage_Pool)),
+                                  New_Occurrence_Of (Pool, Loc)),
                              Right_Opnd =>
                                New_Occurrence_Of
                                  (Class_Wide_Type

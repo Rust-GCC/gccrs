@@ -8055,51 +8055,7 @@ package body Sem_Ch13 is
             procedure Associate_Storage_Pool
               (Ent : Entity_Id; Pool : Entity_Id)
             is
-               function Object_From (Pool : Entity_Id) return Entity_Id;
-               --  Return the entity of which Pool is a part of
-
-               -----------------
-               -- Object_From --
-               -----------------
-
-               function Object_From
-                 (Pool : Entity_Id) return Entity_Id
-               is
-                  N : Node_Id := Pool;
-               begin
-                  if Present (Renamed_Object (Pool)) then
-                     N := Renamed_Object (Pool);
-                  end if;
-
-                  while Present (N) loop
-                     case Nkind (N) is
-                        when N_Defining_Identifier =>
-                           return N;
-
-                        when N_Identifier | N_Expanded_Name =>
-                           return Entity (N);
-
-                        when N_Indexed_Component | N_Selected_Component |
-                             N_Explicit_Dereference
-                        =>
-                           N := Prefix (N);
-
-                        when N_Type_Conversion =>
-                           N := Expression (N);
-
-                        when others =>
-                           --  ??? we probably should handle more cases but
-                           --  this is good enough in practice for this check
-                           --  on a corner case.
-
-                           return Empty;
-                     end case;
-                  end loop;
-
-                  return Empty;
-               end Object_From;
-
-               Obj : Entity_Id;
+               Base : Node_Or_Entity_Id;
 
             begin
                Set_Associated_Storage_Pool (Ent, Pool);
@@ -8138,11 +8094,14 @@ package body Sem_Ch13 is
                      return;
                   end if;
 
-                  Obj := Object_From (Pool);
+                  Base := Get_Pool_Object_Or_Dereference (Pool);
 
                   --  check (C)
 
-                  if Present (Obj) and then Is_Formal (Obj) then
+                  if Present (Base)
+                    and then Nkind (Base) = N_Defining_Identifier
+                    and then Is_Formal (Base)
+                  then
                      Error_Msg_N
                        ("subpool cannot be part of a parameter", Ent);
                      return;
@@ -8150,9 +8109,12 @@ package body Sem_Ch13 is
 
                   --  check (D)
 
-                  if Present (Obj)
-                    and then Ekind (Etype (Obj)) = E_General_Access_Type
-                    and then not Is_Library_Level_Entity (Etype (Obj))
+                  if Present (Base)
+                    and then Nkind (Base) = N_Explicit_Dereference
+                    and then
+                      Ekind (Etype (Prefix (Base))) = E_General_Access_Type
+                    and then not
+                      Is_Library_Level_Entity (Etype (Prefix (Base)))
                   then
                      Error_Msg_N
                        ("subpool cannot be part of the dereference of a " &
