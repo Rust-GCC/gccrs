@@ -563,6 +563,8 @@ bitmap_tree_unlink_element (bitmap head, bitmap_element *e)
 
   if (e->prev == NULL)
     t = e->next;
+  else if (e->next == NULL)
+    t = e->prev;
   else
     {
       t = bitmap_tree_splay (head, e->prev, e->indx);
