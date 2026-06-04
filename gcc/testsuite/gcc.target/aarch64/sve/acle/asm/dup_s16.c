@@ -950,7 +950,7 @@ TEST_UNIFORM_Z (dup_0_s16_z, svint16_t,
 
 /*
 ** dup_w0_s16_z:
-**	movprfx	z0\.h, p0/z, z0\.h
+**	movi	d0, #?0
 **	mov	z0\.h, p0/m, w0
 **	ret
 */

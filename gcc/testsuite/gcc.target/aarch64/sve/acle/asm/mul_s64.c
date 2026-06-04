@@ -342,7 +342,7 @@ TEST_UNIFORM_Z (mul_1op1_s64_z_tied2, svint64_t,
 
 /*
 ** mul_1op1n_s64_z:
-**	movprfx	z0\.d, p0/z, z0\.d
+**	movi	d0, #?0
 **	mov	z0\.d, p0/m, x0
 **	ret
 */

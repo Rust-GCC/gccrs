@@ -108,7 +108,7 @@ TEST_UNIFORM_ZD (dup_s4_f32_m, svfloat32_t, float,
 
 /*
 ** dup_1_f32_z:
-**	movprfx	z0\.s, p0/z, z0\.s
+**	movi	d0, #?0
 **	fmov	z0\.s, p0/m, #1\.0(?:e\+0)?
 **	ret
 */
@@ -127,7 +127,7 @@ TEST_UNIFORM_Z (dup_0_f32_z, svfloat32_t,
 
 /*
 ** dup_8_f32_z:
-**	movprfx	z0\.s, p0/z, z0\.s
+**	movi	d0, #?0
 **	fmov	z0\.s, p0/m, #8\.0(?:e\+0)?
 **	ret
 */
@@ -147,7 +147,7 @@ TEST_UNIFORM_Z (dup_513_f32_z, svfloat32_t,
 
 /*
 ** dup_s4_f32_z:
-**	movprfx	z0\.s, p0/z, z0\.s
+**	movi	d0, #?0
 **	mov	z0\.s, p0/m, s4
 **	ret
 */

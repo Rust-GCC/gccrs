@@ -343,7 +343,7 @@ TEST_UNIFORM_Z (mul_1op1_s32_z_tied2, svint32_t,
 
 /*
 ** mul_1op1n_s32_z:
-**	movprfx	z0\.s, p0/z, z0\.s
+**	movi	d0, #?0
 **	mov	z0\.s, p0/m, w0
 **	ret
 */

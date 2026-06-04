@@ -8601,6 +8601,14 @@
 ;; For the other instructions, using the element size is more natural,
 ;; so we do that for SEL as well.
 ;;
+;; Avoid patterns that use a zeroing movprfx like:
+;;
+;; movprfx z0.s, p0/z, z0.s
+;; fmov    z0.s, p0/m, #C
+;;
+;; This creates a false dependency on z0 which can result in stalls.
+;; The zeroing will be done via a movi d0, 0 which is cheaper.
+;;
 (define_insn "*vcond_mask_<mode><vpred>"
   [(set (match_operand:SVE_ALL 0 "register_operand")
 	(unspec:SVE_ALL
@@ -8616,30 +8624,35 @@
      [ w        , vss , 0  , Upa ; *              ] mov\t%0.<Vetype>, %3/m, #%I1
      [ w        , vss , Dz , Upa ; *              ] mov\t%0.<Vetype>, %3/z, #%I1
      [ w        , Ufc , 0  , Upa ; *              ] fmov\t%0.<Vetype>, %3/m, #%1
-     [ ?w       , Ufc , Dz , Upl ; yes            ] movprfx\t%0.<Vetype>, %3/z, %0.<Vetype>\;fmov\t%0.<Vetype>, %3/m, #%1
      [ ?&w      , vss , w  , Upa ; yes            ] movprfx\t%0, %2\;mov\t%0.<Vetype>, %3/m, #%I1
      [ ?&w      , Ufc , w  , Upa ; yes            ] movprfx\t%0, %2\;fmov\t%0.<Vetype>, %3/m, #%1
   }
 )
 
-;; Optimize selects between a duplicated scalar variable and another vector,
-;; the latter of which can be a zero constant or a variable.  Treat duplicates
-;; of GPRs as being more expensive than duplicates of FPRs, since they
-;; involve a cross-file move.
+;; Optimize selects between a duplicated scalar variable and another vector.
+;; Treat duplicates of GPRs as being more expensive than duplicates of FPRs
+;; since they involve a cross-file move.
+;;
+;; Avoid patterns that use a zeroing movprfx like:
+;;
+;; movprfx z0.s, p0/z, z0.s
+;; mov     z0.s, p0/m, #C
+;;
+;; This creates a false dependency on z0 which can result in stalls.
+;; The zeroing will be done via a movi d0, 0 which is cheaper.
+;;
 (define_insn "@aarch64_sel_dup<mode>"
   [(set (match_operand:SVE_ALL 0 "register_operand")
 	(unspec:SVE_ALL
 	  [(match_operand:<VPRED> 3 "register_operand")
 	   (vec_duplicate:SVE_ALL
 	     (match_operand:<VEL> 1 "register_operand"))
-	   (match_operand:SVE_ALL 2 "aarch64_simd_reg_or_zero")]
+	   (match_operand:SVE_ALL 2 "register_operand")]
 	  UNSPEC_SEL))]
   "TARGET_SVE"
   {@ [ cons: =0 , 1 , 2  , 3   ; attrs: movprfx ]
      [ ?w       , r , 0  , Upl ; *              ] mov\t%0.<Vetype>, %3/m, %<vwcore>1
      [ w        , w , 0  , Upl ; *              ] mov\t%0.<Vetype>, %3/m, %<Vetype>1
-     [ ??w      , r , Dz , Upl ; yes            ] movprfx\t%0.<Vetype>, %3/z, %0.<Vetype>\;mov\t%0.<Vetype>, %3/m, %<vwcore>1
-     [ ?&w      , w , Dz , Upl ; yes            ] movprfx\t%0.<Vetype>, %3/z, %0.<Vetype>\;mov\t%0.<Vetype>, %3/m, %<Vetype>1
      [ ??&w     , r , w  , Upl ; yes            ] movprfx\t%0, %2\;mov\t%0.<Vetype>, %3/m, %<vwcore>1
      [ ?&w      , w , w  , Upl ; yes            ] movprfx\t%0, %2\;mov\t%0.<Vetype>, %3/m, %<Vetype>1
   }

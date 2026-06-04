@@ -15,4 +15,4 @@ foo (int32_t val)
   asm volatile ("" :: "w" (x));
 }
 
-/* { dg-final { scan-assembler {\tmovprfx\tz0\.s, p[0-7]/z, z0\.s\n\tmov\tz0\.s, p[0-7]/m, w[0-9]+\n} } } */
+/* { dg-final { scan-assembler {\tmov\tz0\.s, p[0-7]/m, w[0-9]+\n} } } */

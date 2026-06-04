@@ -918,7 +918,7 @@ TEST_UNIFORM_Z (dup_0_u64_z, svuint64_t,
 
 /*
 ** dup_x0_u64_z:
-**	movprfx	z0\.d, p0/z, z0\.d
+**	movi	d0, #?0
 **	mov	z0\.d, p0/m, x0
 **	ret
 */

@@ -151,7 +151,7 @@ TEST_UNIFORM_Z (dup_513_f16_z, svfloat16_t,
 		z0 = svdup_f16_z (p0, 513))
 /*
 ** dup_h4_f16_z:
-**	movprfx	z0\.h, p0/z, z0\.h
+**	movi	d0, #?0
 **	mov	z0\.h, p0/m, h4
 **	ret
 */

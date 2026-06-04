@@ -23,7 +23,7 @@ TEST_UNIFORM_ZD (dup_h4_bf16_m, svbfloat16_t, __bf16,
 
 /*
 ** dup_h4_bf16_z:
-**	movprfx	z0\.h, p0/z, z0\.h
+**	movi	d0, #?0
 **	mov	z0\.h, p0/m, h4
 **	ret
 */

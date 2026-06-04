@@ -284,7 +284,7 @@ TEST_UNIFORM_Z (dup_0_s8_z, svint8_t,
 
 /*
 ** dup_w0_s8_z:
-**	movprfx	z0\.b, p0/z, z0\.b
+**	movi	d0, #?0
 **	mov	z0\.b, p0/m, w0
 **	ret
 */
