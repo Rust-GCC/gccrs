@@ -1311,7 +1311,7 @@ static void
 process_bb_node_lives (ira_loop_tree_node_t loop_tree_node)
 {
   int i, freq;
-  unsigned int j;
+  unsigned int j, k;
   basic_block bb;
   rtx_insn *insn;
   bitmap_iterator bi;
@@ -1332,27 +1332,28 @@ process_bb_node_lives (ira_loop_tree_node_t loop_tree_node)
       sparseset_clear (objects_live);
       REG_SET_TO_HARD_REG_SET (hard_regs_live, reg_live_out);
       hard_regs_live &= ~(eliminable_regset | ira_no_alloc_regs);
-      for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
-	if (TEST_HARD_REG_BIT (hard_regs_live, i))
-	  {
-	    enum reg_class aclass, pclass, cl;
+      hard_reg_set_iterator hrsi;
+      k = 0;
+      EXECUTE_IF_SET_IN_HARD_REG_SET (hard_regs_live, 0, k, hrsi)
+	{
+	  enum reg_class aclass, pclass, cl;
 
-	    aclass = ira_allocno_class_translate[REGNO_REG_CLASS (i)];
-	    pclass = ira_pressure_class_translate[aclass];
-	    for (j = 0;
-		 (cl = ira_reg_class_super_classes[pclass][j])
-		   != LIM_REG_CLASSES;
-		 j++)
-	      {
-		if (! ira_reg_pressure_class_p[cl])
-		  continue;
-		curr_reg_pressure[cl]++;
-		if (curr_bb_node->reg_pressure[cl] < curr_reg_pressure[cl])
-		  curr_bb_node->reg_pressure[cl] = curr_reg_pressure[cl];
-		ira_assert (curr_reg_pressure[cl]
-			    <= ira_class_hard_regs_num[cl]);
-	      }
-	  }
+	  aclass = ira_allocno_class_translate[REGNO_REG_CLASS (k)];
+	  pclass = ira_pressure_class_translate[aclass];
+	  for (j = 0;
+	       (cl = ira_reg_class_super_classes[pclass][j])
+		 != LIM_REG_CLASSES;
+	       j++)
+	    {
+	      if (! ira_reg_pressure_class_p[cl])
+		continue;
+	      curr_reg_pressure[cl]++;
+	      if (curr_bb_node->reg_pressure[cl] < curr_reg_pressure[cl])
+		curr_bb_node->reg_pressure[cl] = curr_reg_pressure[cl];
+	      ira_assert (curr_reg_pressure[cl]
+			  <= ira_class_hard_regs_num[cl]);
+	    }
+	}
       EXECUTE_IF_SET_IN_BITMAP (reg_live_out, FIRST_PSEUDO_REGISTER, j, bi)
 	mark_pseudo_regno_live (j);
 

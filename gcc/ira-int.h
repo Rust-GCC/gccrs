@@ -1437,18 +1437,6 @@ ira_hard_reg_set_intersection_p (int hard_regno, machine_mode mode,
   return false;
 }
 
-/* Return number of hard registers in hard register SET.  */
-inline int
-hard_reg_set_size (HARD_REG_SET set)
-{
-  int i, size;
-
-  for (size = i = 0; i < FIRST_PSEUDO_REGISTER; i++)
-    if (TEST_HARD_REG_BIT (set, i))
-      size++;
-  return size;
-}
-
 /* The function returns TRUE if hard registers starting with
    HARD_REGNO and containing value of MODE are fully in set
    HARD_REGSET.  */

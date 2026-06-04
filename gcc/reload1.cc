@@ -1403,12 +1403,13 @@ maybe_fix_stack_asms (void)
 	 constraints, must be usable as reload registers.  So clear them
 	 out of the life information.  */
       allowed &= clobbered;
-      for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
-	if (TEST_HARD_REG_BIT (allowed, i))
-	  {
-	    CLEAR_REGNO_REG_SET (&chain->live_throughout, i);
-	    CLEAR_REGNO_REG_SET (&chain->dead_or_set, i);
-	  }
+      hard_reg_set_iterator hrsi;
+      unsigned int j = 0;
+      EXECUTE_IF_SET_IN_HARD_REG_SET (allowed, 0, j, hrsi)
+	{
+	  CLEAR_REGNO_REG_SET (&chain->live_throughout, j);
+	  CLEAR_REGNO_REG_SET (&chain->dead_or_set, j);
+	}
     }
 
 #endif
@@ -3919,29 +3920,29 @@ update_eliminables (HARD_REG_SET *pset)
 static bool
 update_eliminables_and_spill (void)
 {
-  int i;
+  unsigned int i;
   bool did_spill = false;
   HARD_REG_SET to_spill;
   CLEAR_HARD_REG_SET (to_spill);
   update_eliminables (&to_spill);
   used_spill_regs &= ~to_spill;
 
-  for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
-    if (TEST_HARD_REG_BIT (to_spill, i))
-      {
-	spill_hard_reg (i, 1);
-	did_spill = true;
+  hard_reg_set_iterator hrsi;
+  EXECUTE_IF_SET_IN_HARD_REG_SET (to_spill, 0, i, hrsi)
+    {
+      spill_hard_reg (i, 1);
+      did_spill = true;
 
-	/* Regardless of the state of spills, if we previously had
-	   a register that we thought we could eliminate, but now
-	   cannot eliminate, we must run another pass.
+      /* Regardless of the state of spills, if we previously had
+	 a register that we thought we could eliminate, but now
+	 cannot eliminate, we must run another pass.
 
-	   Consider pseudos which have an entry in reg_equiv_* which
-	   reference an eliminable register.  We must make another pass
-	   to update reg_equiv_* so that we do not substitute in the
-	   old value from when we thought the elimination could be
-	   performed.  */
-      }
+	 Consider pseudos which have an entry in reg_equiv_* which
+	 reference an eliminable register.  We must make another pass
+	 to update reg_equiv_* so that we do not substitute in the
+	 old value from when we thought the elimination could be
+	 performed.  */
+    }
   return did_spill;
 }
 

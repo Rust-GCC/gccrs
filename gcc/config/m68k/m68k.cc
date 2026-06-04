@@ -7118,9 +7118,9 @@ m68k_conditional_register_usage (void)
   if (!TARGET_HARD_FLOAT)
     {
       x = reg_class_contents[FP_REGS];
-      for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
-        if (TEST_HARD_REG_BIT (x, i))
-	  fixed_regs[i] = call_used_regs[i] = 1;
+      hard_reg_set_iterator hrsi;
+      EXECUTE_IF_SET_IN_HARD_REG_SET (x, 0, i, hrsi)
+	fixed_regs[i] = call_used_regs[i] = 1;
     }
   if (flag_pic)
     fixed_regs[PIC_REG] = call_used_regs[PIC_REG] = 1;
@@ -7211,37 +7211,37 @@ m68k_zero_call_used_regs (HARD_REG_SET need_zeroed_hardregs)
 {
   rtx zero_fpreg = NULL_RTX;
 
-  for (unsigned int regno = 0; regno < FIRST_PSEUDO_REGISTER; regno++)
-    if (TEST_HARD_REG_BIT (need_zeroed_hardregs, regno))
-      {
-	rtx reg, zero;
+  hard_reg_set_iterator hrsi;
+  EXECUTE_IF_SET_IN_HARD_REG_SET (need_zeroed_hardregs, 0, regno, hrsi)
+    {
+      rtx reg, zero;
 
-	if (INT_REGNO_P (regno))
-	  {
-	    reg = regno_reg_rtx[regno];
-	    zero = CONST0_RTX (SImode);
-	  }
-	else if (FP_REGNO_P (regno))
-	  {
-	    reg = gen_raw_REG (SFmode, regno);
-	    if (zero_fpreg == NULL_RTX)
-	      {
-		/* On the 040/060 clearing an FP reg loads a large
-		   immediate.  To reduce code size use the first
-		   cleared FP reg to clear remaining ones.  Don't do
-		   this on cores which use fmovecr.  */
-		zero = CONST0_RTX (SFmode);
-		if (TUNE_68040_60)
-		  zero_fpreg = reg;
-	      }
-	    else
-	      zero = zero_fpreg;
-	  }
-	else
-	  gcc_unreachable ();
+      if (INT_REGNO_P (regno))
+	{
+	  reg = regno_reg_rtx[regno];
+	  zero = CONST0_RTX (SImode);
+	}
+      else if (FP_REGNO_P (regno))
+	{
+	  reg = gen_raw_REG (SFmode, regno);
+	  if (zero_fpreg == NULL_RTX)
+	    {
+	      /* On the 040/060 clearing an FP reg loads a large
+		 immediate.  To reduce code size use the first
+		 cleared FP reg to clear remaining ones.  Don't do
+		 this on cores which use fmovecr.  */
+	      zero = CONST0_RTX (SFmode);
+	      if (TUNE_68040_60)
+		zero_fpreg = reg;
+	    }
+	  else
+	    zero = zero_fpreg;
+	}
+      else
+	gcc_unreachable ();
 
-	emit_move_insn (reg, zero);
-      }
+      emit_move_insn (reg, zero);
+    }
 
   return need_zeroed_hardregs;
 }

@@ -269,13 +269,13 @@ init_reg_sets_1 (void)
   for (i = 0; i < N_REG_CLASSES; i++)
     {
       bool any_nonfixed = false;
-      for (j = 0; j < FIRST_PSEUDO_REGISTER; j++)
-	if (TEST_HARD_REG_BIT (reg_class_contents[i], j))
-	  {
-	    reg_class_size[i]++;
-	    if (!fixed_regs[j])
-	      any_nonfixed = true;
-	  }
+      hard_reg_set_iterator hrsi;
+      EXECUTE_IF_SET_IN_HARD_REG_SET (reg_class_contents[i], 0, j, hrsi)
+	{
+	  reg_class_size[i]++;
+	  if (!fixed_regs[j])
+	    any_nonfixed = true;
+	}
       class_only_fixed_regs[i] = !any_nonfixed;
     }
 

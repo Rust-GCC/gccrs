@@ -630,17 +630,17 @@ init_rename_info (class bb_rename_info *p, basic_block bb)
 	  remove_range_from_hard_reg_set (&live_hard_regs, i, iri->nregs);
 	}
     }
-  for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
+  struct incoming_reg_info *iri;
+  unsigned int j = 0;
+  hard_reg_set_iterator hrsi;
+  EXECUTE_IF_SET_IN_HARD_REG_SET (start_chains_set, 0, j, hrsi)
     {
-      struct incoming_reg_info *iri = p->incoming + i;
-      if (TEST_HARD_REG_BIT (start_chains_set, i))
-	{
-	  du_head_p chain;
-	  if (dump_file)
-	    fprintf (dump_file, "opening incoming chain\n");
-	  chain = create_new_chain (i, iri->nregs, NULL, NULL, NO_REGS);
-	  bitmap_set_bit (&p->incoming_open_chains_set, chain->id);
-	}
+      du_head_p chain;
+      if (dump_file)
+	fprintf (dump_file, "opening incoming chain\n");
+      iri = p->incoming + j;
+      chain = create_new_chain (j, iri->nregs, NULL, NULL, NO_REGS);
+      bitmap_set_bit (&p->incoming_open_chains_set, chain->id);
     }
 }
 

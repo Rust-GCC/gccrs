@@ -1132,6 +1132,7 @@ static int
 spill_pseudos (HARD_REG_SET set, int *spilled_pseudos)
 {
   int i, n;
+  unsigned int j;
   bitmap_head to_process;
   rtx_insn *insn;
 
@@ -1140,9 +1141,10 @@ spill_pseudos (HARD_REG_SET set, int *spilled_pseudos)
   if (lra_dump_file != NULL)
     {
       fprintf (lra_dump_file, "	   Spilling non-eliminable hard regs:");
-      for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
-	if (TEST_HARD_REG_BIT (set, i))
-	  fprintf (lra_dump_file, " %d", i);
+      j = 0;
+      hard_reg_set_iterator hrsi;
+      EXECUTE_IF_SET_IN_HARD_REG_SET (set, 0, j, hrsi)
+	fprintf (lra_dump_file, " %d", j);
       fprintf (lra_dump_file, "\n");
     }
   bitmap_initialize (&to_process, &reg_obstack);

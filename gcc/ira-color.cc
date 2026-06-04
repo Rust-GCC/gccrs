@@ -349,7 +349,7 @@ create_new_allocno_hard_regs_node (allocno_hard_regs_t hv)
 	      ira_allocate (sizeof (struct allocno_hard_regs_node)));
   new_node->check = 0;
   new_node->hard_regs = hv;
-  new_node->hard_regs_num = hard_reg_set_size (hv->set);
+  new_node->hard_regs_num = hard_reg_set_popcount (hv->set);
   new_node->first = NULL;
   new_node->used_p = false;
   return new_node;

@@ -2214,8 +2214,8 @@ pdp11_conditional_register_usage (void)
   if (!TARGET_FPU)
     {
       x = reg_class_contents[FPU_REGS];
-      for (i = 0; i < FIRST_PSEUDO_REGISTER; i++ )
-       if (TEST_HARD_REG_BIT (x, i))
+      hard_reg_set_iterator hrsi;
+      EXECUTE_IF_SET_IN_HARD_REG_SET (x, 0, i, hrsi)
 	fixed_regs[i] = call_used_regs[i] = 1;
     }
 

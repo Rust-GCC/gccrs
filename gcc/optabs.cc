@@ -7686,9 +7686,9 @@ expand_asm_reg_clobber_mem_blockage (HARD_REG_SET regs)
   rtx asm_op, clob_mem;
 
   unsigned int num_of_regs = 0;
-  for (unsigned int i = 0; i < FIRST_PSEUDO_REGISTER; i++)
-    if (TEST_HARD_REG_BIT (regs, i))
-      num_of_regs++;
+  unsigned int i;
+
+  num_of_regs = hard_reg_set_popcount (regs);
 
   asm_op = gen_rtx_ASM_OPERANDS (VOIDmode, "", "", 0,
 				 rtvec_alloc (0), rtvec_alloc (0),
@@ -7707,12 +7707,13 @@ expand_asm_reg_clobber_mem_blockage (HARD_REG_SET regs)
   if (num_of_regs > 0)
     {
       unsigned int j = 2;
-      for (unsigned int i = 0; i < FIRST_PSEUDO_REGISTER; i++)
-	if (TEST_HARD_REG_BIT (regs, i))
-	  {
-	    RTVEC_ELT (v, j) = gen_rtx_CLOBBER (VOIDmode, regno_reg_rtx[i]);
- 	    j++;
-	  }
+      hard_reg_set_iterator hrsi2;
+      i = 0;
+      EXECUTE_IF_SET_IN_HARD_REG_SET (regs, 0, i, hrsi2)
+	{
+	  RTVEC_ELT (v, j) = gen_rtx_CLOBBER (VOIDmode, regno_reg_rtx[i]);
+	  j++;
+	}
       gcc_assert (j == (num_of_regs + 2));
     }
 

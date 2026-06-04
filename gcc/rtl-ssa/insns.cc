@@ -628,8 +628,10 @@ function_info::record_call_clobbers (build_info &bi, insn_info *insn,
       m_clobbered_by_calls |= abi.full_and_partial_reg_clobbers ();
     }
   else
-    for (unsigned int regno = 0; regno < FIRST_PSEUDO_REGISTER; ++regno)
-      if (TEST_HARD_REG_BIT (abi.full_reg_clobbers (), regno))
+    {
+      hard_reg_set_iterator hrsi;
+      unsigned int regno = 0;
+      EXECUTE_IF_SET_IN_HARD_REG_SET (abi.full_reg_clobbers (), 0, regno, hrsi)
 	{
 	  def_info *def = m_defs[regno + 1];
 	  if (!def || def->last_def ()->insn () != insn)
@@ -641,6 +643,7 @@ function_info::record_call_clobbers (build_info &bi, insn_info *insn,
 	      bi.record_reg_def (def);
 	    }
 	}
+    }
 }
 
 // Called while building SSA form using BI.  Record that INSN contains

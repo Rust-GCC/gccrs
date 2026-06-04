@@ -466,6 +466,7 @@ static void
 setup_class_hard_regs (void)
 {
   int cl, i, hard_regno, n;
+  unsigned int j;
   HARD_REG_SET processed_hard_reg_set;
 
   ira_assert (SHRT_MAX >= FIRST_PSEUDO_REGISTER);
@@ -497,9 +498,12 @@ setup_class_hard_regs (void)
 	    }
 	}
       ira_class_hard_regs_num[cl] = n;
-      for (n = 0, i = 0; i < FIRST_PSEUDO_REGISTER; i++)
-	if (TEST_HARD_REG_BIT (temp_hard_regset, i))
-	  ira_non_ordered_class_hard_regs[cl][n++] = i;
+      n = 0;
+      j = 0;
+      hard_reg_set_iterator hrsi;
+      EXECUTE_IF_SET_IN_HARD_REG_SET (temp_hard_regset, 0, j, hrsi)
+	ira_non_ordered_class_hard_regs[cl][n++] = j;
+
       ira_assert (ira_class_hard_regs_num[cl] == n);
     }
 }
@@ -758,7 +762,7 @@ setup_stack_reg_pressure_class (void)
       {
 	cl = ira_pressure_classes[i];
 	temp_hard_regset2 = temp_hard_regset & reg_class_contents[cl];
-	size = hard_reg_set_size (temp_hard_regset2);
+	size = hard_reg_set_popcount (temp_hard_regset2);
 	if (best < size)
 	  {
 	    best = size;
@@ -3610,10 +3614,14 @@ update_equiv_regs_prescan (void)
 	}
 
   HARD_REG_SET extra_caller_saves = callee_abis.caller_save_regs (*crtl->abi);
+
+  hard_reg_set_iterator hrsi;
+  unsigned int regno = 0;
   if (!hard_reg_set_empty_p (extra_caller_saves))
-    for (unsigned int regno = 0; regno < FIRST_PSEUDO_REGISTER; ++regno)
-      if (TEST_HARD_REG_BIT (extra_caller_saves, regno))
+    {
+      EXECUTE_IF_SET_IN_HARD_REG_SET (extra_caller_saves, 0, regno, hrsi)
 	df_set_regs_ever_live (regno, true);
+    }
 }
 
 /* Find registers that are equivalent to a single value throughout the
@@ -4387,9 +4395,9 @@ build_insn_chain (void)
   sbitmap *live_subregs = XCNEWVEC (sbitmap, max_regno);
   auto_bitmap live_subregs_used;
 
-  for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
-    if (TEST_HARD_REG_BIT (eliminable_regset, i))
-      bitmap_set_bit (elim_regset, i);
+  hard_reg_set_iterator hrsi;
+  EXECUTE_IF_SET_IN_HARD_REG_SET (eliminable_regset, 0, i, hrsi)
+    bitmap_set_bit (elim_regset, i);
   FOR_EACH_BB_REVERSE_FN (bb, cfun)
     {
       bitmap_iterator bi;
