@@ -3087,6 +3087,25 @@ variable_decl (int elem)
 	  gfc_free_array_spec (cp_as);
 	}
     }
+  else
+    {
+      /* Check to see if this is the declaration of the type and/or attributes
+	 of an implicit function result, emanating from a module function
+	 interface declared within the parent module or submodule of a
+	 containing submodule.  */
+      gfc_find_symbol (name, gfc_current_ns, 0, &sym);
+      if (gfc_current_state () == COMP_FUNCTION
+	  && sym == gfc_current_block ()
+	  && sym->attr.if_source == IFSRC_DECL
+	  && sym->attr.used_in_submodule
+	  && sym == sym->result
+	  && sym->ts.type != BT_UNKNOWN)
+	{
+	  m = MATCH_YES;
+	  goto cleanup;
+	}
+      sym = NULL;
+    }
 
   /* Procedure pointer as function result.  */
   if (gfc_current_state () == COMP_FUNCTION
