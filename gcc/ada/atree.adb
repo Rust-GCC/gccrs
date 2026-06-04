@@ -1246,6 +1246,8 @@ package body Atree is
       if New_Kind in N_Subexpr then
          Set_Paren_Count (N, Par_Count);
       end if;
+
+      New_Node_Debugging_Output (N);
    end Change_Node;
 
    ------------------------
