@@ -11394,34 +11394,116 @@ parser_intrinsic_call_1( cbl_field_t *tgt,
 
 static bool
 handle_gg_trim(cbl_field_t *tgt,
-               const char function_name[],
-         const cbl_refer_t& ref1,
-         const cbl_refer_t& ref2 )
+               const cbl_refer_t& input,
+               size_t how,
+               const std::vector<cbl_refer_t>& args )
   {
   bool handled = false;
-  if( strcmp(function_name, "__gg__trim") == 0 )
+  charmap_t *charmap = __gg__get_charmap(input.field->codeset.encoding);
     {
-    charmap_t *charmap = __gg__get_charmap(ref1.field->codeset.encoding);
-    if(charmap->stride() == 1)
+    if(charmap->stride() == 1 && !charmap->is_like_utf8() )
       {
-      uint8_t space = charmap->mapped_character(ascii_space);
-      int how = atoi(ref2.field->data.original());
-      if( how == 0 )
+      size_t array_size = args.size();
+      tree charstype = build_array_type_nelts(UCHAR, array_size);
+      tree chars     = gg_define_variable( charstype,
+                                           NULL,
+                                           vs_stack);
+      TREE_ADDRESSABLE (chars) = 1;
+      tree char_p    = gg_define_variable(UCHAR_P);
+      gg_assign(char_p, gg_pointer_to_array (chars));
+
+      for(const auto& arg : args)
         {
-        how = 3;
+        cbl_figconst_t figconst = static_cast<cbl_figconst_t>
+                                            (arg.field->attr & FIGCONST_MASK);
+        if( figconst )
+          {
+          cbl_char_t figcst = charmap->figconst_character(figconst);
+          tree tfigcst = build_int_cst_type(UCHAR, figcst);
+          gg_assign(gg_indirect(char_p), tfigcst);
+          }
+        else
+          {
+          tree location;
+          get_location(location, arg);
+          gg_assign(gg_indirect(char_p), gg_indirect(location));
+          }
+        gg_increment(char_p);
         }
+
       gg_call(VOID,
               "__gg__trim_1",
               gg_get_address_of(tgt->var_decl_node),
-              gg_get_address_of(ref1.field->var_decl_node),
-              refer_offset(ref1),
-              refer_size_source(ref1),
-              build_int_cst_type(INT, (space<<8) + how),
+              gg_get_address_of(input.field->var_decl_node),
+              refer_offset(input),
+              refer_size_source(input),
+              gg_pointer_to_array(chars),
+              build_int_cst_type(INT, (args.size()<<8) + how),
               NULL_TREE);
       handled = true;
       }
     }
   return handled;
+  }
+
+void
+parser_trim( cbl_field_t *tgt,
+             const cbl_refer_t& input,
+             size_t how,
+             const std::vector<cbl_refer_t>& args )
+  {
+  RETURN_IF_PARSE_ONLY;
+  gcc_assert(how >= 1 && how <= 3);
+  if( !handle_gg_trim(tgt, input, how, args) )
+    {
+    cbl_encoding_t encoding = input.field->codeset.encoding;
+    charmap_t *charmap = __gg__get_charmap(encoding);
+    int stride = charmap->stride();
+    tree tstride = build_int_cst_type(SIZE_T, stride);
+
+    size_t array_size = args.size() * stride;
+    tree charstype = build_array_type_nelts(CHAR, array_size);
+    tree chars     = gg_define_variable( charstype,
+                                         NULL,
+                                         vs_stack);
+    TREE_ADDRESSABLE (chars) = 1;
+    tree char_p    = gg_define_variable(CHAR_P);
+    gg_assign(char_p, gg_pointer_to_array (chars));
+
+    for(const auto& arg : args)
+      {
+      cbl_figconst_t figconst = static_cast<cbl_figconst_t>
+                                          (arg.field->attr & FIGCONST_MASK);
+      if( figconst )
+        {
+        cbl_char_t figcst = charmap->figconst_character(figconst);
+        tree tfigcst = build_int_cst_type(ULONG, figcst);
+
+        gg_memcpy(char_p,
+                  gg_get_address_of(tfigcst),
+                  tstride );
+        }
+      else
+        {
+        tree location;
+        get_location(location, arg);
+        gg_memcpy(char_p,
+                  location,
+                  tstride);
+        }
+      gg_assign(char_p, gg_add(char_p, tstride));
+      }
+    gg_call(VOID,
+            "__gg__trim_a",
+            gg_get_address_of(tgt->var_decl_node),
+            gg_get_address_of(input.field->var_decl_node),
+            refer_offset(input),
+            refer_size_source(input),
+            gg_pointer_to_array (chars),
+            build_int_cst_type(SIZE_T, array_size),
+            build_int_cst_type(INT, how),
+            NULL_TREE);
+    }
   }
 
 void
@@ -11451,24 +11533,18 @@ parser_intrinsic_call_2( cbl_field_t *tgt,
     }
   store_location_stuff(function_name);
 
-  if( handle_gg_trim(tgt, function_name, ref1, ref2) )
-    {
-    // The specialty routine did the job
-    }
-  else
-    {
-    gg_call(VOID,
-            function_name,
-            gg_get_address_of(tgt->var_decl_node),
-            gg_get_address_of(ref1.field->var_decl_node),
-            refer_offset(ref1),
-            refer_size_source(ref1),
-            ref2.field ? gg_get_address_of(ref2.field->var_decl_node)
-                       : null_pointer_node,
-            refer_offset(ref2),
-            refer_size_source(ref2),
-            NULL_TREE);
-    }
+  gg_call(VOID,
+          function_name,
+          gg_get_address_of(tgt->var_decl_node),
+          gg_get_address_of(ref1.field->var_decl_node),
+          refer_offset(ref1),
+          refer_size_source(ref1),
+          ref2.field ? gg_get_address_of(ref2.field->var_decl_node)
+                     : null_pointer_node,
+          refer_offset(ref2),
+          refer_size_source(ref2),
+          NULL_TREE);
+
   TRACE1
     {
     TRACE1_INDENT

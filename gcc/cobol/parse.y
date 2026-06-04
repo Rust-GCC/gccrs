@@ -749,7 +749,7 @@ class locale_tgt_t {
 			perform_inline perform_except
 
 %type   <refer>         eval_subject1
-%type   <vargs>         vargs disp_vargs
+%type   <vargs>         vargs disp_vargs trim_expr
 %type   <field>         level_name
 %type   <number>        fd_name
 %type   <string>        picture_sym name66 paragraph_name
@@ -783,7 +783,7 @@ class locale_tgt_t {
 %type   <refer>         move_tgt selected_name read_key read_into vary_by
 %type   <refer>         num_operand envar search_expr any_arg
 %type   <accept_func>	accept_body
-%type   <refers>        subscript_exprs subscripts arg_list free_tgts
+%type   <refers>        subscript_exprs subscripts arg_list free_tgts 
 %type   <targets>       move_tgts set_tgts
 %type   <field>         search_varying
 %type   <field>         search_term search_terms
@@ -820,8 +820,8 @@ class locale_tgt_t {
 %type   <number>        intrinsic_v intrinsic_I intrinsic_N intrinsic_X
 %type   <number>        intrinsic_I2 intrinsic_N2 intrinsic_X2
 %type   <number>        lopper_case 
-%type   <number>        return_body return_file
-%type   <field>         trim_trailing function_udf
+%type   <number>        return_body return_file trim_trailing 
+%type   <field>         function_udf
 
 %type   <refer>         str_input str_size
 %type   <refer2>        str_into
@@ -11469,7 +11469,11 @@ intrinsic:      function_udf
                   error_msg(@error, "invalid TRIM argument");
                   YYERROR;
                 }
-        |       TRIM '(' expr[r1] trim_trailing ')'
+                /*
+                 * TRIM (arg-1 arg-2a arg-2b) is the same as 
+                 * TRIM (TRIM (arg-1 arg-2a) arg-2b).
+                 */
+        |       TRIM '(' expr[r1] trim_trailing[how] trim_expr[args2] ')'
                 {
                   location_set(@1);
                    switch( $r1->field->type ) {
@@ -11482,6 +11486,8 @@ intrinsic:      function_udf
                    default:
                      // BLANK WHEN ZERO implies numeric-edited, so OK
                      if( $r1->field->has_attr(blank_zero_e) ) {
+                       dbgmsg("logic error: must be numeric-edited");
+                       gcc_unreachable();
                        break;
                      }
                      error_msg(@r1, "TRIM argument must be alphanumeric");
@@ -11489,9 +11495,10 @@ intrinsic:      function_udf
                      break;
                   }
                   $$ = new_alphanumeric("TRIM", $r1->field->codeset.encoding);
-                  cbl_refer_t * how = new_reference($trim_trailing);
-                  if( ! intrinsic_call_2($$, TRIM, $r1, how) ) YYERROR;
-                }
+                  std::vector<cbl_refer_t> args($args2->args.begin(),
+                                                $args2->args.end());
+                  parser_trim($$, *$r1, $how, args);
+                }  
 
         |       USUBSTR '(' alpha_val[r1] expr[r2] expr[r3]  ')' {
                   location_set(@1);
@@ -11811,10 +11818,36 @@ lopper_case:    LOWER_CASE      { $$ = LOWER_CASE; }
         |       UPPER_CASE      { $$ = UPPER_CASE; }
                 ;
 
-trim_trailing:  %empty          { $$ = new_constant("0"); }  // Remove both
-        |       LEADING         { $$ = new_constant("1"); }  // Remove leading  spaces
-        |       TRAILING        { $$ = new_constant("2"); }  // Remove trailing spaces
+trim_trailing:  %empty          { $$ = 3; }  // Remove both
+        |       LEADING         { $$ = 1; }  // Remove leading  spaces
+        |       TRAILING        { $$ = 2; }  // Remove trailing spaces
         ;
+
+trim_expr:      %empty {
+                  cbl_field_t *space = constant_of(constant_index(SPACES));
+                  $$ = new vargs_t( new_reference(space) );
+                }
+        |       vargs {
+                  $$ = new vargs_t;
+                  std::copy_if( $vargs->args.begin(),
+                                $vargs->args.end(),
+                                std::back_inserter($$->args), 
+                                []( const auto& arg ) {
+                     bool is_alpha =
+                       arg.field->type == FldAlphanumeric ||
+                       arg.field->type == FldLiteralA;
+                    if( arg.addr_of || ! is_alpha ) {
+                      error_msg(arg.loc, "invalid TRIM character");
+                      return false;
+                    }
+                    if( arg.field->char_capacity() != 1 ) {
+                      error_msg(arg.loc, "TRIM argument may be only 1 character");
+                      return false;
+                    }
+                    return true;
+                  } );
+                }
+                ;
 
 intrinsic0:     CURRENT_DATE {
                   location_set(@1);

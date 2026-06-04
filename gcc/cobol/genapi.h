@@ -618,4 +618,7 @@ void parser_statement_end( const std::list<cbl_field_t*>& );
 tree parser_compile_ecs( const std::vector<uint64_t>& ecs );
 tree parser_compile_dcls( const std::vector<uint64_t>& dcls );
 
+void parser_trim( cbl_field_t *tgt, const cbl_refer_t& input,
+                  size_t how, const std::vector<cbl_refer_t>& args );
+
 #endif

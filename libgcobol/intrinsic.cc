@@ -1607,7 +1607,7 @@ __gg__formatted_date(cblc_field_t *dest, // Destination string
                      size_t arg1_offset,
                      size_t arg1_size,
                const cblc_field_t *arg2, // integer date
-                     size_t arg2_offset,  
+                     size_t arg2_offset,
                      size_t arg2_size)
   {
   // FUNCTION FORMATTED-DATE
@@ -2117,7 +2117,7 @@ change_case( cblc_field_t *dest,
                                            &converted_bytes);
   // Make a copy of it to prevent the static nature of iconverter from causing
   // trouble:
-  cbl_char_t *duped = 
+  cbl_char_t *duped =
           static_cast<cbl_char_t *>(__gg__memdup(converted, converted_bytes));
   cbl_char_t *pend = duped + converted_bytes / width_of_utf32;
 
@@ -3509,78 +3509,131 @@ __gg__rem(cblc_field_t *dest,
 
 extern "C"
 void
-__gg__trim( cblc_field_t *dest,
-      const cblc_field_t *arg1,
-            size_t        arg1_offset,
-            size_t        arg1_size,
-      const cblc_field_t *arg2,
-            size_t        arg2_offset,
-            size_t        arg2_size)
+__gg__trim_1( cblc_field_t *dest,
+        const cblc_field_t *src,
+              size_t        src_offset,
+              size_t        src_size,
+              unsigned char *chars,
+              int           count_how ) // (args.size()<<8) + how),
   {
-  // We assume that dest is an intermediate_e with the same encoding as arg1.
-  assert(     dest->type == FldAlphanumeric 
-          && (dest->attr & intermediate_e)
-          &&  dest->encoding == arg1->encoding );
-  charmap_t *charmap = __gg__get_charmap(arg1->encoding);
-  int stride = charmap->stride();
-  cbl_char_t mapped_space = charmap->mapped_character(ascii_space);
+  /* This routine is called for ASCII/EBCDIC single-byte-code values. Since
+     we know that, we can use the fast std::find_if() routine.  */
 
-  int rdigits;
-  __int128 type = __gg__binary_value_from_qualified_field(&rdigits,
-                                                          arg2,
-                                                          arg2_offset,
-                                                          arg2_size);
   #define LEADING  1  // Remove leading  spaces
   #define TRAILING 2  // Remove trailing spaces
 
-  char *left  = reinterpret_cast<char *>(arg1->data) + arg1_offset;
-  char *right = left + arg1_size-stride; // Points AT the character, not beyond
-  switch(type)
+  const uint8_t *left  = src->data + src_offset;    // Leftmost  character
+  const uint8_t *right = left      + src_size;      // One past the end
+
+  int count = count_how >> 8;
+  for(int i=0; i<count; i++)
     {
-    case 0: // Strip off leading and trailing spaces
-      while(left <= right)
-        {
-        if( charmap->getch(left, (size_t)0) != mapped_space )
-          {
-          break;
-          }
-        left += stride;
-        }
-      while(left <= right)
-        {
-        if( charmap->getch(right, (size_t)0) != mapped_space )
-          {
-          break;
-          }
-        right -= stride;
-        }
-      break;
-    
-    case LEADING: // Just leading
+    uint8_t trimch = chars[i];
+
+    if ((count_how & LEADING) && left < right)
       {
-      while(left <= right)
-        {
-        if( charmap->getch(left,  (size_t)0) != mapped_space )
-          {
-          break;
-          }
-        left += stride;
-        }
-      break;
+      left = std::find_if(left,
+                          right,
+                          [trimch](uint8_t c){return c != trimch;});
       }
 
-    case TRAILING: // Just trailing
+    if( (count_how & TRAILING) && left < right)
       {
-      while(left <= right)
-        {
-        if( charmap->getch(right,  (size_t)0) != mapped_space )
-          {
-          break;
-          }
-        right -= stride;
-        }
-      break;
+      right = std::find_if(
+          std::make_reverse_iterator(right),
+          std::make_reverse_iterator(left),
+          [trimch](uint8_t c) {return c != trimch;}
+      ).base();
       }
+    }
+
+  size_t bytes_converted = right - left;
+  __gg__adjust_dest_size(dest, bytes_converted);
+
+  memcpy(dest->data,
+         left,
+         bytes_converted);
+
+  return;
+  }
+
+extern "C"
+void
+__gg__trim_a( cblc_field_t *dest,
+      const cblc_field_t *arg1,        // This is the string to be trimmed
+            size_t        arg1_offset,
+            size_t        arg1_size,
+            char         *arg2,        // This is the string of characters
+            size_t        arg2_size,   // to be removed
+            int type)
+  {
+  #define LEADING  1  // Remove leading  characters
+  #define TRAILING 2  // Remove trailing trailing characters
+
+  // We assume that dest is an intermediate_e with the same encoding as arg1.
+  assert(     dest->type == FldAlphanumeric
+          && (dest->attr & intermediate_e)
+          &&  dest->encoding == arg1->encoding );
+  const charmap_t *charmap = __gg__get_charmap(arg1->encoding);
+  int stride = charmap->stride();
+
+  char *strippers = arg2;
+  const char *strip_end = arg2 + arg2_size;
+  char *left  = reinterpret_cast<char *>(arg1->data) + arg1_offset;
+  char *right = left + arg1_size-stride; // Points AT the character, not beyond
+
+  while( strippers < strip_end )
+    {
+    cbl_char_t stripper = charmap->getch(strippers, (size_t)0);
+
+    switch(type)
+      {
+      case 3: // Strip off leading and trailing spaces
+        while(left <= right)
+          {
+          if( charmap->getch(left, (size_t)0) != stripper )
+            {
+            break;
+            }
+          left += stride;
+          }
+        while(left <= right)
+          {
+          if( charmap->getch(right, (size_t)0) != stripper )
+            {
+            break;
+            }
+          right -= stride;
+          }
+        break;
+
+      case LEADING: // Just leading
+        {
+        while(left <= right)
+          {
+          if( charmap->getch(left,  (size_t)0) != stripper )
+            {
+            break;
+            }
+          left += stride;
+          }
+        break;
+        }
+
+      case TRAILING: // Just trailing
+        {
+        while(left <= right)
+          {
+          if( charmap->getch(right,  (size_t)0) != stripper )
+            {
+            break;
+            }
+          right -= stride;
+          }
+        break;
+        }
+      }
+    strippers += stride;
     }
   size_t ncount = right+stride - left;
   __gg__adjust_dest_size(dest, ncount);
@@ -5353,7 +5406,7 @@ ismatch(const char *a1, const char *a2, const char *b1, const char *b2)
   }
 
 static bool
-iscasematch(const char *a1, const char *a2, 
+iscasematch(const char *a1, const char *a2,
             const char *b1, const char *b2,
             bool is_ebcdic)
   {
@@ -5840,56 +5893,4 @@ __gg__locale_time_from_seconds( cblc_field_t *dest,
   free(converted);
   }
 
-
-extern "C"
-void
-__gg__trim_1( cblc_field_t *dest,
-        const cblc_field_t *src,
-              size_t        src_offset,
-              size_t        src_size,
-              int           space_how ) // (space<<8) + how
-  {
-  // This is the no-holds-barred, do-it-as-fast-as-possible, TRIM routine. It
-  // gets called only when the stride is 1.  Spaces is eight bytes of the
-  // character to be trimmed away, usually 0x2020202020202020 because we are
-  // usually working in ASCII.  'how' indicates LEADING and TRAILING.
-
-  #define LEADING  1  // Remove leading  spaces
-  #define TRAILING 2  // Remove trailing spaces
-
-  const uint8_t *left  = src->data + src_offset;    // Leftmost  character
-  const uint8_t *right = left      + src_size;      // One past the end
-
-  uint8_t space = space_how >> 8;
-
-  if ((space_how & LEADING) && left < right)
-    {
-    left = std::find_if(left, right, [space](uint8_t c)
-      {
-          return c != space;
-      });
-    }
-
-  if( (space_how & TRAILING) && left < right)
-    {
-    right = std::find_if(
-        std::make_reverse_iterator(right),
-        std::make_reverse_iterator(left),
-        [space](uint8_t c) { return c != space; }
-    ).base();
-    }
-
-  size_t bytes_converted = right - left;
-  __gg__adjust_dest_size(dest, bytes_converted);
-
-#if 0
-  __gg__field_from_string(dest, 0, dest->capacity, reinterpret_cast<const char *>(left), bytes_converted);
-#else
-  memcpy(dest->data,
-         left,
-         bytes_converted);
-#endif
-
-  return;
-  }
 
