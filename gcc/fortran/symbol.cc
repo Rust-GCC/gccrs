@@ -2224,6 +2224,8 @@ gfc_copy_attr (symbol_attribute *dest, symbol_attribute *src, locus *where)
     goto fail;
   if (src->recursive && !gfc_add_recursive (dest, where))
     goto fail;
+  if (src->always_explicit)
+    dest->always_explicit = 1;
 
   if (src->flavor != FL_UNKNOWN
       && !gfc_add_flavor (dest, src->flavor, NULL, where))
