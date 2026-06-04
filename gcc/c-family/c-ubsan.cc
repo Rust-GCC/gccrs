@@ -667,7 +667,8 @@ get_factors_from_mul_expr (tree mult_expr, tree parent,
 
 static tree
 get_index_from_offset (tree offset, tree *index_p,
-		       int *index_n, tree element_size)
+		       int *index_n, tree *factor,
+		       tree element_size)
 {
   if (TREE_CODE (offset) != MULT_EXPR
       && TREE_CODE (offset) != INTEGER_CST)
@@ -679,8 +680,11 @@ get_index_from_offset (tree offset, tree *index_p,
 
   if (TREE_CODE (offset) == INTEGER_CST
       && TREE_CODE (element_size) == INTEGER_CST)
-    return fold_build2 (EXACT_DIV_EXPR, TREE_TYPE (offset),
-			offset, element_size);
+    {
+      *factor = element_size;
+      return fold_build2 (EXACT_DIV_EXPR, TREE_TYPE (offset),
+			  offset, element_size);
+    }
 
   auto_vec<factor_t> e_factors, o_factors;
   get_factors_from_mul_expr (element_size, NULL, -1, &e_factors);
@@ -730,7 +734,8 @@ get_index_from_offset (tree offset, tree *index_p,
    If failed, return NULL_TREE.  */
 
 static tree
-get_index_from_pointer_addr_expr (tree pointer, tree *index_p, int *index_n)
+get_index_from_pointer_addr_expr (tree pointer, tree *index_p,
+				  int *index_n, tree *factor)
 {
   *index_p = NULL_TREE;
   *index_n = -1;
@@ -761,7 +766,7 @@ get_index_from_pointer_addr_expr (tree pointer, tree *index_p, int *index_n)
 	  index_exp = TREE_OPERAND (index_exp, 0);
 	}
       index_exp = get_index_from_offset (index_exp, index_p,
-					 index_n, pointee_size);
+					 index_n, factor, pointee_size);
 
       if (!index_exp)
 	return NULL_TREE;
@@ -791,7 +796,7 @@ get_index_from_pointer_addr_expr (tree pointer, tree *index_p, int *index_n)
 static bool
 is_instrumentable_pointer_array_address (tree expr, tree *base,
 					 tree *index, tree *index_p,
-					 int *index_n)
+					 int *index_n, tree *factor)
 {
   /* For a pointer array address as:
 	.ACCESS_WITH_SIZE (p->c, &p->b, 1, 0, -1, 0B)
@@ -804,7 +809,7 @@ is_instrumentable_pointer_array_address (tree expr, tree *base,
   tree op0 = TREE_OPERAND (expr, 0);
   if (!is_access_with_size_p (op0))
     return false;
-  tree op1 = get_index_from_pointer_addr_expr (expr, index_p, index_n);
+  tree op1 = get_index_from_pointer_addr_expr (expr, index_p, index_n, factor);
   if (op1 != NULL_TREE)
     {
       *base = op0;
@@ -828,23 +833,22 @@ ubsan_array_ref_instrumented_p (tree t)
   tree op0 = NULL_TREE;
   tree op1 = NULL_TREE;
   tree index_p = NULL_TREE;
+  tree factor = NULL_TREE;
   int index_n = 0;
-  if (is_array)
-    {
-      op1 = TREE_OPERAND (t, 1);
-      return TREE_CODE (op1) == COMPOUND_EXPR
-	     && TREE_CODE (TREE_OPERAND (op1, 0)) == CALL_EXPR
-	     && CALL_EXPR_FN (TREE_OPERAND (op1, 0)) == NULL_TREE
-	     && CALL_EXPR_IFN (TREE_OPERAND (op1, 0)) == IFN_UBSAN_BOUNDS;
-    }
-  else if (is_instrumentable_pointer_array_address (t, &op0, &op1,
-						    &index_p, &index_n))
-    return TREE_CODE (op1) == COMPOUND_EXPR
-	   && TREE_CODE (TREE_OPERAND (op1, 0)) == CALL_EXPR
-	   && CALL_EXPR_FN (TREE_OPERAND (op1, 0)) == NULL_TREE
-	   && CALL_EXPR_IFN (TREE_OPERAND (op1, 0)) == IFN_UBSAN_BOUNDS;
 
-  return false;
+  if (is_array)
+    op1 = TREE_OPERAND (t, 1);
+  else if (is_instrumentable_pointer_array_address (t, &op0, &op1,
+						    &index_p, &index_n,
+						    &factor))
+    {
+    }
+
+  return op1 != NULL_TREE
+	 && TREE_CODE (op1) == COMPOUND_EXPR
+	 && TREE_CODE (TREE_OPERAND (op1, 0)) == CALL_EXPR
+	 && CALL_EXPR_FN (TREE_OPERAND (op1, 0)) == NULL_TREE
+	 && CALL_EXPR_IFN (TREE_OPERAND (op1, 0)) == IFN_UBSAN_BOUNDS;
 }
 
 /* Instrument an ARRAY_REF or an address computation whose base address is
@@ -855,10 +859,10 @@ ubsan_array_ref_instrumented_p (tree t)
 void
 ubsan_maybe_instrument_array_ref (tree *expr_p, bool ignore_off_by_one)
 {
-  tree e = NULL_TREE;
   tree op0 = NULL_TREE;
   tree op1 = NULL_TREE;
   tree index_p = NULL_TREE;  /* the parent tree of INDEX.  */
+  tree factor = NULL_TREE;
   int index_n = 0;  /* the operand position of INDEX in the parent tree.  */
 
   if (!ubsan_array_ref_instrumented_p (*expr_p)
@@ -869,21 +873,32 @@ ubsan_maybe_instrument_array_ref (tree *expr_p, bool ignore_off_by_one)
 	{
 	  op0 = TREE_OPERAND (*expr_p, 0);
 	  op1 = TREE_OPERAND (*expr_p, 1);
-	  index_p = *expr_p;
-	  index_n = 1;
-	  e = ubsan_instrument_bounds (EXPR_LOCATION (*expr_p), op0,
-				       &op1, ignore_off_by_one);
+	  tree e = ubsan_instrument_bounds (EXPR_LOCATION (*expr_p), op0,
+					    &op1, ignore_off_by_one);
+	  /* Replace the original INDEX with the instrumented INDEX.  */
+	  if (e != NULL_TREE)
+	    TREE_OPERAND (*expr_p, 1)
+	      = build2 (COMPOUND_EXPR, TREE_TYPE (op1), e, op1);
 	}
       else if (is_instrumentable_pointer_array_address (*expr_p, &op0, &op1,
-							&index_p, &index_n))
-	e = ubsan_instrument_bounds_pointer_address (EXPR_LOCATION (*expr_p),
-						     op0, &op1,
-						     ignore_off_by_one);
+							&index_p, &index_n,
+							&factor))
+	{
+	  tree e
+	    = ubsan_instrument_bounds_pointer_address (EXPR_LOCATION (*expr_p),
+						       op0, &op1,
+						       ignore_off_by_one);
+	   /* Replace the original INDEX with the instrumented INDEX.  */
+	  if (e != NULL_TREE)
+	    {
+	      /* If we had to remove a constant factor, add it back.  */
+	      if (factor != NULL_TREE)
+		op1 = fold_build2 (MULT_EXPR, TREE_TYPE (op1), op1, factor);
 
-      /* Replace the original INDEX with the instrumented INDEX.  */
-      if (e != NULL_TREE)
-	TREE_OPERAND (index_p, index_n)
-	  = build2 (COMPOUND_EXPR, TREE_TYPE (op1), e, op1);
+	      TREE_OPERAND (index_p, index_n)
+		= build2 (COMPOUND_EXPR, TREE_TYPE (op1), e, op1);
+	    }
+	}
     }
 }
 

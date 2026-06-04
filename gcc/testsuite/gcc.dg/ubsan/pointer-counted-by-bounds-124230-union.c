@@ -32,12 +32,12 @@ void __attribute__((__noinline__)) setup (int annotated_count)
 {
   p_array_annotated
     = (struct annotated *) malloc (sizeof (struct annotated));
-  p_array_annotated->c = (PTR_TYPE *) malloc (annotated_count * sizeof (PTR_TYPE));
+  p_array_annotated->c = (PTR_TYPE *) malloc ((annotated_count + 2) * sizeof (PTR_TYPE));
   p_array_annotated->b = annotated_count;
 
   p_array_nested_annotated
     = (struct nested_annotated *) malloc (sizeof (struct nested_annotated));
-  p_array_nested_annotated->c = (PTR_TYPE *) malloc (sizeof (PTR_TYPE) * annotated_count);
+  p_array_nested_annotated->c = (PTR_TYPE *) malloc (sizeof (PTR_TYPE) * (annotated_count + 2));
   p_array_nested_annotated->b = annotated_count;
 
   return;
