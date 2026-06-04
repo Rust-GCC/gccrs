@@ -26,12 +26,12 @@ library project Libgnat is
       for Switches ("C") use Libgnat_Common.C_Flags;
       for Switches ("Ada") use Libgnat_Common.Ada_Flags;
 
-      for Switches ("s-traceb.adb") use
+      for Switches ("?-traceb.adb") use
         Libgnat_Common.Ada_Flags & Libgnat_Common.Force_Debug &
         Libgnat_Common.No_Inline & Libgnat_Common.No_Sibling;
-      --  Force no sibling call optimization on s-traceb.o so the number of
-      --  stack frames to be skipped when computing a call chain is not
-      --  modified by optimization. We don.t want inlining, either.
+      --  Prevent inlining and sibling call optimization on s-traceb.o and
+      --  g-traceb.o so the number of stack frames to be skipped when computing
+      --  a call chain is not modified by optimization.
 
       for Switches ("a-except.adb") use
         Libgnat_Common.Ada_Flags & ("-O1") &

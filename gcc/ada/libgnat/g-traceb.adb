@@ -31,6 +31,9 @@
 
 --  Run-time non-symbolic traceback support
 
+--  As for System.Traceback, inlining and sibling call optimizations
+--  must be prevented within this unit.
+
 with System.Traceback;
 
 package body GNAT.Traceback is
@@ -44,7 +47,9 @@ package body GNAT.Traceback is
       Len       : out Natural)
    is
    begin
-      System.Traceback.Call_Chain (Traceback, Traceback'Length, Len);
+      --  Request skipping this frame + that of our callee
+      System.Traceback.Call_Chain
+        (Traceback, Traceback'Length, Len, Skip_Frames => 2);
    end Call_Chain;
 
    function Call_Chain

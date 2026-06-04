@@ -201,8 +201,8 @@ __gnat_backtrace (void **array,
    o FRAME_OFFSET, the offset, from a given frame address or frame pointer
      value, at which this layout will be found,
 
-   o FRAME_LEVEL, controls how many frames up we get at to start with,
-     from the initial frame pointer we compute by way of the GCC builtin,
+   o FRAME_LEVEL, control how many stack frames up we start from, in
+     builtin_frame_address terms.
 
      0 is most often the appropriate value. 1 may be necessary on targets
      where return addresses are saved by a function in it's caller's frame
@@ -237,19 +237,18 @@ __gnat_backtrace (void **array,
 		         |                |
 		         +----------------+
 
-   o BASE_SKIP,
+   o BASE_SKIP represents the initial shift incurred by the initial
+     FRAME_LEVEL + the fact that what we find on the stack are return
+     addresses. One way to see it is: starting from
 
-   Since we inherently deal with return addresses, there is an implicit shift
-   by at least one for the initial point we are able to observe in the chain.
+       ptr = (struct layout *)__builtin_frame_address(FRAME_LEVEL);
 
-   On some targets (e.g. sparc-solaris), the first return address we can
-   easily get without special code is even our caller's return address, so
-   there is a initial shift of two.
+     in __gnat_backtrace, where does ptr->return_address land?
 
-   BASE_SKIP represents this initial shift, which is the minimal "skip_frames"
-   value we support. We could add special code for the skip_frames < BASE_SKIP
-   cases. This is not done currently because there is virtually no situation
-   in which this would be useful.
+     If this is within __gnat_backtrace, BASE_SKIP should be 0. If this
+     is within the caller of __gnat_backtrace, BASE_SKIP should be 1. etc.
+
+     BASE_SKIP is the minimal "skip_frames" value we support.
 
    Finally, to account for some ABI specificities, a target may (but does
    not have to) define:
@@ -411,6 +410,8 @@ struct layout
 #define STOP_FRAME(CURRENT, TOP_STACK) \
  ((CURRENT)->next == 0 || ((long)(CURRENT)->next % __alignof__(void*)) != 0)
 
+/* builtin_frame_address(1) gets us the frame pointer of our caller,
+   where we store our own return address.  */
 #define BASE_SKIP 1
 
 /*-------------------------- SPARC Solaris or RTEMS --------------------*/
@@ -497,6 +498,8 @@ struct layout
    || (void *) ((CURRENT)->next) < (TOP_STACK)  \
    || EXTRA_STOP_CONDITION(CURRENT))
 
+/* builtin_frame_address(1) gets us the *frame* pointer of our caller, where
+   we'll find the return address from that caller to its own caller.  */
 #define BASE_SKIP (1+FRAME_LEVEL)
 
 /* On i386 architecture we check that at the call point we really have a call

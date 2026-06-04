@@ -90,11 +90,10 @@ package GNAT.Traceback is
 
    procedure Call_Chain (Traceback : out Tracebacks_Array; Len : out Natural);
    --  Store up to Traceback'Length tracebacks corresponding to the current
-   --  call chain. The first entry stored corresponds to the deepest level
-   --  of subprogram calls. Len shows the number of traceback entries stored.
-   --  It will be equal to Traceback'Length unless the entire traceback is
-   --  shorter, in which case positions in Traceback past the Len position
-   --  are undefined on return.
+   --  call chain. The first entry is for the caller of this subprogram and
+   --  Len conveys the number of entries stored. Len will be Traceback'Length
+   --  unless the entire traceback is shorter. Positions in Traceback beyond
+   --  Len are undefined on return.
 
    function Call_Chain
      (Max_Len     : Positive;
