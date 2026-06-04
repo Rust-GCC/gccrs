@@ -503,16 +503,18 @@ bitmap_tree_splay (bitmap head, bitmap_element *t, unsigned int indx)
   return t;
 }
 
-/* Link bitmap element E into the current bitmap splay tree.  */
+/* Link bitmap element E into the current bitmap splay tree.  The caller
+   must have called bitmap_tree_find_element first, which guarantees that
+   the current root should become a neighbor of E.  */
 
 static inline void
 bitmap_tree_link_element (bitmap head, bitmap_element *e)
 {
-  if (head->first == NULL)
+  bitmap_element *t = head->first;
+  if (t == NULL)
     e->prev = e->next = NULL;
   else
     {
-      bitmap_element *t = bitmap_tree_splay (head, head->first, e->indx);
       if (e->indx < t->indx)
 	{
 	  e->prev = t->prev;
