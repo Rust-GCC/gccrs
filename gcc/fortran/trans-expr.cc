@@ -1028,7 +1028,39 @@ gfc_conv_derived_to_class (gfc_se *parmse, gfc_expr *e, gfc_symbol *fsym,
 	    {
 	      *derived_array
 		= gfc_create_var (TREE_TYPE (parmse->expr), "array");
-	      gfc_add_modify (&block, *derived_array, parmse->expr);
+	      if (e->rank == -1)
+		{
+		  /* Assumed-rank actual: parmse->expr physically holds only
+		     dtype.rank dims; a full struct assign reads past the end.
+		     Copy field-by-field with a runtime-sized dim[] memcpy.
+		     PR fortran/60576.  */
+		  tree rank, dim_field, dim_size, copy_size, dst_ptr, src_ptr;
+
+		  gfc_conv_descriptor_data_set
+		    (&block, *derived_array,
+		     gfc_conv_descriptor_data_get (parmse->expr));
+		  gfc_conv_descriptor_offset_set
+		    (&block, *derived_array,
+		     gfc_conv_descriptor_offset_get (parmse->expr));
+		  gfc_add_modify (&block,
+				  gfc_conv_descriptor_dtype (*derived_array),
+				  gfc_conv_descriptor_dtype (parmse->expr));
+		  rank = fold_convert (size_type_node,
+				       gfc_conv_descriptor_rank (parmse->expr));
+		  dim_field = gfc_get_descriptor_dimension (parmse->expr);
+		  dim_size = TYPE_SIZE_UNIT (TREE_TYPE (TREE_TYPE (dim_field)));
+		  copy_size = fold_build2_loc (input_location, MULT_EXPR,
+					       size_type_node, rank, dim_size);
+		  dst_ptr = gfc_build_addr_expr
+		    (pvoid_type_node, gfc_get_descriptor_dimension (*derived_array));
+		  src_ptr = gfc_build_addr_expr (pvoid_type_node, dim_field);
+		  gfc_add_expr_to_block (&block,
+		      build_call_expr_loc (input_location,
+					   builtin_decl_explicit (BUILT_IN_MEMCPY),
+					   3, dst_ptr, src_ptr, copy_size));
+		}
+	      else
+		gfc_add_modify (&block, *derived_array, parmse->expr);
 	    }
 
 	  if (optional)
