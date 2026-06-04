@@ -4701,8 +4701,26 @@ riscv_rtx_costs (rtx x, machine_mode mode, int outer_code, int opno ATTRIBUTE_UN
 	  return true;
 	}
       gcc_fallthrough ();
-    case ASHIFTRT:
     case LSHIFTRT:
+      /* mulh[u] pattern */
+      if (GET_CODE (x) == LSHIFTRT
+	  && TARGET_MUL
+	  && mode == GET_MODE_2XWIDER_MODE (word_mode).require ()
+	  && outer_code == TRUNCATE
+	  && (GET_CODE (XEXP (x, 0)) == MULT)
+	     && (GET_CODE (XEXP (XEXP (x, 0), 0)) == ZERO_EXTEND
+		 || GET_CODE (XEXP (XEXP (x, 0), 0)) == SIGN_EXTEND)
+	     && (GET_CODE (XEXP (XEXP (x, 0), 1)) == ZERO_EXTEND
+		 || GET_CODE (XEXP (XEXP (x, 0), 1)) == SIGN_EXTEND)
+	  && (GET_CODE (XEXP (x, 1)) == CONST_INT
+	      && INTVAL (XEXP (x, 1)) == BITS_PER_WORD))
+	{
+	  *total = tune_param->int_mul[mode == TImode];
+	  return true;
+	}
+	/* Fall through.  */
+
+    case ASHIFTRT:
       *total = riscv_binary_cost (x, SINGLE_SHIFT_COST,
 				  CONSTANT_P (XEXP (x, 1)) ? 4 : 9);
       return false;
