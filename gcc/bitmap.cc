@@ -46,8 +46,6 @@ mem_alloc_description<bitmap_usage> bitmap_mem_desc;
    of bitmap_head.  */
 bitmap_obstack bitmap_head::crashme;
 
-static bitmap_element *bitmap_tree_listify_from (bitmap, bitmap_element *);
-
 /* Register new bitmap.  */
 void
 bitmap_register (bitmap b MEM_STAT_DECL)
@@ -167,17 +165,16 @@ bitmap_element_allocate (bitmap head)
 /* Remove ELT and all following elements from bitmap HEAD.
    Put the released elements in the freelist for HEAD.  */
 
-void
+static void
 bitmap_elt_clear_from (bitmap head, bitmap_element *elt)
 {
   bitmap_element *prev;
   bitmap_obstack *bit_obstack = head->obstack;
 
+  gcc_checking_assert (!head->tree_form);
+
   if (!elt)
     return;
-
-  if (head->tree_form)
-    elt = bitmap_tree_listify_from (head, elt);
 
   if (GATHER_STATISTICS)
     {
@@ -609,100 +606,65 @@ bitmap_tree_find_element (bitmap head, unsigned int indx)
 
 /* Converting bitmap views from linked-list to tree and vice versa.  */
 
-/* Splice element E and all elements with a larger index from
-   bitmap HEAD, convert the spliced elements to the linked-list
-   view, and return the head of the list (which should be E again),  */
-
-static bitmap_element *
-bitmap_tree_listify_from (bitmap head, bitmap_element *e)
-{
-  bitmap_element *t, *erb;
-
-  /* Detach the right branch from E (all elements with indx > E->indx),
-     and splay E to the root.  */
-  erb = e->next;
-  e->next = NULL;
-  t = bitmap_tree_splay (head, head->first, e->indx);
-  gcc_checking_assert (t == e);
-
-  /* Because E has no right branch, and we rotated it to the root,
-     the left branch is the new root.  */
-  t = e->prev;
-  head->first = t;
-  head->current = t;
-  head->indx = (t != NULL) ? t->indx : 0;
-
-  /* Detach the tree from E, and re-attach the right branch of E.  */
-  e->prev = NULL;
-  e->next = erb;
-
-  /* The tree is now valid again.  Now we need to "un-tree" E.
-     It is imperative that a non-recursive implementation is used
-     for this, because splay trees have a worst case depth of O(N)
-     for a tree with N nodes.  A recursive implementation could
-     result in a stack overflow for a sufficiently large, unbalanced
-     bitmap tree.  */
-
-  auto_vec<bitmap_element *, 32> stack;
-  auto_vec<bitmap_element *, 32> sorted_elements;
-  bitmap_element *n = e;
-
-  while (true)
-    {
-      while (n != NULL)
-	{
-	  stack.safe_push (n);
-	  n = n->prev;
-	}
-
-      if (stack.is_empty ())
-	break;
-
-      n = stack.pop ();
-      sorted_elements.safe_push (n);
-      n = n->next;
-    }
-
-  gcc_assert (sorted_elements[0] == e);
-
-  bitmap_element *prev = NULL;
-  unsigned ix;
-  FOR_EACH_VEC_ELT (sorted_elements, ix, n)
-    {
-      if (prev != NULL)
-        prev->next = n;
-      n->prev = prev;
-      n->next = NULL;
-      prev = n;
-    }
-
-  return e;
-}
-
 /* Convert bitmap HEAD from splay-tree view to linked-list view.  */
 
 void
 bitmap_list_view (bitmap head)
 {
-  bitmap_element *ptr;
-
   gcc_assert (head->tree_form);
 
-  ptr = head->first;
-  if (ptr)
+  if (bitmap_element *node = head->first)
     {
-      while (ptr->prev)
-	bitmap_tree_rotate_right (ptr);
-      head->first = ptr;
-      head->first = bitmap_tree_listify_from (head, ptr);
+      bitmap_element *last = nullptr;
+
+      /* STACK is a stack of nodes linked by their left child.  Each entry N
+	 represents a set of nodes that contains N itself and all nodes in N's
+	 right subtree.  The sets are ordered so that every element of the top
+	 set comes before every element in the next set down, and so on.  */
+      bitmap_element *stack = nullptr;
+
+    add_subtree:
+      /* Add NODE and its left and right subtrees to the list.  Start by
+	 moving down NODE's left spine, pushing each nonterminal node onto
+	 the stack.  */
+      while (bitmap_element *left = node->prev)
+	{
+	  node->prev = stack;
+	  stack = node;
+	  node = left;
+	}
+
+    add_node_and_right_subtree:
+      /* Add NODE and its right subtree to the list.  NODE is therefore the
+	 next entry in the list.  */
+      if (last)
+	last->next = node;
+      else
+	head->first = node;
+      node->prev = last;
+      last = node;
+
+      /* Move to NODE's right child and repeat the process.  */
+      node = node->next;
+      if (node)
+	goto add_subtree;
+
+      /* Pop the top node from the stack and add it to the end of the list.  */
+      if (stack)
+	{
+	  node = stack;
+	  stack = stack->prev;
+	  goto add_node_and_right_subtree;
+	}
+
+      if (!head->current)
+	{
+	  head->current = head->first;
+	  head->indx = head->first->indx;
+	}
     }
 
   head->tree_form = false;
-  if (!head->current)
-    {
-      head->current = head->first;
-      head->indx = head->current ? head->current->indx : 0;
-    }
 }
 
 /* Convert bitmap HEAD from linked-list view to splay-tree view.
@@ -734,16 +696,11 @@ bitmap_clear (bitmap head)
 {
   if (head->first == NULL)
     return;
-  if (head->tree_form)
-    {
-      bitmap_element *e, *t;
-      for (e = head->first; e->prev; e = e->prev)
-	/* Loop to find the element with the smallest index.  */ ;
-      t = bitmap_tree_splay (head, head->first, e->indx);
-      gcc_checking_assert (t == e);
-      head->first = t;
-    }
+  bool tree_form = head->tree_form;
+  if (tree_form)
+    bitmap_list_view (head);
   bitmap_elt_clear_from (head, head->first);
+  head->tree_form = tree_form;
 }
 
 /* Initialize a bitmap obstack.  If BIT_OBSTACK is NULL, initialize
