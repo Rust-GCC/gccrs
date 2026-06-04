@@ -20809,7 +20809,6 @@ package body Sem_Prag is
                   Pop_Scope;
                end if;
 
-               Init_Or_Norm_Scalars := True;
                Initialize_Scalars   := True;
             end if;
          end Do_Initialize_Scalars;
@@ -23313,7 +23312,6 @@ package body Sem_Prag is
 
             if not (CodePeer_Mode or GNATprove_Mode) then
                Normalize_Scalars := True;
-               Init_Or_Norm_Scalars := True;
             end if;
 
          -----------------

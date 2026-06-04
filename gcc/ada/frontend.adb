@@ -381,7 +381,6 @@ begin
 
       if Initialize_Scalars and then Is_Predefined_Unit (Main_Unit) then
          Initialize_Scalars   := False;
-         Init_Or_Norm_Scalars := Normalize_Scalars;
       end if;
 
       --  Now on to the semantics. Skip if in syntax only mode

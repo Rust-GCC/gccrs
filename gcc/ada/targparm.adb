@@ -630,7 +630,6 @@ package body Targparm is
 
          elsif Looking_At_Skip ("pragma Normalize_Scalars;") then
             Opt.Normalize_Scalars := True;
-            Opt.Init_Or_Norm_Scalars := True;
             goto Line_Loop_Continue;
 
          --  Partition_Elaboration_Policy

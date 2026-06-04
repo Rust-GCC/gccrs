@@ -845,15 +845,9 @@ package Opt is
    --  allowed to cause implicit packing instead of generating an error
    --  message. Set by use of pragma Implicit_Packing.
 
-   Init_Or_Norm_Scalars : Boolean := False;
-   --  GNAT, GNATBIND
-   --  Set True if a pragma Initialize_Scalars applies to the current unit.
-   --  Also set True if a pragma Restriction (Normalize_Scalars) applies.
-
    Initialize_Scalars : Boolean := False;
    --  GNAT
    --  Set True if a pragma Initialize_Scalars applies to the current unit.
-   --  Note that Init_Or_Norm_Scalars is also set to True if this is True.
 
    Initialize_Scalars_Mode1 : Character := 'I';
    Initialize_Scalars_Mode2 : Character := 'N';
@@ -1168,7 +1162,6 @@ package Opt is
    Normalize_Scalars : Boolean := False;
    --  GNAT, GNATBIND
    --  Set True if a pragma Normalize_Scalars applies to the current unit.
-   --  Note that Init_Or_Norm_Scalars is also set to True if this is True.
 
    Object_Directory_Present : Boolean := False;
    --  GNATMAKE
@@ -1725,6 +1718,10 @@ package Opt is
    --  GNATBIND
    --  Do no formatting (no title, no leading spaces, no empty lines) in
    --  auxiliary outputs (-e, -K, -l, -R).
+
+   function Init_Or_Norm_Scalars return Boolean
+   is (Initialize_Scalars or Normalize_Scalars);
+   --  A convenience shortcut for a common expression
 
    ----------------------------
    -- Configuration Settings --

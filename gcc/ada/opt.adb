@@ -112,13 +112,6 @@ package body Opt is
       Uneval_Old                     := Save.Uneval_Old;
       Use_VADS_Size                  := Save.Use_VADS_Size;
       Warnings_As_Errors_Count       := Save.Warnings_As_Errors_Count;
-
-      --  Update consistently the value of Init_Or_Norm_Scalars. The value of
-      --  Normalize_Scalars is not saved/restored because after set to True its
-      --  value is never changed. That is, if a compilation unit has pragma
-      --  Normalize_Scalars then it forces that value for all with'ed units.
-
-      Init_Or_Norm_Scalars := Initialize_Scalars or Normalize_Scalars;
    end Restore_Config_Switches;
 
    --------------------------
@@ -241,14 +234,6 @@ package body Opt is
          Uneval_Old                  := Uneval_Old_Config;
          Use_VADS_Size               := Use_VADS_Size_Config;
          Warnings_As_Errors_Count    := Warnings_As_Errors_Count_Config;
-
-         --  Update consistently the value of Init_Or_Norm_Scalars. The value
-         --  of Normalize_Scalars is not saved/restored because once set to
-         --  True its value is never changed. That is, if a compilation unit
-         --  has pragma Normalize_Scalars then it forces that value for all
-         --  with'ed units.
-
-         Init_Or_Norm_Scalars := Initialize_Scalars or Normalize_Scalars;
       end if;
 
       --  Values set for all units
