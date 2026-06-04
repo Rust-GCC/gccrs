@@ -1149,7 +1149,7 @@ namespace __gnu_debug
     inline bool
     __can_advance(const _Safe_iterator<_Iterator, _Sequence, _Category>& __it,
 		  _Size __n)
-    { 
+    {
       if (std::__is_constant_evaluated())
 	return true;
 
@@ -1166,7 +1166,7 @@ namespace __gnu_debug
     {
       if (std::__is_constant_evaluated())
 	return true;
-    
+
       return __it._M_can_advance(__dist, __way);
     }
 
