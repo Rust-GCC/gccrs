@@ -217,7 +217,7 @@
 (define_insn "<shift_op>si3"
   [(set (match_operand:SI 0 "register_operand" "=r,r")
 	(SHIFT:SI (match_operand:SI 1 "register_operand"  "r,r")
-		  (match_operand:SI 2 "reg_or_u6_operand" "r,n")))]
+		  (match_operand:SI 2 "reg_or_u5_operand" "r,n")))]
   ""
   "@
    l.<shift_asm>\t%0, %1, %2
@@ -227,7 +227,7 @@
 (define_insn "rotrsi3"
   [(set (match_operand:SI 0 "register_operand" "=r,r")
 	(rotatert:SI (match_operand:SI 1 "register_operand"  "r,r")
-		     (match_operand:SI 2 "ror_reg_or_u6_operand" "r,n")))]
+		     (match_operand:SI 2 "ror_reg_or_u5_operand" "r,n")))]
   "TARGET_ROR || TARGET_RORI"
   "@
    l.ror\t%0, %1, %2

@@ -38,9 +38,9 @@
   (ior (match_operand 0 "register_operand")
        (match_operand 0 "const0_operand")))
 
-(define_predicate "reg_or_u6_operand"
+(define_predicate "reg_or_u5_operand"
   (if_then_else (match_code "const_int")
-    (match_test "INTVAL (op) >= 0 && INTVAL (op) <= 0x3f")
+    (match_test "INTVAL (op) >= 0 && INTVAL (op) <= 0x1f")
     (match_operand 0 "register_operand")))
 
 (define_predicate "reg_or_u16_operand"
@@ -53,9 +53,9 @@
     (match_test "INTVAL (op) >= -32768 && INTVAL (op) <= 32767")
     (match_operand 0 "register_operand")))
 
-(define_predicate "ror_reg_or_u6_operand"
+(define_predicate "ror_reg_or_u5_operand"
   (if_then_else (match_code "const_int")
-    (and (match_test "INTVAL (op) >= 0 && INTVAL (op) <= 0x3f")
+    (and (match_test "INTVAL (op) >= 0 && INTVAL (op) <= 0x1f")
 	 (match_test "TARGET_RORI"))
     (and (match_operand 0 "register_operand")
 	 (match_test "TARGET_ROR"))))

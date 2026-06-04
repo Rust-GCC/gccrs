@@ -394,6 +394,9 @@ do {                                                    \
 /* All the work is done in PROFILE_HOOK, but this is still required.  */
 #define FUNCTION_PROFILER(STREAM, LABELNO) do { } while (0)
 
+/* Shift instructions ignore all but the low-order few bits.  */
+#define SHIFT_COUNT_TRUNCATED 1
+
 /* Dwarf 2 Support */
 #define DWARF2_DEBUGGING_INFO 1
 #define INCOMING_RETURN_ADDR_RTX gen_rtx_REG (Pmode, LR_REGNUM)
