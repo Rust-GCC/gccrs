@@ -22,6 +22,22 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "bitmap.h"
 #include "selftest.h"
+#include "pretty-print.h"
+#include "splay-tree-utils.h"
+
+class bitmap_splay_tree_accessors
+{
+public:
+  using node_type = bitmap_element *;
+
+  static node_type &child (node_type node, unsigned int index)
+  {
+    return index ? node->next : node->prev;
+  }
+};
+
+using bitmap_splay_tree
+  = splay_tree_without_parent<bitmap_splay_tree_accessors>;
 
 /* Memory allocation statistics purpose instance.  */
 mem_alloc_description<bitmap_usage> bitmap_mem_desc;
@@ -1235,8 +1251,7 @@ bitmap_first_set_bit_worker (bitmap a, bool clear)
   gcc_checking_assert (elt);
 
   if (a->tree_form)
-    while (elt->prev)
-      elt = elt->prev;
+    elt = a->first = bitmap_splay_tree (elt).min_node ();
 
   bit_no = elt->indx * BITMAP_ELEMENT_ALL_BITS;
   for (ix = 0; ix != BITMAP_ELEMENT_WORDS; ix++)
@@ -1322,13 +1337,13 @@ bitmap_last_set_bit_worker (bitmap a, bool clear)
   int ix;
 
   if (a->tree_form)
-    elt = a->first;
+    elt = a->first = bitmap_splay_tree (a->first).max_node ();
   else
-    elt = a->current ? a->current : a->first;
-  gcc_checking_assert (elt);
-
-  while (elt->next)
-    elt = elt->next;
+    {
+      elt = a->current ? a->current : a->first;
+      while (elt->next)
+	elt = elt->next;
+    }
 
   bit_no = elt->indx * BITMAP_ELEMENT_ALL_BITS;
   for (ix = BITMAP_ELEMENT_WORDS - 1; ix >= 0; ix--)
