@@ -159,6 +159,28 @@
   }
 )
 
+(define_insn "*aarch64_simd_dup_subvector<vcons><mode>"
+  [(set (match_operand:<VCONS> 0 "register_operand")
+	(vec_duplicate:<VCONS>
+	  (match_operand:VSDUP 1 "register_operand")))]
+  "TARGET_SIMD"
+  {@ [ cons: =0 , 1 ; attrs: type  ]
+     [ w        , w ; neon_dup     ] dup\t%0.<Vdduptype>, %1.<vstype>[0]
+     [ w        , r ; neon_from_gp ] dup\t%0.<Vdduptype>, %<single_wx>1
+  }
+)
+
+(define_insn "*aarch64_simd_dup_subvectorv2qiqi"
+  [(set (match_operand:V2QI 0 "register_operand")
+	(vec_duplicate:V2QI
+	  (match_operand:QI 1 "register_operand")))]
+  "TARGET_SIMD"
+  {@ [ cons: =0 , 1 ; attrs: type  ]
+     [ w        , w ; neon_dup     ] dup\t%0.8b, %1.b[0]
+     [ w        , r ; neon_from_gp ] dup\t%0.8b, %w1
+  }
+)
+
 (define_insn "@aarch64_dup_lane<mode>"
   [(set (match_operand:VALL_F16 0 "register_operand" "=w")
 	(vec_duplicate:VALL_F16

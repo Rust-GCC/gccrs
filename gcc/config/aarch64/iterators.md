@@ -139,6 +139,9 @@
 ;; VQMOV without 2-element modes.
 (define_mode_iterator VQMOV_NO2E [V16QI V8HI V4SI V8HF V8BF V4SF])
 
+;; Modes that can be duplicated into a 32-bit quantity.
+(define_mode_iterator VSDUP [V2QI QI HI BF HF])
+
 ;; Modes that can be duplicated into a 64-bit register.
 (define_mode_iterator VDDUP [V4QI V2QI QI V2HI HI SI
 				V2BF BF V2HF HF SF])
@@ -1934,6 +1937,16 @@
 		       (V2HI "SI") (V2HF "SF") (V2BF "SF")])
 
 (define_mode_attr vnx [(V4SI "vnx4si") (V2DI "vnx2di")])
+
+;; 32-bit container modes the inner or scalar source mode.
+(define_mode_attr VCONS [(HI "V2HI") (QI "V4QI") (V2QI "V4QI")
+			 (HF "V2HF")
+			 (BF "V2BF")])
+
+;; Same as above, but in lowercase.
+(define_mode_attr vcons [(HI "v2hi") (QI "v4qi") (V2QI "v4qi")
+			 (HF "v2hf")
+			 (BF "v2bf")])
 
 ;; 64-bit container modes the inner or scalar source mode.
 (define_mode_attr VCOND [(HI "V4HI") (SI "V2SI")

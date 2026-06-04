@@ -41,7 +41,11 @@
     TESTCASE (TYPE, ETYPE, T, 8, 12, x16, x0, x1, 0, 1, x2, x3, 2, 3,\
 			       x0, x1, 0, 1, x2, x3, 2, 3)\
     TESTCASE (TYPE, ETYPE, T, 8, 13, x16, 0, 1, x0, x1, 2, 3, x2, x3,\
-			       0, 1, x0, x1, 2, 3, x2, x3)
+			       0, 1, x0, x1, 2, 3, x2, x3) \
+    TESTCASE (TYPE, ETYPE, T, 8, 14, x16, x0, x1, x1, x2, x0, x1, x1, x2,\
+			       x0, x1, x1, x2, x0, x1, x1, x2) \
+    TESTCASE (TYPE, ETYPE, T, 8, 15, x16, x0, x1, x2, x1, x0, x1, x2, x1,\
+			       x0, x1, x2, x1, x0, x1, x2, x1)
 
 #define TEST_16(TYPE, ETYPE, T)\
     TESTCASE (TYPE, ETYPE, T, 16, 1, x8, x0, x0, x0, x0, x0, x0, x0, x0)\
@@ -52,6 +56,8 @@
     TESTCASE (TYPE, ETYPE, T, 16, 6, x8, x0, x1, 0, 1, x0, x1, 0, 1)\
     TESTCASE (TYPE, ETYPE, T, 16, 7, x8, 0, 1, x0, x1, 0, 1, x0, x1)\
     TESTCASE (TYPE, ETYPE, T, 16, 8, x8, 0, x0, 1, x1, 0, x0, 1, x1)\
+    TESTCASE (TYPE, ETYPE, T, 16, 9, x8, x0, x1, x1, x2, x0, x1, x1, x2)\
+    TESTCASE (TYPE, ETYPE, T, 16, 10, x8, x0, x1, x2, x1, x0, x1, x2, x1)
 
 #define TEST_32(TYPE, ETYPE, T)\
     TESTCASE (TYPE, ETYPE, T, 32, 1, x4, x0, x0, x0, x0)\
@@ -206,6 +212,26 @@ TEST_64(int, int64_t, s)
 */
 
 /*
+** test_int8_14:
+**	dup	v31\.8b, w1
+**	fmov	w1, s31
+**	bfi	w1, w0, 0, 8
+**	bfi	w1, w2, 24, 8
+**	dup	v0\.4s, w1
+**	ret
+*/
+
+/*
+** test_int8_15:
+**	dup	v31\.8b, w1
+**	fmov	w1, s31
+**	bfi	w1, w0, 0, 8
+**	bfi	w1, w2, 16, 8
+**	dup	v0\.4s, w1
+**	ret
+*/
+
+/*
 ** test_float16_1:
 **	fcvt	h0, s0
 **	dup	v0\.8h, v0\.h\[0\]
@@ -287,6 +313,31 @@ TEST_64(int, int64_t, s)
 */
 
 /*
+** test_float16_9:
+**	fcvt	h1, s1
+**	fcvt	h2, s2
+**	fcvt	h0, s0
+**	uzp1	v0\.4h, v0\.4h, v1\.4h
+**	uzp1	v1\.4h, v1\.4h, v2\.4h
+**	dup	v0\.2s, v0\.s\[0\]
+**	dup	v1\.2s, v1\.s\[0\]
+**	zip1	v0\.8h, v0\.8h, v1\.8h
+**	ret
+*/
+
+/*
+** test_float16_10:
+**	fcvt	h2, s2
+**	fcvt	h0, s0
+**	fcvt	h1, s1
+**	uzp1	v0\.4h, v0\.4h, v2\.4h
+**	dup	v1\.4h, v1\.h\[0\]
+**	dup	v0\.2s, v0\.s\[0\]
+**	zip1	v0\.8h, v0\.8h, v1\.8h
+**	ret
+*/
+
+/*
 ** test_int16_1:
 **	dup	v0\.8h, w0
 **	ret
@@ -353,6 +404,25 @@ TEST_64(int, int64_t, s)
 **	movi	v0\.2s, 0x1, lsl 16
 **	dup	v31\.2s, w0
 **	zip1	v0\.8h, v0\.8h, v31\.8h
+**	ret
+*/
+
+/*
+** test_int16_9:
+**	bfi	w0, w1, 16, 16
+**	bfi	w1, w2, 16, 16
+**	dup	v31\.2s, w0
+**	dup	v0\.2s, w1
+**	zip1	v0\.8h, v31\.8h, v0\.8h
+**	ret
+*/
+
+/*
+** test_int16_10:
+**	bfi	w0, w2, 16, 16
+**	dup	v0\.4h, w1
+**	dup	v31\.2s, w0
+**	zip1	v0\.8h, v31\.8h, v0\.8h
 **	ret
 */
 

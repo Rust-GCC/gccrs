@@ -153,6 +153,26 @@
 */
 
 /*
+** test_int8_14:
+**	dup	v31\.8b, w1
+**	fmov	w1, s31
+**	bfi	w1, w0, 0, 8
+**	bfi	w1, w2, 24, 8
+**	mov	z0\.s, w1
+**	ret
+*/
+
+/*
+** test_int8_15:
+**	dup	v31\.8b, w1
+**	fmov	w1, s31
+**	bfi	w1, w0, 0, 8
+**	bfi	w1, w2, 16, 8
+**	mov	z0\.s, w1
+**	ret
+*/
+
+/*
 ** test_float16_1:
 **	fcvt	h0, s0
 **	mov	z0\.h, h0
@@ -237,6 +257,33 @@
 */
 
 /*
+** test_float16_9:
+**	fcvt	h1, s1
+**	fcvt	h2, s2
+**	fcvt	h0, s0
+**	uzp1	v0\.4h, v0\.4h, v1\.4h
+**	uzp1	v1\.4h, v1\.4h, v2\.4h
+**	dup	v0\.2s, v0\.s\[0\]
+**	dup	v1\.2s, v1\.s\[0\]
+**	zip1	v0\.8h, v0\.8h, v1\.8h
+**	dup	z0\.q, z0.q\[0\]
+**	ret
+*/
+
+/*
+** test_float16_10:
+**	fcvt	h2, s2
+**	fcvt	h0, s0
+**	fcvt	h1, s1
+**	uzp1	v0\.4h, v0\.4h, v2\.4h
+**	dup	v1\.4h, v1\.h\[0\]
+**	dup	v0\.2s, v0\.s\[0\]
+**	zip1	v0\.8h, v0\.8h, v1\.8h
+**	dup	z0\.q, z0.q\[0\]
+**	ret
+*/
+
+/*
 ** test_int16_1:
 **	mov	z0\.h, w0
 **	ret
@@ -305,6 +352,27 @@
 **	bfi	w0, w1, 16, 16
 **	movi	v31\.2s, 0x1, lsl 16
 **	dup	v30\.2s, w0
+**	zip1	v31\.8h, v31\.8h, v30\.8h
+**	dup	z0\.q, z31\.q\[0\]
+**	ret
+*/
+
+/*
+** test_int16_9:
+**	bfi	w0, w1, 16, 16
+**	bfi	w1, w2, 16, 16
+**	dup	v31\.2s, w0
+**	dup	v30\.2s, w1
+**	zip1	v31\.8h, v31\.8h, v30\.8h
+**	dup	z0\.q, z31\.q\[0\]
+**	ret
+*/
+
+/*
+** test_int16_10:
+**	bfi	w0, w2, 16, 16
+**	dup	v30\.4h, w1
+**	dup	v31\.2s, w0
 **	zip1	v31\.8h, v31\.8h, v30\.8h
 **	dup	z0\.q, z31\.q\[0\]
 **	ret
