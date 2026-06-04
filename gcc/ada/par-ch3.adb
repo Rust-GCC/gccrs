@@ -4566,7 +4566,7 @@ package body Ch3 is
             | Tok_Procedure
          =>
             Check_Bad_Layout;
-            Append (P_Subprogram (Pf_Decl_Gins_Pbod_Rnam_Stub_Pexp), Decls);
+            Append (P_Subprogram (Pf_Decl_Gins_Pbod_Rnam_Stub_Expf), Decls);
 
          when Tok_For =>
             Check_Bad_Layout;
@@ -4624,7 +4624,7 @@ package body Ch3 is
                Error_Msg_SC ("\unit must be compiled with -gnat05 switch");
 
                Token := Tok_Overriding;
-               Append (P_Subprogram (Pf_Decl_Gins_Pbod_Rnam_Stub_Pexp), Decls);
+               Append (P_Subprogram (Pf_Decl_Gins_Pbod_Rnam_Stub_Expf), Decls);
 
             --  Normal case, no overriding, or overriding followed by colon
 
@@ -4638,7 +4638,7 @@ package body Ch3 is
 
          when Tok_Package =>
             Check_Bad_Layout;
-            Append (P_Package (Pf_Decl_Gins_Pbod_Rnam_Stub_Pexp), Decls);
+            Append (P_Package (Pf_Decl_Gins_Pbod_Rnam_Stub_Expf), Decls);
 
          when Tok_Pragma =>
             --  If we see a pragma and In_Statements is true, we want to let

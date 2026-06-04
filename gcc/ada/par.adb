@@ -382,18 +382,18 @@ function Par (Configuration_Pragmas : Boolean) return List_Id is
       Pbod : Boolean; -- True if proper body OK
       Rnam : Boolean; -- True if renaming declaration OK
       Stub : Boolean; -- True if body stub OK
-      Pexp : Boolean; -- True if parameterized expression OK
+      Expf : Boolean; -- True if expression function OK
    end record;
    pragma Pack (Pf_Rec);
 
    function T return Boolean renames True;
    function F return Boolean renames False;
 
-   Pf_Decl_Gins_Pbod_Rnam_Stub_Pexp : constant Pf_Rec := (F, T, T, T, T, T, T);
-   Pf_Decl_Pexp                     : constant Pf_Rec := (F, T, F, F, F, F, T);
-   Pf_Decl_Gins_Pbod_Rnam_Pexp      : constant Pf_Rec := (F, T, T, T, T, F, T);
-   Pf_Decl_Pbod_Pexp                : constant Pf_Rec := (F, T, F, T, F, F, T);
-   Pf_Pbod_Pexp                     : constant Pf_Rec := (F, F, F, T, F, F, T);
+   Pf_Decl_Gins_Pbod_Rnam_Stub_Expf : constant Pf_Rec := (F, T, T, T, T, T, T);
+   Pf_Decl_Expf                     : constant Pf_Rec := (F, T, F, F, F, F, T);
+   Pf_Decl_Gins_Pbod_Rnam_Expf      : constant Pf_Rec := (F, T, T, T, T, F, T);
+   Pf_Decl_Pbod_Expf                : constant Pf_Rec := (F, T, F, T, F, F, T);
+   Pf_Pbod_Expf                     : constant Pf_Rec := (F, F, F, T, F, F, T);
    Pf_Spcn                          : constant Pf_Rec := (T, F, F, F, F, F, F);
    --  The above are the only allowed values of Pf_Rec arguments
 

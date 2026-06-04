@@ -750,7 +750,7 @@ package body Ch9 is
                Set_Must_Not_Override (Decl, Not_Overriding);
 
             elsif Token in Tok_Function | Tok_Procedure then
-               Decl := P_Subprogram (Pf_Decl_Pexp);
+               Decl := P_Subprogram (Pf_Decl_Expf);
 
                Set_Must_Override     (Specification (Decl), Is_Overriding);
                Set_Must_Not_Override (Specification (Decl), Not_Overriding);
@@ -790,7 +790,7 @@ package body Ch9 is
             when Tok_Function
                | Tok_Procedure
             =>
-               Result := P_Subprogram (Pf_Decl_Pexp);
+               Result := P_Subprogram (Pf_Decl_Expf);
                exit;
 
             when Tok_Identifier =>
@@ -878,7 +878,7 @@ package body Ch9 is
                  or else
                Token = Tok_Not or else Bad_Spelling_Of (Tok_Not)
          then
-            Append (P_Subprogram (Pf_Decl_Pbod_Pexp), Item_List);
+            Append (P_Subprogram (Pf_Decl_Pbod_Expf), Item_List);
 
          elsif Token = Tok_Pragma or else Bad_Spelling_Of (Tok_Pragma) then
             P_Pragmas_Opt (Item_List);
