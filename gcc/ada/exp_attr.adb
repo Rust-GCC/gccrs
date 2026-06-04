@@ -2082,21 +2082,43 @@ package body Exp_Attr is
          Subp     : out Entity_Id;
          Attr_Ref : Node_Id)
       is
+         type Spot_Kind is (None, Before, After, In_Empty_List);
+
+         type Spot (K : Spot_Kind := None) is record
+            case K is
+               when None =>
+                  null;
+
+               when Before | After =>
+                  N : Node_Id;
+
+               when In_Empty_List =>
+                  L     : List_Id;
+                  Scope : Scope_Kind_Id;
+            end case;
+         end record;
+         --  An object of type Spot represents a place where we can insert the
+         --  generated subprogram body. If K is Before, the place is right
+         --  before N. Similarly, if K is After, the place is right after N.
+         --  If K is In_Empty_List, L is an empty list and the place is inside
+         --  it; we additionally record the target scope in Scope because it
+         --  makes things more convenient.
 
          procedure Build;
          --  Call Build_Type_Attr_Subprogram with appropriate parameters.
 
          function Find_Insertion_Point_For_Ancestor
-           (Ancestor, Previous_Insertion_Point : Node_Id) return Node_Id;
+           (Ancestor : Node_Id; Previous_Insertion_Point : Spot) return Spot;
          --  Return the most appropriate insertion point that's at the same
-         --  depth as Ancestor, if one exists. Otherwise return Empty. Ancestor
-         --  is an ancestor node of the node we want to call the subprogram
-         --  from. Previous_Insertion_Point is the latest insertion point we
-         --  found walking up the tree.
+         --  depth as Ancestor, if one exists. Otherwise return a null spot.
+         --  Ancestor is an ancestor node of the node we want to call the
+         --  subprogram from. Previous_Insertion_Point is the latest insertion
+         --  point we found walking up the tree.
 
-         procedure Skip_Non_Source_Subps
-           (Cursor : in out Node_Id; Ancestor : Node_Id);
-         --  Refine Insertion_Point choice (see comment inside procedure).
+         function Skip_Non_Source_Subps
+           (List : List_Id; Ancestor : Node_Id) return Spot;
+         --  Return the most appropriate place to insert the subprogram in List
+         --  (see comment inside body).
 
          procedure Build is
          begin
@@ -2107,13 +2129,15 @@ package body Exp_Attr is
          end Build;
 
          function Find_Insertion_Point_For_Ancestor
-           (Ancestor, Previous_Insertion_Point : Node_Id) return Node_Id
+           (Ancestor : Node_Id; Previous_Insertion_Point : Spot) return Spot
          is
-            Cursor : Node_Id := Empty;
+            Ret : Spot := (K => None);
          begin
             if Is_List_Member (Ancestor) then
-               Cursor := First (List_Containing (Ancestor));
-               Skip_Non_Source_Subps (Cursor, Ancestor);
+               Ret :=
+                 Skip_Non_Source_Subps (List_Containing (Ancestor), Ancestor);
+
+               pragma Assert (Ret.K in Before | After);
 
             --  A subprogram body usually occurs in a declaration list
             --  (so we will take the preceding Is_List_Member = True path),
@@ -2130,20 +2154,29 @@ package body Exp_Attr is
             elsif Nkind (Ancestor) = N_Subprogram_Body
               and then Present (Declarations (Ancestor))
               and then
-                (No (Previous_Insertion_Point)
-                  or else List_Containing (Previous_Insertion_Point) /=
-                    Declarations (Ancestor))
+                (case Previous_Insertion_Point.K is
+                   when None           => True,
+                   when Before | After =>
+                     List_Containing (Previous_Insertion_Point.N)
+                     /= Declarations (Ancestor),
+                   when others         => False)
               and then Nkind (Parent (Ancestor)) /= N_Subunit
             then
-               Cursor := First (Declarations (Ancestor));
-               Skip_Non_Source_Subps (Cursor, Ancestor);
+               Ret :=
+                 Skip_Non_Source_Subps (Declarations (Ancestor), Ancestor);
+
+               if Ret.K = In_Empty_List then
+                  Ret.Scope := Unique_Defining_Entity (Ancestor);
+               end if;
+
+               pragma Assert (Ret.K /= None);
             end if;
 
-            return Cursor;
+            return Ret;
          end Find_Insertion_Point_For_Ancestor;
 
-         procedure Skip_Non_Source_Subps
-           (Cursor : in out Node_Id; Ancestor : Node_Id)
+         function Skip_Non_Source_Subps
+           (List : List_Id; Ancestor : Node_Id) return Spot
          is
             --  A hazard to avoid is use-before-definition
             --  errors that can result when we have two of these
@@ -2174,23 +2207,35 @@ package body Exp_Attr is
             --  decls list. No examples where this would result in more
             --  sharing and less duplication have been observed, so this
             --  is just speculation.
+
+            Cursor : Node_Id := First (List);
+
+            Ret : Spot;
          begin
+            if No (Cursor) then
+               --  We leave Scope to be initialized by the caller
+               return (K => In_Empty_List, L => List, Scope => <>);
+            end if;
+
+            Ret := (K => Before, N => Cursor);
+
             while Cursor /= Ancestor
               and then Nkind (Cursor) = N_Subprogram_Body
               and then not Comes_From_Source (Cursor)
-              and then Present (Next (Cursor))
             loop
+               Ret := (K => After, N => Cursor);
                Next (Cursor);
+               exit when No (Cursor);
             end loop;
-            pragma Assert (Present (Cursor));
+
+            return Ret;
          end Skip_Non_Source_Subps;
 
          --  Local variables
 
          Ancestor        : Node_Id := Attr_Ref;
-         Insertion_Scope : Entity_Id := Empty;
-         Insertion_Point : Node_Id := Empty;
-         Insert_Before   : Boolean := False;
+         Insertion_Scope : Entity_Id;
+         Insertion_Point : Spot := (K => None);
          First_Typ       : constant Entity_Id := First_Subtype (Typ);
          Typ_Comp_Unit   : Node_Id := Enclosing_Comp_Unit_Node (First_Typ);
 
@@ -2217,7 +2262,7 @@ package body Exp_Attr is
             --  we want to hoist to the same scope as First_Typ.
 
             Insertion_Scope := Scope (First_Typ);
-            Insertion_Point := Freeze_Node (First_Typ);
+            Insertion_Point := (K => After, N => Freeze_Node (First_Typ));
          else
             --  Typ is declared in a different unit, so
             --  hoist to library level.
@@ -2226,11 +2271,11 @@ package body Exp_Attr is
 
             while Present (Ancestor) loop
                declare
-                  Res : constant Node_Id :=
+                  Res : constant Spot :=
                     Find_Insertion_Point_For_Ancestor
                       (Ancestor, Insertion_Point);
                begin
-                  if Present (Res) then
+                  if Res.K /= None then
                      Insertion_Point := Res;
                   end if;
                end;
@@ -2242,25 +2287,31 @@ package body Exp_Attr is
                end if;
             end loop;
 
-            if Present (Insertion_Point) then
-               Insert_Before := True;
-               Insertion_Scope :=
-                 Find_Enclosing_Scope (Insertion_Point);
-            end if;
+            Insertion_Scope :=
+              (case Insertion_Point.K is
+                 when None           => Empty,
+                 when Before | After =>
+                   Find_Enclosing_Scope (Insertion_Point.N),
+                 when In_Empty_List  => Insertion_Point.Scope);
          end if;
 
-         if Present (Insertion_Point)
-           and Present (Insertion_Scope)
-         then
+         if Insertion_Point.K /= None and Present (Insertion_Scope) then
             Push_Scope (Insertion_Scope);
             Build;
-            if Insert_Before then
-               Insert_Action
-                 (Insertion_Point, Ins_Action => Decl);
-            else
-               Insert_Action_After
-                 (Insertion_Point, Ins_Action => Decl);
-            end if;
+            case Insertion_Point.K is
+               when Before        =>
+                  Insert_Action (Insertion_Point.N, Ins_Action => Decl);
+
+               when After         =>
+                  Insert_Action_After (Insertion_Point.N, Ins_Action => Decl);
+
+               when In_Empty_List =>
+                  Append (Decl, To => Insertion_Point.L);
+                  Analyze (Decl);
+
+               when None          =>
+                  pragma Assert (False);
+            end case;
             Pop_Scope;
          else
             --  Hoisting was unsuccessful, so no need to
