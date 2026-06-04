@@ -198,6 +198,57 @@
   DONE;
 })
 
+;; PTI and TI are both 128-bit modes; the following conversions are
+;; register-class changes only, no actual truncation, sign or zero
+;; extension occurs.
+(define_insn_and_split "trunctipti2"
+  [(set (match_operand:PTI 0 "register_operand" "=r,r")
+        (truncate:PTI (match_operand:TI 1 "register_operand" "0,r")))]
+  "TARGET_POWERPC64"
+  "#"
+  "&& reload_completed"
+  [(set (match_dup 2) (match_dup 4))
+   (set (match_dup 3) (match_dup 5))]
+{
+  operands[2] = gen_lowpart (DImode, operands[0]);
+  operands[3] = gen_highpart (DImode, operands[0]);
+  operands[4] = gen_lowpart (DImode, operands[1]);
+  operands[5] = gen_highpart (DImode, operands[1]);
+}
+[(set_attr "length" "0,8")])
+
+(define_insn_and_split "extendptiti2"
+  [(set (match_operand:TI 0 "register_operand" "=r,r")
+        (sign_extend:TI (match_operand:PTI 1 "register_operand" "0,r")))]
+  "TARGET_POWERPC64"
+  "#"
+  "&& reload_completed"
+  [(set (match_dup 2) (match_dup 4))
+   (set (match_dup 3) (match_dup 5))]
+{
+  operands[2] = gen_lowpart (DImode, operands[0]);
+  operands[3] = gen_highpart (DImode, operands[0]);
+  operands[4] = gen_lowpart (DImode, operands[1]);
+  operands[5] = gen_highpart (DImode, operands[1]);
+}
+[(set_attr "length" "0,8")])
+
+(define_insn_and_split "zero_extendptiti2"
+  [(set (match_operand:TI 0 "register_operand" "=r,r")
+        (zero_extend:TI (match_operand:PTI 1 "register_operand" "0,r")))]
+  "TARGET_POWERPC64"
+  "#"
+  "&& reload_completed"
+  [(set (match_dup 2) (match_dup 4))
+   (set (match_dup 3) (match_dup 5))]
+{
+  operands[2] = gen_lowpart (DImode, operands[0]);
+  operands[3] = gen_highpart (DImode, operands[0]);
+  operands[4] = gen_lowpart (DImode, operands[1]);
+  operands[5] = gen_highpart (DImode, operands[1]);
+}
+[(set_attr "length" "0,8")])
+
 ;; If TARGET_PREFIXED, always use pstq rather than stq.
 (define_insn "store_quadpti"
   [(set (match_operand:PTI 0 "quad_memory_operand" "=wQ")

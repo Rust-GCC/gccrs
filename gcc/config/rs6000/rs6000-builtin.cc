@@ -761,6 +761,21 @@ rs6000_init_builtins (void)
   else
     ieee128_float_type_node = NULL_TREE;
 
+  /* PTImode to get even/odd register pairs.  */
+  if (TARGET_POWERPC64)
+    {
+      intPTI_type_internal_node = make_signed_type (GET_MODE_BITSIZE (PTImode));
+      SET_TYPE_MODE (intPTI_type_internal_node, PTImode);
+      t = build_qualified_type (intPTI_type_internal_node, TYPE_QUAL_CONST);
+      lang_hooks.types.register_builtin_type (intPTI_type_internal_node,
+					      "__pti_internal");
+
+      uintPTI_type_internal_node = make_unsigned_type (GET_MODE_BITSIZE (PTImode));
+      SET_TYPE_MODE (uintPTI_type_internal_node, PTImode);
+      t = build_qualified_type (uintPTI_type_internal_node, TYPE_QUAL_CONST);
+      lang_hooks.types.register_builtin_type (uintPTI_type_internal_node,
+					      "__upti_internal");
+    }
   /* Vector pair and vector quad support.  */
   vector_pair_type_node = make_node (OPAQUE_TYPE);
   SET_TYPE_MODE (vector_pair_type_node, OOmode);
