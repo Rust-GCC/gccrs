@@ -651,7 +651,8 @@ package body Restrict is
          Error_Msg_Warn := No_Specification_Of_Aspect_Warning (A_Id);
          Error_Msg_N
            ("<*<violation of restriction `No_Specification_Of_Aspect '='> &`#",
-            Id);
+            Id,
+            Rest_To_Diag_Mappping (No_Specification_Of_Aspect));
       end if;
    end Check_Restriction_No_Specification_Of_Aspect;
 
@@ -697,7 +698,9 @@ package body Restrict is
          Error_Msg_Name_1 := Attr_Nam;
          Error_Msg_Warn   := No_Use_Of_Attribute_Warning (Attr_Id);
          Error_Msg_N
-           ("<*<violation of restriction `No_Use_Of_Attribute '='> %` #", N);
+           ("<*<violation of restriction `No_Use_Of_Attribute '='> %` #",
+            N,
+            Rest_To_Diag_Mappping (Rident.No_Use_Of_Attribute));
       end if;
    end Check_Restriction_No_Use_Of_Attribute;
 
@@ -826,7 +829,9 @@ package body Restrict is
       if Error_Msg_Sloc /= No_Location then
          Error_Msg_Warn := No_Use_Of_Pragma_Warning (P_Id);
          Error_Msg_N
-           ("<*<violation of restriction `No_Use_Of_Pragma '='> &` #", Id);
+           ("<*<violation of restriction `No_Use_Of_Pragma '='> &` #",
+            Id,
+            Rest_To_Diag_Mappping (Rident.No_Use_Of_Pragma));
       end if;
    end Check_Restriction_No_Use_Of_Pragma;
 
