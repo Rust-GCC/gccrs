@@ -401,10 +401,20 @@ hard_reg_set_iter_next (hard_reg_set_iterator *iter, unsigned *)
   iter->bits &= ~ HARD_CONST (1);
 }
 
-/* SET must not change throughout the iteration.
+template <typename T>
+inline void
+build_error_on_rvalue (T &&)
+{
+  static_assert (!std::is_rvalue_reference<T&&>::value, "");
+}
+
+/* SET must not change throughout the iteration.  Its lifetime must cover
+   the entire loop so we call build_error_on_rvalue() to reject a temporary
+   object as SET.
    REGNUM (and ITER) may only be changed by the iteration functions.  */
 #define EXECUTE_IF_SET_IN_HARD_REG_SET(SET, MIN, REGNUM, ITER)          \
-  for (hard_reg_set_iter_init (&(ITER), (SET), (MIN), &(REGNUM));       \
+  for (build_error_on_rvalue (SET),                                     \
+       hard_reg_set_iter_init (&(ITER), (SET), (MIN), &(REGNUM));       \
        hard_reg_set_iter_set (&(ITER), &(REGNUM));                      \
        hard_reg_set_iter_next (&(ITER), &(REGNUM)))
 
