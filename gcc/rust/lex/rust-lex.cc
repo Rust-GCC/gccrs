@@ -2306,7 +2306,8 @@ Lexer::parse_decimal_int_or_float (location_t loc)
       loc += length - 1;
 
       str.shrink_to_fit ();
-      return Token::make_float (loc, std::move (str), str.length (),
+      auto suffix_start = str.length ();
+      return Token::make_float (loc, std::move (str), suffix_start,
 				CORETYPE_UNKNOWN);
     }
   else if (current_char == 'E' || current_char == 'e')
