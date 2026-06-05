@@ -7113,7 +7113,7 @@ m68k_return_pops_args (tree fundecl, tree funtype, poly_int64 size)
 static void
 m68k_conditional_register_usage (void)
 {
-  int i;
+  unsigned int i;
   HARD_REG_SET x;
   if (!TARGET_HARD_FLOAT)
     {
@@ -7212,6 +7212,7 @@ m68k_zero_call_used_regs (HARD_REG_SET need_zeroed_hardregs)
   rtx zero_fpreg = NULL_RTX;
 
   hard_reg_set_iterator hrsi;
+  unsigned int regno;
   EXECUTE_IF_SET_IN_HARD_REG_SET (need_zeroed_hardregs, 0, regno, hrsi)
     {
       rtx reg, zero;
