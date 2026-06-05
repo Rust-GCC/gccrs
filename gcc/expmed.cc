@@ -5417,6 +5417,9 @@ make_tree (tree type, rtx x)
       t = wide_int_to_tree (type, rtx_mode_t (x, TYPE_MODE (type)));
       return t;
 
+    case CONST_POLY_INT:
+      return wide_int_to_tree (type, const_poly_int_value (x));
+
     case CONST_DOUBLE:
       STATIC_ASSERT (HOST_BITS_PER_WIDE_INT * 2 <= MAX_BITSIZE_MODE_ANY_INT);
       if (TARGET_SUPPORTS_WIDE_INT == 0 && GET_MODE (x) == VOIDmode)
@@ -5508,9 +5511,6 @@ make_tree (tree type, rtx x)
       /* fall through.  */
 
     default:
-      if (CONST_POLY_INT_P (x))
-	return wide_int_to_tree (t, const_poly_int_value (x));
-
       t = build_decl (RTL_LOCATION (x), VAR_DECL, NULL_TREE, type);
 
       /* If TYPE is a POINTER_TYPE, we might need to convert X from
