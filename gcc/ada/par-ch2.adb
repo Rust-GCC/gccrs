@@ -403,11 +403,21 @@ package body Ch2 is
          loop
             Arg_Count := Arg_Count + 1;
 
-            Scan_Pragma_Argument_Association
-              (Identifier_Seen   => Identifier_Seen,
-               Association       => Assoc_Node,
-               Reserved_Words_OK =>
-                 Prag_Name in Name_Restriction_Warnings | Name_Restrictions);
+            --  Syntax of the Modifies contract requires custom parsing
+
+            if Chars (Ident_Node) = Name_Modifies then
+               Assoc_Node :=
+                 New_Node (N_Pragma_Argument_Association, Token_Ptr);
+               Set_Chars (Assoc_Node, No_Name);
+               Set_Expression (Assoc_Node, Ch13.P_Modifies_Specification);
+            else
+               Scan_Pragma_Argument_Association
+                 (Identifier_Seen   => Identifier_Seen,
+                  Association       => Assoc_Node,
+                  Reserved_Words_OK =>
+                    Prag_Name in Name_Restriction_Warnings
+                               | Name_Restrictions);
+            end if;
 
             if Arg_Count = 2 and then Import_Check_Required then
                --  Here is where we cancel the SIS active status if this pragma

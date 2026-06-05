@@ -36,7 +36,6 @@ package body Ch13 is
 
    function P_Component_Clause return Node_Id;
    function P_Mod_Clause return Node_Id;
-   function P_Modifies_Specification return Node_Id;
 
    -----------------------------------
    -- Aspect_Specifications_Present --

@@ -1086,6 +1086,10 @@ function Par (Configuration_Pragmas : Boolean) return List_Id is
       --  identifier or a selected component). The current token is an
       --  apostrophe and the following token is either a left paren or
       --  RANGE (the latter being an error to be caught by P_Code_Statement.
+
+      function P_Modifies_Specification return Node_Id;
+      --  Parse a Modifies contract specification, which is also allowed to
+      --  appear as a pragma for compatibility with old versions of Ada.
    end Ch13;
 
    --  Note: the parsing for annexe J features (i.e. obsolescent features)
