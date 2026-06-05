@@ -631,7 +631,8 @@ function_info::record_call_clobbers (build_info &bi, insn_info *insn,
     {
       hard_reg_set_iterator hrsi;
       unsigned int regno = 0;
-      EXECUTE_IF_SET_IN_HARD_REG_SET (abi.full_reg_clobbers (), 0, regno, hrsi)
+      HARD_REG_SET full_reg_clobbers = abi.full_reg_clobbers ();
+      EXECUTE_IF_SET_IN_HARD_REG_SET (full_reg_clobbers, 0, regno, hrsi)
 	{
 	  def_info *def = m_defs[regno + 1];
 	  if (!def || def->last_def ()->insn () != insn)
