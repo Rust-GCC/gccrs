@@ -2885,6 +2885,7 @@ check_explicit_inst_of_var_template (tree inst, tree decl)
     /* All good.  */
     return true;
 
+  auto_diagnostic_group d;
   error ("type %qT for explicit instantiation %qD does not match declared "
 	 "type %qT", type2, decl, type1);
   inform (DECL_SOURCE_LOCATION (inst), "variable template declared here");
