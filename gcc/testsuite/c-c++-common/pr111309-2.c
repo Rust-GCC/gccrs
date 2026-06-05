@@ -11,7 +11,7 @@
 void
 foo (void)
 {
-  enum E { E0 = 0 };
+  enum E { E0 = 0 } e;
   struct S { int s; } s;
   __builtin_clzg ();		/* { dg-error "too few arguments" } */
   __builtin_clzg (0U, 1, 2);	/* { dg-error "too many arguments" } */
@@ -21,12 +21,16 @@ foo (void)
   __builtin_clzg (true);	/* { dg-error "has boolean type" } */
   __builtin_clzg (E0);		/* { dg-error "has signed type" "" { target c } } */
 				/* { dg-error "has enumerated type" "" { target c++ } .-1 } */
+  __builtin_clzg (e);		/* { dg-error "has enumerated type" } */
+  __builtin_clzg ((enum E) 0);	/* { dg-error "has enumerated type" } */
   __builtin_clzg (0, 0);	/* { dg-error "has signed type" } */
   __builtin_clzg (0.0, 0);	/* { dg-error "does not have integral type" } */
   __builtin_clzg (s, 0);	/* { dg-error "does not have integral type" } */
   __builtin_clzg (true, 0);	/* { dg-error "has boolean type" } */
   __builtin_clzg (E0, 0);	/* { dg-error "has signed type" "" { target c } } */
 				/* { dg-error "has enumerated type" "" { target c++ } .-1 } */
+  __builtin_clzg (e, 0);	/* { dg-error "has enumerated type" } */
+  __builtin_clzg ((enum E) 0, 0);/* { dg-error "has enumerated type" } */
   __builtin_clzg (0U, 2.0);	/* { dg-error "does not have integral type" } */
   __builtin_clzg (0U, s);	/* { dg-error "does not have integral type" } */
   __builtin_clzg (0U, 2LL);	/* { dg-error "does not have 'int' type" } */
@@ -41,12 +45,16 @@ foo (void)
   __builtin_ctzg (true);	/* { dg-error "has boolean type" } */
   __builtin_ctzg (E0);		/* { dg-error "has signed type" "" { target c } } */
 				/* { dg-error "has enumerated type" "" { target c++ } .-1 } */
+  __builtin_ctzg (e);		/* { dg-error "has enumerated type" } */
+  __builtin_ctzg ((enum E) 0);	/* { dg-error "has enumerated type" } */
   __builtin_ctzg (0, 0);	/* { dg-error "has signed type" } */
   __builtin_ctzg (0.0, 0);	/* { dg-error "does not have integral type" } */
   __builtin_ctzg (s, 0);	/* { dg-error "does not have integral type" } */
   __builtin_ctzg (true, 0);	/* { dg-error "has boolean type" } */
   __builtin_ctzg (E0, 0);	/* { dg-error "has signed type" "" { target c } } */
 				/* { dg-error "has enumerated type" "" { target c++ } .-1 } */
+  __builtin_ctzg (e, 0);	/* { dg-error "has enumerated type" } */
+  __builtin_ctzg ((enum E) 0, 0);/* { dg-error "has enumerated type" } */
   __builtin_ctzg (0U, 2.0);	/* { dg-error "does not have integral type" } */
   __builtin_ctzg (0U, 2LL);	/* { dg-error "does not have 'int' type" } */
   __builtin_ctzg (0U, 2U);	/* { dg-error "does not have 'int' type" } */
@@ -59,6 +67,8 @@ foo (void)
   __builtin_clrsbg (s);		/* { dg-error "does not have integral type" } */
   __builtin_clrsbg (true);	/* { dg-error "has boolean type" } */
   __builtin_clrsbg (E0);	/* { dg-error "has enumerated type" "" { target c++ } } */
+  __builtin_clrsbg (e);		/* { dg-error "has enumerated type" } */
+  __builtin_clrsbg ((enum E) 0);/* { dg-error "has enumerated type" } */
   __builtin_ffsg ();		/* { dg-error "too few arguments" } */
   __builtin_ffsg (0, 1);	/* { dg-error "too many arguments" } */
   __builtin_ffsg (0U);		/* { dg-error "has unsigned type" } */
@@ -66,6 +76,8 @@ foo (void)
   __builtin_ffsg (s);		/* { dg-error "does not have integral type" } */
   __builtin_ffsg (true);	/* { dg-error "has boolean type" } */
   __builtin_ffsg (E0);		/* { dg-error "has enumerated type" "" { target c++ } } */
+  __builtin_ffsg (e);		/* { dg-error "has enumerated type" } */
+  __builtin_ffsg ((enum E) 0);	/* { dg-error "has enumerated type" } */
   __builtin_parityg ();		/* { dg-error "too few arguments" } */
   __builtin_parityg (0U, 1);	/* { dg-error "too many arguments" } */
   __builtin_parityg (0);	/* { dg-error "has signed type" } */
@@ -74,6 +86,8 @@ foo (void)
   __builtin_parityg (true);	/* { dg-error "has boolean type" } */
   __builtin_parityg (E0);	/* { dg-error "has signed type" "" { target c } } */
 				/* { dg-error "has enumerated type" "" { target c++ } .-1 } */
+  __builtin_parityg (e);	/* { dg-error "has enumerated type" } */
+  __builtin_parityg ((enum E) 0);/* { dg-error "has enumerated type" } */
   __builtin_popcountg ();	/* { dg-error "too few arguments" } */
   __builtin_popcountg (0U, 1);	/* { dg-error "too many arguments" } */
   __builtin_popcountg (0);	/* { dg-error "has signed type" } */
@@ -82,4 +96,6 @@ foo (void)
   __builtin_popcountg (true);	/* { dg-error "has boolean type" } */
   __builtin_popcountg (E0);	/* { dg-error "has signed type" "" { target c } } */
 				/* { dg-error "has enumerated type" "" { target c++ } .-1 } */
+  __builtin_popcountg (e);	/* { dg-error "has enumerated type" } */
+  __builtin_popcountg ((enum E) 0);/* { dg-error "has enumerated type" } */
 }
