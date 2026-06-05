@@ -6028,12 +6028,18 @@ gfc_match_call (void)
      target type.  */
   if (((sym->attr.flavor != FL_PROCEDURE
 	|| gfc_is_function_return_value (sym, gfc_current_ns))
-       && (sym->ts.type == BT_DERIVED || sym->ts.type == BT_CLASS))
-		||
-      (sym->assoc && sym->assoc->target
-       && gfc_resolve_expr (sym->assoc->target)
-       && (sym->assoc->target->ts.type == BT_DERIVED
-	   || sym->assoc->target->ts.type == BT_CLASS)))
+	&& (sym->ts.type == BT_DERIVED || sym->ts.type == BT_CLASS))
+      ||
+      /* Skip gfc_resolve_expr for ASSOCIATE names followed by '%'.
+	 resolving a contained-function selector before CONTAINS is
+	 parsed prematurely, marks it EXTERNAL, conflicting with its
+	 later INTERNAL declaration.  */
+	(sym->assoc && sym->assoc->target && gfc_peek_ascii_char () == '%')
+      ||
+	(sym->assoc && sym->assoc->target
+	 && gfc_resolve_expr (sym->assoc->target)
+	 && (sym->assoc->target->ts.type == BT_DERIVED
+	     || sym->assoc->target->ts.type == BT_CLASS)))
     return match_typebound_call (st);
 
   /* If it does not seem to be callable (include functions so that the

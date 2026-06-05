@@ -2493,7 +2493,11 @@ find_derived_types (gfc_symbol *sym, gfc_symtree *st, const char *name,
   if (st->n.sym && st->n.sym->attr.flavor == FL_DERIVED
       && !st->n.sym->attr.is_class
       && ((contained && st->n.sym->attr.use_assoc) || !contained)
-      && gfc_find_component (st->n.sym, name, true, true, NULL))
+      && !st->n.sym->attr.vtype
+      && (gfc_find_component (st->n.sym, name, true, true, NULL)
+	  || (st->n.sym->f2k_derived
+	      && gfc_find_typebound_proc (st->n.sym, NULL, name, true,
+					 NULL))))
     {
       /* Do the stashing, if required.  */
       cts++;
