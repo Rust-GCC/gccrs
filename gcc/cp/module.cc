@@ -15254,6 +15254,12 @@ void
 depset::hash::add_dependent_adl_entities (tree expr)
 {
   gcc_checking_assert (!is_key_order ());
+
+  /* This is not needed for header units where everything is
+     visible to name lookup, nothing is discarded.  */
+  if (header_module_p ())
+    return;
+
   if (TREE_CODE (current->get_entity ()) != TEMPLATE_DECL)
     return;
 
