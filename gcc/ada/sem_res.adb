@@ -646,10 +646,8 @@ package body Sem_Res is
    ----------------------------
 
    procedure Check_Discriminant_Use (N : Node_Id) is
-      PN   : constant Node_Id   := Parent (N);
+      Par  : constant Node_Id   := Parent (N);
       Disc : constant Entity_Id := Entity (N);
-      P    : Node_Id;
-      D    : Node_Id;
 
       procedure Check_Legality_In_Constraint (Alone : Boolean);
       --  RM 3.8(12/3): Check that the discriminant mentioned in a constraint
@@ -669,17 +667,24 @@ package body Sem_Res is
          end if;
       end Check_Legality_In_Constraint;
 
+      --  Local variables
+
+      P : Node_Id;
+      D : Node_Id;
+
+   --  Start of processing for Check_Discriminant_Use
+
    begin
       --  Any use in a spec-expression is legal
 
       if In_Spec_Expression then
          null;
 
-      elsif Nkind (PN) = N_Range then
+      elsif Nkind (Par) = N_Range then
 
          --  Discriminant cannot be used to constrain a scalar type
 
-         P := Parent (PN);
+         P := Parent (Par);
 
          if Nkind (P) = N_Range_Constraint
            and then Nkind (Parent (P)) = N_Subtype_Indication
@@ -761,7 +766,7 @@ package body Sem_Res is
 
                --  Check that it is the high bound
 
-               if N /= High_Bound (PN)
+               if N /= High_Bound (Par)
                  or else No (Discriminant_Default_Value (Disc))
                then
                   goto No_Danger;
@@ -789,13 +794,13 @@ package body Sem_Res is
                while True
                  and then Present (TB)
                  and then Present (CB)
-                 and then CB /= PN
+                 and then CB /= Par
                loop
                   Next_Index (TB);
                   Next (CB);
                end loop;
 
-               if CB /= PN then
+               if CB /= Par then
                   goto No_Danger;
                end if;
 
@@ -817,8 +822,8 @@ package body Sem_Res is
 
       --  Legal case is in index or discriminant constraint
 
-      elsif Nkind (PN) in N_Index_Or_Discriminant_Constraint
-                        | N_Discriminant_Association
+      elsif Nkind (Par) in N_Index_Or_Discriminant_Constraint
+                         | N_Discriminant_Association
       then
          Check_Legality_In_Constraint (Paren_Count (N) = 0);
 
@@ -826,8 +831,8 @@ package body Sem_Res is
       --  subexpression of) a constraint for a component.
 
       else
-         D := PN;
-         P := Parent (PN);
+         D := Par;
+         P := Parent (Par);
          while Nkind (P) not in
            N_Component_Declaration | N_Subtype_Indication | N_Entry_Declaration
          loop
@@ -5328,14 +5333,8 @@ package body Sem_Res is
    -----------------------
 
    procedure Resolve_Allocator (N : Node_Id; Typ : Entity_Id) is
-      Desig_T  : constant Entity_Id := Designated_Type (Typ);
-      E        : constant Node_Id   := Expression (N);
-      Subtyp   : Entity_Id;
-      Discrim  : Entity_Id;
-      Constr   : Node_Id;
-      Exp      : Node_Id;
-      Assoc    : Node_Id := Empty;
-      Disc_Exp : Node_Id;
+      Desig_T : constant Entity_Id := Designated_Type (Typ);
+      E       : constant Node_Id   := Expression (N);
 
       procedure Accessibility_Error (Exp : Node_Id);
       --  Give an error about the accessibility level of the allocator
@@ -5486,6 +5485,15 @@ package body Sem_Res is
            and then Is_Dispatching_Operation (Entity (Name (Par)));
       end In_Dispatching_Context;
 
+      --  Local variables
+
+      Assoc     : Node_Id;
+      Disc_Exp  : Node_Id;
+      Disc_Elmt : Elmt_Id;
+      Discrim   : Entity_Id;
+      Exp       : Node_Id;
+      Subtyp    : Entity_Id;
+
    --  Start of processing for Resolve_Allocator
 
    begin
@@ -5593,6 +5601,8 @@ package body Sem_Res is
 
                --  Get the first component expression of the aggregate
 
+               Assoc := Empty;
+
                if Present (Expressions (Exp)) then
                   Disc_Exp := First (Expressions (Exp));
 
@@ -5670,30 +5680,32 @@ package body Sem_Res is
          --  of the access discriminant.
 
          if Nkind (Original_Node (E)) = N_Subtype_Indication
+           and then Has_Anonymous_Access_Discriminant
+                      (Entity (Subtype_Mark (Original_Node (E))))
            and then (Ekind (Typ) /= E_Anonymous_Access_Type
                       or else Is_Local_Anonymous_Access (Typ))
          then
-            Subtyp := Entity (Subtype_Mark (Original_Node (E)));
+            --  We cannot directly use the constraints of a subtype indication
+            --  because they are not necessarily given in the expected order.
 
-            if Has_Anonymous_Access_Discriminant (Subtyp) then
-               Discrim := First_Discriminant (Base_Type (Subtyp));
-               Constr := First (Constraints (Constraint (Original_Node (E))));
-               while Present (Discrim) and then Present (Constr) loop
-                  if Ekind (Etype (Discrim)) = E_Anonymous_Access_Type then
-                     if Nkind (Constr) = N_Discriminant_Association then
-                        Disc_Exp := Expression (Constr);
-                     else
-                        Disc_Exp := Constr;
-                     end if;
-
-                     Check_Allocator_Discrim_Accessibility_Exprs
-                       (Disc_Exp, Typ);
-                  end if;
-
-                  Next_Discriminant (Discrim);
-                  Next (Constr);
-               end loop;
+            if Nkind (E) = N_Subtype_Indication then
+               Subtyp := Process_Subtype (E, N);
+            else
+               Subtyp := Etype (E);
             end if;
+
+            Discrim := First_Discriminant (Base_Type (Subtyp));
+            Disc_Elmt := First_Elmt (Discriminant_Constraint (Subtyp));
+
+            while Present (Discrim) loop
+               if Ekind (Etype (Discrim)) = E_Anonymous_Access_Type then
+                  Disc_Exp := Node (Disc_Elmt);
+                  Check_Allocator_Discrim_Accessibility_Exprs (Disc_Exp, Typ);
+               end if;
+
+               Next_Discriminant (Discrim);
+               Next_Elmt (Disc_Elmt);
+            end loop;
          end if;
       end if;
 
