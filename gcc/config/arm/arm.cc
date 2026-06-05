@@ -9812,18 +9812,139 @@ thumb1_rtx_costs (rtx x, enum rtx_code code, enum rtx_code outer)
 
   switch (code)
     {
-    case ASHIFT:
-    case ASHIFTRT:
-    case LSHIFTRT:
-    case ROTATERT:
-      return (mode == SImode) ? COSTS_N_INSNS (1) : COSTS_N_INSNS (2);
-
     case PLUS:
     case MINUS:
     case COMPARE:
-    case NEG:
+    case AND:
+    case XOR:
+    case IOR:
+      switch (mode)
+	{
+	default:
+	case E_SImode:
+	  total = COSTS_N_INSNS (1);
+	  if (GET_CODE (XEXP (x, 0)) == MULT
+	      && power_of_two_operand (XEXP (XEXP (x, 0), 1), mode))
+	    total += COSTS_N_INSNS (1);
+	  if (GET_CODE (XEXP (x, 1)) == MULT
+	      && power_of_two_operand (XEXP (XEXP (x, 1), 1), mode))
+	    total += COSTS_N_INSNS (1);
+	  return total;
+	case E_DImode:
+	  total = COSTS_N_INSNS (2);
+	  if (GET_CODE (XEXP (x, 0)) == MULT
+	      && power_of_two_operand (XEXP (XEXP (x, 0), 1), mode))
+	    total += COSTS_N_INSNS (4);
+	  if (GET_CODE (XEXP (x, 1)) == MULT
+	      && power_of_two_operand (XEXP (XEXP (x, 1), 1), mode))
+	    total += COSTS_N_INSNS (4);
+	  return total;
+	case E_HImode:
+	case E_QImode:
+	  total = COSTS_N_INSNS (3);
+	  if (GET_CODE (XEXP (x, 0)) == MULT
+	      && power_of_two_operand (XEXP (XEXP (x, 0), 1), mode))
+	    total += COSTS_N_INSNS (3);
+	  if (GET_CODE (XEXP (x, 1)) == MULT
+	      && power_of_two_operand (XEXP (XEXP (x, 1), 1), mode))
+	    total += COSTS_N_INSNS (3);
+	  return total;
+	}
+      break;
+
     case NOT:
-      return COSTS_N_INSNS (1);
+      switch (mode)
+	{
+	default:
+	case E_SImode:
+	  return COSTS_N_INSNS (1);
+	case E_DImode:
+	  return COSTS_N_INSNS (2);
+	case E_HImode:
+	case E_QImode:
+	  return COSTS_N_INSNS (3);
+	}
+      break;
+
+    case NEG:
+      switch (mode)
+	{
+	default:
+	case E_SImode:
+	  return COSTS_N_INSNS (1);
+	case E_DImode:
+	case E_HImode:
+	case E_QImode:
+	  return COSTS_N_INSNS (3);
+	}
+      break;
+
+    case ASHIFT:
+      switch (mode)
+	{
+	default:
+	case E_SImode:
+	  return COSTS_N_INSNS (1);
+	case E_DImode:
+	  if (CONST_INT_P (XEXP (x, 1))
+	      && IN_RANGE (INTVAL (XEXP (x, 1)), 32, 63))
+	    return COSTS_N_INSNS (2);
+	  return COSTS_N_INSNS (4);
+	case E_HImode:
+	case E_QImode:
+	  return COSTS_N_INSNS (3);
+	}
+      break;
+
+    case ASHIFTRT:
+      switch (mode)
+	{
+	default:
+	case E_SImode:
+	case E_HImode:
+	case E_QImode:
+	  return COSTS_N_INSNS (1);
+	case E_DImode:
+	  if (CONST_INT_P (XEXP (x, 1))
+	      && IN_RANGE (INTVAL (XEXP (x, 1)), 32, 63))
+	    return COSTS_N_INSNS (2);
+	  return COSTS_N_INSNS (4);
+	}
+      break;
+
+    case LSHIFTRT:
+      switch (mode)
+	{
+	default:
+	case E_SImode:
+	  return COSTS_N_INSNS (1);
+	case E_DImode:
+	  if (CONST_INT_P (XEXP (x, 1))
+	      && IN_RANGE (INTVAL (XEXP (x, 1)), 32, 63))
+	    return COSTS_N_INSNS (2);
+	  return COSTS_N_INSNS (4);
+	case E_HImode:
+	case E_QImode:
+	  return COSTS_N_INSNS (2);
+	}
+      break;
+
+    case ROTATERT:
+      switch (mode)
+	{
+	default:
+	case E_SImode:
+	  return COSTS_N_INSNS (2);
+	case E_DImode:
+	  if (CONST_INT_P (XEXP (x, 1))
+	      && INTVAL (XEXP (x, 1)) == 32)
+	    return COSTS_N_INSNS (2);
+	  return COSTS_N_INSNS (6);
+	case E_HImode:
+	case E_QImode:
+	  return COSTS_N_INSNS (5);
+	}
+      break;
 
     case MULT:
       if (arm_arch6m && arm_m_profile_small_mul)
@@ -9899,12 +10020,6 @@ thumb1_rtx_costs (rtx x, enum rtx_code code, enum rtx_code outer)
     case TRUNCATE:
       return 99;
 
-    case AND:
-    case XOR:
-    case IOR:
-      /* XXX guess.  */
-      return 8;
-
     case MEM:
       /* XXX another guess.  */
       /* Memory costs quite a lot for the first word, but subsequent words
@@ -9950,27 +10065,139 @@ thumb1_size_rtx_costs (rtx x, enum rtx_code code, enum rtx_code outer)
 
   switch (code)
     {
-    case ASHIFT:
-    case ASHIFTRT:
-    case LSHIFTRT:
-    case ROTATERT:
-      return (mode == SImode) ? COSTS_N_INSNS (1) : COSTS_N_INSNS (2);
-
     case PLUS:
     case MINUS:
-      /* Thumb-1 needs two instructions to fulfill shiftadd/shiftsub0/shiftsub1
-	 defined by RTL expansion, especially for the expansion of
-	 multiplication.  */
-      if ((GET_CODE (XEXP (x, 0)) == MULT
-	   && power_of_two_operand (XEXP (XEXP (x,0),1), SImode))
-	  || (GET_CODE (XEXP (x, 1)) == MULT
-	      && power_of_two_operand (XEXP (XEXP (x, 1), 1), SImode)))
-	return COSTS_N_INSNS (2);
-      /* Fall through.  */
     case COMPARE:
-    case NEG:
+    case AND:
+    case XOR:
+    case IOR:
+      switch (mode)
+	{
+	default:
+	case E_SImode:
+	  cost = COSTS_N_INSNS (1);
+	  if (GET_CODE (XEXP (x, 0)) == MULT
+	      && power_of_two_operand (XEXP (XEXP (x, 0), 1), mode))
+	    cost += COSTS_N_INSNS (1);
+	  if (GET_CODE (XEXP (x, 1)) == MULT
+	      && power_of_two_operand (XEXP (XEXP (x, 1), 1), mode))
+	    cost += COSTS_N_INSNS (1);
+	  return cost;
+	case E_DImode:
+	  cost = COSTS_N_INSNS (2);
+	  if (GET_CODE (XEXP (x, 0)) == MULT
+	      && power_of_two_operand (XEXP (XEXP (x, 0), 1), mode))
+	    cost += COSTS_N_INSNS (4);
+	  if (GET_CODE (XEXP (x, 1)) == MULT
+	      && power_of_two_operand (XEXP (XEXP (x, 1), 1), mode))
+	    cost += COSTS_N_INSNS (4);
+	  return cost;
+	case E_HImode:
+	case E_QImode:
+	  cost = COSTS_N_INSNS (3);
+	  if (GET_CODE (XEXP (x, 0)) == MULT
+	      && power_of_two_operand (XEXP (XEXP (x, 0), 1), mode))
+	    cost += COSTS_N_INSNS (3);
+	  if (GET_CODE (XEXP (x, 1)) == MULT
+	      && power_of_two_operand (XEXP (XEXP (x, 1), 1), mode))
+	    cost += COSTS_N_INSNS (3);
+	  return cost;
+	}
+      break;
+
     case NOT:
-      return COSTS_N_INSNS (1);
+      switch (mode)
+	{
+	default:
+	case E_SImode:
+	  return COSTS_N_INSNS (1);
+	case E_DImode:
+	  return COSTS_N_INSNS (2);
+	case E_HImode:
+	case E_QImode:
+	  return COSTS_N_INSNS (3);
+	}
+      break;
+
+    case NEG:
+      switch (mode)
+	{
+	default:
+	case E_SImode:
+	  return COSTS_N_INSNS (1);
+	case E_DImode:
+	case E_HImode:
+	case E_QImode:
+	  return COSTS_N_INSNS (3);
+	}
+      break;
+
+    case ASHIFT:
+      switch (mode)
+	{
+	default:
+	case E_SImode:
+	  return COSTS_N_INSNS (1);
+	case E_DImode:
+	  if (CONST_INT_P (XEXP (x, 1))
+	      && IN_RANGE (INTVAL (XEXP (x, 1)), 32, 63))
+	    return COSTS_N_INSNS (2);
+	  return COSTS_N_INSNS (4);
+	case E_HImode:
+	case E_QImode:
+	  return COSTS_N_INSNS (3);
+	}
+      break;
+
+    case ASHIFTRT:
+      switch (mode)
+	{
+	default:
+	case E_SImode:
+	case E_HImode:
+	case E_QImode:
+	  return COSTS_N_INSNS (1);
+	case E_DImode:
+	  if (CONST_INT_P (XEXP (x, 1))
+	      && IN_RANGE (INTVAL (XEXP (x, 1)), 32, 63))
+	    return COSTS_N_INSNS (2);
+	  return COSTS_N_INSNS (4);
+	}
+      break;
+
+    case LSHIFTRT:
+      switch (mode)
+	{
+	default:
+	case E_SImode:
+	  return COSTS_N_INSNS (1);
+	case E_DImode:
+	  if (CONST_INT_P (XEXP (x, 1))
+	      && IN_RANGE (INTVAL (XEXP (x, 1)), 32, 63))
+	    return COSTS_N_INSNS (2);
+	  return COSTS_N_INSNS (4);
+	case E_HImode:
+	case E_QImode:
+	  return COSTS_N_INSNS (2);
+	}
+      break;
+
+    case ROTATERT:
+      switch (mode)
+	{
+	default:
+	case E_SImode:
+	  return COSTS_N_INSNS (2);
+	case E_DImode:
+	  if (CONST_INT_P (XEXP (x, 1))
+	      && INTVAL (XEXP (x, 1)) == 32)
+	    return COSTS_N_INSNS (2);
+	  return COSTS_N_INSNS (6);
+	case E_HImode:
+	case E_QImode:
+	  return COSTS_N_INSNS (5);
+	}
+      break;
 
     case MULT:
       if (CONST_INT_P (XEXP (x, 1)))
@@ -10057,11 +10284,6 @@ thumb1_size_rtx_costs (rtx x, enum rtx_code code, enum rtx_code outer)
 
     case TRUNCATE:
       return 99;
-
-    case AND:
-    case XOR:
-    case IOR:
-      return COSTS_N_INSNS (1);
 
     case MEM:
       return (COSTS_N_INSNS (1)
@@ -18609,7 +18831,7 @@ comp_not_to_clear_mask_str_un (tree arg_type, int * regno,
       int max_bit = -1;
       uint32_t mask;
       uint32_t padding_bits_to_clear_res[NUM_ARG_REGS]
-	= {-1, -1, -1, -1};
+	= {~0U, ~0U, ~0U, ~0U};
 
       /* To compute the padding bits in a union we only consider bits as
 	 padding bits if they are always either a padding bit or fall outside a
