@@ -3032,7 +3032,24 @@ cond_store_replacement (basic_block middle_bb, basic_block join_bb, edge e0,
   /* Prove that we can move the store down.  We could also check
      TREE_THIS_NOTRAP here, but in that case we also could move stores,
      whose value is not available readily, which we want to avoid.  */
-  if (!nontrap->contains (lhs))
+  if (nontrap->contains (lhs))
+    {
+      /* Make sure there is no load in the middle bb,
+	 this invalidates nontrap.
+	 FIXME: this is over conserative, this check could be made to
+	 allow loads unrelated to lhs.  */
+      tree vuse = gimple_vuse (assign);
+      imm_use_iterator iter;
+      gimple *use_stmt;
+      FOR_EACH_IMM_USE_STMT (use_stmt, iter, vuse)
+	{
+	  if (use_stmt == assign)
+	    continue;
+	  if (gimple_bb (use_stmt) == middle_bb)
+	    return false;
+	}
+    }
+  else
     {
       /* If LHS is an access to a local variable without address-taken
 	 (or when we allow data races) and known not to trap, we could
