@@ -3505,15 +3505,21 @@ format_for_display_internal(char **dest,
               //     A COMP-1 item will display as if it had an external
               //     floating-point PICTURE clause of -.9(8)E-99.
               // The plus signs are suppressed.
+              floatval *= 10; // Needed because we are going to flip the
+              //              // decimal point and first digit.
               if( floatval >= 0 )
                 {
-                strfromf32(ach+1, sizeof(ach), "%.8E", floatval);
+                strfromf32(ach+1, sizeof(ach), "%.7E", floatval);
                 ach[0] = ascii_space;
                 }
               else
                 {
-                strfromf32(ach, sizeof(ach), "%.8E", floatval);
+                strfromf32(ach, sizeof(ach), "%.7E", floatval);
                 }
+              // Turn 1.23 into .123
+              ach[2] = ach[1];
+              ach[1] = ascii_period;
+
               // Turn "E+00" to the IBM "E 00"
               p = strchr(ach, ascii_plus);
               if(p)
@@ -3570,15 +3576,20 @@ format_for_display_internal(char **dest,
               //     A COMP-2 item will display as if it had an external
               //     floating-point PICTURE clause of -.9(17)E-99.
               // The plus signs are suppressed.
+              floatval *= 10; // Needed because we are going to flip the
+              //              // decimal point and first digit.
               if( floatval >= 0 )
                 {
-                strfromf64(ach+1, sizeof(ach), "%.17E", floatval);
+                strfromf64(ach+1, sizeof(ach), "%.16E", floatval);
                 ach[0] = ascii_space;
                 }
               else
                 {
-                strfromf64(ach, sizeof(ach), "%.17E", floatval);
+                strfromf64(ach, sizeof(ach), "%.16E", floatval);
                 }
+              // Turn 1.23 into .123
+              ach[2] = ach[1];
+              ach[1] = ascii_period;
               // Turn "E+00" to the IBM "E 00"
               p = strchr(ach, ascii_plus);
               if(p)
