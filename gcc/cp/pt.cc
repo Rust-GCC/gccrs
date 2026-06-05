@@ -3276,10 +3276,39 @@ check_explicit_specialization (tree declarator,
 		  targs = new_targs;
 		}
 
+	      tree e1;
 	      tree inst = instantiate_template (tmpl, targs, tf_error);
 	      if (variable_template_p (tmpl)
 		  && !check_explicit_inst_of_var_template (inst, decl))
 		return error_mark_node;
+	      /* [except.spec] In an explicit instantiation
+		 a noexcept-specifier may be specified, but is not required.
+		 If a noexcept-specifier is specified in an explicit
+		 instantiation, the exception specification shall be the same
+		 as the exception specification of all other declarations of
+		 that function.  */
+	      else if (DECL_FUNCTION_TEMPLATE_P (tmpl)
+		       && (e1 = TYPE_RAISES_EXCEPTIONS (TREE_TYPE (decl)))
+		       /* This could be the implicit noexcept(true) given
+			  to destructors, but here we are interested only
+			  in user-written noexcept-specs which would have
+			  been evaluated by now.  */
+		       && !UNEVALUATED_NOEXCEPT_SPEC_P (e1)
+		       && maybe_instantiate_noexcept (inst))
+		{
+		  tree e2 = TYPE_RAISES_EXCEPTIONS (TREE_TYPE (inst));
+		  if (!comp_except_specs (e1, e2, ce_normal))
+		    {
+		      auto_diagnostic_group d;
+		      error ("exception specification %qX in explicit "
+			     "instantiation does not match the instantiated "
+			     "one %qX", e1, e2 ? e2 : noexcept_false_spec);
+		      inform (DECL_SOURCE_LOCATION (tmpl),
+			      "template declared here");
+		      return error_mark_node;
+		    }
+		}
+
 	      return inst;
 	    }
 
