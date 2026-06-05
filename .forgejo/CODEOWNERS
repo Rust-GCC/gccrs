@@ -1,0 +1,13 @@
+# Experimental CODEOWNERS file for GCC.  This is known to be incomplete
+
+# AArch64 Maintainers
+.*/aarch64/.* @gcc/Maintainers.AArch64
+
+# Arm Maintainers
+.*/arm/.* @gcc/Maintainers.Arm
+
+# Libstdc++ maintainers
+libstdc[+][+]v3/.* @gcc/Maintainers.libstdcplusplus
+
+# Forge maintainers
+(.forgejo|.github)/.* @rdfm
