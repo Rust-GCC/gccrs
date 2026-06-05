@@ -266,7 +266,9 @@ build_call_internal (internal_fn fn, gimple_match_op *res_op)
 	    case IFN_FFS:
 	    case IFN_POPCOUNT:
 	    case IFN_PARITY:
-	      /* For these 6 builtins large/huge _BitInt operand is ok
+	    case IFN_BSWAP:
+	    case IFN_BITREVERSE:
+	      /* For these 8 builtins large/huge _BitInt operand is ok
 		 before bitint lowering pass.  */
 	      if (res_op->num_ops >= 1
 		  && BITINT_TYPE_P (TREE_TYPE (res_op->ops[0]))

@@ -474,6 +474,7 @@ struct bitint_large_huge
   void lower_cplxpart_stmt (tree, gimple *);
   void lower_complexexpr_stmt (gimple *);
   void lower_bit_query (gimple *);
+  void lower_bswap_bitreverse (gimple *);
   void lower_call (tree, gimple *);
   void lower_asm (gimple *);
   void lower_stmt (gimple *);
@@ -6106,6 +6107,181 @@ bitint_large_huge::lower_bit_query (gimple *stmt)
     }
 }
 
+/* Lower a .{BSWAP,BITREVERSE} call with one large/huge _BitInt argument.  */
+
+void
+bitint_large_huge::lower_bswap_bitreverse (gimple *stmt)
+{
+  tree arg = gimple_call_arg (stmt, 0);
+  tree lhs = gimple_call_lhs (stmt);
+  gimple *g;
+
+  if (!lhs)
+    {
+      gimple_stmt_iterator gsi = gsi_for_stmt (stmt);
+      gsi_remove (&gsi, true);
+      return;
+    }
+  tree type = TREE_TYPE (arg);
+  gcc_assert (BITINT_TYPE_P (type));
+  bitint_prec_kind kind = bitint_precision_kind (type);
+  gcc_assert (kind >= bitint_prec_large);
+  int part = var_to_partition (m_map, lhs);
+  gcc_assert (m_vars[part] != NULL_TREE);
+  tree obj = m_vars[part];
+  enum internal_fn ifn = gimple_call_internal_fn (stmt);
+  enum built_in_function bcode = END_BUILTINS;
+  switch (limb_prec)
+    {
+    case 16:
+      bcode = ifn == IFN_BSWAP ? BUILT_IN_BSWAP16 : BUILT_IN_BITREVERSE16;
+      break;
+    case 32:
+      bcode = ifn == IFN_BSWAP ? BUILT_IN_BSWAP32 : BUILT_IN_BITREVERSE32;
+      break;
+    case 64:
+      bcode = ifn == IFN_BSWAP ? BUILT_IN_BSWAP64 : BUILT_IN_BITREVERSE64;
+      break;
+    case 128:
+      bcode = ifn == IFN_BSWAP ? BUILT_IN_BSWAP128 : BUILT_IN_BITREVERSE128;
+      break;
+    default:
+      gcc_unreachable ();
+    }
+  tree fndecl = builtin_decl_explicit (bcode);
+  unsigned prec = TYPE_PRECISION (type);
+  tree p = build_int_cst (sizetype,
+			  prec / limb_prec - (prec % limb_prec == 0));
+  /* For IFN .BSWAP or .BITREVERSE and
+     FN corresponding __builtin_bswapN or __builtin_bitreverseN where N
+     is limb_prec, lower
+       dst = IFN (src);
+     as
+       size_t p = prec / limb_prec - (prec % limb_prec == 0);
+       if constexpr ((prec % limb_prec) == 0)
+	 {
+	   for (idx = 0; idx <= p; ++idx)
+	     dst[p - idx] = FN (src[idx]);
+	 }
+       else
+	 {
+	   unsigned n1 = prec % limb_prec;
+	   unsigned n2 = limb_prec - n1;
+	   dst[p] = FN (src[0]) >> n2;
+	   for (idx = p - 1; (ssize_t) idx >= 0; --idx)
+	     dst[idx] = FN ((src[p - idx] << n2) | (src[p - idx - 1] >> n1));
+	 }  */
+  if (prec % limb_prec == 0)
+    {
+      tree idx_next;
+      tree idx = create_loop (size_zero_node, &idx_next);
+      tree pmidx = make_ssa_name (sizetype);
+      g = gimple_build_assign (pmidx, MINUS_EXPR, p, idx);
+      insert_before (g);
+      m_data_cnt = 0;
+      tree t = handle_operand (arg, idx);
+      m_first = false;
+      g = gimple_build_call (fndecl, 1, t);
+      t = make_ssa_name (m_limb_type);
+      gimple_call_set_lhs (g, t);
+      insert_before (g);
+      tree l = limb_access (TREE_TYPE (lhs), obj, pmidx, true);
+      g = gimple_build_assign (l, t);
+      insert_before (g);
+      g = gimple_build_assign (idx_next, PLUS_EXPR, idx, size_one_node);
+      insert_before (g);
+      g = gimple_build_cond (LE_EXPR, idx_next, p, NULL_TREE, NULL_TREE);
+      insert_before (g);
+    }
+  else
+    {
+      tree n1 = build_int_cst (unsigned_type_node, prec % limb_prec);
+      tree n2 = build_int_cst (unsigned_type_node,
+			       limb_prec - (prec % limb_prec));
+      m_data_cnt = 0;
+      tree t = handle_operand (arg, bitint_big_endian ? p : size_zero_node);
+      m_first = false;
+      /* Nothing is needed to bswap 8 bits or bitreverse 1 bit, so just
+	 mask off higher bits in that case.  */
+      if ((prec % limb_prec) != (ifn == IFN_BSWAP ? 8 : 1))
+	{
+	  g = gimple_build_call (fndecl, 1, t);
+	  t = make_ssa_name (m_limb_type);
+	  gimple_call_set_lhs (g, t);
+	  insert_before (g);
+	  g = gimple_build_assign (make_ssa_name (m_limb_type), RSHIFT_EXPR,
+				   t, n2);
+	}
+      else
+	g = gimple_build_assign (make_ssa_name (m_limb_type), BIT_AND_EXPR,
+				 t, build_int_cst (m_limb_type,
+						   ifn == IFN_BSWAP
+						   ? 0xff : 1));
+      insert_before (g);
+      t = gimple_assign_lhs (g);
+      tree l = limb_access (TREE_TYPE (lhs), obj,
+			    bitint_big_endian ? size_zero_node : p, true);
+      g = gimple_build_assign (l, t);
+      insert_before (g);
+      tree pm1 = build_int_cst (sizetype, prec / limb_prec - 1);
+      tree idx_next;
+      tree idx = create_loop (pm1, &idx_next);
+      tree pmidx = make_ssa_name (sizetype);
+      g = gimple_build_assign (pmidx, MINUS_EXPR, p, idx);
+      insert_before (g);
+      m_data_cnt = 0;
+      t = handle_operand (arg, bitint_big_endian ? idx : pmidx);
+      m_data_cnt = 0;
+      g = gimple_build_assign (make_ssa_name (m_limb_type), LSHIFT_EXPR,
+			       t, n2);
+      insert_before (g);
+      t = gimple_assign_lhs (g);
+      tree t2 = make_ssa_name (sizetype);
+      if (bitint_big_endian)
+	g = gimple_build_assign (t2, PLUS_EXPR, idx, size_one_node);
+      else
+	g = gimple_build_assign (t2, PLUS_EXPR, pmidx, size_int (-1));
+      insert_before (g);
+      t2 = handle_operand (arg, t2);
+      g = gimple_build_assign (make_ssa_name (m_limb_type), RSHIFT_EXPR,
+			       t2, n1);
+      insert_before (g);
+      t2 = gimple_assign_lhs (g);
+      g = gimple_build_assign (make_ssa_name (m_limb_type), BIT_IOR_EXPR,
+			       t, t2);
+      insert_before (g);
+      t = gimple_assign_lhs (g);
+      g = gimple_build_call (fndecl, 1, t);
+      t = make_ssa_name (m_limb_type);
+      gimple_call_set_lhs (g, t);
+      insert_before (g);
+      l = limb_access (TREE_TYPE (lhs), obj,
+		       bitint_big_endian ? pmidx : idx, true);
+      g = gimple_build_assign (l, t);
+      insert_before (g);
+      g = gimple_build_assign (idx_next, PLUS_EXPR, idx, size_int (-1));
+      insert_before (g);
+      g = gimple_build_cond (NE_EXPR, idx, size_zero_node, NULL_TREE,
+			     NULL_TREE);
+      insert_before (g);
+    }
+  gimple_stmt_iterator gsi = gsi_for_stmt (stmt);
+  if (bitint_extended == bitint_ext_full
+      && abi_limb_prec > limb_prec
+      && (CEIL (prec, abi_limb_prec) * abi_limb_prec
+	  > CEIL (prec, limb_prec) * limb_prec))
+    {
+      m_gsi = gsi;
+      tree p2 = build_int_cst (sizetype,
+			       CEIL (prec, abi_limb_prec)
+			       * abi_limb_prec / limb_prec - 1);
+      tree l = limb_access (TREE_TYPE (lhs), obj, p2, true);
+      g = gimple_build_assign (l, build_zero_cst (m_limb_type));
+      insert_before (g);
+    }
+  gsi_remove (&gsi, true);
+}
+
 /* Lower a call statement with one or more large/huge _BitInt
    arguments or large/huge _BitInt return value.  */
 
@@ -6134,6 +6310,10 @@ bitint_large_huge::lower_call (tree obj, gimple *stmt)
       case IFN_PARITY:
       case IFN_POPCOUNT:
 	lower_bit_query (stmt);
+	return;
+      case IFN_BSWAP:
+      case IFN_BITREVERSE:
+	lower_bswap_bitreverse (stmt);
 	return;
       default:
 	break;
@@ -6815,8 +6995,7 @@ build_bitint_stmt_ssa_conflicts (gimple *stmt, live_track *live,
 	    }
 	}
     }
-  else if (bitint_big_endian
-	   && is_gimple_call (stmt)
+  else if (is_gimple_call (stmt)
 	   && gimple_call_internal_p (stmt))
     switch (gimple_call_internal_fn (stmt))
       {
@@ -6826,6 +7005,15 @@ build_bitint_stmt_ssa_conflicts (gimple *stmt, live_track *live,
       case IFN_UBSAN_CHECK_SUB:
       case IFN_MUL_OVERFLOW:
       case IFN_UBSAN_CHECK_MUL:
+	if (bitint_big_endian)
+	  {
+	    lhs = gimple_call_lhs (stmt);
+	    if (lhs)
+	      muldiv_p = true;
+	  }
+	break;
+      case IFN_BSWAP:
+      case IFN_BITREVERSE:
 	lhs = gimple_call_lhs (stmt);
 	if (lhs)
 	  muldiv_p = true;

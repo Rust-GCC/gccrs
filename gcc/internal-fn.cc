@@ -4765,6 +4765,7 @@ set_edom_supported_p (void)
     expand_##TYPE##_optab_fn (fn, stmt, OPTAB##_optab);	\
   }
 #define DEF_INTERNAL_INT_EXT_FN(CODE, FLAGS, OPTAB, TYPE)
+#define DEF_INTERNAL_INTSZ_EXT_FN(CODE, FLAGS, OPTAB, TYPE)
 #define DEF_INTERNAL_SIGNED_OPTAB_FN(CODE, FLAGS, SELECTOR, SIGNED_OPTAB, \
 				     UNSIGNED_OPTAB, TYPE)		\
   static void								\
@@ -5929,4 +5930,18 @@ expand_POPCOUNT (internal_fn fn, gcall *stmt)
       rtx_insn *all_insns = end_sequence ();
       emit_insn (all_insns);
     }
+}
+
+void
+expand_BSWAP (internal_fn fn, gcall *stmt)
+{
+  if (expand_bitquery (fn, stmt))
+    expand_unary_optab_fn (fn, stmt, bswap_optab);
+}
+
+void
+expand_BITREVERSE (internal_fn fn, gcall *stmt)
+{
+  if (expand_bitquery (fn, stmt))
+    expand_unary_optab_fn (fn, stmt, bitreverse_optab);
 }

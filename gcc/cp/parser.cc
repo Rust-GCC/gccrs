@@ -8626,6 +8626,8 @@ cp_parser_postfix_expression (cp_parser *parser, bool address_p, bool cast_p,
     case RID_BUILTIN_ASSOC_BARRIER:
     case RID_BUILTIN_OPERATOR_NEW:
     case RID_BUILTIN_OPERATOR_DELETE:
+    case RID_BUILTIN_BSWAPG:
+    case RID_BUILTIN_BITREVERSEG:
       {
 	vec<tree, va_gc> *vec;
 
@@ -8743,6 +8745,18 @@ cp_parser_postfix_expression (cp_parser *parser, bool address_p, bool cast_p,
 		else if (call && TREE_CODE (call) == CALL_EXPR)
 		  CALL_FROM_NEW_OR_DELETE_P (call) = 1;
 	      }
+	    break;
+
+	  case RID_BUILTIN_BSWAPG:
+	    postfix_expression
+	      = build_x_bswapg_bitreverseg (loc, IFN_BSWAP, vec,
+					    tf_warning_or_error);
+	    break;
+
+	  case RID_BUILTIN_BITREVERSEG:
+	    postfix_expression
+	      = build_x_bswapg_bitreverseg (loc, IFN_BITREVERSE, vec,
+					    tf_warning_or_error);
 	    break;
 
 	  default:

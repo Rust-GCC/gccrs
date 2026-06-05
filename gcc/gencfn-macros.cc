@@ -154,6 +154,13 @@ const char *const internal_fn_int_names[] = {
   NULL
 };
 
+const char *const internal_fn_intsz_names[] = {
+#define DEF_INTERNAL_INTSZ_FN(NAME, FLAGS, OPTAB, TYPE) \
+  #NAME,
+#include "internal-fn.def"
+  NULL
+};
+
 static const char *const flt_suffixes[] = { "F", "", "L", NULL };
 static const char *const fltfn_suffixes[] = { "F16", "F32", "F64", "F128",
 					      "F32X", "F64X", "F128X", NULL };
@@ -161,10 +168,13 @@ static const char *const fltall_suffixes[] = { "F", "", "L", "F16", "F32",
 					       "F64", "F128", "F32X", "F64X",
 					       "F128X", NULL };
 static const char *const int_suffixes[] = { "", "L", "LL", "IMAX", NULL };
+static const char *const intsz_suffixes[] = { "8", "16", "32", "64", "128",
+					      NULL };
 
 static const char *const *const suffix_lists[] = {
   flt_suffixes,
   int_suffixes,
+  intsz_suffixes,
   NULL
 };
 
@@ -186,6 +196,7 @@ main (int argc, char **argv)
   add_to_set (&builtins, builtin_names);
   add_to_set (&internal_fns, internal_fn_flt_names);
   add_to_set (&internal_fns, internal_fn_int_names);
+  add_to_set (&internal_fns, internal_fn_intsz_names);
 
   /* Check the functions.  */
   for (unsigned int i = 0; internal_fn_flt_names[i]; ++i)
@@ -202,6 +213,15 @@ main (int argc, char **argv)
 	error ("DEF_INTERNAL_INT_FN (%s) has no associated built-in"
 	       " functions", name);
     }
+  for (unsigned int i = 0; internal_fn_intsz_names[i]; ++i)
+    {
+      const char *name = internal_fn_intsz_names[i];
+      if (!is_group (&builtins, name,
+		     /* There is no BUILT_IN_BSWAP8.  */
+		     intsz_suffixes + (startswith (name, "BSWAP") ? 1 : 0)))
+	error ("DEF_INTERNAL_INTSZ_FN (%s) has no associated built-in"
+	       " functions", name);
+    }
 
   /* Go through the built-in functions in declaration order, outputting
      definitions as appropriate.  */
@@ -211,10 +231,25 @@ main (int argc, char **argv)
       if (startswith (name, "BUILT_IN_"))
 	{
 	  const char *root = name + 9;
+	  char buf[128];
 	  for (unsigned int j = 0; suffix_lists[j]; ++j)
 	    {
-	      const char *const *const suffix = suffix_lists[j];
+	      const char *const *suffix = suffix_lists[j];
 
+	      if (suffix == intsz_suffixes)
+		{
+		  if (!endswith (root, "32"))
+		    continue;
+		  size_t len = strlen (root);
+		  if (len > sizeof (buf))
+		    continue;
+		  /* There is no BUILT_IN_BSWAP8.  */
+		  if (startswith (root, "BSWAP"))
+		    suffix++;
+		  memcpy (buf, root, len - 2);
+		  buf[len - 2] = '\0';
+		  root = buf;
+		}
 	      if (is_group (&builtins, root, suffix))
 		{
 		  bool internal_p = internal_fns.contains (root);

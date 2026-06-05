@@ -10522,6 +10522,53 @@ fold_builtin_bit_query (location_t loc, enum built_in_function fcode,
   return call;
 }
 
+/* Fold or build a __builtin_bswapg (ARG) (if IFN is IFN_BSWAP) or
+   __builtin_bitreverseg (ARG (otherwise) call.  The FE should have
+   verified earlier that the argument type is unsigned INTEGER_TYPE
+   or BITINT_TYPE, for __builtin_bswapg with precision divisible by 8.  */
+
+tree
+fold_build_builtin_bswapg_bitreverseg (location_t loc, enum internal_fn ifn,
+				       tree arg)
+{
+  tree type = TYPE_MAIN_VARIANT (TREE_TYPE (arg));
+  if (ifn == IFN_BSWAP && TYPE_PRECISION (type) == 8)
+    return fold_convert_loc (loc, type, arg);
+  struct { tree type; built_in_function bswap, bitreverse; } fns[]
+    = { { unsigned_char_type_node, END_BUILTINS, BUILT_IN_BITREVERSE8 },
+	{ uint16_type_node, BUILT_IN_BSWAP16, BUILT_IN_BITREVERSE16 },
+	{ uint32_type_node, BUILT_IN_BSWAP32, BUILT_IN_BITREVERSE32 },
+	{ uint64_type_node, BUILT_IN_BSWAP64, BUILT_IN_BITREVERSE64 },
+	{ uint128_type_node, BUILT_IN_BSWAP128, BUILT_IN_BITREVERSE128 } };
+  if (TREE_CODE (arg) == INTEGER_CST)
+    {
+      wide_int res;
+      if (ifn == IFN_BSWAP)
+	res = wi::bswap (wi::to_wide (arg));
+      else
+	res = wi::bitreverse (wi::to_wide (arg));
+      return wide_int_to_tree (type, res);
+    }
+  for (unsigned i = 0; i < ARRAY_SIZE (fns); ++i)
+    if (fns[i].type
+	&& TYPE_PRECISION (fns[i].type) >= TYPE_PRECISION (type))
+      {
+	arg = fold_convert_loc (loc, fns[i].type, arg);
+	tree fndecl
+	  = builtin_decl_explicit (ifn == IFN_BSWAP
+				   ? fns[i].bswap : fns[i].bitreverse);
+	tree ret = build_call_expr_loc (loc, fndecl, 1, arg);
+	if (TYPE_PRECISION (type) != TYPE_PRECISION (fns[i].type))
+	  ret = fold_build2_loc (loc, RSHIFT_EXPR, fns[i].type, ret,
+				 build_int_cst (unsigned_type_node,
+						TYPE_PRECISION (fns[i].type)
+						- TYPE_PRECISION (type)));
+	return fold_convert_loc (loc, type, ret);
+      }
+  gcc_assert (TREE_CODE (type) == BITINT_TYPE);
+  return build_call_expr_internal_loc (loc, ifn, type, 1, arg);
+}
+
 /* Fold __builtin_{add,sub}c{,l,ll} into pair of internal functions
    that return both result of arithmetics and overflowed boolean
    flag in a complex integer result.  */

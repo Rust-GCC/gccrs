@@ -13534,6 +13534,76 @@ c_parser_postfix_expression (c_parser *parser)
 				       expr.value);
 	    break;
 	  }
+	case RID_BUILTIN_BSWAPG:
+	case RID_BUILTIN_BITREVERSEG:
+	  {
+	    vec<c_expr_t, va_gc> *cexpr_list;
+	    location_t close_paren_loc;
+	    internal_fn ifn
+	      = (c_parser_peek_token (parser)->keyword == RID_BUILTIN_BSWAPG
+		 ? IFN_BSWAP : IFN_BITREVERSE);
+	    const char *name
+	      = (ifn == IFN_BSWAP ? "__builtin_bswapg"
+		 : "__builtin_bitreverseg");
+
+	    c_parser_consume_token (parser);
+	    if (!c_parser_get_builtin_args (parser, name, &cexpr_list, false,
+					    &close_paren_loc))
+	      {
+		expr.set_error ();
+		break;
+	      }
+
+	    if (vec_safe_length (cexpr_list) != 1)
+	      {
+		error_at (loc, "wrong number of arguments to %qs", name);
+		expr.set_error ();
+		break;
+	      }
+
+	    c_expr_t *arg_p = &(*cexpr_list)[0];
+	    *arg_p = convert_lvalue_to_rvalue (loc, *arg_p, true, true);
+	    tree arg = arg_p->value;
+	    tree type = TYPE_MAIN_VARIANT (TREE_TYPE (arg));
+	    if (!INTEGRAL_TYPE_P (type))
+	      {
+		error_at (loc, "%qs operand not an integral type", name);
+		expr.set_error ();
+		break;
+	      }
+	    if (TREE_CODE (type) == ENUMERAL_TYPE)
+	      {
+		error_at (loc, "argument %u in call to function "
+			  "%qs has enumerated type", 1, name);
+		expr.set_error ();
+		break;
+	      }
+	    if (TREE_CODE (type) == BOOLEAN_TYPE)
+	      {
+		error_at (loc, "argument %u in call to function "
+			  "%qs has boolean type", 1, name);
+		expr.set_error ();
+		break;
+	      }
+	    if (!TYPE_UNSIGNED (type))
+	      {
+		error_at (loc, "argument 1 in call to function "
+			  "%qs has signed type", name);
+		expr.set_error ();
+		break;
+	      }
+	    if (ifn == IFN_BSWAP && (TYPE_PRECISION (type) % 8) != 0)
+	      {
+		error_at (loc, "precision %d of argument 1 to function "
+			  "%qs is not a multiple of 8",
+			  TYPE_PRECISION (type), name);
+		expr.set_error ();
+		break;
+	      }
+	    expr.value = fold_build_builtin_bswapg_bitreverseg (loc, ifn, arg);
+	    set_c_expr_source_range (&expr, loc, close_paren_loc);
+	    break;
+	  }
 	case RID_AT_SELECTOR:
 	  {
 	    gcc_assert (c_dialect_objc ());

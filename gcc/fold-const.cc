@@ -14627,15 +14627,8 @@ tree_call_nonnegative_p (tree type, combined_fn fn, tree arg0, tree arg1,
     CASE_CFN_PARITY:
     CASE_CFN_POPCOUNT:
     CASE_CFN_CLRSB:
-    case CFN_BUILT_IN_BSWAP16:
-    case CFN_BUILT_IN_BSWAP32:
-    case CFN_BUILT_IN_BSWAP64:
-    case CFN_BUILT_IN_BSWAP128:
-    case CFN_BUILT_IN_BITREVERSE8:
-    case CFN_BUILT_IN_BITREVERSE16:
-    case CFN_BUILT_IN_BITREVERSE32:
-    case CFN_BUILT_IN_BITREVERSE64:
-    case CFN_BUILT_IN_BITREVERSE128:
+    CASE_CFN_BSWAP:
+    CASE_CFN_BITREVERSE:
       /* Always true.  */
       return true;
 

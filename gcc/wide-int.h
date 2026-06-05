@@ -2655,7 +2655,7 @@ wi::set_bit (const T &x, unsigned int bit)
 
 /* Byte swap the integer X.
    ??? This always swaps 8-bit octets, regardless of BITS_PER_UNIT.
-   This function requires X's precision to be a multiple of 16 bits,
+   This function requires X's precision to be a multiple of 8 bits,
    so care needs to be taken for targets where BITS_PER_UNIT != 8.  */
 template <typename T>
 inline WI_UNARY_RESULT (T)

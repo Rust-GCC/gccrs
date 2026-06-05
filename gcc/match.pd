@@ -53,10 +53,6 @@ along with GCC; see the file COPYING3.  If not see
   gt   ge   eq ne le   lt   unordered ordered   ungt unge unlt unle uneq ltgt)
 (define_operator_list simple_comparison         lt   le   eq ne ge   gt)
 (define_operator_list swapped_simple_comparison gt   ge   eq ne le   lt)
-(define_operator_list BSWAP BUILT_IN_BSWAP16 BUILT_IN_BSWAP32
-	    BUILT_IN_BSWAP64 BUILT_IN_BSWAP128)
-(define_operator_list BITREVERSE BUILT_IN_BITREVERSE8 BUILT_IN_BITREVERSE16
-	    BUILT_IN_BITREVERSE32 BUILT_IN_BITREVERSE64 BUILT_IN_BITREVERSE128)
 
 #include "cfn-operators.pd"
 
@@ -10319,8 +10315,7 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 
 /* popcount(bswap(x)) is popcount(x).  */
 (for popcount (POPCOUNT)
-  (for bswap (BUILT_IN_BSWAP16 BUILT_IN_BSWAP32
-	      BUILT_IN_BSWAP64 BUILT_IN_BSWAP128)
+  (for bswap (BSWAP BITREVERSE)
     (simplify
       (popcount (convert?@0 (bswap:s@1 @2)))
       (if (INTEGRAL_TYPE_P (TREE_TYPE (@0))

@@ -7111,6 +7111,71 @@ build_x_shufflevector (location_t loc, vec<tree, va_gc> *args,
     }
   return exp;
 }
+
+/* Build __builtin_bswapg (ARG) or __builtin_bitreverseg (ARG).  */
+tree
+build_x_bswapg_bitreverseg (location_t loc, internal_fn ifn,
+			    vec<tree, va_gc> *args, tsubst_flags_t complain)
+{
+  const char *name
+    = ifn == IFN_BSWAP ? "__builtin_bswapg" : "__builtin_bitreverseg";
+  if (args->length () != 1)
+    {
+      if (complain & tf_error)
+	error_at (loc, "wrong number of arguments to %qs", name);
+      return error_mark_node;
+    }
+  tree arg = (*args)[0];
+  if (type_dependent_expression_p (arg))
+    {
+      tree exp = build_min_nt_call_vec (NULL, args);
+      CALL_EXPR_IFN (exp) = ifn;
+      return exp;
+    }
+  tree type = TYPE_MAIN_VARIANT (TREE_TYPE (arg));
+  if (!INTEGRAL_TYPE_P (type))
+    {
+      if (complain & tf_error)
+	error_at (loc, "%qs operand not an integral type", name);
+      return error_mark_node;
+    }
+  if (TREE_CODE (type) == ENUMERAL_TYPE)
+    {
+      if (complain & tf_error)
+	error_at (loc, "argument %u in call to function "
+		       "%qs has enumerated type", 1, name);
+      return error_mark_node;
+    }
+  if (TREE_CODE (type) == BOOLEAN_TYPE)
+    {
+      if (complain & tf_error)
+	error_at (loc, "argument %u in call to function "
+		       "%qs has boolean type", 1, name);
+      return error_mark_node;
+    }
+  if (!TYPE_UNSIGNED (type))
+    {
+      if (complain & tf_error)
+	error_at (loc, "argument 1 in call to function "
+		       "%qs has signed type", name);
+      return error_mark_node;
+    }
+  if (ifn == IFN_BSWAP && (TYPE_PRECISION (type) % 8) != 0)
+    {
+      if (complain & tf_error)
+	error_at (loc, "precision %d of argument 1 to function "
+		       "%qs is not a multiple of 8",
+		  TYPE_PRECISION (type), name);
+      return error_mark_node;
+    }
+  tree exp = build_call_expr_internal_loc (loc, ifn, type, 1, arg);
+  if (processing_template_decl)
+    {
+      exp = build_min_non_dep_call_vec (exp, NULL, args);
+      CALL_EXPR_IFN (exp) = ifn;
+    }
+  return exp;
+}
 
 /* Return a tree for the sum or difference (RESULTCODE says which)
    of pointer PTROP and integer INTOP.  */

@@ -813,15 +813,8 @@ empty_bb_or_one_feeding_into_p (basic_block bb,
 	{
 	default:
 	  return false;
-	case CFN_BUILT_IN_BSWAP16:
-	case CFN_BUILT_IN_BSWAP32:
-	case CFN_BUILT_IN_BSWAP64:
-	case CFN_BUILT_IN_BSWAP128:
-	case CFN_BUILT_IN_BITREVERSE8:
-	case CFN_BUILT_IN_BITREVERSE16:
-	case CFN_BUILT_IN_BITREVERSE32:
-	case CFN_BUILT_IN_BITREVERSE64:
-	case CFN_BUILT_IN_BITREVERSE128:
+	CASE_CFN_BSWAP:
+	CASE_CFN_BITREVERSE:
 	CASE_CFN_FFS:
 	CASE_CFN_PARITY:
 	CASE_CFN_POPCOUNT:
@@ -2577,15 +2570,8 @@ cond_removal_in_builtin_zero_pattern (basic_block cond_bb,
   bool any_val = false;
   switch (cfn)
     {
-    case CFN_BUILT_IN_BSWAP16:
-    case CFN_BUILT_IN_BSWAP32:
-    case CFN_BUILT_IN_BSWAP64:
-    case CFN_BUILT_IN_BSWAP128:
-    case CFN_BUILT_IN_BITREVERSE8:
-    case CFN_BUILT_IN_BITREVERSE16:
-    case CFN_BUILT_IN_BITREVERSE32:
-    case CFN_BUILT_IN_BITREVERSE64:
-    case CFN_BUILT_IN_BITREVERSE128:
+    CASE_CFN_BSWAP:
+    CASE_CFN_BITREVERSE:
     CASE_CFN_FFS:
     CASE_CFN_PARITY:
     CASE_CFN_POPCOUNT:

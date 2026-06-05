@@ -22561,6 +22561,17 @@ tsubst_expr (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 		break;
 	      }
 
+	    case IFN_BSWAP:
+	    case IFN_BITREVERSE:
+	      {
+		ret = build_x_bswapg_bitreverseg (input_location,
+						  CALL_EXPR_IFN (t), call_args,
+						  complain);
+		if (ret != error_mark_node)
+		  RETURN (ret);
+		break;
+	      }
+
 	    case IFN_ASSUME:
 	      gcc_assert (nargs == 1);
 	      if (vec_safe_length (call_args) != 1)

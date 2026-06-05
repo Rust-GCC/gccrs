@@ -3245,6 +3245,32 @@ cxx_eval_internal_function (const constexpr_ctx *ctx, tree t,
     case IFN_DEFERRED_INIT:
       return build_clobber (TREE_TYPE (t), CLOBBER_OBJECT_BEGIN);
 
+    case IFN_BSWAP:
+    case IFN_BITREVERSE:
+      {
+	tree arg = cxx_eval_constant_expression (ctx, CALL_EXPR_ARG (t, 0),
+						 vc_prvalue, non_constant_p,
+						 overflow_p, jump_target);
+	if (*jump_target)
+	  return NULL_TREE;
+	if (*non_constant_p)
+	  return t;
+	location_t loc = cp_expr_loc_or_input_loc (t);
+	if (TREE_CODE (arg) != INTEGER_CST
+	    || !INTEGRAL_TYPE_P (TREE_TYPE (arg))
+	    || !TYPE_UNSIGNED (TREE_TYPE (arg))
+	    || (CALL_EXPR_IFN (t) == IFN_BSWAP
+		&& (TYPE_PRECISION (TREE_TYPE (arg)) % 8) != 0))
+	  {
+	    if (!ctx->quiet)
+	      error_at (loc, "call to internal function %qE", t);
+	    *non_constant_p = true;
+	    return t;
+	  }
+	return fold_build_builtin_bswapg_bitreverseg (loc, CALL_EXPR_IFN (t),
+						      arg);
+      }
+
     case IFN_VEC_CONVERT:
       {
 	tree arg = cxx_eval_constant_expression (ctx, CALL_EXPR_ARG (t, 0),
@@ -12026,6 +12052,8 @@ potential_constant_expression_1 (tree t, bool want_rval, bool strict, bool now,
 		case IFN_MUL_OVERFLOW:
 		case IFN_LAUNDER:
 		case IFN_VEC_CONVERT:
+		case IFN_BSWAP:
+		case IFN_BITREVERSE:
 		  bail = false;
 		  break;
 
