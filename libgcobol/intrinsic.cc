@@ -3513,7 +3513,7 @@ __gg__trim_1( cblc_field_t *dest,
         const cblc_field_t *src,
               size_t        src_offset,
               size_t        src_size,
-              unsigned char *chars,
+        const unsigned char *chars,
               int           count_how ) // (args.size()<<8) + how),
   {
   /* This routine is called for ASCII/EBCDIC single-byte-code values. Since

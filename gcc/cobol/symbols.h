@@ -50,14 +50,6 @@
 
 extern const char *numed_message;
 
-enum cbl_dialect_t {
-  dialect_iso_e = 0x00,
-  dialect_gcc_e = 0x01,
-  dialect_ibm_e = 0x02,
-  dialect_mf_e  = 0x04,
-  dialect_gnu_e = 0x08,
-};
-
 static inline const char *
 cbl_dialect_str(cbl_dialect_t dialect)  {
   switch(dialect) {

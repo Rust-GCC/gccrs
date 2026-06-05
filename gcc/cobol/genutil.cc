@@ -101,6 +101,9 @@ tree var_decl_main_called;        // int         __gg__main_called;
 // Indicates the target index of an ENTRY statement
 tree var_decl_entry_index; // void* __gg__entry_index
 
+// Indicates the dialects the compiler was set to
+tree var_decl_dialects; // void* __gg__dialects
+
 #if 0
 #define REFER(a)
 #else

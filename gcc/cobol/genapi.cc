@@ -3012,6 +3012,7 @@ parser_enter_file(const char *filename)
     SET_VAR_DECL(var_decl_nop                     , INT                     , "__gg__nop"             );
     SET_VAR_DECL(var_decl_main_called             , INT                     , "__gg__main_called"     );
     SET_VAR_DECL(var_decl_entry_index             , SIZE_T                  , "__gg__entry_index"     );
+    SET_VAR_DECL(var_decl_dialects                , INT                     , "__gg__dialects"        );
     }
   }
 
@@ -7397,6 +7398,9 @@ parser_division(cbl_division_t division,
 
         // And then flag one-time initialization as having been done.
         gg_assign(globals_are_initialized, integer_one_node);
+
+        // Let the library know what -dialect entries are in force:
+        gg_assign(var_decl_dialects, build_int_cst_type(INT, cbl_dialects));
         }
       ELSE
         ENDIF

@@ -156,6 +156,7 @@ int         __gg__rdigits                     = 0    ;
 int         __gg__nop                         = 0    ;
 int         __gg__main_called                 = 0    ;
 size_t      __gg__entry_index                 = 0    ;
+int         __gg__dialects                    = 0    ;
 
 // During SORT operations, we don't want the end-of-file condition, which
 // happens as a matter of course, from setting the EOF exception condition.
@@ -3481,11 +3482,12 @@ format_for_display_internal(char **dest,
         {
         case 4:
           {
-          // We will convert based on the fact that for float32, any seven-digit
-          // number converts to float32 and then back again unchanged.
+          // We will convert based on the fact that for float32, any
+          // seven-digit number converts to float32 and then back again
+          // unchanged.
 
-          // We will also format numbers so that we produce 0.01 and 1E-3 on the low
-          // side, and 9999999 and then 1E+7 on the high side
+          // We will also format numbers so that we produce 0.01 and 1E-3 on
+          // the low side, and 9999999 and then 1E+7 on the high side
           // 10,000,000 = 1E7
           char ach[64];
           _Float32 floatval = *PTRCAST(_Float32, actual_location);
@@ -3497,23 +3499,49 @@ format_for_display_internal(char **dest,
             }
           else
             {
-            p += 1;
-            int exp = atoi(p);
-            if( exp >= 6 || exp <= -5 )
+            if( __gg__dialects & dialect_ibm_e )
               {
-              // We are going to stick with the E notation, so ach has our result
+              // IBM specifies that this look like
+              //     A COMP-1 item will display as if it had an external
+              //     floating-point PICTURE clause of -.9(8)E-99.
+              // The plus signs are suppressed.
+              if( floatval >= 0 )
+                {
+                strfromf32(ach+1, sizeof(ach), "%.8E", floatval);
+                ach[0] = ascii_space;
+                }
+              else
+                {
+                strfromf32(ach, sizeof(ach), "%.8E", floatval);
+                }
+              // Turn "E+00" to the IBM "E 00"
+              p = strchr(ach, ascii_plus);
+              if(p)
+                {
+                *p = ascii_space;
+                }
               }
             else
               {
-              // We are going to produce our number in such a way that we specify
-              // seven signicant digits, no matter where the decimal point lands.
-              // Note that exp is in the range of 6 to -2
+              p += 1;
+              int exp = atoi(p);
+              if( exp >= 6 || exp <= -5 )
+                {
+                // We are going to stick with the E notation, so ach has our
+                // result
+                }
+              else
+                {
+                // We are going to produce our number in such a way that we
+                // specify seven signicant digits, no matter where the decimal
+                // point lands. Note that exp is in the range of 6 to -2
 
-              int precision = 9 - exp;
-              sprintf(ach, "%.*f", precision, (double)floatval );
+                int precision = 9 - exp;
+                sprintf(ach, "%.*f", precision, (double)floatval );
+                }
+              __gg__remove_trailing_zeroes(ach);
+              __gg__realloc_if_necessary(dest, dest_size, strlen(ach)+1);
               }
-            __gg__remove_trailing_zeroes(ach);
-            __gg__realloc_if_necessary(dest, dest_size, strlen(ach)+1);
             }
           strcpy(*dest, ach);
           break;
@@ -3524,8 +3552,8 @@ format_for_display_internal(char **dest,
           // We will convert based on the fact that for float32, any 15-digit
           // number converts to float64 and then back again unchanged.
 
-          // We will also format numbers so that we produce 0.01 and 1E-3 on the low
-          // side, and 9999999 and then 1E+15 on the high side
+          // We will also format numbers so that we produce 0.01 and 1E-3 on
+          // the low side, and 9999999 and then 1E+15 on the high side
           char ach[64];
           _Float64 floatval = *PTRCAST(_Float64, actual_location);
           strfromf64(ach, sizeof(ach), "%.17E", floatval);
@@ -3536,24 +3564,50 @@ format_for_display_internal(char **dest,
             }
           else
             {
-            p += 1;
-            int exp = atoi(p);
-            if( exp >= 6 || exp <= -5 )
+            if( __gg__dialects & dialect_ibm_e )
               {
-              // We are going to stick with the E notation, so ach has our result
+              // IBM specifies that this look like
+              //     A COMP-2 item will display as if it had an external
+              //     floating-point PICTURE clause of -.9(17)E-99.
+              // The plus signs are suppressed.
+              if( floatval >= 0 )
+                {
+                strfromf64(ach+1, sizeof(ach), "%.17E", floatval);
+                ach[0] = ascii_space;
+                }
+              else
+                {
+                strfromf64(ach, sizeof(ach), "%.17E", floatval);
+                }
+              // Turn "E+00" to the IBM "E 00"
+              p = strchr(ach, ascii_plus);
+              if(p)
+                {
+                *p = ascii_space;
+                }
               }
             else
               {
-              // We are going to produce our number in such a way that we specify
-              // seven signicant digits, no matter where the decimal point lands.
-              // Note that exp is in the range of 6 to -2
+              p += 1;
+              int exp = atoi(p);
+              if( exp >= 6 || exp <= -5 )
+                {
+                // We are going to stick with the E notation, so ach has our
+                // result
+                }
+              else
+                {
+                // We are going to produce our number in such a way that we
+                // specify seven signicant digits, no matter where the decimal
+                // point lands.  Note that exp is in the range of 6 to -2
 
-              int precision = 17 - exp;
+                int precision = 17 - exp;
 
-              sprintf(ach, "%.*f", precision, (double)floatval );
+                sprintf(ach, "%.*f", precision, (double)floatval );
+                }
+              __gg__remove_trailing_zeroes(ach);
+              __gg__realloc_if_necessary(dest, dest_size, strlen(ach)+1);
               }
-            __gg__remove_trailing_zeroes(ach);
-            __gg__realloc_if_necessary(dest, dest_size, strlen(ach)+1);
             }
           strcpy(*dest, ach);
           break;
@@ -3564,8 +3618,8 @@ format_for_display_internal(char **dest,
           // We will convert based on the fact that for float32, any 15-digit
           // number converts to float64 and then back again unchanged.
 
-          // We will also format numbers so that we produce 0.01 and 1E-3 on the low
-          // side, and 9999999 and then 1E+15 on the high side
+          // We will also format numbers so that we produce 0.01 and 1E-3 on
+          // the low side, and 9999999 and then 1E+15 on the high side
           char ach[128];
           // We can't use *(_Float64 *)actual_location;
           // That uses the SSE registers, which won't work if the source isn't
@@ -3584,13 +3638,14 @@ format_for_display_internal(char **dest,
             int exp = atoi(p);
             if( exp >= 6 || exp <= -5 )
               {
-              // We are going to stick with the E notation, so ach has our result
+              // We are going to stick with the E notation, so ach has our
+              // result
               }
             else
               {
-              // We are going to produce our number in such a way that we specify
-              // seven signicant digits, no matter where the decimal point lands.
-              // Note that exp is in the range of 6 to -2
+              // We are going to produce our number in such a way that we
+              // specify seven signicant digits, no matter where the decimal
+              // point lands. Note that exp is in the range of 6 to -2
 
               int precision = 36 - exp;
               char achFormat[24];
@@ -9770,8 +9825,8 @@ default_exception_handler( ec_type_t ec )
     /*
      * An enabled, unhandled fatal EC normally results in termination. But
      * EC-I-O is a special case becase a SELECT statement with FILE STATUS
-     * indicates the user will handle the error.  
-     * 
+     * indicates the user will handle the error.
+     *
      * Declaratives are handled first.  We are in the default handler here,
      * which is reached only if no Declarative was matched.
      */
@@ -9854,7 +9909,7 @@ ec_type_disposition( ec_type_t type ) {
 static bool
 ec_is_fatal( ec_type_t type ) {
   ec_disposition_t disp = ec_type_disposition(type);
-  
+
   switch(disp) {
   case ec_category_nonfatal_e:
   case uc_category_nonfatal_e:
@@ -9868,7 +9923,7 @@ ec_is_fatal( ec_type_t type ) {
   case uc_category_implementor_e:
     if( MATCH_DECLARATIVE )
       warnx("%s: %s is unimplemented", __func__, local_ec_type_str(type));
-    break;    
+    break;
   }
   return true;
 }
