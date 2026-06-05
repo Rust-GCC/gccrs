@@ -9069,12 +9069,10 @@ gfc_conv_procedure_call (gfc_se * se, gfc_symbol * sym,
   /* Follow the function call with the argument post block.  */
   if (byref)
     {
-      gfc_add_block_to_block (&se->pre, &post);
-
       /* Transformational functions of derived types with allocatable
-	 components must have the result allocatable components copied when the
-	 argument is actually given.  This is unnecessry for REDUCE because the
-	 wrapper for the OPERATION function takes care of this.  */
+	 components must have the result allocatable components copied
+	 BEFORE the argument post block is appended.  Copying the result
+	 first, then freeing the argument, gives the correct order.  */
       arg = expr->value.function.actual;
       if (result && arg && expr->rank
 	  && isym && isym->transformational
@@ -9102,6 +9100,8 @@ gfc_conv_procedure_call (gfc_se * se, gfc_symbol * sym,
 					    NULL, GFC_CAF_COARRAY_NOCOARRAY);
 	  gfc_add_expr_to_block (&se->pre, tmp);
 	}
+
+      gfc_add_block_to_block (&se->pre, &post);
     }
   else
     {
