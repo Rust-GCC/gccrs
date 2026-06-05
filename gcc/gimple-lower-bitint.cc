@@ -474,7 +474,7 @@ struct bitint_large_huge
   void lower_cplxpart_stmt (tree, gimple *);
   void lower_complexexpr_stmt (gimple *);
   void lower_bit_query (gimple *);
-  void lower_bswap_bitreverse (gimple *);
+  void lower_bswap_bitreverse (tree, gimple *);
   void lower_call (tree, gimple *);
   void lower_asm (gimple *);
   void lower_stmt (gimple *);
@@ -6110,7 +6110,7 @@ bitint_large_huge::lower_bit_query (gimple *stmt)
 /* Lower a .{BSWAP,BITREVERSE} call with one large/huge _BitInt argument.  */
 
 void
-bitint_large_huge::lower_bswap_bitreverse (gimple *stmt)
+bitint_large_huge::lower_bswap_bitreverse (tree obj, gimple *stmt)
 {
   tree arg = gimple_call_arg (stmt, 0);
   tree lhs = gimple_call_lhs (stmt);
@@ -6126,9 +6126,12 @@ bitint_large_huge::lower_bswap_bitreverse (gimple *stmt)
   gcc_assert (BITINT_TYPE_P (type));
   bitint_prec_kind kind = bitint_precision_kind (type);
   gcc_assert (kind >= bitint_prec_large);
-  int part = var_to_partition (m_map, lhs);
-  gcc_assert (m_vars[part] != NULL_TREE);
-  tree obj = m_vars[part];
+  if (!obj)
+    {
+      int part = var_to_partition (m_map, lhs);
+      gcc_assert (m_vars[part] != NULL_TREE);
+      obj = m_vars[part];
+    }
   enum internal_fn ifn = gimple_call_internal_fn (stmt);
   enum built_in_function bcode = END_BUILTINS;
   switch (limb_prec)
@@ -6279,7 +6282,6 @@ bitint_large_huge::lower_bswap_bitreverse (gimple *stmt)
       g = gimple_build_assign (l, build_zero_cst (m_limb_type));
       insert_before (g);
     }
-  gsi_remove (&gsi, true);
 }
 
 /* Lower a call statement with one or more large/huge _BitInt
@@ -6313,7 +6315,7 @@ bitint_large_huge::lower_call (tree obj, gimple *stmt)
 	return;
       case IFN_BSWAP:
       case IFN_BITREVERSE:
-	lower_bswap_bitreverse (stmt);
+	lower_bswap_bitreverse (obj, stmt);
 	return;
       default:
 	break;
@@ -6626,6 +6628,17 @@ bitint_large_huge::lower_stmt (gimple *stmt)
 	      lower_call (lhs, g);
 	      goto handled;
 	    }
+	  else if (is_gimple_call (g) && gimple_call_internal_p (g))
+	    switch (gimple_call_internal_fn (g))
+	      {
+	      case IFN_BSWAP:
+	      case IFN_BITREVERSE:
+		lower_call (lhs, g);
+		goto handled;
+	      default:
+		break;
+	      }
+
 	  m_loc = gimple_location (stmt);
 	}
     }
@@ -6780,9 +6793,20 @@ stmt_needs_operand_addr (gimple *stmt)
       default:
 	break;
       }
-  else if (gimple_call_internal_p (stmt, IFN_MUL_OVERFLOW)
-	   || gimple_call_internal_p (stmt, IFN_UBSAN_CHECK_MUL))
-    return true;
+  else if (is_gimple_call (stmt) && gimple_call_internal_p (stmt))
+    switch (gimple_call_internal_fn (stmt))
+      {
+      case IFN_MUL_OVERFLOW:
+      case IFN_UBSAN_CHECK_MUL:
+        return true;
+      /* These two actually don't take address, but reshuffle
+	 all bytes or bits, so need similar treatment.  */
+      case IFN_BSWAP:
+      case IFN_BITREVERSE:
+	return true;
+      default:
+	break;
+      }
   return false;
 }
 
@@ -6995,8 +7019,7 @@ build_bitint_stmt_ssa_conflicts (gimple *stmt, live_track *live,
 	    }
 	}
     }
-  else if (is_gimple_call (stmt)
-	   && gimple_call_internal_p (stmt))
+  else if (is_gimple_call (stmt) && gimple_call_internal_p (stmt))
     switch (gimple_call_internal_fn (stmt))
       {
       case IFN_ADD_OVERFLOW:
@@ -7811,6 +7834,27 @@ gimple_lower_bitint (void)
 		  default:
 		    break;
 		  }
+	      else if (is_gimple_call (SSA_NAME_DEF_STMT (s))
+		       && gimple_call_internal_p (SSA_NAME_DEF_STMT (s)))
+		switch (gimple_call_internal_fn (SSA_NAME_DEF_STMT (s)))
+		  {
+		  case IFN_BSWAP:
+		  case IFN_BITREVERSE:
+		    if (gimple_store_p (use_stmt)
+			&& is_gimple_assign (use_stmt)
+			&& !gimple_has_volatile_ops (use_stmt)
+			&& !stmt_ends_bb_p (use_stmt))
+		      {
+			tree lhs = gimple_assign_lhs (use_stmt);
+			if (TREE_CODE (lhs) == COMPONENT_REF
+			    && DECL_BIT_FIELD_TYPE (TREE_OPERAND (lhs, 1)))
+			  break;
+			continue;
+		      }
+		    break;
+		  default:
+		    break;
+		  }
 	    }
 
 	  /* Also ignore uninitialized uses.  */
@@ -7866,6 +7910,22 @@ gimple_lower_bitint (void)
 		  gimple *use_stmt = USE_STMT (use_p);
 		  if (is_gimple_debug (use_stmt))
 		    continue;
+		  if (is_gimple_call (use_stmt)
+		      && gimple_call_internal_p (use_stmt))
+		    switch (gimple_call_internal_fn (use_stmt))
+		      {
+		      case IFN_CLZ:
+		      case IFN_CTZ:
+		      case IFN_CLRSB:
+		      case IFN_FFS:
+		      case IFN_PARITY:
+		      case IFN_POPCOUNT:
+		      case IFN_BSWAP:
+		      case IFN_BITREVERSE:
+			continue;
+		      default:
+			break;
+		      }
 		  if (gimple_code (use_stmt) == GIMPLE_PHI
 		      || is_gimple_call (use_stmt)
 		      || gimple_code (use_stmt) == GIMPLE_ASM
