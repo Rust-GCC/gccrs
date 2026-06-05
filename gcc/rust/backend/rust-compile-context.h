@@ -20,6 +20,7 @@
 #define RUST_COMPILE_CONTEXT
 
 #include "rust-system.h"
+#include "rust-compile-drop.h"
 #include "rust-hir-map.h"
 #include "rust-name-resolver.h"
 #include "rust-hir-type-check.h"
@@ -48,12 +49,6 @@ struct CustomDeriveInfo
   tree fndecl;
   std::string trait_name;
   std::vector<std::string> attributes;
-};
-
-struct DropCandidate
-{
-  HirId hirid;
-  location_t locus;
 };
 
 class Context
@@ -150,7 +145,7 @@ public:
   void note_simple_drop_candidate (HirId hirid, location_t locus)
   {
     rust_assert (!block_drop_candidates.empty ());
-    block_drop_candidates.back ().push_back ({hirid, locus});
+    block_drop_candidates.back ().emplace_back (hirid, locus);
   }
 
   void insert_var_decl (HirId id, ::Bvariable *decl)
