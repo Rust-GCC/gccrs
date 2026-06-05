@@ -1974,16 +1974,12 @@ package body Exp_Ch3 is
       Set_Parameter_Specifications (Spec_Node, Parameters);
       Freeze_Extra_Formals (Copy_Id);
 
-      declare
-         Ignore : Node_Id;
-      begin
-         Ignore :=
-           Make_Subprogram_Body (Loc,
-             Specification => Spec_Node,
-             Aspect_Specifications => Aspect_Specs,
-             Handled_Statement_Sequence =>
-               Make_Handled_Sequence_Of_Statements (Loc, Body_Stmts));
-      end;
+      Discard_Node (
+        Make_Subprogram_Body (Loc,
+          Specification => Spec_Node,
+          Aspect_Specifications => Aspect_Specs,
+          Handled_Statement_Sequence =>
+               Make_Handled_Sequence_Of_Statements (Loc, Body_Stmts)));
 
       Set_Is_Public (Copy_Id, Is_Public (Typ));
       Set_Is_Internal (Copy_Id);
@@ -2047,7 +2043,6 @@ package body Exp_Ch3 is
       --  Aspect Initialize enables default initialization
 
       declare
-         Ignore             : Node_Id;
          Default_Initialize : constant Node_Id :=
            Make_Aspect_Specification (Loc,
              Identifier => Make_Identifier (Loc, Name_Initialize),
@@ -2059,12 +2054,12 @@ package body Exp_Ch3 is
                      Box_Present => True)),
                  Is_Parenthesis_Aggregate => True));
       begin
-         Ignore :=
+         Discard_Node (
            Make_Subprogram_Body (Loc,
              Specification => Spec_Node,
              Handled_Statement_Sequence =>
                Make_Handled_Sequence_Of_Statements (Loc),
-             Aspect_Specifications => New_List (Default_Initialize));
+             Aspect_Specifications => New_List (Default_Initialize)));
       end;
 
       Set_Is_Public (Constructor_Id, Is_Public (Typ));
