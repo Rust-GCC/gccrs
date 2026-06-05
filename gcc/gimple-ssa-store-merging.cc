@@ -1570,7 +1570,10 @@ maybe_optimize_vector_constructor (gimple *cur_stmt)
       break;
     case 32:
       if (builtin_decl_explicit_p (BUILT_IN_BSWAP32)
-	  && optab_handler (bswap_optab, SImode) != CODE_FOR_nothing)
+	  && (optab_handler (bswap_optab, SImode) != CODE_FOR_nothing
+	      /* widen_bswap_or_bitreverse can implement 32-bit bswap
+		 using bswapdi2 and shift.  */
+	      || optab_handler (bswap_optab, DImode) != CODE_FOR_nothing))
 	{
 	  load_type = uint32_type_node;
 	  fndecl = builtin_decl_explicit (BUILT_IN_BSWAP32);
@@ -1582,6 +1585,8 @@ maybe_optimize_vector_constructor (gimple *cur_stmt)
     case 64:
       if (builtin_decl_explicit_p (BUILT_IN_BSWAP64)
 	  && (optab_handler (bswap_optab, DImode) != CODE_FOR_nothing
+	      /* expand_doubleword_bswap_or_bitreverse can use 2 bswapsi2
+		 expanders on 32-bit targets.  */
 	      || (word_mode == SImode
 		  && builtin_decl_explicit_p (BUILT_IN_BSWAP32)
 		  && optab_handler (bswap_optab, SImode) != CODE_FOR_nothing)))
@@ -1631,9 +1636,15 @@ pass_optimize_bswap::execute (function *fun)
   tree bswap32_type = NULL_TREE, bswap64_type = NULL_TREE;
 
   bswap32_p = (builtin_decl_explicit_p (BUILT_IN_BSWAP32)
-	       && optab_handler (bswap_optab, SImode) != CODE_FOR_nothing);
+	       && (optab_handler (bswap_optab, SImode) != CODE_FOR_nothing
+		   /* widen_bswap_or_bitreverse can implement 32-bit bswap
+		      using bswapdi2 and shift.  */
+		   || (optab_handler (bswap_optab, DImode)
+		       != CODE_FOR_nothing)));
   bswap64_p = (builtin_decl_explicit_p (BUILT_IN_BSWAP64)
 	       && (optab_handler (bswap_optab, DImode) != CODE_FOR_nothing
+		   /* expand_doubleword_bswap_or_bitreverse can use 2 bswapsi2
+		      expanders on 32-bit targets.  */
 		   || (bswap32_p && word_mode == SImode)));
 
   /* Determine the argument type of the builtins.  The code later on
