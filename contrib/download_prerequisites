@@ -50,10 +50,17 @@ force=0
 only_gettext=false
 OS=$(uname)
 
-if type wget > /dev/null ; then
+die() {
+    echo "error: $@" >&2
+    exit 1
+}
+
+if command -v wget > /dev/null ; then
   fetch='wget'
-else
+elif command -v curl > /dev/null ; then
   fetch='curl -LO'
+else
+  die "Install wget or curl"
 fi
 chksum_extension='sha512'
 directory='.'
@@ -85,11 +92,6 @@ versiontext="${program} ${version}
 Copyright (C) 2016-2026 Free Software Foundation, Inc.
 This is free software; see the source for copying conditions.  There is NO
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
-
-die() {
-    echo "error: $@" >&2
-    exit 1
-}
 
 for arg in "$@"
 do
