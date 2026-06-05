@@ -1107,6 +1107,21 @@ backprop::execute ()
       propagate_change (v);
     }
 
+  /* Now that we have a complete set of values that need to change,
+     calculate the transitive closure of replacement values.  */
+  bool changed = false;
+  for (unsigned int i = m_vars.length (); i-- > 0;)
+    if (var_info *v = m_vars[i])
+      if (v->var != v->new_value)
+	if (var_info *newv = lookup_operand (v->new_value))
+	  {
+	    gcc_assert (newv->index > i);
+	    if (!changed && dump_file && (dump_flags & TDF_DETAILS))
+	      fprintf (dump_file, "\n");
+	    set_new_value (v, newv->new_value);
+	    changed = true;
+	  }
+
   if (dump_file && (dump_flags & TDF_DETAILS))
     fprintf (dump_file, "\n");
 
