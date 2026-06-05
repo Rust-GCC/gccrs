@@ -580,7 +580,8 @@ name_lookup::preserve_state ()
 	    }
 	}
 
-      tentative = previous->tentative;
+      /* We deliberately avoid instantiation during tentative ADL.  */
+      gcc_checking_assert (!previous->tentative);
 
       /* Unmark the outer partial lookup.  */
       if (previous->deduping)

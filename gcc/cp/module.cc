@@ -2645,7 +2645,7 @@ public:
       /* If not ERROR_MARK, a rewrite candidate for this operator.  */
       tree_code rewrite = ERROR_MARK;
       /* Argument list for the call.  */
-      vec<tree, va_gc>* args = make_tree_vector ();
+      vec<tree, va_gc>* args = nullptr;
     };
     vec<dep_adl_info> dep_adl_entity_list;
 
@@ -15258,10 +15258,12 @@ depset::hash::add_dependent_adl_entities (tree expr)
     return;
 
   dep_adl_info info;
+  auto_vec<tree, 3> args;
   switch (TREE_CODE (expr))
     {
     case CALL_EXPR:
-      if (!KOENIG_LOOKUP_P (expr))
+      if (!KOENIG_LOOKUP_P (expr)
+	  || !type_dependent_expression_p_push (expr))
 	return;
       info.name = CALL_EXPR_FN (expr);
       if (!info.name)
@@ -15273,7 +15275,7 @@ depset::hash::add_dependent_adl_entities (tree expr)
       if (!identifier_p (info.name))
 	info.name = OVL_NAME (info.name);
       for (int ix = 0; ix < call_expr_nargs (expr); ix++)
-	vec_safe_push (info.args, CALL_EXPR_ARG (expr, ix));
+	args.safe_push (CALL_EXPR_ARG (expr, ix));
       break;
 
     case LE_EXPR:
@@ -15310,10 +15312,12 @@ depset::hash::add_dependent_adl_entities (tree expr)
     case TRUTH_ANDIF_EXPR:
     case TRUTH_ORIF_EXPR:
     overloadable_expr:
+      if (!type_dependent_expression_p_push (expr))
+	return;
       info.name = ovl_op_identifier (TREE_CODE (expr));
       gcc_checking_assert (tree_operand_length (expr) == 2);
-      vec_safe_push (info.args, TREE_OPERAND (expr, 0));
-      vec_safe_push (info.args, TREE_OPERAND (expr, 1));
+      args.safe_push (TREE_OPERAND (expr, 0));
+      args.safe_push (TREE_OPERAND (expr, 1));
       break;
 
     default:
@@ -15322,10 +15326,20 @@ depset::hash::add_dependent_adl_entities (tree expr)
 
   /* If all arguments are type-dependent we don't need to do
      anything further, we won't find new entities.  */
-  processing_template_decl_sentinel ptds;
-  ++processing_template_decl;
-  if (!any_type_dependent_arguments_p (info.args))
+  bool all_type_dependent = true;
+  for (tree arg : args)
+    if (!type_dependent_expression_p_push (arg))
+      {
+	all_type_dependent = false;
+	break;
+      }
+  if (all_type_dependent)
     return;
+
+  gcc_checking_assert (!info.args);
+  info.args = make_tree_vector ();
+  for (tree arg : args)
+    vec_safe_push (info.args, arg);
 
   /* We need to defer name lookup until after walking, otherwise
      we get confused by stray TREE_VISITEDs.  */
