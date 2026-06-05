@@ -7695,8 +7695,15 @@ gfc_trans_allocate (gfc_code * code, gfc_omp_namelist *omp_allocate)
 	    param_list = expr->param_list;
 	  else
 	    param_list = expr->symtree->n.sym->param_list;
+	  /* For array allocations the allocate-shape-spec expression has
+	     rank 0 even though the symbol is an array.  Use the rank from
+	     the array descriptor when se.expr is a GFC descriptor so that
+	     gfc_allocate_pdt_comp loops over all elements.  */
+	  int pdt_rank = (GFC_DESCRIPTOR_TYPE_P (TREE_TYPE (se.expr))
+			  ? GFC_TYPE_ARRAY_RANK (TREE_TYPE (se.expr))
+			  : expr->rank);
 	  tmp = gfc_allocate_pdt_comp (expr->ts.u.derived, se.expr,
-				       expr->rank, param_list);
+				       pdt_rank, param_list);
 	  gfc_add_expr_to_block (&block, tmp);
 	}
       /* Ditto for CLASS expressions.  */
@@ -7708,8 +7715,11 @@ gfc_trans_allocate (gfc_code * code, gfc_omp_namelist *omp_allocate)
 	    param_list = expr->param_list;
 	  else
 	    param_list = expr->symtree->n.sym->param_list;
+	  int pdt_rank = (GFC_DESCRIPTOR_TYPE_P (TREE_TYPE (se.expr))
+			  ? GFC_TYPE_ARRAY_RANK (TREE_TYPE (se.expr))
+			  : expr->rank);
 	  tmp = gfc_allocate_pdt_comp (CLASS_DATA (expr)->ts.u.derived,
-				       se.expr, expr->rank, param_list);
+				       se.expr, pdt_rank, param_list);
 	  gfc_add_expr_to_block (&block, tmp);
 	}
       else if (code->expr3 && code->expr3->mold
@@ -7965,10 +7975,20 @@ gfc_trans_deallocate (gfc_code *code)
       if (expr->ts.type == BT_DERIVED
 	  && ((expr->ts.u.derived->attr.pdt_type && param_list)
 	      || expr->ts.u.derived->attr.pdt_comp))
-	tmp = gfc_deallocate_pdt_comp (expr->ts.u.derived, se.expr, expr->rank);
+	{
+	  int pdt_rank = (GFC_DESCRIPTOR_TYPE_P (TREE_TYPE (se.expr))
+			  ? GFC_TYPE_ARRAY_RANK (TREE_TYPE (se.expr))
+			  : expr->rank);
+	  tmp = gfc_deallocate_pdt_comp (expr->ts.u.derived, se.expr, pdt_rank);
+	}
       else if (IS_CLASS_PDT (expr) && expr->symtree->n.sym->param_list)
-	tmp = gfc_deallocate_pdt_comp (CLASS_DATA (expr)->ts.u.derived,
-				       se.expr, expr->rank);
+	{
+	  int pdt_rank = (GFC_DESCRIPTOR_TYPE_P (TREE_TYPE (se.expr))
+			  ? GFC_TYPE_ARRAY_RANK (TREE_TYPE (se.expr))
+			  : expr->rank);
+	  tmp = gfc_deallocate_pdt_comp (CLASS_DATA (expr)->ts.u.derived,
+					 se.expr, pdt_rank);
+	}
 
       if (tmp)
 	gfc_add_expr_to_block (&se.pre, tmp);
