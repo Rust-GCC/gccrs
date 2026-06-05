@@ -1453,13 +1453,13 @@ number_of_iterations_until_wrap (class loop *loop, tree type, affine_iv *iv0,
   /* n < {base, C}. */
   if (integer_zerop (iv0->step) && !tree_int_cst_sign_bit (iv1->step))
     {
-      step = iv1->step;
       /* MIN + C - 1 <= n.  */
-      tree last = wide_int_to_tree (type, min + wi::to_wide (step) - 1);
+      tree last = wide_int_to_tree (type, min + wi::to_wide (iv1->step) - 1);
       assumptions = fold_build2 (LE_EXPR, boolean_type_node, last, iv0->base);
       if (integer_zerop (assumptions))
 	return false;
 
+      step = fold_convert (niter_type, iv1->step);
       num = fold_build2 (MINUS_EXPR, niter_type,
 			 wide_int_to_tree (niter_type, max),
 			 fold_convert (niter_type, iv1->base));
@@ -1491,13 +1491,14 @@ number_of_iterations_until_wrap (class loop *loop, tree type, affine_iv *iv0,
   /* {base, -C} < n.  */
   else if (tree_int_cst_sign_bit (iv0->step) && integer_zerop (iv1->step))
     {
-      step = fold_build1 (NEGATE_EXPR, TREE_TYPE (iv0->step), iv0->step);
-      /* MAX - C + 1 >= n.  */
-      tree last = wide_int_to_tree (type, max - wi::to_wide (step) + 1);
+      /* MAX + (-C) + 1 >= n.  */
+      tree last = wide_int_to_tree (type, max + wi::to_wide (iv0->step) + 1);
       assumptions = fold_build2 (GE_EXPR, boolean_type_node, last, iv1->base);
       if (integer_zerop (assumptions))
 	return false;
 
+      step = fold_build1 (NEGATE_EXPR, niter_type,
+			  fold_convert (niter_type, iv0->step));
       num = fold_build2 (MINUS_EXPR, niter_type,
 			 fold_convert (niter_type, iv0->base),
 			 wide_int_to_tree (niter_type, min));
@@ -1513,7 +1514,6 @@ number_of_iterations_until_wrap (class loop *loop, tree type, affine_iv *iv0,
     return false;
 
   /* (delta + step - 1) / step */
-  step = fold_convert (niter_type, step);
   num = fold_build2 (PLUS_EXPR, niter_type, num, step);
   niter->niter = fold_build2 (FLOOR_DIV_EXPR, niter_type, num, step);
 
