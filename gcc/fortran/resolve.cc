@@ -12622,7 +12622,8 @@ gfc_count_forall_iterators (gfc_code *code)
    3) call gfc_resolve_forall_body to resolve the FORALL body.  */
 
 /* Custom recursive expression walker that replaces symbols.
-   This ensures we visit ALL expressions including those in array subscripts.  */
+   Visits all expressions including array subscripts.  Also called from
+   replace_in_code_recursive to handle ASSOCIATE selector expressions.  */
 
 static void
 replace_in_expr_recursive (gfc_expr *expr, gfc_symbol *old_sym, gfc_symtree *new_st)
@@ -12747,6 +12748,19 @@ replace_in_code_recursive (gfc_code *code, gfc_symbol *old_sym, gfc_symtree *new
 	    }
 	  /* Don't recurse into nested FORALL/DO CONCURRENT bodies here,
 	     they'll be handled separately */
+	  break;
+
+	case EXEC_BLOCK:
+	  /* Replace in ASSOCIATE selector expressions and the body.
+	     The body of an EXEC_BLOCK lives in c->ext.block.ns->code, not
+	     c->block->next, so without this case both selectors and body
+	     are silently skipped, leaving shadow iterator references unreplaced
+	     and producing wrong values at runtime.  */
+	  for (gfc_association_list *alist = c->ext.block.assoc;
+	       alist; alist = alist->next)
+	    replace_in_expr_recursive (alist->target, old_sym, new_st);
+	  if (c->ext.block.ns)
+	    replace_in_code_recursive (c->ext.block.ns->code, old_sym, new_st);
 	  break;
 
 	default:
