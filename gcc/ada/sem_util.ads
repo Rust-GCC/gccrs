@@ -491,6 +491,13 @@ package Sem_Util is
    --  Gather the entities of all abstract states and objects declared in the
    --  body state space of package body Body_Id.
 
+   procedure Collect_Constructors
+     (Typ            : Entity_Id;
+      Callable_Ctors : out Elist_Id;
+      Abstract_Ctors : out Elist_Id);
+   --  Collect in a single pass all non-hidden constructors of Typ in two
+   --  lists: Callable_Ctors (non-abstract) and Abstract_Ctors.
+
    procedure Collect_Interfaces
      (T               : Entity_Id;
       Ifaces_List     : out Elist_Id;

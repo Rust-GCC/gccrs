@@ -383,6 +383,11 @@ package body Sem_Attr is
       --  Verify that prefix of attribute N is a float type and that
       --  two attribute expressions are present.
 
+      procedure Check_Hidden_Abstract_Constructor_Call (Ctor_Call : Node_Id);
+      --  If Ctor_Call is a call to a hidden constructor then search in the
+      --  homonym chain for the counterpart abstract entity to report it as
+      --  non-callable (if found).
+
       procedure Check_Integer_Type;
       --  Verify that prefix of attribute N is an integer type
 
@@ -2366,6 +2371,85 @@ package body Sem_Attr is
          Check_Floating_Point_Type;
          Check_E2;
       end Check_Floating_Point_Type_2;
+
+      --------------------------------------------
+      -- Check_Hidden_Abstract_Constructor_Call --
+      --------------------------------------------
+
+      procedure Check_Hidden_Abstract_Constructor_Call (Ctor_Call : Node_Id) is
+         Is_Copy_Ctor_Call : constant Boolean :=
+                               Is_Copy_Constructor_Call (Ctor_Call);
+
+         function Find_Copy_Ctor is
+           new Find_Matching_Constructor (Is_Copy_Constructor);
+         --  Search for the copy constructor
+
+         function Find_Parameterless_Ctor is
+           new Find_Matching_Constructor (Is_Parameterless_Constructor);
+         --  Search for the default constructor
+
+         function Is_Target_Constructor (E : Entity_Id) return Boolean;
+         --  Relying on the value of Is_Copy_Ctor_Call, determine if E is
+         --  the target constructor of Ctor_Call.
+
+         ---------------------------
+         -- Is_Target_Constructor --
+         ---------------------------
+
+         function Is_Target_Constructor (E : Entity_Id) return Boolean is
+         begin
+            if Is_Copy_Ctor_Call then
+               return Is_Copy_Constructor (E);
+            else
+               return Is_Parameterless_Constructor (E);
+            end if;
+         end Is_Target_Constructor;
+
+         --  Local variables
+
+         Ctor : Entity_Id;
+         Hom  : Entity_Id;
+         Pref : constant Node_Id := Prefix (Ctor_Call);
+
+      --  Start of processing for Check_Hidden_Abstract_Constructor_Call
+
+      begin
+         --  Search for a target candidate skipping abstract constructors
+
+         if Is_Copy_Ctor_Call then
+            Ctor := Find_Copy_Ctor (Entity (Pref),
+                      Allow_Removed => False);
+         else
+            Ctor := Find_Parameterless_Ctor (Entity (Pref),
+                      Allow_Removed => False);
+         end if;
+
+         --  If the target candidate is hidden then traverse the homonym
+         --  chain searching for the counterpart abstract entity (if
+         --  previously defined) to report it as non-callable.
+
+         if Present (Ctor) and then Is_Hidden (Ctor) then
+            Hom := Homonym (Ctor);
+
+            while Present (Hom)
+              and then Scope (Hom) = Scope (Ctor)
+            loop
+               if Is_Constructor (Hom)
+                 and then Is_Abstract_Subprogram (Hom)
+                 and then Is_Target_Constructor (Hom)
+               then
+                  Error_Msg_Sloc := Sloc (Hom);
+                  Error_Msg_NE
+                    ("cannot call abstract constructor& declared#",
+                     Ctor_Call, Hom);
+                  Set_Etype (Ctor_Call, Any_Type);
+                  exit;
+               end if;
+
+               Hom := Homonym (Hom);
+            end loop;
+         end if;
+      end Check_Hidden_Abstract_Constructor_Call;
 
       ------------------------
       -- Check_Integer_Type --
@@ -5408,8 +5492,10 @@ package body Sem_Attr is
 
       when Attribute_Make => declare
          Expr : Entity_Id;
+
       begin
          if not All_Extensions_Allowed then
+            Error_Msg_Name_1 := Aname;
             Error_Msg_GNAT_Extension ("attribute %", Loc);
             return;
          end if;
@@ -5417,7 +5503,21 @@ package body Sem_Attr is
          Check_Type;
          Set_Etype (N, Etype (P));
 
-         if Present (Exprs) then
+         --  Default parameterless constructor call
+
+         if No (Exprs) then
+            if not Needs_Construction (Entity (P))
+              or else not Has_Parameterless_Constructor (Entity (P))
+            then
+               Error_Msg_NE
+                 ("no parameterless constructor for&", N, Entity (P));
+            else
+               Check_Hidden_Abstract_Constructor_Call (N);
+            end if;
+
+         --  Constructor call with params
+
+         else
             Expr := First (Exprs);
             while Present (Expr) loop
                if Nkind (Expr) = N_Parameter_Association then
@@ -5432,13 +5532,14 @@ package body Sem_Attr is
             if not Needs_Construction (Entity (P)) then
                Error_Msg_NE ("no available constructor for&", N, Entity (P));
 
+            elsif Is_Copy_Constructor_Call (N) then
+               Check_Hidden_Abstract_Constructor_Call (N);
+
             --  Verify that the provided arguments are compatible with at least
             --  one constructor (checked by parameters count). Mismatched
             --  actuals will be caught later during resolution.
 
-            elsif not Is_Copy_Constructor_Call (N)
-              and then Comes_From_Source (N)
-            then
+            elsif Comes_From_Source (N) then
                declare
                   Num_Args : constant Nat := List_Length (Exprs);
 
@@ -5486,31 +5587,6 @@ package body Sem_Attr is
                        ("no constructor matching given arguments for&",
                         N, Entity (P));
                   end if;
-               end;
-            end if;
-
-         elsif not Needs_Construction (Entity (P))
-           or else not Has_Parameterless_Constructor (Entity (P))
-         then
-            Error_Msg_NE ("no parameterless constructor for&", N, Entity (P));
-
-            --  In case the parameterless constructor was explicitly removed, a
-            --  more specific error message is provided.
-
-            if Has_Parameterless_Constructor (Entity (P),
-                                              Allow_Removed => True)
-            then
-               declare
-                  function Find_Parameterless_Constructor
-                  is new Find_Matching_Constructor
-                           (Is_Parameterless_Constructor);
-
-                  Removed_Parameterless : constant Entity_Id :=
-                    Find_Parameterless_Constructor (Entity (P),
-                                                    Allow_Removed => True);
-               begin
-                  Error_Msg_NE ("//explicitly removed at#",
-                                N, Removed_Parameterless);
                end;
             end if;
          end if;

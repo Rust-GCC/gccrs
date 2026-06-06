@@ -644,6 +644,9 @@ package body Ch6 is
                Absdec_Node :=
                  New_Node (N_Abstract_Subprogram_Declaration, Token_Ptr);
                Set_Specification (Absdec_Node, Specification_Node);
+               Rewrite_Entity_If_Direct_Attribute_Def
+                 (Name_Node, Specification_Node);
+
                Pop_Scope_Stack; -- discard unneeded entry
                Scan; -- past ABSTRACT
                P_Aspect_Specifications (Absdec_Node, Semicolon => True);

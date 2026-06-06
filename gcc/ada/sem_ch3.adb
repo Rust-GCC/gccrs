@@ -10480,8 +10480,7 @@ package body Sem_Ch3 is
          --  Propagate information about constructor dependence from parent
 
          Set_Needs_Construction
-           (Derived_Type,
-            Needs_Construction (Parent_Type));
+           (Derived_Type, Needs_Construction (Parent_Type));
       end if;
 
       --  If the parent has primitive routines and may have not-seen-yet aspect
@@ -19007,7 +19006,7 @@ package body Sem_Ch3 is
             --  Preserve aspect and iterator flags that may have been set on
             --  the partial view.
 
-            Set_Has_Delayed_Aspects (Prev, Has_Delayed_Aspects (Id));
+            Set_Has_Delayed_Aspects      (Prev, Has_Delayed_Aspects      (Id));
             Set_Has_Implicit_Dereference (Prev, Has_Implicit_Dereference (Id));
 
             --  If no error, propagate freeze_node from private to full view.
@@ -22497,6 +22496,10 @@ package body Sem_Ch3 is
       then
          Set_Has_First_Controlling_Parameter_Aspect (Full_T);
       end if;
+
+      --  Propagate the constructor flag to the full view
+
+      Set_Needs_Construction (Full_T, Needs_Construction (Priv_T));
 
       --  Propagate predicates to full type, and predicate function if already
       --  defined. It is not clear that this can actually happen? the partial

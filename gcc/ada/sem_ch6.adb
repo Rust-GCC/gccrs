@@ -5306,7 +5306,9 @@ package body Sem_Ch6 is
                --  If missing, add a default initialization aspect for this
                --  constructor's body stub: Initialize => (others => <>).
 
-               if Parent_Kind (N) not in N_Subprogram_Declaration then
+               if Parent_Kind (N) not in N_Subprogram_Declaration
+                                       | N_Abstract_Subprogram_Declaration
+               then
                   if not Has_Aspect (Designator, Aspect_Initialize) then
                      Add_Default_Initialize_Aspect;
                   end if;
@@ -5346,6 +5348,17 @@ package body Sem_Ch6 is
                   Error_Msg_Sloc := Sloc (Freeze_Node (Prefix_E));
                   Error_Msg_N
                     ("& must be defined before freezing#", Designator);
+
+               elsif Parent_Kind (N) = N_Abstract_Subprogram_Declaration
+                 and then
+                   (In_Private_Part (Current_Scope)
+                      or else
+                    Parent_Kind (Enclosing_Package_Or_Subprogram (Designator))
+                      /= N_Package_Specification)
+               then
+                  Error_Msg_N
+                    ("abstract constructor must be defined in "
+                     & "the public part of a package", Designator);
 
                elsif Parent_Kind (Enclosing_Package_Or_Subprogram (Designator))
                  /= N_Package_Specification
@@ -12931,6 +12944,24 @@ package body Sem_Ch6 is
                  or else In_Instance_Not_Visible
                then
                   null;
+
+               --  An abstract constructor declared in the visible part of a
+               --  package may be given its non-abstract declaration in the
+               --  private part of the package. Accept it without conflict.
+
+               elsif Is_Abstract_Subprogram (E)
+                 and then Is_Constructor (E)
+                 and then Is_Constructor (S)
+                 and then Scope (S) = Scope (E)
+                 and then Is_Private_Declaration (S)
+               then
+                  Enter_Overloaded_Entity (S);
+                  Set_Overridden_Operation (S, E);
+
+                  --  There is no need to check if it is a primitive because
+                  --  constructors are not primitive subprograms.
+
+                  goto Check_Inequality;
 
                --  Here we have a real error (identical profile)
 

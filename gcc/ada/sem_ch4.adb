@@ -10735,27 +10735,48 @@ package body Sem_Ch4 is
          function Extended_Primitive_Ops (T : Entity_Id) return Elist_Id is
             Type_Scope : constant Entity_Id := Scope (T);
             Op_List    : Elist_Id := Primitive_Operations (T);
-            Op_Found   : Boolean := False;
+            Op_Found   : Boolean  := False;
+
          begin
             if Needs_Construction (T) then
-               --  to include all constructors iterate over T's entities
-
                declare
-                  Cursor : Entity_Id := Next_Entity (T);
-               begin
-                  while Present (Cursor) loop
-                     if Is_Constructor (Cursor) then
-                        if not Op_Found then
-                           --  Copy list of primitives so it is not affected
-                           --  for other uses.
+                  Callable_Ctors : Elist_Id;
+                  Abstract_Ctors : Elist_Id;
+                  Elmt           : Elmt_Id;
 
-                           Op_List := New_Copy_Elist (Op_List);
-                           Op_Found := True;
-                        end if;
-                        Append_Elmt (Cursor, Op_List);
+               begin
+                  Collect_Constructors (T, Callable_Ctors, Abstract_Ctors);
+
+                  --  Add callable constructors (suppressing abstract
+                  --  constructors to avoid reporting spurious ambiguity);
+                  --  if no callable constructor is available then add
+                  --  abstract constructors; required to allow subprogram
+                  --  Check_Hidden_Abstract_Constructor_Call to detect
+                  --  and report calls to them from outside their enclosing
+                  --  package.
+
+                  declare
+                     Ctors_To_Add : constant Elist_Id :=
+                       (if not Is_Empty_Elmt_List (Callable_Ctors)
+                        then Callable_Ctors
+                        else Abstract_Ctors);
+
+                  begin
+                     Elmt := First_Elmt (Ctors_To_Add);
+
+                     if Present (Elmt) then
+                        --  Copy list of primitives so it is not
+                        --  affected for other uses.
+
+                        Op_List  := New_Copy_Elist (Op_List);
+                        Op_Found := True;
+
+                        while Present (Elmt) loop
+                           Append_Elmt (Node (Elmt), Op_List);
+                           Next_Elmt (Elmt);
+                        end loop;
                      end if;
-                     Next_Entity (Cursor);
-                  end loop;
+                  end;
                end;
             end if;
 

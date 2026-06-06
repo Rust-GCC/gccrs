@@ -5425,6 +5425,58 @@ package body Sem_Util is
       return States;
    end Collect_Body_States;
 
+   --------------------------
+   -- Collect_Constructors --
+   --------------------------
+
+   procedure Collect_Constructors
+     (Typ            : Entity_Id;
+      Callable_Ctors : out Elist_Id;
+      Abstract_Ctors : out Elist_Id)
+   is
+      Typ_Scope : constant Entity_Id := Scope (Typ);
+      Boundary  : constant Entity_Id := First_Private_Entity (Typ_Scope);
+      Cursor    : Entity_Id;
+
+   begin
+      Callable_Ctors := New_Elmt_List;
+      Abstract_Ctors := New_Elmt_List;
+
+      --  Visible part: classify non-hidden constructors of Typ as
+      --  callable or abstract.
+
+      Cursor := First_Entity (Typ_Scope);
+      while Present (Cursor) and then Cursor /= Boundary loop
+         if Is_Constructor (Cursor)
+           and then Etype (First_Formal (Cursor)) = Typ
+           and then not Is_Hidden (Cursor)
+         then
+            if Is_Abstract_Subprogram (Cursor) then
+               Append_Elmt (Cursor, Abstract_Ctors);
+            else
+               Append_Elmt (Cursor, Callable_Ctors);
+            end if;
+         end if;
+
+         Next_Entity (Cursor);
+      end loop;
+
+      --  Private part: abstract constructors cannot appear here;
+      --  all non-hidden constructors here are callable.
+
+      Cursor := Boundary;
+      while Present (Cursor) loop
+         if Is_Constructor (Cursor)
+           and then Etype (First_Formal (Cursor)) = Typ
+           and then not Is_Hidden (Cursor)
+         then
+            Append_Elmt (Cursor, Callable_Ctors);
+         end if;
+
+         Next_Entity (Cursor);
+      end loop;
+   end Collect_Constructors;
+
    ------------------------
    -- Collect_Interfaces --
    ------------------------
@@ -11911,7 +11963,7 @@ package body Sem_Util is
      (Typ : Entity_Id; Allow_Removed : Boolean := False) return Boolean
    is
       function Find_Copy_Constructor
-      is new Find_Matching_Constructor (Is_Copy_Constructor);
+        is new Find_Matching_Constructor (Is_Copy_Constructor);
    begin
       return Present (Find_Copy_Constructor (Typ, Allow_Removed));
    end Has_Copy_Constructor;
@@ -12866,16 +12918,20 @@ package body Sem_Util is
          declare
             Formal : Entity_Id :=
               Next_Formal (Next_Formal (First_Formal (Spec_Id)));
+
          begin
             while Present (Formal) loop
                if No (Default_Value (Formal)) then
                   return False;
                end if;
+
                Next_Formal (Formal);
             end loop;
          end;
+
          return True;
       end if;
+
       return False;
    end Is_Copy_Constructor;
 
@@ -12980,7 +13036,7 @@ package body Sem_Util is
      (Typ : Entity_Id; Allow_Removed : Boolean := False) return Boolean
    is
       function Find_Default_Constructor
-      is new Find_Matching_Constructor (Is_Parameterless_Constructor);
+        is new Find_Matching_Constructor (Is_Parameterless_Constructor);
    begin
       return Present (Find_Default_Constructor (Typ, Allow_Removed));
    end Has_Parameterless_Constructor;
@@ -13281,11 +13337,14 @@ package body Sem_Util is
                if No (Default_Value (Formal)) then
                   return False;
                end if;
+
                Next_Formal (Formal);
             end loop;
          end;
+
          return True;
       end if;
+
       return False;
    end Is_Parameterless_Constructor;
 

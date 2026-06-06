@@ -1337,6 +1337,11 @@ package body Sem_Ch7 is
       --  primitive equality operator and, if so, make it so that it will be
       --  used as the predefined operator of the private view of the record.
 
+      procedure Inspect_Abstract_Constructors_Completion (Id : Entity_Id);
+      --  For each abstract constructor in the visible part of package Id,
+      --  verify that a non-abstract counterpart exists in the private part
+      --  of the package, and emit an error for each that lacks one.
+
       procedure Install_Parent_Private_Declarations (Inst_Id : Entity_Id);
       --  Given the package entity of a generic package instantiation or
       --  formal package whose corresponding generic is a child unit, installs
@@ -1448,6 +1453,50 @@ package body Sem_Ch7 is
             end if;
          end if;
       end Is_Public_Child;
+
+      ----------------------------------------------
+      -- Inspect_Abstract_Constructors_Completion --
+      ----------------------------------------------
+
+      procedure Inspect_Abstract_Constructors_Completion (Id : Entity_Id) is
+         First_Priv : constant Entity_Id := First_Private_Entity (Id);
+         Vis_E      : Entity_Id          := First_Entity (Id);
+
+      begin
+         while Present (Vis_E) and then Vis_E /= First_Priv loop
+            if Is_Constructor (Vis_E)
+              and then Is_Abstract_Subprogram (Vis_E)
+            then
+               declare
+                  Hom   : Entity_Id := Get_Name_Entity_Id (Chars (Vis_E));
+                  Found : Boolean   := False;
+
+               begin
+                  while Present (Hom)
+                    and then Scope (Hom) = Scope (Vis_E)
+                  loop
+                     if not Is_Abstract_Subprogram (Hom)
+                       and then Is_Constructor (Hom)
+                       and then Overridden_Operation (Hom) = Vis_E
+                     then
+                        Found := True;
+                        exit;
+                     end if;
+
+                     Hom := Homonym (Hom);
+                  end loop;
+
+                  if not Found then
+                     Error_Msg_N
+                       ("abstract constructor has no declaration in "
+                        & "the private part", Vis_E);
+                  end if;
+               end;
+            end if;
+
+            Next_Entity (Vis_E);
+         end loop;
+      end Inspect_Abstract_Constructors_Completion;
 
       ----------------------------------------
       -- Inspect_Unchecked_Union_Completion --
@@ -1889,6 +1938,13 @@ package body Sem_Ch7 is
          Set_In_Private_Part (Id);
          Declare_Inherited_Private_Subprograms (Id);
          Set_First_Private_Entity (Id, Next_Entity (L));
+      end if;
+
+      --  An abstract constructor declared in the visible part requires a
+      --  matching concrete constructor in the private part.
+
+      if Core_Extensions_Allowed then
+         Inspect_Abstract_Constructors_Completion (Id);
       end if;
 
       E := First_Entity (Id);
