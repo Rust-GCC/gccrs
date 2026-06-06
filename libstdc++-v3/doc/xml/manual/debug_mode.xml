@@ -883,21 +883,25 @@ test02()
   has not been kept up-to-date for use with modern compilers or C++
   standard library implementations.</para></listitem>
 
-  <listitem><para><link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.stlport.org/">STLport</link>: STLport is a free
+  <listitem><para>STLport: STLport was a free
   implementation of the C++ standard library derived from the <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://web.archive.org/web/20171225062613/http://www.sgi.com/tech/stl/">SGI implementation</link>, and
-  ported to many other platforms. It includes a debug mode that uses a
+  ported to many other platforms. It included a debug mode that used a
   wrapper model (that in some ways inspired the libstdc++ debug mode
-  design), although at the time of this writing the debug mode is
-  somewhat incomplete and meets only the "Full user recompilation" (2)
+  design), although its debug mode was
+  somewhat incomplete and met only the "Full user recompilation" (2)
   recompilation guarantee by requiring the user to link against a
   different library in debug mode vs. release mode.</para></listitem>
 
   <listitem><para>Metrowerks CodeWarrior: The C++ standard library
-  that ships with Metrowerks CodeWarrior includes a debug mode. It is
+  that shipped with Metrowerks CodeWarrior included a debug mode. It was
   a full debug-mode implementation (including debugging for
-  CodeWarrior extensions) and is easy to use, although it meets only
+  CodeWarrior extensions) and was easy to use, although it met only
   the "Full recompilation" (1) recompilation
   guarantee.</para></listitem>
+
+  <listitem><para>The MSVC STL and LLVM libc++ implementations of the
+  C++ Standard Library both include some form of debug mode.
+  </para></listitem>
 </itemizedlist>
 
   </section>
