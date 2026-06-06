@@ -840,6 +840,23 @@ can_open_code_p (optab op, machine_mode mode)
       && can_implement_p (op == neg_optab ? xor_optab : and_optab, new_mode))
     return true;
 
+  scalar_int_mode int_mode;
+  if (op == bswap_optab && is_a<scalar_int_mode> (mode, &int_mode))
+    {
+      /* widen_bswap_or_bitreverse can implement smaller bswaps using
+	 wider bswaps and a shift.  */
+      opt_scalar_int_mode wider_mode_iter;
+      FOR_EACH_WIDER_MODE (wider_mode_iter, int_mode)
+	if (optab_handler (op, wider_mode_iter.require ()) != CODE_FOR_nothing)
+	  return true;
+
+      /* expand_doubleword_bswap_or_bitreverse can use 2 word bswaps to
+	 implement a doubleword bswap.  */
+      if (GET_MODE_SIZE (int_mode) == 2 * UNITS_PER_WORD
+	  && optab_handler (op, word_mode) != CODE_FOR_nothing)
+	return true;
+    }
+
   return false;
 }
 
