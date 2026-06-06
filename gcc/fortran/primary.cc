@@ -2715,6 +2715,19 @@ gfc_match_varspec (gfc_expr *primary, int equiv_flag, bool sub_flag,
 		primary->value.compcall.actual = NULL;
 	      else
 		{
+		  /* Before erroring, check whether there is also a data
+		     component with this name.  Use noaccess=true so
+		     that private components are also found.  */
+		  if (sym && gfc_find_component (sym, name, true, true, NULL))
+		    {
+		      /* Restore expr to EXPR_VARIABLE and let the data
+			 component path below handle it.  */
+		      primary->expr_type = EXPR_VARIABLE;
+		      gfc_free_actual_arglist (primary->value.compcall.actual);
+		      primary->value.compcall.actual = NULL;
+		      tbp = NULL;
+		      goto try_data_component;
+		    }
 		  gfc_error ("Expected argument list at %C");
 		  return MATCH_ERROR;
 		}
@@ -2723,10 +2736,22 @@ gfc_match_varspec (gfc_expr *primary, int equiv_flag, bool sub_flag,
 	  break;
 	}
 
+    try_data_component:
+
       previous = component;
 
       if (!inquiry && !intrinsic)
-	component = gfc_find_component (sym, name, false, false, &tmp);
+	{
+	  component = gfc_find_component (sym, name, false, false, &tmp);
+	  /* For inferred-type ASSOCIATE names the parse-time candidate type
+	     may not be the final type; a private component in the candidate
+	     type may correspond to a public component in the correct type.
+	     Accept it tentatively so that resolution can fix up the type.  */
+	  if (!component && !tbp
+	      && primary->symtree && primary->symtree->n.sym->assoc
+	      && primary->symtree->n.sym->assoc->inferred_type)
+	    component = gfc_find_component (sym, name, true, false, &tmp);
+	}
       else
 	component = NULL;
 
