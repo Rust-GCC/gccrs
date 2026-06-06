@@ -872,6 +872,12 @@ public:
   tl::optional<NodeId> prelude;
 
 private:
+  template <Namespace N>
+  bool
+  should_search_prelude (const typename ForeverStack<N>::Node *current_node,
+			 const typename ForeverStack<N>::SegIterator &iterator,
+			 const std::vector<ResolutionPath::Segment> &segments);
+
   /**
    * Resolve a path to its definition
    *
