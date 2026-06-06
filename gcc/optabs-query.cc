@@ -837,7 +837,7 @@ can_open_code_p (optab op, machine_mode mode)
   if ((op == neg_optab || op == abs_optab)
       && is_a<scalar_float_mode> (GET_MODE_INNER (mode), &fmode)
       && get_absneg_bit_mode (op, mode, fmode, &bitpos).exists (&new_mode)
-      && can_implement_p (op == neg_optab ? xor_optab : and_optab, new_mode))
+      && can_open_code_p (op == neg_optab ? xor_optab : and_optab, new_mode))
     return true;
 
   scalar_int_mode int_mode;
