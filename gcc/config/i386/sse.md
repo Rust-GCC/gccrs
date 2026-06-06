@@ -23463,9 +23463,9 @@
 	      (lshiftrt:<ssedoublemode>
 		(mult:<ssedoublemode>
 		  (sign_extend:<ssedoublemode>
-		    (match_operand:PMULHRSW 1 "nonimmediate_operand"))
+		    (match_operand:PMULHRSW 1 "vector_operand"))
 		  (sign_extend:<ssedoublemode>
-		    (match_operand:PMULHRSW 2 "nonimmediate_operand")))
+		    (match_operand:PMULHRSW 2 "vector_operand")))
 		(const_int 14))
 	      (match_dup 3))
 	    (const_int 1))))]
@@ -23483,9 +23483,9 @@
 	      (lshiftrt:<ssedoublemode>
 		(mult:<ssedoublemode>
 		  (sign_extend:<ssedoublemode>
-		    (match_operand:VI2_AVX2_AVX512BW 1 "nonimmediate_operand"))
+		    (match_operand:VI2_AVX2_AVX512BW 1 "vector_operand"))
 		  (sign_extend:<ssedoublemode>
-		    (match_operand:VI2_AVX2_AVX512BW 2 "nonimmediate_operand")))
+		    (match_operand:VI2_AVX2_AVX512BW 2 "vector_operand")))
 		(const_int 14))
 	      (match_dup 3))
 	    (const_int 1))))]
