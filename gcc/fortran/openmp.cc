@@ -1439,16 +1439,88 @@ gfc_match_motion_var_list (const char *str, gfc_omp_namelist **list,
   if (m != MATCH_YES)
     return m;
 
-  match m_present = gfc_match (" present : ");
+  gfc_namespace *ns_iter = NULL, *ns_curr = gfc_current_ns;
+  locus old_loc = gfc_current_locus;
+  int present_modifier = 0;
+  int iterator_modifier = 0;
+  locus second_present_locus = old_loc;
+  locus second_iterator_locus = old_loc;
+  bool saw_modifier = false;
+
+  for (;;)
+    {
+      locus current_locus = gfc_current_locus;
+      if (gfc_match ("present ") == MATCH_YES)
+	{
+	  if (present_modifier++ == 1)
+	    second_present_locus = current_locus;
+	}
+      else if (gfc_match_iterator (&ns_iter, true) == MATCH_YES)
+	{
+	  if (iterator_modifier++ == 1)
+	    second_iterator_locus = current_locus;
+	}
+      else if (!saw_modifier)
+	break;
+      else
+	{
+	  gfc_error ("Expected clause modifier at %C");
+	  return MATCH_ERROR;
+	}
+
+      /* OpenMP 5.1 syntax mistakenly allowed commas to be optional
+	 between and after modifiers in a clause.  This was corrected
+	 in 5.2 and later specifications: they're now required between
+	 modifiers and a trailing comma is not permitted.  We implement
+	 the 5.2 syntax here.  */
+      saw_modifier = true;
+      if (gfc_match (" : ") == MATCH_YES)
+	break;
+      else if (gfc_match (", ") == MATCH_YES)
+	continue;
+      else
+	{
+	  gfc_error ("Expected %<,%> or %<:%> after clause modifier at %C");
+	  return MATCH_ERROR;
+	}
+    }
+
+  if (!saw_modifier)
+    {
+      gfc_current_locus = old_loc;
+      present_modifier = 0;
+      iterator_modifier = 0;
+    }
+
+  if (present_modifier > 1)
+    {
+      gfc_error ("Too many %<present%> modifiers at %L", &second_present_locus);
+      return MATCH_ERROR;
+    }
+  if (iterator_modifier > 1)
+    {
+      gfc_error ("Too many %<iterator%> modifiers at %L",
+		 &second_iterator_locus);
+      return MATCH_ERROR;
+    }
+
+  if (ns_iter)
+    gfc_current_ns = ns_iter;
 
   m = gfc_match_omp_variable_list ("", list, false, NULL, headp, true, true);
+  gfc_current_ns = ns_curr;
   if (m != MATCH_YES)
     return m;
-  if (m_present == MATCH_YES)
+  gfc_omp_namelist *n;
+  for (n = **headp; n; n = n->next)
     {
-      gfc_omp_namelist *n;
-      for (n = **headp; n; n = n->next)
+      if (present_modifier)
 	n->u.present_modifier = true;
+      if (iterator_modifier)
+	{
+	  n->u2.ns = ns_iter;
+	  ns_iter->refs++;
+	}
     }
   return MATCH_YES;
 }
@@ -10048,7 +10120,8 @@ resolve_omp_clauses (gfc_code *code, gfc_omp_clauses *omp_clauses,
 	    for (; n != NULL; n = n->next)
 	      {
 		if ((list == OMP_LIST_DEPEND || list == OMP_LIST_AFFINITY
-		     || list == OMP_LIST_MAP)
+		     || list == OMP_LIST_MAP
+		     || list == OMP_LIST_TO || list == OMP_LIST_FROM)
 		    && n->u2.ns && !n->u2.ns->resolved)
 		  {
 		    n->u2.ns->resolved = 1;
