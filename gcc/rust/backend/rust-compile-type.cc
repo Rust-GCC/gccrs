@@ -664,6 +664,7 @@ TyTyResolveCompile::visit (const TyTy::ReferenceType &type)
   const TyTy::SliceType *slice = nullptr;
   const TyTy::StrType *str = nullptr;
   const TyTy::DynamicObjectType *dyn = nullptr;
+  const TyTy::ADTType *adt = nullptr;
   if (type.is_dyn_slice_type (&slice))
     {
       tree type_record = create_slice_type_record (*slice);
@@ -695,6 +696,28 @@ TyTyResolveCompile::visit (const TyTy::ReferenceType &type)
 
       translated = Backend::named_type (dyn_str_type_str, type_record,
 					dyn->get_locus ());
+
+      return;
+    }
+  // Check for CStr, create a specific record for it
+  else if (type.is_dyn_cstr_type (&adt))
+    {
+      // CStr in core crate is defined as the following:
+      //
+      // #[repr(transparent)]
+      // pub struct CStr {
+      //    inner: [u8]
+      // }
+      //
+      // Reuse the c_char (u8) slice fat-pointer layout
+      TyTy::BaseType *u8 = nullptr;
+      ctx->get_tyctx ()->lookup_builtin ("u8", &u8);
+      // Create a synthetic SliceType over u8 and use that record layout
+      TyTy::SliceType synthetic_slice (adt->get_ref (), adt->get_ident ().locus,
+				       TyTy::TyVar (u8->get_ref ()));
+      tree type_record = create_slice_type_record (synthetic_slice);
+      translated
+	= Backend::named_type ("&CStr", type_record, adt->get_ident ().locus);
 
       return;
     }
