@@ -44889,11 +44889,11 @@ cp_parser_omp_iterators (cp_parser *parser)
       DECL_CONTEXT (iter_var) = current_function_decl;
       pushdecl (iter_var);
 
-      *last = make_tree_vec (6);
-      TREE_VEC_ELT (*last, 0) = iter_var;
-      TREE_VEC_ELT (*last, 1) = begin;
-      TREE_VEC_ELT (*last, 2) = end;
-      TREE_VEC_ELT (*last, 3) = step;
+      *last = make_omp_iterator ();
+      OMP_ITERATOR_VAR (*last) = iter_var;
+      OMP_ITERATOR_BEGIN (*last) = begin;
+      OMP_ITERATOR_END (*last) = end;
+      OMP_ITERATOR_STEP (*last) = step;
       last = &TREE_CHAIN (*last);
 
       if (cp_lexer_next_token_is (parser->lexer, CPP_COMMA))
@@ -44967,7 +44967,7 @@ cp_parser_omp_clause_affinity (cp_parser *parser, tree list)
       tree block = poplevel (1, 1, 0);
       if (iterators != error_mark_node)
 	{
-	  TREE_VEC_ELT (iterators, 5) = block;
+	  OMP_ITERATOR_BLOCK (iterators) = block;
 	  for (c = nlist; c != list; c = OMP_CLAUSE_CHAIN (c))
 	    OMP_CLAUSE_DECL (c) = build_tree_list (iterators,
 						   OMP_CLAUSE_DECL (c));
@@ -45106,7 +45106,7 @@ cp_parser_omp_clause_depend (cp_parser *parser, tree list, location_t loc)
 	  if (iterators == error_mark_node)
 	    iterators = NULL_TREE;
 	  else
-	    TREE_VEC_ELT (iterators, 5) = block;
+	    OMP_ITERATOR_BLOCK (iterators) = block;
 	}
 
       for (c = nlist; c != list; c = OMP_CLAUSE_CHAIN (c))
@@ -45374,7 +45374,7 @@ cp_parser_omp_clause_from_to (cp_parser *parser, enum omp_clause_code kind,
       if (iterators == error_mark_node)
 	iterators = NULL_TREE;
       else
-	TREE_VEC_ELT (iterators, 5) = block;
+	OMP_ITERATOR_BLOCK (iterators) = block;
     }
 
   if (iterators)
@@ -45788,7 +45788,7 @@ cp_parser_omp_clause_map (cp_parser *parser, tree list, bool declare_mapper_p)
       if (iterators == error_mark_node)
 	iterators = NULL_TREE;
       else
-	TREE_VEC_ELT (iterators, 5) = block;
+	OMP_ITERATOR_BLOCK (iterators) = block;
     }
 
   for (c = nlist; c != list; c = OMP_CLAUSE_CHAIN (c))

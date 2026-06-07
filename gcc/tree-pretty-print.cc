@@ -437,25 +437,26 @@ dump_omp_iterators (pretty_printer *pp, tree iter, int spc, dump_flags_t flags)
     {
       if (it != iter)
 	pp_string (pp, ", ");
-      dump_generic_node (pp, TREE_TYPE (TREE_VEC_ELT (it, 0)), spc, flags,
+      dump_generic_node (pp, TREE_TYPE (OMP_ITERATOR_VAR (it)), spc, flags,
 			 false);
       pp_space (pp);
-      dump_generic_node (pp, TREE_VEC_ELT (it, 0), spc, flags, false);
+      dump_generic_node (pp, OMP_ITERATOR_VAR (it), spc, flags, false);
       pp_equal (pp);
-      dump_generic_node (pp, TREE_VEC_ELT (it, 1), spc, flags, false);
+      dump_generic_node (pp, OMP_ITERATOR_BEGIN (it), spc, flags, false);
       pp_colon (pp);
-      dump_generic_node (pp, TREE_VEC_ELT (it, 2), spc, flags, false);
+      dump_generic_node (pp, OMP_ITERATOR_END (it), spc, flags, false);
       pp_colon (pp);
-      dump_generic_node (pp, TREE_VEC_ELT (it, 3), spc, flags, false);
+      dump_generic_node (pp, OMP_ITERATOR_STEP (it), spc, flags, false);
     }
-  if (TREE_VEC_LENGTH (iter) > 6)
+  if (OMP_ITERATOR_EXPANDED_P (iter))
     {
       pp_string (pp, ", loop_label=");
-      dump_generic_node (pp, TREE_VEC_ELT (iter, 6), spc, flags, false);
+      dump_generic_node (pp, OMP_ITERATOR_LABEL (iter), spc, flags, false);
       pp_string (pp, ", elems=");
-      dump_generic_node (pp, TREE_VEC_ELT (iter, 7), spc, flags, false);
+      dump_generic_node (pp, OMP_ITERATOR_ELEMS (iter), spc, flags, false);
       pp_string (pp, ", index=");
-      dump_generic_node (pp, TREE_VEC_ELT (iter, 8), spc, flags, false);
+      dump_generic_node (pp, OMP_ITERATOR_INDEX (iter), spc, flags, false);
+      /* The count field is not used yet.  */
     }
   pp_right_paren (pp);
 }

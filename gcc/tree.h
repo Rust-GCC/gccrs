@@ -1699,6 +1699,24 @@ class auto_suppress_location_wrappers
 					      OMP_CLAUSE_FROM,		\
 					      OMP_CLAUSE_MAP), 2)
 
+/* An iterator modifier on a clause is represented as a vector.
+   Unexpanded iterators produced by the front-end parsers have 6
+   elements; after expansion, they have 10.  See also the
+   make_omp_iterator and make_expanded_omp_iterator constructors
+   below.  */
+#define OMP_ITERATOR_VAR(NODE)		TREE_VEC_ELT (NODE, 0)
+#define OMP_ITERATOR_BEGIN(NODE)	TREE_VEC_ELT (NODE, 1)
+#define OMP_ITERATOR_END(NODE)		TREE_VEC_ELT (NODE, 2)
+#define OMP_ITERATOR_STEP(NODE)	TREE_VEC_ELT (NODE, 3)
+#define OMP_ITERATOR_ORIG_STEP(NODE)	TREE_VEC_ELT (NODE, 4)
+#define OMP_ITERATOR_BLOCK(NODE)	TREE_VEC_ELT (NODE, 5)
+#define OMP_ITERATOR_LABEL(NODE)	TREE_VEC_ELT (NODE, 6)
+#define OMP_ITERATOR_INDEX(NODE)	TREE_VEC_ELT (NODE, 7)
+#define OMP_ITERATOR_ELEMS(NODE)	TREE_VEC_ELT (NODE, 8)
+#define OMP_ITERATOR_COUNT(NODE)	TREE_VEC_ELT (NODE, 9)
+
+#define OMP_ITERATOR_EXPANDED_P(NODE)	(TREE_VEC_LENGTH (NODE) > 6)
+
 /* True on OMP_FOR and other OpenMP/OpenACC looping constructs if the loop nest
    is non-rectangular.  */
 #define OMP_FOR_NON_RECTANGULAR(NODE) \
@@ -7239,5 +7257,19 @@ extern tree unshare_expr (tree);
 extern tree unshare_expr_without_location (tree);
 
 extern void copy_if_shared (tree *, void * = NULL);
+
+/* Make a vector to hold an unexpanded omp iterator vector.  */
+inline tree
+make_omp_iterator (void)
+{
+  return make_tree_vec (6);
+}
+
+/* Make a vector to hold an expanded omp iterator vector.  */
+inline tree
+make_expanded_omp_iterator (void)
+{
+  return make_tree_vec (10);
+}
 
 #endif  /* GCC_TREE_H  */

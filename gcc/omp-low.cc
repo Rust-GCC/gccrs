@@ -12712,8 +12712,8 @@ lower_omp_map_iterator_expr (tree expr, tree c, gomp_target *stmt)
     return expr;
 
   tree iterator = OMP_CLAUSE_ITERATORS (c);
-  tree elems = TREE_VEC_ELT (iterator, 7);
-  tree index = TREE_VEC_ELT (iterator, 8);
+  tree index = OMP_ITERATOR_INDEX (iterator);
+  tree elems = OMP_ITERATOR_ELEMS (iterator);
   gimple_seq *loop_body_p = enter_omp_iterator_loop_context (c, stmt);
 
    /* IN LOOP BODY:  */
@@ -12740,8 +12740,8 @@ lower_omp_map_iterator_size (tree size, tree c, gomp_target *stmt)
     return size;
 
   tree iterator = OMP_CLAUSE_ITERATORS (c);
-  tree elems = TREE_VEC_ELT (iterator, 7);
-  tree index = TREE_VEC_ELT (iterator, 8);
+  tree index = OMP_ITERATOR_INDEX (iterator);
+  tree elems = OMP_ITERATOR_ELEMS (iterator);
   gimple_seq *loop_body_p = enter_omp_iterator_loop_context (c, stmt);
 
   /* IN LOOP BODY:  */

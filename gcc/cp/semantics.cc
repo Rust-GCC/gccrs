@@ -7595,10 +7595,10 @@ cp_omp_finish_iterators (tree iter)
   bool ret = false;
   for (tree it = iter; it; it = TREE_CHAIN (it))
     {
-      tree var = TREE_VEC_ELT (it, 0);
-      tree begin = TREE_VEC_ELT (it, 1);
-      tree end = TREE_VEC_ELT (it, 2);
-      tree step = TREE_VEC_ELT (it, 3);
+      tree var = OMP_ITERATOR_VAR (it);
+      tree begin = OMP_ITERATOR_BEGIN (it);
+      tree end = OMP_ITERATOR_END (it);
+      tree step = OMP_ITERATOR_STEP (it);
       tree orig_step;
       tree type = TREE_TYPE (var);
       location_t loc = DECL_SOURCE_LOCATION (var);
@@ -7696,10 +7696,10 @@ cp_omp_finish_iterators (tree iter)
       tree it2;
       for (it2 = TREE_CHAIN (it); it2; it2 = TREE_CHAIN (it2))
 	{
-	  tree var2 = TREE_VEC_ELT (it2, 0);
-	  tree begin2 = TREE_VEC_ELT (it2, 1);
-	  tree end2 = TREE_VEC_ELT (it2, 2);
-	  tree step2 = TREE_VEC_ELT (it2, 3);
+	  tree var2 = OMP_ITERATOR_VAR (it2);
+	  tree begin2 = OMP_ITERATOR_BEGIN (it2);
+	  tree end2 = OMP_ITERATOR_END (it2);
+	  tree step2 = OMP_ITERATOR_STEP (it2);
 	  location_t loc2 = DECL_SOURCE_LOCATION (var2);
 	  if (cp_walk_tree (&begin2, find_omp_placeholder_r, var, &pset))
 	    {
@@ -7725,14 +7725,14 @@ cp_omp_finish_iterators (tree iter)
 	  ret = true;
 	  continue;
 	}
-      TREE_VEC_ELT (it, 1) = begin;
-      TREE_VEC_ELT (it, 2) = end;
+      OMP_ITERATOR_BEGIN (it) = begin;
+      OMP_ITERATOR_END (it) = end;
       if (processing_template_decl)
-	TREE_VEC_ELT (it, 3) = orig_step;
+	OMP_ITERATOR_STEP (it) = orig_step;
       else
 	{
-	  TREE_VEC_ELT (it, 3) = step;
-	  TREE_VEC_ELT (it, 4) = orig_step;
+	  OMP_ITERATOR_STEP (it) = step;
+	  OMP_ITERATOR_ORIG_STEP (it) = orig_step;
 	}
     }
   return ret;
