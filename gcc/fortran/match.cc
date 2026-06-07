@@ -6515,7 +6515,8 @@ gfc_free_namelist (gfc_namelist *name)
 void
 gfc_free_omp_namelist (gfc_omp_namelist *name, enum gfc_omp_list_type list)
 {
-  bool free_ns = (list == OMP_LIST_AFFINITY || list == OMP_LIST_DEPEND);
+  bool free_ns = (list == OMP_LIST_AFFINITY || list == OMP_LIST_DEPEND
+		  || list == OMP_LIST_MAP);
   bool free_align_allocator = (list == OMP_LIST_ALLOCATE);
   bool free_mem_traits_space = (list == OMP_LIST_USES_ALLOCATORS);
   bool free_init = (list == OMP_LIST_INIT);

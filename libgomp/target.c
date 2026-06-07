@@ -1060,6 +1060,41 @@ kind_to_name (unsigned short kind, bool short_mapkind)
     }
 }
 
+static void
+gomp_add_map (size_t idx, size_t *new_idx,
+	      void ***hostaddrs, size_t **sizes, unsigned short **skinds,
+	      void ***new_hostaddrs, size_t **new_sizes,
+	      unsigned short **new_kinds, size_t *iterator_count)
+{
+  if ((*sizes)[idx] == SIZE_MAX)
+    {
+      uintptr_t *iterator_array = (*hostaddrs)[idx];
+      size_t count = *iterator_array++;
+      for (size_t i = 0; i < count; i++)
+	{
+	  (*new_hostaddrs)[*new_idx] = (void *) *iterator_array++;
+	  (*new_sizes)[*new_idx] = *iterator_array++;
+	  (*new_kinds)[*new_idx] = (*skinds)[idx];
+	  iterator_count[*new_idx] = i + 1;
+	  gomp_debug (1,
+		      "Expanding map %u <%s>: "
+		      "hostaddrs[%u] = %p, sizes[%u] = %lu\n",
+		      (int) idx, kind_to_name ((*new_kinds)[*new_idx], true),
+		      (int) *new_idx, (*new_hostaddrs)[*new_idx],
+		      (int) *new_idx, (unsigned long) (*new_sizes)[*new_idx]);
+	  (*new_idx)++;
+	}
+    }
+  else
+    {
+      (*new_hostaddrs)[*new_idx] = (*hostaddrs)[idx];
+      (*new_sizes)[*new_idx] = (*sizes)[idx];
+      (*new_kinds)[*new_idx] = (*skinds)[idx];
+      iterator_count[*new_idx] = 0;
+      (*new_idx)++;
+    }
+}
+
 /*  When GCC encounters a clause with an iterator, e.g.:
 
    #pragma omp target map (iterator(i=0:4), to: x[i])
@@ -1093,6 +1128,7 @@ gomp_merge_iterator_maps (size_t *mapnum, void ***hostaddrs, size_t **sizes,
   bool iterator_p = false;
   size_t map_count = 0;
   unsigned short **skinds = (unsigned short **) kinds;
+  const int typemask = 0xff;
 
   for (size_t i = 0; i < *mapnum; i++)
     if ((*sizes)[i] == SIZE_MAX)
@@ -1119,33 +1155,35 @@ gomp_merge_iterator_maps (size_t *mapnum, void ***hostaddrs, size_t **sizes,
 
   for (size_t i = 0; i < *mapnum; i++)
     {
-      if ((*sizes)[i] == SIZE_MAX)
+      int map_type = get_kind (true, *skinds, i) & typemask;
+      if (map_type == GOMP_MAP_STRUCT || map_type == GOMP_MAP_STRUCT_UNORD)
 	{
-	  uintptr_t *iterator_array = (*hostaddrs)[i];
-	  size_t count = *iterator_array++;
-	  for (size_t j = 0; j < count; j++)
+	  size_t field_count = (*sizes)[i];
+	  size_t idx_i = new_idx;
+
+	  gomp_add_map (i, &new_idx, hostaddrs, sizes, skinds,
+			&new_hostaddrs, &new_sizes, &new_kinds,
+			*iterator_count);
+
+	  for (size_t j = i + 1; j <= i + field_count; j++)
 	    {
-	      new_hostaddrs[new_idx] = (void *) *iterator_array++;
-	      new_sizes[new_idx] = *iterator_array++;
-	      new_kinds[new_idx] = (*skinds)[i];
-	      (*iterator_count)[new_idx] = j + 1;
-	      gomp_debug (1,
-			  "Expanding map %u <%s>: "
-			  "hostaddrs[%u] = %p, sizes[%u] = %lu\n",
-			  (int) i, kind_to_name (new_kinds[new_idx], true),
-			  (int) new_idx, new_hostaddrs[new_idx],
-			  (int) new_idx, (unsigned long) new_sizes[new_idx]);
-	      new_idx++;
+	      if ((*sizes)[j] == SIZE_MAX)
+		{
+		  uintptr_t *iterator_array = (*hostaddrs)[j];
+		  size_t count = iterator_array[0];
+		  new_sizes[idx_i] += count - 1;
+		}
+	      gomp_add_map (j, &new_idx, hostaddrs, sizes, skinds,
+			    &new_hostaddrs, &new_sizes, &new_kinds,
+			    *iterator_count);
 	    }
+	  gomp_debug (1, "Map %u: new field count = %lu\n",
+		      (int) i, (unsigned long) new_sizes[idx_i]);
+	  i += field_count;
 	}
       else
-	{
-	  new_hostaddrs[new_idx] = (*hostaddrs)[i];
-	  new_sizes[new_idx] = (*sizes)[i];
-	  new_kinds[new_idx] = (*skinds)[i];
-	  (*iterator_count)[new_idx] = 0;
-	  new_idx++;
-	}
+	gomp_add_map (i, &new_idx, hostaddrs, sizes, skinds,
+		      &new_hostaddrs, &new_sizes, &new_kinds, *iterator_count);
     }
 
   *mapnum = map_count;
