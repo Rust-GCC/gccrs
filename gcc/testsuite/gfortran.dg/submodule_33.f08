@@ -14,7 +14,7 @@ module m
 end
 submodule(m) m2
 contains
-   subroutine g(x)      ! { dg-error "FUNCTION attribute conflicts with SUBROUTINE" }
+   module subroutine g(x)      ! { dg-error "FUNCTION attribute conflicts with SUBROUTINE" }
      integer, intent(in) :: x  ! { dg-error "Unexpected data declaration" }
    end
 end

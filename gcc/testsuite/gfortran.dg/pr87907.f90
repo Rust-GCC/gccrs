@@ -12,7 +12,7 @@ end
 
 submodule(m) m2
    contains
-      subroutine g(x) ! { dg-error "FUNCTION attribute conflicts with SUBROUTINE" }
+      module subroutine g(x) ! { dg-error "FUNCTION attribute conflicts with SUBROUTINE" }
       end
 end
 

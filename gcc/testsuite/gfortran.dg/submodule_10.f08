@@ -99,14 +99,14 @@ submodule (error_mod) error_impl_mod
   use const_mod
 contains
   ! checks whether an error has occurred on one of the processes in the execution pool
-  subroutine errcomm(ictxt, err)
+  module subroutine errcomm(ictxt, err)
     integer(mpik_), intent(in)   :: ictxt
     integer(ipk_), intent(inout):: err
 
 
   end subroutine errcomm
 
-  subroutine ser_error_handler(err_act)
+  module subroutine ser_error_handler(err_act)
     implicit none
     integer(ipk_), intent(inout) ::  err_act
 
@@ -117,7 +117,7 @@ contains
     return
   end subroutine ser_error_handler
 
-  subroutine par_error_handler(ictxt,err_act)
+  module subroutine par_error_handler(ictxt,err_act)
     implicit none
     integer(mpik_), intent(in) ::  ictxt
     integer(ipk_), intent(in) ::  err_act
@@ -131,25 +131,25 @@ contains
 
   end subroutine par_error_handler
 
-  subroutine par_error_print_stack(ictxt)
+  module subroutine par_error_print_stack(ictxt)
     integer(mpik_), intent(in) ::  ictxt
 
     call error(ictxt, abrt=.false.)
 
   end subroutine par_error_print_stack
 
-  subroutine ser_error_print_stack()
+  module subroutine ser_error_print_stack()
 
     call error()
   end subroutine ser_error_print_stack
 
-  subroutine serror()
+  module subroutine serror()
 
     implicit none
 
   end subroutine serror
 
-  subroutine perror(ictxt,abrt)
+  module subroutine perror(ictxt,abrt)
     use const_mod
     implicit none
     integer(mpik_), intent(in) :: ictxt

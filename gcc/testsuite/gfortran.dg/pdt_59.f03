@@ -30,7 +30,7 @@ end module
 
 submodule(input_output_pair_m) input_output_pair_smod
 contains
-  function default_real_construct()
+  module function default_real_construct()
    type(mini_batch_t) default_real_construct
    allocate (default_real_construct%input_output_pairs_(2))
    default_real_construct%input_output_pairs_%a = [42,43]

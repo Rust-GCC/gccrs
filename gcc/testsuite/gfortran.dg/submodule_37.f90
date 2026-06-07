@@ -37,7 +37,7 @@ end module t
 
 submodule (t) ts
 contains
-  function bp(s)
+  module function bp(s)
     class(b), intent(inout) :: s
     class(c), pointer :: bp
     select type (s)

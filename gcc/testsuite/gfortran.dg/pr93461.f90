@@ -9,7 +9,7 @@ end module aModuleWithAnAllowedName
 
 submodule (aModuleWithAnAllowedName) aSubmoduleWithAVeryVeryVeryLongButEntirelyLegalName
 contains
-  subroutine aShortName()
+  module subroutine aShortName()
     call aSubroutineWithAVeryLongNameThatWillCauseAProblem()
     call aSubroutineWithAVeryLongNameThatWillCauseAProblemAlso()
   end subroutine aShortName

@@ -1463,7 +1463,7 @@ get_proc_name (const char *name, gfc_symbol **result, bool module_fcn_entry)
 	}
     }
 
-  /* C1246 (R1225) MODULE shall appear only in the function-stmt or
+  /* F2023: C1247 (R1526) MODULE shall appear only in the function-stmt or
      subroutine-stmt of a module subprogram or of a nonabstract interface
      body that is declared in the scoping unit of a module or submodule.  */
   if (sym->attr.external
@@ -1472,12 +1472,24 @@ get_proc_name (const char *name, gfc_symbol **result, bool module_fcn_entry)
       && !current_attr.module_procedure
       && sym->attr.proc == PROC_MODULE
       && gfc_state_stack->state == COMP_CONTAINS)
-    {
-      gfc_error_now ("Procedure %qs defined in interface body at %L "
-		     "clashes with internal procedure defined at %C",
-		     name, &sym->declared_at);
-      return true;
-    }
+    gfc_error_now ("Procedure %qs defined in interface body at %L "
+		   "clashes with internal procedure defined at %C",
+		   name, &sym->declared_at);
+
+  /* This is the converse requirement: The separate-module-subprogram for a
+     module procedure shall have the MODULE prefix or be declared a MODULE
+     PROCEDURE, otherwise it would be ambiguous.  */
+  if (sym->attr.module_procedure
+      && (sym->attr.subroutine || sym->attr.function)
+      && sym->attr.if_source == IFSRC_IFBODY
+      && !current_attr.module_procedure
+      && sym->attr.proc == PROC_MODULE
+      && gfc_state_stack->state == COMP_CONTAINS
+      && gfc_state_stack->previous
+      && gfc_state_stack->previous->state == COMP_SUBMODULE)
+    gfc_error_now ("Procedure %qs at %C requires the MODULE prefix because "
+		   "it is a module procedure declared in module %qs",
+		   name, sym->module ? sym->module : "");
 
   if (sym && !sym->gfc_new
       && sym->attr.flavor != FL_UNKNOWN
