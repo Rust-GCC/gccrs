@@ -2491,6 +2491,7 @@ gfc_find_derived_vtab (gfc_symbol *derived)
   /* Work in the gsymbol namespace if the top-level namespace is a module.
      This ensures that the vtable is unique, which is required since we use
      its address in SELECT TYPE.  */
+  gfc_namespace *module_ns = ns;
   if (gsym && gsym->ns && ns && ns->proc_name
       && ns->proc_name->attr.flavor == FL_MODULE)
     ns = gsym->ns;
@@ -2516,6 +2517,11 @@ gfc_find_derived_vtab (gfc_symbol *derived)
 	gfc_find_symbol (name, ns, 0, &vtab);
       if (vtab == NULL)
 	gfc_find_symbol (name, derived->ns, 0, &vtab);
+      /* If all else fails, look in the module/submodule namespace so that
+	 the module variable and procedure body translations find the same
+	 frontend symbol and backend decl.  */
+      if (vtab == NULL && module_ns != ns)
+	gfc_find_symbol (name, module_ns, 0, &vtab);
 
       if (vtab == NULL)
 	{
@@ -3136,9 +3142,7 @@ find_typebound_proc_uop (gfc_symbol* derived, bool* t,
     root = (uop ? derived->f2k_derived->tb_uop_root
 		: derived->f2k_derived->tb_sym_root);
   else
-    /* No f2k_derived namespace; allow the extension check below to proceed
-       so inherited type-bound procedures/operators are still found.  */
-    root = NULL;
+    return NULL;
 
   /* Try to find it in the current type's namespace.  */
   res = gfc_find_symtree (root, name);
