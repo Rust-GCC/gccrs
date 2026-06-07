@@ -4597,20 +4597,15 @@
 (define_expand "bswapsi2"
   [(set (match_operand:SI 0 "arith_reg_dest" "")
 	(bswap:SI (match_operand:SI 1 "arith_reg_operand" "")))]
-  "TARGET_SH1"
+  "TARGET_SH1 && can_create_pseudo_p ()"
 {
-  if (! can_create_pseudo_p ())
-    FAIL;
-  else
-    {
-      rtx tmp0 = gen_reg_rtx (SImode);
-      rtx tmp1 = gen_reg_rtx (SImode);
+  rtx tmp0 = gen_reg_rtx (SImode);
+  rtx tmp1 = gen_reg_rtx (SImode);
 
-      emit_insn (gen_swapbsi2 (tmp0, operands[1]));
-      emit_insn (gen_rotlsi3_16 (tmp1, tmp0));
-      emit_insn (gen_swapbsi2 (operands[0], tmp1));
-      DONE;
-    }
+  emit_insn (gen_swapbsi2 (tmp0, operands[1]));
+  emit_insn (gen_rotlsi3_16 (tmp1, tmp0));
+  emit_insn (gen_swapbsi2 (operands[0], tmp1));
+  DONE;
 })
 
 (define_insn "swapbsi2"
