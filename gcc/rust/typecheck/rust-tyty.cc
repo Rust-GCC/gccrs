@@ -3060,7 +3060,8 @@ ReferenceType::get_region () const
 bool
 ReferenceType::is_dyn_object () const
 {
-  return is_dyn_slice_type () || is_dyn_str_type () || is_dyn_obj_type ();
+  return is_dyn_slice_type () || is_dyn_str_type () || is_dyn_obj_type ()
+	 || is_dyn_cstr_type ();
 }
 
 static const TyTy::BaseType *
@@ -3119,6 +3120,27 @@ ReferenceType::is_dyn_obj_type (const TyTy::DynamicObjectType **dyn) const
     return true;
 
   *dyn = static_cast<const TyTy::DynamicObjectType *> (element);
+  return true;
+}
+
+bool
+ReferenceType::is_dyn_cstr_type (const TyTy::ADTType **adt) const
+{
+  if (get_base ()->get_kind () != TyTy::TypeKind::ADT)
+    return false;
+
+  const TyTy::ADTType *adt_ty
+    = static_cast<const TyTy::ADTType *> (get_base ());
+  auto &mappings = Analysis::Mappings::get ();
+  auto cstr_item = mappings.lookup_lang_item (LangItem::Kind::CSTR);
+
+  if (!cstr_item.has_value ())
+    return false;
+
+  if (cstr_item.value () != adt_ty->get_id ())
+    return false;
+
+  *adt = adt_ty;
   return true;
 }
 
