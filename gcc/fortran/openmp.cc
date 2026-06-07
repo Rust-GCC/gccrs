@@ -3856,7 +3856,7 @@ gfc_match_omp_clauses (gfc_omp_clauses **cp, const omp_mask mask,
 			= gfc_find_omp_udm (gfc_current_ns, mapper_id, ts);
 		      if (udm)
 			{
-			  n->u2.udm.udm = udm;
+			  n->u3.udm.udm = udm;
 			}
 		    }
 		  continue;

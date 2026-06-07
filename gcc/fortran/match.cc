@@ -6554,7 +6554,7 @@ gfc_free_omp_namelist (gfc_omp_namelist *name, enum gfc_omp_list_type list)
 	    }
 	}
       else if (free_mapper)
-	{ } /* For now, u2.udm is not a pointer.  */
+	{ } /* For now, u3.udm is not a pointer.  */
       else if (!free_mapper && name->u2.udr)
 	{
 	  if (name->u2.udr->combiner)
