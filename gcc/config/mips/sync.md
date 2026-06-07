@@ -179,7 +179,7 @@
 	(unspec_volatile:SI
           [(match_operand:SI 2 "register_operand" "d")
 	   (match_operand:SI 3 "register_operand" "d")
-	   (atomic_hiqi_op:SI (match_dup 0)
+	   (atomic_hiqi_op:SI (match_dup 1)
 			      (match_operand:SI 4 "reg_or_0_operand" "dJ"))]
 	  UNSPEC_SYNC_OLD_OP_12))
    (clobber (match_scratch:SI 5 "=&d"))]
@@ -220,7 +220,7 @@
           [(match_operand:SI 1 "memory_operand" "+ZC")
 	   (match_operand:SI 2 "register_operand" "d")
 	   (match_operand:SI 3 "register_operand" "d")
-	   (atomic_hiqi_op:SI (match_dup 0)
+	   (atomic_hiqi_op:SI (match_dup 1)
 			      (match_operand:SI 4 "reg_or_0_operand" "dJ"))]
 	  UNSPEC_SYNC_NEW_OP_12))
    (set (match_dup 1)
@@ -228,7 +228,8 @@
 	  [(match_dup 1)
 	   (match_dup 2)
 	   (match_dup 3)
-	   (match_dup 4)] UNSPEC_SYNC_NEW_OP_12))]
+	   (atomic_hiqi_op:SI (match_dup 1) (match_dup 4))]
+	  UNSPEC_SYNC_NEW_OP_12))]
   "GENERATE_LL_SC"
   { return mips_output_sync_loop (insn, operands); }
   [(set_attr "sync_insn1" "<insn>")
