@@ -5956,6 +5956,7 @@ package body Sem_Ch3 is
                Set_Is_Constrained       (Id, Is_Constrained     (T));
                Set_Is_IEEE_Extended_Precision
                  (Id, Is_IEEE_Extended_Precision (T));
+               Copy_RM_Size             (To => Id, From => T);
 
                --  If the floating point type has dimensions, these will be
                --  inherited subsequently when Analyze_Dimensions is called.

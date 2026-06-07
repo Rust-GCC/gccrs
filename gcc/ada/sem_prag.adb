@@ -15982,20 +15982,12 @@ package body Sem_Prag is
                Preanalyze_And_Resolve (Arg_Message, Standard_String);
             end if;
 
+            --  When expansion is active but check is not, only preanalyze the
+            --  boolean to avoid pulling useless dependencies.
+
             if Expander_Active and Is_Ignored_In_Codegen (N) then
-
-               --  Even though technically ignored assertions are not ghost
-               --  code they should behave the same way. Meaning that they
-               --  should be analyzed but they should not affect the generated
-               --  code. Use the ignored ghost mechanism here to ensure that
-               --  the original pragma and any expanded code is also removed.
-               --  Ideally these two cases should be separated in the
-               --  implementation ???
-
-               Mark_Ghost_Pragma (N, Opt.Ignore);
-
                In_Assertion_Expr := In_Assertion_Expr + 1;
-               Analyze_And_Resolve (Arg_Check, Any_Boolean);
+               Preanalyze_And_Resolve (Arg_Check, Any_Boolean);
                In_Assertion_Expr := In_Assertion_Expr - 1;
 
                --  Suppress any warnings on the condition we might get
@@ -16005,6 +15997,11 @@ package body Sem_Prag is
                --  Warn if the condition is known to fail statically
 
                Check_Assertion_Failure (Arg_Check);
+
+               --  Rewrite the pragma as a null statement
+
+               Rewrite (N, Make_Null_Statement (Loc));
+               Analyze (N);
 
             --  Check is active or expansion not active. In these cases we can
             --  just go ahead and analyze the boolean with no worries.

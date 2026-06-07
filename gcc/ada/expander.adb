@@ -537,8 +537,7 @@ package body Expander is
 
          if Scope_Is_Transient and then N = Node_To_Be_Wrapped then
             case Nkind (N) is
-               when N_Pragma
-                  | N_Procedure_Call_Statement
+               when N_Procedure_Call_Statement
                   | N_Statement_Other_Than_Procedure_Call
                =>
                   Wrap_Transient_Statement (N);
