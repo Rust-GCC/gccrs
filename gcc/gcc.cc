@@ -389,7 +389,7 @@ static void xputenv (const char *);
 static void putenv_from_prefixes (const struct path_prefix *, const char *,
 				  bool);
 static int access_check (const char *, int);
-static char *find_a_file (const struct path_prefix *, const char *, int, bool);
+static char *find_a_file (const struct path_prefix *, const char *, bool);
 static char *find_a_program (const char *);
 static void add_prefix (struct path_prefix *, const char *, const char *,
 			int, int, int);
@@ -2466,7 +2466,7 @@ read_specs (const char *filename, bool main_p, bool user_p)
 			     "%td characters", p1 - buffer + 1);
 
 	      p[-2] = '\0';
-	      new_filename = find_a_file (&startfile_prefixes, p1, R_OK, true);
+	      new_filename = find_a_file (&startfile_prefixes, p1, true);
 	      read_specs (new_filename ? new_filename : p1, false, user_p);
 	      continue;
 	    }
@@ -2486,7 +2486,7 @@ read_specs (const char *filename, bool main_p, bool user_p)
 			     "%td characters", p1 - buffer + 1);
 
 	      p[-2] = '\0';
-	      new_filename = find_a_file (&startfile_prefixes, p1, R_OK, true);
+	      new_filename = find_a_file (&startfile_prefixes, p1, true);
 	      if (new_filename)
 		read_specs (new_filename, false, user_p);
 	      else if (verbose_flag)
@@ -3056,47 +3056,32 @@ access_check (const char *name, int mode)
    Return 0 if not found, otherwise return its name, allocated with malloc.  */
 
 static char *
-find_a_file (const struct path_prefix *pprefix, const char *name, int mode,
+find_a_file (const struct path_prefix *pprefix, const char *name,
 	     bool do_multi)
 {
   /* Find the filename in question (special case for absolute paths).  */
 
   if (IS_ABSOLUTE_PATH (name))
     {
-      if (access (name, mode) == 0)
+      if (access (name, R_OK) == 0)
 	return xstrdup (name);
 
       return NULL;
     }
 
-  const char *suffix = (mode & X_OK) != 0 ? HOST_EXECUTABLE_SUFFIX : "";
   const int name_len = strlen (name);
-  const int suffix_len = strlen (suffix);
 
 
   /* Callback appends the file name to the directory path.  If the
      resulting file exists in the right mode, return the full pathname
      to the file.  */
   return for_each_path (pprefix, do_multi,
-			name_len + suffix_len,
+			name_len,
 			[=](char *path) -> char*
     {
-      size_t len = strlen (path);
+      memcpy (path + strlen (path), name, name_len + 1);
 
-      memcpy (path + len, name, name_len);
-      len += name_len;
-
-      /* Some systems have a suffix for executable files.
-	 So try appending that first.  */
-      if (suffix_len)
-	{
-	  memcpy (path + len, suffix, suffix_len + 1);
-	  if (access_check (path, mode) == 0)
-	    return path;
-	}
-
-      path[len] = '\0';
-      if (access_check (path, mode) == 0)
+      if (access_check (path, R_OK) == 0)
 	return path;
 
       return NULL;
@@ -3131,22 +3116,19 @@ find_a_program (const char *name)
     return xstrdup (DEFAULT_WINDRES);
 #endif
 
-  int mode = X_OK;
-
   /* Find the filename in question (special case for absolute paths).  */
 
   if (IS_ABSOLUTE_PATH (name))
     {
-      if (access (name, mode) == 0)
+      if (access (name, X_OK) == 0)
 	return xstrdup (name);
 
       return NULL;
     }
 
-  const char *suffix = (mode & X_OK) != 0 ? HOST_EXECUTABLE_SUFFIX : "";
+  const char *suffix = HOST_EXECUTABLE_SUFFIX;
   const int name_len = strlen (name);
   const int suffix_len = strlen (suffix);
-
 
   /* Callback appends the file name to the directory path.  If the
      resulting file exists in the right mode, return the full pathname
@@ -3165,12 +3147,12 @@ find_a_program (const char *name)
       if (suffix_len)
 	{
 	  memcpy (path + len, suffix, suffix_len + 1);
-	  if (access_check (path, mode) == 0)
+	  if (access_check (path, X_OK) == 0)
 	    return path;
 	}
 
       path[len] = '\0';
-      if (access_check (path, mode) == 0)
+      if (access_check (path, X_OK) == 0)
 	return path;
 
       return NULL;
@@ -5830,7 +5812,7 @@ end_going_arg (void)
 	string = find_file (string);
       if (this_is_linker_script)
 	{
-	  char * full_script_path = find_a_file (&startfile_prefixes, string, R_OK, true);
+	  char * full_script_path = find_a_file (&startfile_prefixes, string, true);
 
 	  if (full_script_path == NULL)
 	    {
@@ -8136,7 +8118,7 @@ out:
 static const char *
 find_file (const char *name)
 {
-  char *newname = find_a_file (&startfile_prefixes, name, R_OK, true);
+  char *newname = find_a_file (&startfile_prefixes, name, true);
   return newname ? newname : name;
 }
 
@@ -8562,7 +8544,7 @@ driver::set_up_specs () const
 			   accel_dir_suffix, dir_separator_str, NULL);
   just_machine_suffix = concat (spec_machine, dir_separator_str, NULL);
 
-  specs_file = find_a_file (&startfile_prefixes, "specs", R_OK, true);
+  specs_file = find_a_file (&startfile_prefixes, "specs", true);
   /* Read the specs file unless it is a default one.  */
   if (specs_file != 0 && strcmp (specs_file, "specs"))
     read_specs (specs_file, true, false);
@@ -8706,7 +8688,7 @@ driver::set_up_specs () const
   for (struct user_specs *uptr = user_specs_head; uptr; uptr = uptr->next)
     {
       char *filename = find_a_file (&startfile_prefixes, uptr->filename,
-				    R_OK, true);
+				    true);
       read_specs (filename ? filename : uptr->filename, false, true);
     }
 
@@ -9341,7 +9323,7 @@ driver::maybe_run_linker (const char *argv0) const
 #endif
 	    {
 	      char *temp_spec = find_a_file (&exec_prefixes,
-					     LTOPLUGINSONAME, R_OK,
+					     LTOPLUGINSONAME,
 					     false);
 	      if (!temp_spec)
 		fatal_error (input_location,
@@ -10830,7 +10812,7 @@ include_spec_function (int argc, const char **argv)
   if (argc != 1)
     abort ();
 
-  file = find_a_file (&startfile_prefixes, argv[0], R_OK, true);
+  file = find_a_file (&startfile_prefixes, argv[0], true);
   read_specs (file ? file : argv[0], false, false);
 
   return NULL;
@@ -11267,12 +11249,12 @@ find_fortran_preinclude_file (int argc, const char **argv)
 			     NULL, 0, 0, 0);
 #endif
 
-  const char *path = find_a_file (&include_prefixes, argv[1], R_OK, false);
+  const char *path = find_a_file (&include_prefixes, argv[1], false);
   if (path != NULL)
     result = concat (argv[0], path, NULL);
   else
     {
-      path = find_a_file (&prefixes, argv[1], R_OK, false);
+      path = find_a_file (&prefixes, argv[1], false);
       if (path != NULL)
 	result = concat (argv[0], path, NULL);
     }
