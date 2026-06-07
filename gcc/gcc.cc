@@ -3131,7 +3131,50 @@ find_a_program (const char *name)
     return xstrdup (DEFAULT_WINDRES);
 #endif
 
-  return find_a_file (&exec_prefixes, name, X_OK, false);
+  int mode = X_OK;
+
+  /* Find the filename in question (special case for absolute paths).  */
+
+  if (IS_ABSOLUTE_PATH (name))
+    {
+      if (access (name, mode) == 0)
+	return xstrdup (name);
+
+      return NULL;
+    }
+
+  const char *suffix = (mode & X_OK) != 0 ? HOST_EXECUTABLE_SUFFIX : "";
+  const int name_len = strlen (name);
+  const int suffix_len = strlen (suffix);
+
+
+  /* Callback appends the file name to the directory path.  If the
+     resulting file exists in the right mode, return the full pathname
+     to the file.  */
+  return for_each_path (&exec_prefixes, false,
+			name_len + suffix_len,
+			[=](char *path) -> char*
+    {
+      size_t len = strlen (path);
+
+      memcpy (path + len, name, name_len);
+      len += name_len;
+
+      /* Some systems have a suffix for executable files.
+	 So try appending that first.  */
+      if (suffix_len)
+	{
+	  memcpy (path + len, suffix, suffix_len + 1);
+	  if (access_check (path, mode) == 0)
+	    return path;
+	}
+
+      path[len] = '\0';
+      if (access_check (path, mode) == 0)
+	return path;
+
+      return NULL;
+    });
 }
 
 /* Ranking of prefixes in the sort list. -B prefixes are put before
