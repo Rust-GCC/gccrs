@@ -35,39 +35,45 @@ MacroBuiltin::assert_handler (location_t invoc_locus,
   Parser<MacroInvocLexer> parser (lex);
 
   auto last_token_id = macro_end_token (tt, parser);
-  bool has_error = false;
 
-  auto expanded_expr = try_expand_many_expr (parser, last_token_id,
-					     invoc.get_expander (), has_error);
-  if (expanded_expr.size () < 1)
+  // TODO: less args?
+  auto expr_to_assert = parser.parse_expr ();
+  if (!expr_to_assert.has_value ())
     {
       rust_error_at (invoc_locus,
 		     "macro requires a boolean expression as an argument");
       return AST::Fragment::create_error ();
     }
-  auto expr_to_assert = std::move (expanded_expr[0]);
-  expanded_expr.erase (expanded_expr.begin ());
 
-  if (expanded_expr.size () > 1)
-    {
-      rust_sorry_at (
-	invoc_locus,
-	"The second form of assert with a message is not supported yet");
-
-      return AST::Fragment::create_error ();
-    }
-
-  auto pending_invocations = check_for_eager_invocations (expanded_expr);
-  if (!pending_invocations.empty ())
-    return make_eager_builtin_invocation (BuiltinMacro::Assert, invoc_locus,
-					  invoc.get_delim_tok_tree (),
-					  std::move (pending_invocations));
+  // don't need to expand macros -- panic! will handle it
 
   AST::Builder b (invoc_locus);
 
   std::vector<std::unique_ptr<AST::TokenTree>> panic_tree;
   const_TokenPtr open = Token::make (TokenId::LEFT_PAREN, invoc_locus);
   panic_tree.push_back (std::make_unique<AST::Token> (std::move (open)));
+
+  if (parser.maybe_skip_token (COMMA))
+    {
+      bool needs_stringify = true;
+      while (parser.peek_current_token ()->get_id () != last_token_id
+	     && parser.peek_current_token ()->get_id () != END_OF_FILE)
+	{
+	  needs_stringify = false;
+	  auto token_tree = parser.parse_token_tree ();
+	  if (!token_tree.has_value ())
+	    {
+	      // error already emitted (?)
+	      return AST::Fragment::create_error ();
+	    }
+	  panic_tree.push_back (std::move (token_tree.value ()));
+	}
+      if (needs_stringify)
+	{
+	  // TODO: insert stringify invocation
+	  (void) 0;
+	}
+    }
 
   const_TokenPtr close = Token::make (TokenId::RIGHT_PAREN, invoc_locus);
   panic_tree.push_back (std::make_unique<AST::Token> (std::move (close)));
@@ -83,7 +89,7 @@ MacroBuiltin::assert_handler (location_t invoc_locus,
   stmts.push_back (std::move (stmt));
   auto block = b.block (std::move (stmts));
   auto negated_condition = std::unique_ptr<AST::NegationExpr> (
-    new AST::NegationExpr (std::move (expr_to_assert),
+    new AST::NegationExpr (std::move (expr_to_assert.value ()),
 			   AST::NegationExpr::ExprType::NOT, {}, invoc_locus));
 
   auto if_expr = std::make_unique<AST::IfExpr> (
