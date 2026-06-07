@@ -1,6 +1,5 @@
 /* { dg-do compile { target { { ! ia32 } && fpic } } } */
 /* { dg-options "-O2" } */
-/* { dg-add-options check_function_bodies } */
 /* Keep labels and directives ('.cfi_startproc', '.cfi_endproc').  */
 /* { dg-final { check-function-bodies "**" "" "" { target "*-*-*" } {^\t?\.} } } */
 
