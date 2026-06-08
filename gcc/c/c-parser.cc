@@ -13600,6 +13600,7 @@ c_parser_postfix_expression (c_parser *parser)
 		expr.set_error ();
 		break;
 	      }
+	    arg = c_fully_fold (arg, false, NULL);
 	    expr.value = fold_build_builtin_bswapg_bitreverseg (loc, ifn, arg);
 	    set_c_expr_source_range (&expr, loc, close_paren_loc);
 	    break;
