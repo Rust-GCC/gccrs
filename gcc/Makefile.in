@@ -1849,7 +1849,6 @@ OBJS = \
 	tristate.o \
 	typed-splay-tree.o \
 	valtrack.o \
-	value-pointer-equiv.o \
 	value-query.o \
 	value-range.o \
 	value-range-pretty-print.o \

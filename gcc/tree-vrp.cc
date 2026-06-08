@@ -48,7 +48,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimple-array-bounds.h"
 #include "gimple-range.h"
 #include "gimple-range-path.h"
-#include "value-pointer-equiv.h"
 #include "gimple-fold.h"
 #include "tree-dfa.h"
 #include "tree-ssa-dce.h"
@@ -964,13 +963,7 @@ public:
       m_simplifier (r, r->non_executable_edge_flag)
   {
     m_ranger = r;
-    m_pta = new pointer_equiv_analyzer (m_ranger);
     m_last_bb_stmt = NULL;
-  }
-
-  ~rvrp_folder ()
-  {
-    delete m_pta;
   }
 
   tree value_of_expr (tree name, gimple *s = NULL) override
@@ -1049,21 +1042,14 @@ public:
 
   void pre_fold_bb (basic_block bb) override
   {
-    m_pta->enter (bb);
     for (gphi_iterator gsi = gsi_start_phis (bb); !gsi_end_p (gsi);
 	 gsi_next (&gsi))
       m_ranger->register_inferred_ranges (gsi.phi ());
     m_last_bb_stmt = last_nondebug_stmt (bb);
   }
 
-  void post_fold_bb (basic_block bb) override
-  {
-    m_pta->leave (bb);
-  }
-
   void pre_fold_stmt (gimple *stmt) override
   {
-    m_pta->visit_stmt (stmt);
     // If this is the last stmt and there are inferred ranges, reparse the
     // block for transitive inferred ranges that occur earlier in the block.
     if (stmt == m_last_bb_stmt)
@@ -1089,7 +1075,6 @@ private:
   DISABLE_COPY_AND_ASSIGN (rvrp_folder);
   gimple_ranger *m_ranger;
   simplify_using_ranges m_simplifier;
-  pointer_equiv_analyzer *m_pta;
   gimple *m_last_bb_stmt;
 };
 
