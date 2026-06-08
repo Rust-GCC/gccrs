@@ -4396,7 +4396,7 @@ vect_synth_mult_by_constant (vec_info *vinfo, tree op, tree val,
     {
       tree tmp_op = vect_recog_temp_ssa_var (multtype, NULL);
       stmt = gimple_build_assign (tmp_op, CONVERT_EXPR, op);
-      append_pattern_def_seq (vinfo, stmt_vinfo, stmt);
+      append_pattern_def_seq (vinfo, stmt_vinfo, stmt, vectype);
       op = tmp_op;
     }
 
@@ -4478,7 +4478,7 @@ vect_synth_mult_by_constant (vec_info *vinfo, tree op, tree val,
 	 but rather return it directly.  */
 
       if ((i < alg.ops - 1) || needs_fixup || cast_to_unsigned_p)
-	append_pattern_def_seq (vinfo, stmt_vinfo, stmt);
+	append_pattern_def_seq (vinfo, stmt_vinfo, stmt, vectype);
       accumulator = accum_tmp;
     }
   if (variant == negate_variant)
@@ -4487,7 +4487,7 @@ vect_synth_mult_by_constant (vec_info *vinfo, tree op, tree val,
       stmt = gimple_build_assign (accum_tmp, NEGATE_EXPR, accumulator);
       accumulator = accum_tmp;
       if (cast_to_unsigned_p)
-	append_pattern_def_seq (vinfo, stmt_vinfo, stmt);
+	append_pattern_def_seq (vinfo, stmt_vinfo, stmt, vectype);
     }
   else if (variant == add_variant)
     {
@@ -4495,7 +4495,7 @@ vect_synth_mult_by_constant (vec_info *vinfo, tree op, tree val,
       stmt = gimple_build_assign (accum_tmp, PLUS_EXPR, accumulator, op);
       accumulator = accum_tmp;
       if (cast_to_unsigned_p)
-	append_pattern_def_seq (vinfo, stmt_vinfo, stmt);
+	append_pattern_def_seq (vinfo, stmt_vinfo, stmt, vectype);
     }
   /* Move back to a signed if needed.  */
   if (cast_to_unsigned_p)
