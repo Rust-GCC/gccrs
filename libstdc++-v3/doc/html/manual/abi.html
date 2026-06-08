@@ -22,10 +22,10 @@
   GNU C++ compiler uses an industry-standard C++ ABI, the
   <a class="link" href="abi.html#biblio.cxxabi" title="Itanium C++ ABI">Itanium C++ ABI</a>.
 </p><p>
- The GNU C++ compiler, g++, has a compiler command line option to
+  The GNU C++ compiler, g++, has a command-line option to
   switch between various different C++ ABIs. This explicit version
   switch is the flag <code class="code">-fabi-version</code>. In addition, some
-  g++ command line options may change the ABI as a side-effect of
+  command-line options may change the ABI as a side-effect of
   use. Such flags include <code class="code">-fpack-struct</code> and
   <code class="code">-fno-exceptions</code>, but include others: see the complete
   list in the GCC manual under the heading <a class="link" href="https://gcc.gnu.org/onlinedocs/gcc/Code-Gen-Options.html#Code%20Gen%20Options" target="_top">Options
@@ -137,7 +137,7 @@ compatible.
     This macro was defined in the file "lang-specs.h" in the gcc/cp directory.
     Later versions defined it in "c-common.c" in the gcc directory, and from
     G++ 3.4 it is defined in c-cppbuiltin.c and its value determined by the
-    '-fabi-version' command line option.
+    '-fabi-version' command-line option.
     </p><p>
     It is versioned as follows, where 'n' is given by '-fabi-version=n':
     </p><div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; "><li class="listitem"><p>GCC 3.0: 100</p></li><li class="listitem"><p>GCC 3.1: 100 (Error, should be 101)</p></li><li class="listitem"><p>GCC 3.2: 102</p></li><li class="listitem"><p>GCC 3.3: 102</p></li><li class="listitem"><p>GCC 3.4, GCC 4.x: 102 (when n=1)</p></li><li class="listitem"><p>GCC 3.4, GCC 4.x: 1000 + n (when n&gt;1) </p></li><li class="listitem"><p>GCC 3.4, GCC 4.x: 999999 (when n=0)</p></li></ul></div><p></p></li><li class="listitem"><p>Changes to the default compiler option for

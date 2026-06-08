@@ -46,10 +46,10 @@
 </para>
 
 <para>
- The GNU C++ compiler, g++, has a compiler command line option to
+  The GNU C++ compiler, g++, has a command-line option to
   switch between various different C++ ABIs. This explicit version
   switch is the flag <code>-fabi-version</code>. In addition, some
-  g++ command line options may change the ABI as a side-effect of
+  command-line options may change the ABI as a side-effect of
   use. Such flags include <code>-fpack-struct</code> and
   <code>-fno-exceptions</code>, but include others: see the complete
   list in the GCC manual under the heading <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://gcc.gnu.org/onlinedocs/gcc/Code-Gen-Options.html#Code%20Gen%20Options">Options
@@ -381,7 +381,7 @@ compatible.
     This macro was defined in the file "lang-specs.h" in the gcc/cp directory.
     Later versions defined it in "c-common.c" in the gcc directory, and from
     G++ 3.4 it is defined in c-cppbuiltin.c and its value determined by the
-    '-fabi-version' command line option.
+    '-fabi-version' command-line option.
     </para>
 
     <para>
