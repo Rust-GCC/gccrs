@@ -4307,6 +4307,58 @@ postpone_insns (rtx_insn *first)
     }
 }
 
+/* Test whether the n-th operand is a MEM where the address is the sum of a
+   section anchor and a constant and return true in case of reloading the
+   section anchor only results in a satisfiable operand w.r.t. its
+   corresponding constraint.  Otherwise return false.  */
+
+static bool
+reload_section_anchor_p (int nop)
+{
+  rtx op = *curr_id->operand_loc[nop];
+  if (!MEM_P (op))
+    return false;
+  rtx addr = XEXP (op, 0);
+
+  if (GET_CODE (addr) != CONST
+      || GET_CODE (XEXP (addr, 0)) != PLUS
+      || GET_CODE (XEXP (XEXP (addr, 0), 0)) != SYMBOL_REF
+      || !SYMBOL_REF_ANCHOR_P (XEXP (XEXP (addr, 0), 0))
+      || !CONST_INT_P (XEXP (XEXP (addr, 0), 1))
+      /* Some offsets are valid in conjunction with a symbol and
+	 invalid in conjunction with a register.  Thus, pull out
+	 the anchor only in case the offset is a valid anchor
+	 offset.  */
+      || INTVAL (XEXP (XEXP (addr, 0), 1)) < targetm.min_anchor_offset
+      || INTVAL (XEXP (XEXP (addr, 0), 1)) > targetm.max_anchor_offset)
+    return false;
+
+  /* Now test whether a new address of the form REG+DISPLACEMENT is valid for
+     the selected alternative.  In order to do so, utilize lra_pmode_pseudo
+     instead of an actual reload register.  */
+
+  rtx offset = XEXP (XEXP (addr, 0), 1);
+  rtx new_addr = gen_rtx_PLUS (Pmode, lra_pmode_pseudo, offset);
+  rtx new_op = shallow_copy_rtx (op);
+  XEXP (new_op, 0) = new_addr;
+
+  /* Get operand constraints for given alternative.  */
+  const char *p = (curr_static_id->operand_alternative
+		   [goal_alt_number * curr_static_id->n_operands + nop]
+		   .constraint);
+  char c;
+  for (;
+       (c = *p) && c != ',' && c != '#';
+       p += CONSTRAINT_LEN (c, p))
+    {
+      enum constraint_num cn = lookup_constraint (p);
+      if (constraint_satisfied_p (new_op, cn))
+	return true;
+    }
+
+  return false;
+}
+
 /* Main entry point of the constraint code: search the body of the
    current insn to choose the best alternative.  It is mimicking insn
    alternative cost calculation model of former reload pass.  That is
@@ -4874,6 +4926,27 @@ curr_insn_transform (bool check_only_p)
 	    new_reg = emit_inc (rclass, *loc,
 				/* This value does not matter for MODIFY.  */
 				GET_MODE_SIZE (GET_MODE (op)));
+	  /* Try to pull out section anchors.  For example, instead of
+	     reloading an "entire" address like .LANCHOR42+offset only reload
+	     .LANCHOR42 and use the new reload register as the base register.
+	     This allows following optimizations to share section anchors and
+	     remove redundant loads.  */
+	  else if (reload_section_anchor_p (i))
+	    {
+	      rtx anchor = XEXP (XEXP (*loc, 0), 0);
+	      rtx offset = XEXP (XEXP (*loc, 0), 1);
+
+	      if (get_reload_reg (OP_IN, Pmode, anchor, rclass, NULL, false,
+				  false, "offsetable address", &new_reg))
+		lra_emit_move (new_reg, anchor);
+
+	      rtx new_addr = gen_rtx_PLUS (Pmode, new_reg, offset);
+	      rtx new_op = shallow_copy_rtx (op);
+	      XEXP (new_op, 0) = new_addr;
+
+	      new_reg = new_op;
+	      loc = curr_id->operand_loc[i];
+	    }
 	  else if (get_reload_reg (OP_IN, Pmode, *loc, rclass,
 				   NULL, false, false,
 				   "offsetable address", &new_reg))
