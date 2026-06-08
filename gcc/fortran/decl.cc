@@ -4503,6 +4503,7 @@ gfc_get_pdt_instance (gfc_actual_arglist *param_list, gfc_symbol **sym,
       if (c1->as && c1->as->type == AS_EXPLICIT)
 	{
 	  bool pdt_array = false;
+	  bool all_constant = true;
 
 	  /* Are the bounds of the array parameterized?  */
 	  for (i = 0; i < c1->as->rank; i++)
@@ -4525,15 +4526,19 @@ gfc_get_pdt_instance (gfc_actual_arglist *param_list, gfc_symbol **sym,
 		gfc_replace_expr (c2->as->lower[i], e);
 	      else
 		gfc_free_expr (e);
+	      if (c2->as->lower[i]->expr_type != EXPR_CONSTANT)
+		all_constant = false;
 	      e = gfc_copy_expr (c1->as->upper[i]);
 	      gfc_insert_kind_parameter_exprs (e);
 	      if (gfc_simplify_expr (e, 1))
 		gfc_replace_expr (c2->as->upper[i], e);
 	      else
 		gfc_free_expr (e);
+	      if (c2->as->upper[i]->expr_type != EXPR_CONSTANT)
+		all_constant = false;
 	    }
 
-	  c2->attr.pdt_array = 1;
+	  c2->attr.pdt_array = all_constant ? 0 : 1;
 	  if (c1->initializer)
 	    {
 	      c2->initializer = gfc_copy_expr (c1->initializer);
@@ -4554,7 +4559,8 @@ gfc_get_pdt_instance (gfc_actual_arglist *param_list, gfc_symbol **sym,
 	    gfc_replace_expr (c2->ts.u.cl->length, e);
 	  else
 	    gfc_free_expr (e);
-	  c2->attr.pdt_string = 1;
+	  if (c2->ts.u.cl->length->expr_type != EXPR_CONSTANT)
+	    c2->attr.pdt_string = 1;
 	}
 
       /* Recurse into this function for PDT components.  */
