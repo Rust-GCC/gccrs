@@ -221,8 +221,6 @@ public:
   void visit (AST::LifetimeParam &) override;
   void visit (AST::ConstGenericParam &) override;
 
-  void visit (AST::Attribute &attribute) override;
-
   void visit (AST::MacroInvocation &macro_invoc) override;
 
   void visit (AST::PathInExpression &path) override;
