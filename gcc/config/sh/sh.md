@@ -4597,7 +4597,7 @@
 (define_expand "bswapsi2"
   [(set (match_operand:SI 0 "arith_reg_dest" "")
 	(bswap:SI (match_operand:SI 1 "arith_reg_operand" "")))]
-  "TARGET_SH1 && can_create_pseudo_p ()"
+  "TARGET_SH1"
 {
   rtx tmp0 = gen_reg_rtx (SImode);
   rtx tmp1 = gen_reg_rtx (SImode);
