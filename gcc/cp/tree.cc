@@ -6060,6 +6060,7 @@ validate_trivial_abi_attribute (tree type)
   /* Check for virtual bases.  */
   if (CLASSTYPE_VBASECLASSES (type))
     {
+      auto_diagnostic_group d;
       if (warning (OPT_Wattributes, "%<trivial_abi%> cannot be applied to %qT",
 		   type))
 	inform (input_location, "has a virtual base");
@@ -6071,6 +6072,7 @@ validate_trivial_abi_attribute (tree type)
   /* Check for virtual member functions.  */
   if (TYPE_POLYMORPHIC_P (type))
     {
+      auto_diagnostic_group d;
       if (warning (OPT_Wattributes, "%<trivial_abi%> cannot be applied to %qT",
 		   type))
 	inform (input_location, "is polymorphic");
@@ -6090,6 +6092,7 @@ validate_trivial_abi_attribute (tree type)
 
 	  if (TREE_ADDRESSABLE (base_type))
 	    {
+	      auto_diagnostic_group d;
 	      if (warning (OPT_Wattributes,
 			   "%<trivial_abi%> cannot be applied to %qT", type))
 		inform (input_location, "has a non-trivial base class %qT",
@@ -6110,6 +6113,7 @@ validate_trivial_abi_attribute (tree type)
 
 	  if (CLASS_TYPE_P (field_type) && TREE_ADDRESSABLE (field_type))
 	    {
+	      auto_diagnostic_group d;
 	      if (warning (OPT_Wattributes,
 			   "%<trivial_abi%> cannot be applied to %qT", type))
 		inform (input_location, "has a non-static data member "
@@ -6124,6 +6128,7 @@ validate_trivial_abi_attribute (tree type)
   /* Check that not all copy/move constructors are deleted.  */
   if (!classtype_has_non_deleted_copy_or_move_ctor (type))
     {
+      auto_diagnostic_group d;
       if (warning (OPT_Wattributes, "%<trivial_abi%> cannot be applied to %qT",
 		   type))
 	inform (input_location,

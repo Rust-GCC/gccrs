@@ -1476,6 +1476,7 @@ digest_init_r (tree type, tree init, int nested, int flags,
 	  tree field = next_aggregate_field (TYPE_FIELDS (type));
 	  if (field && DECL_FIELD_IS_BASE (field))
 	    {
+	      auto_diagnostic_group d;
 	      if (warning_at (loc, 0, "initializing a base class of type %qT "
 			      "results in object slicing", TREE_TYPE (field)))
 		inform (loc, "remove %<{ }%> around initializer");

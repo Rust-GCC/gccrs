@@ -10678,6 +10678,7 @@ finish_omp_clauses (tree clauses, enum c_omp_region_type ort)
       && (!init_use_destroy_seen
 	  || (init_seen && init_no_targetsync_clause)))
     {
+      auto_diagnostic_group d;
       error_at (OMP_CLAUSE_LOCATION (depend_clause),
 		"%<depend%> clause requires action clauses with "
 		"%<targetsync%> interop-type");

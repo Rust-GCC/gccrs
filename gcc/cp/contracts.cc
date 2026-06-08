@@ -560,6 +560,7 @@ check_param_in_postcondition (tree decl, location_t location)
       if (!dependent_type_p (TREE_TYPE (decl))
 	  && !CP_TYPE_CONST_P (TREE_TYPE (decl)))
 	{
+	  auto_diagnostic_group d;
 	  error_at (location,
 		    "a value parameter used in a postcondition must be const");
 	  inform (DECL_SOURCE_LOCATION (decl), "parameter declared here");
@@ -582,7 +583,7 @@ check_postconditions_in_redecl (tree olddecl, tree newdecl)
   tree t2 = FUNCTION_FIRST_USER_PARM (newdecl);
 
   for (; t1 && t1 != void_list_node;
-  t1 = TREE_CHAIN (t1), t2 = TREE_CHAIN (t2))
+       t1 = TREE_CHAIN (t1), t2 = TREE_CHAIN (t2))
     {
       if (parm_used_in_post_p (t1))
 	{
@@ -591,10 +592,12 @@ check_postconditions_in_redecl (tree olddecl, tree newdecl)
 	      && !CP_TYPE_CONST_P (TREE_TYPE (t2))
 	      && !TREE_READONLY (t2))
 	    {
+	      auto_diagnostic_group d;
 	      error_at (DECL_SOURCE_LOCATION (t2),
-	      "value parameter %qE used in a postcondition must be const", t2);
+			"value parameter %qE used in a postcondition must be "
+			"const", t2);
 	      inform (DECL_SOURCE_LOCATION (olddecl),
-	      "previous declaration here");
+		      "previous declaration here");
 	    }
 	}
     }

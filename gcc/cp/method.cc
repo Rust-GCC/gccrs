@@ -2777,6 +2777,7 @@ walk_field_subobs (tree fields, special_function_kind sfk, tree fnname,
 	    {
 	      if (diag)
 		{
+		  auto_diagnostic_group d;
 		  error ("uninitialized const member in %q#T",
 			 current_class_type);
 		  inform (DECL_SOURCE_LOCATION (field),
@@ -2788,6 +2789,7 @@ walk_field_subobs (tree fields, special_function_kind sfk, tree fnname,
 	    {
 	      if (diag)
 		{
+		  auto_diagnostic_group d;
 		  error ("uninitialized reference member in %q#T",
 			 current_class_type);
 		  inform (DECL_SOURCE_LOCATION (field),

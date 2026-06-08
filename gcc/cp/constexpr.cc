@@ -9035,6 +9035,7 @@ static void
 maybe_warn_about_constant_value (location_t loc, tree decl)
 {
   static bool explained = false;
+  auto_diagnostic_group d;
   if (cxx_dialect >= cxx17
       && warn_interference_size
       && !OPTION_SET_P (param_destruct_interfere_size)
@@ -11103,6 +11104,7 @@ cxx_eval_outermost_constant_expr (tree t, bool allow_non_constant,
 	{
 	  if (!allow_non_constant && !non_constant_p)
 	    {
+	      auto_diagnostic_group d;
 	      if (DECL_LANG_SPECIFIC (heap_var))
 		error ("%qE is not a constant expression because it refers to "
 		       "exception object allocated with "
@@ -11121,6 +11123,7 @@ cxx_eval_outermost_constant_expr (tree t, bool allow_non_constant,
 	    {
 	      if (!allow_non_constant && !non_constant_p)
 		{
+		  auto_diagnostic_group d;
 		  error ("%qE is not a constant expression because allocated "
 			 "storage has not been deallocated", t);
 		  inform (DECL_SOURCE_LOCATION (heap_var), "allocated here");

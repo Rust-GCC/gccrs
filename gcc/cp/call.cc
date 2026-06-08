@@ -8370,9 +8370,9 @@ build_op_delete_call_1 (enum tree_code code, tree addr, tree size,
      be freed.  */
   if (alloc_fn)
     {
-      if ((complain & tf_warning)
-	  && !placement)
+      if ((complain & tf_warning) && !placement)
 	{
+	  auto_diagnostic_group d;
 	  bool w = warning (0,
 			    "no corresponding deallocation function for %qD",
 			    alloc_fn);
@@ -8440,6 +8440,7 @@ complain_about_access (tree decl, tree diag_decl, tree diag_location,
     }
 
   /* Now generate an error message depending on calculated access.  */
+  auto_diagnostic_group d;
   if (no_access_reason == ak_private)
     {
       if (issue_error)
@@ -8737,6 +8738,7 @@ convert_like_internal (conversion *convs, tree expr, tree fn, int argnum,
     {
       int complained = 0;
       conversion *t = convs;
+      auto_diagnostic_group d;
 
       /* Give a helpful error if this is bad because of excess braces.  */
       if (BRACE_ENCLOSED_INITIALIZER_P (expr)
@@ -8979,6 +8981,7 @@ convert_like_internal (conversion *convs, tree expr, tree fn, int argnum,
       if (complain & tf_error)
 	{
 	  /* Call build_user_type_conversion again for the error.  */
+	  auto_diagnostic_group d;
 	  int flags = (convs->need_temporary_p
 		       ? LOOKUP_IMPLICIT : LOOKUP_NORMAL);
 	  build_user_type_conversion (totype, convs->u.expr, flags, complain);
@@ -10848,6 +10851,7 @@ build_over_call (struct z_candidate *cand, int flags, tsubst_flags_t complain)
 	{
 	  if (complain & tf_error)
 	    {
+	      auto_diagnostic_group d;
 	      sorry ("passing arguments to ellipsis of inherited constructor "
 		     "%qD", cand->fn);
 	      inform (DECL_SOURCE_LOCATION (cand->fn), "declared here");
@@ -11346,6 +11350,7 @@ maybe_warn_class_memaccess (location_t loc, tree fndecl,
   const char *suggest = "";
   bool warned = false;
 
+  auto_diagnostic_group d;
   switch (DECL_FUNCTION_CODE (fndecl))
     {
     case BUILT_IN_MEMSET:

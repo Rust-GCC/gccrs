@@ -4197,6 +4197,7 @@ identify_goto (tree decl, location_t loc, const location_t *locus,
 {
   if (computed)
     diag_kind = diagnostics::kind::warning;
+  auto_diagnostic_group d;
   bool complained
     = emit_diagnostic (diag_kind, loc, 0,
 		       decl ? G_("jump to label %qD")
@@ -9171,6 +9172,7 @@ omp_declare_variant_finalize_one (tree decl, tree attr)
 		  loc = EXPR_LOC_OR_LOC (variant,
 					 DECL_SOURCE_LOCATION (variant));
 		}
+	      auto_diagnostic_group d;
 	      error_at (loc, "argument %d of %qE must be of %<omp_interop_t%>",
 			args->length () + 1, variant);
 	      inform (EXPR_LOCATION (TREE_PURPOSE (append_args_list)),
@@ -9308,6 +9310,7 @@ omp_declare_variant_finalize_one (tree decl, tree attr)
 		 i++, varg = TREE_CHAIN (varg))
 	      if (!varg || !c_omp_interop_t_p (TREE_VALUE (varg)))
 		{
+		  auto_diagnostic_group d;
 		  error_at (DECL_SOURCE_LOCATION (variant),
 			    "argument %d of %qD must be of %<omp_interop_t%>",
 			    nbase_args + i + 1, variant);
