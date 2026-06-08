@@ -2892,7 +2892,7 @@
 
 ;; Initialize an SVE vector by duplicating a 128-bit AdvSIMD register that
 ;; itself contains a duplicated scalar or subvector value.
-(define_insn "*aarch64_vec_duplicate_subvector<vconsv><vconq><mode>"
+(define_insn "*aarch64_vec_duplicate_subvector<vconsv><mode>"
   [(set (match_operand:<VCONSV> 0 "register_operand")
 	(vec_duplicate:<VCONSV>
 	  (match_operand:VQDUP 1 "register_operand")))]
