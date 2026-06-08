@@ -633,12 +633,11 @@ backprop::process_var (tree var, var_info *v)
   if (has_zero_uses (var))
     return;
 
-  /* Propagating along abnormal edges is delicate, punt for now.  */
-  if (SSA_NAME_OCCURS_IN_ABNORMAL_PHI (var))
-    return;
-
   usage_info info;
-  intersect_uses (var, &info);
+
+  /* Propagating along abnormal edges is delicate, punt for now.  */
+  if (!SSA_NAME_OCCURS_IN_ABNORMAL_PHI (var))
+    intersect_uses (var, &info);
 
   gimple *stmt = SSA_NAME_DEF_STMT (var);
   auto hash = SSA_NAME_VERSION (var);
