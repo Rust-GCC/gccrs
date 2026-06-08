@@ -2895,8 +2895,7 @@
 (define_insn "*aarch64_vec_duplicate_subvector<vconsv><vconq><mode>"
   [(set (match_operand:<VCONSV> 0 "register_operand")
 	(vec_duplicate:<VCONSV>
-	  (vec_duplicate:<VCONQ>
-	    (match_operand:VQDUP 1 "register_operand"))))]
+	  (match_operand:VQDUP 1 "register_operand")))]
   "TARGET_SVE"
   {@ [ cons: =0 , 1 ]
      [ w        , r ] mov\t%0.<single_type>, %<single_wx>1

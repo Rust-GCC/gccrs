@@ -1900,6 +1900,12 @@ simplify_context::simplify_unary_operation_1 (rtx_code code, machine_mode mode,
 #endif
       break;
 
+    case VEC_DUPLICATE:
+      if (GET_CODE (op) == VEC_DUPLICATE)
+	return simplify_gen_unary (VEC_DUPLICATE, mode, XEXP (op, 0),
+				   GET_MODE (XEXP (op, 0)));
+      break;
+
     default:
       break;
     }
