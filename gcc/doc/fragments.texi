@@ -68,7 +68,7 @@ produces both big and little endian code.  For these targets, you must
 arrange for multiple versions of @file{libgcc.a} to be compiled, one for
 each set of incompatible options.  When GCC invokes the linker, it
 arranges to link in the right version of @file{libgcc.a}, based on
-the command line options used.
+the command-line options used.
 
 The @code{MULTILIB_OPTIONS} macro lists the set of options for which
 special versions of @file{libgcc.a} must be built.  Write options that

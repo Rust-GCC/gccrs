@@ -12,7 +12,7 @@
 
 @settitle GNU Compiler Collection (GCC) Internals
 
-@c Create a separate index for command line options.
+@c Create a separate index for command-line options.
 @defcodeindex op
 
 @c Likewise for parameters.
@@ -143,7 +143,7 @@ Additional tutorial information is linked to from
 * GNU Free Documentation License:: How you can copy and share this manual.
 * Contributors::    People who have contributed to GCC.
 
-* Option Index::    Index to command line options.
+* Option Index::    Index to command-line options.
 * Parameter Index:: Index to parameters settable from the command line.
 * Concept Index::   Index of concepts and symbol names.
 * Named Pattern Index:: Index of standard pattern names.
@@ -198,7 +198,7 @@ Additional tutorial information is linked to from
 @node Option Index
 @unnumbered Option Index
 
-GCC's command line options are indexed here without any initial @samp{-}
+GCC's command-line options are indexed here without any initial @samp{-}
 or @samp{--}.  Where an option has both positive and negative forms
 (such as @option{-f@var{option}} and @option{-fno-@var{option}}),
 relevant entries in the manual are indexed under the most appropriate

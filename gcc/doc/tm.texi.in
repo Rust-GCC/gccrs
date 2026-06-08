@@ -293,7 +293,7 @@ passes the string @option{-lgcc} to the linker.
 By default, if @code{ENABLE_SHARED_LIBGCC} is defined, the
 @code{LIBGCC_SPEC} is not directly used by the driver program but is
 instead modified to refer to different versions of @file{libgcc.a}
-depending on the values of the command line flags @option{-static},
+depending on the values of the command-line options @option{-static},
 @option{-shared}, @option{-static-libgcc}, and @option{-shared-libgcc}.  On
 targets where these modifications are inappropriate, define
 @code{REAL_LIBGCC_SPEC} instead.  @code{REAL_LIBGCC_SPEC} tells the
@@ -653,7 +653,7 @@ built-in preprocessor macros and assertions for the target CPU, using
 the functions @code{builtin_define}, @code{builtin_define_std} and
 @code{builtin_assert}.  When the front end
 calls this macro it provides a trailing semicolon, and since it has
-finished command line option processing your code can use those
+finished command-line option processing your code can use those
 results freely.
 
 @code{builtin_assert} takes a string in the form you pass to the
@@ -4151,8 +4151,8 @@ If the macro is set to 0, the "GNU" Objective-C message sending convention
 will be used by default.  This convention passes just the object and the
 selector to the method-lookup function, which returns a pointer to the method.
 
-In either case, it remains possible to select code-generation for the alternate
-scheme, by means of compiler command line switches.
+In either case, it remains possible to select code-generation for the
+alternate scheme by means of compiler command-line options.
 @end defmac
 
 @node Addressing Modes

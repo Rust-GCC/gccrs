@@ -163,9 +163,9 @@ individual functions dealing with the reading/writing of each section
 are described below.
 
 @itemize @bullet
-@item Command line options (@code{.gnu.lto_.opts})
+@item Command-line options (@code{.gnu.lto_.opts})
 
-This section contains the command line options used to generate the
+This section contains the command-line options used to generate the
 object files.  This is used at link time to determine the optimization
 level and other settings when they are not explicitly specified at the
 linker command line.
@@ -514,7 +514,7 @@ initializers cannot be overwritten by a different value.
 GCC provides the function and variable attribute
 @code{visibility} that can be used to specify the visibility of
 externally visible symbols (or alternatively an
-@option{-fdefault-visibility} command line option).  ELF defines
+@option{-fdefault-visibility} command-line option).  ELF defines
 the @code{default}, @code{protected}, @code{hidden} and
 @code{internal} visibilities.
 

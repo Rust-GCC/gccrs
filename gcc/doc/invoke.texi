@@ -12906,7 +12906,7 @@ Emit custom warnings with internal details intended for analyzer developers.
 To tell GCC to emit extra information for use by a debugger, in almost
 all cases you need only to add @option{-g} to your other options.  Some debug
 formats can co-exist (like DWARF with CTF) when each of them is enabled
-explicitly by adding the respective command line option to your other options.
+explicitly by adding the respective command-line option to your other options.
 
 GCC allows you to use @option{-g} with
 @option{-O}.  The shortcuts taken by optimized code may occasionally
@@ -12972,7 +12972,7 @@ in their names, but apply to all currently-supported versions of DWARF.
 Request BTF debug information.  BTF is the default debugging format for the
 eBPF target.  On other targets, like x86, BTF debug information can be
 generated along with DWARF debug information when both of the debug formats are
-enabled explicitly via their respective command line options.
+enabled explicitly via their respective command-line options.
 
 @opindex gprune-btf
 @opindex gno-prune-btf
@@ -24434,7 +24434,7 @@ to set up FLMAP according to symbol @code{__flmap}.
 @item -nodevicespecs
 Don't add @option{-specs=device-specs/specs-@var{mcu}} to the compiler driver's
 command line.  The user takes responsibility for supplying the sub-processes
-like compiler proper, assembler and linker with appropriate command line
+like compiler proper, assembler and linker with appropriate command-line
 options.  This means that the user has to supply her private device specs
 file by means of @option{-specs=@var{path-to-specs-file}}.  There is no
 more need for option @option{-mmcu=@var{mcu}}.
@@ -24898,7 +24898,7 @@ to be subtracted from the RAM address in order to get the
 respective I/O@tie{}address.
 
 @item __AVR_SHORT_CALLS__
-The @option{-mshort-calls} command line option is set.
+The @option{-mshort-calls} command-line option is set.
 
 @item __AVR_PM_BASE_ADDRESS__=@var{addr}
 Some devices support reading from flash memory by means of @code{LD*}

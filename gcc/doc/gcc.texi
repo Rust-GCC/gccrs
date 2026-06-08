@@ -26,7 +26,7 @@
 
 @settitle Using the GNU Compiler Collection (GCC)
 
-@c Create a separate index for command line options.
+@c Create a separate index for command-line options.
 @defcodeindex op
 @c Likewise create a separate index for attributes.
 @defindex at
@@ -208,7 +208,7 @@ object files.
 @appendix Indices
 
 @menu
-* Option Index::                Index to command line options.
+* Option Index::                Index of command-line options.
 * Attribute Index::             Index of GNU extension attributes.
 * Concept and Symbol Index::    Index of concepts and symbol names.
 @end menu

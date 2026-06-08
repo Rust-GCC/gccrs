@@ -40,7 +40,7 @@ This manual contains no Invariant Sections.  The Front-Cover Texts are
 @c man end
 @end copying
 
-@c Create a separate index for command line options.
+@c Create a separate index for command-line options.
 @defcodeindex op
 @syncodeindex vr op
 
@@ -3951,13 +3951,13 @@ as @samp{#include}.
 @item #embed <@var{file}>
 If @var{file} is an absolute filename, this includes the mentioned
 file, otherwise searches it in directories specified by the
-@option{--embed-dir=} command line option for the @var{file}.
+@option{--embed-dir=} command-line option for the @var{file}.
 
 @item #embed "@var{file}"
 This variant searches @var{file} in the same directory as the source
 file which uses the @code{#embed} directive and only if not found there
 continues searching directories specified by the @option{--embed-dir=}
-command line option.
+command-line option.
 @end table
 
 The @code{#embed} directive is expanded as if it was a sequence of

@@ -3547,7 +3547,7 @@ The result is the value to be used with @code{DW_AT_address_class}.",
 DEFHOOK
 (diagnose_usage,
  "Define this hook if the availability of an address space depends on\n\
-command line options and some diagnostics should be printed when the\n\
+command-line options and some diagnostics should be printed when the\n\
 address space is used.  This hook is called during parsing and allows\n\
 to emit a better diagnostic compared to the case where the address space\n\
 was not registered with @code{c_register_addr_space}.  @var{as} is\n\

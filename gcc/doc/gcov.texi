@@ -665,7 +665,7 @@ program source code.  The format is
 @end smallexample
 
 Additional block information may succeed each line, when requested by
-command line option.  The @var{execution_count} is @samp{-} for lines
+a command-line option.  The @var{execution_count} is @samp{-} for lines
 containing no code.  Unexecuted lines are marked @samp{#####} or
 @samp{=====}, depending on whether they are reachable by
 non-exceptional paths or only exceptional paths such as C++ exception

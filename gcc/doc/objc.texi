@@ -677,7 +677,7 @@ runtime.  To get the definition of this class you must include the
 
 User defined libraries may want to implement their own constant string
 class.  To be able to support them, the GNU Objective-C compiler provides
-a new command line options @option{-fconstant-string-class=@var{class-name}}.
+a new command-line option @option{-fconstant-string-class=@var{class-name}}.
 The provided class should adhere to a strict structure, the same
 as @code{NXConstantString}'s structure:
 
@@ -800,7 +800,7 @@ There are several caveats to using the new exception mechanism:
 
 @itemize @bullet
 @item
-The @option{-fobjc-exceptions} command line option must be used when
+The @option{-fobjc-exceptions} command-line option must be used when
 compiling Objective-C files that use exceptions.
 
 @item
@@ -852,7 +852,7 @@ object to be unlocked properly.
 
 Because of the interactions between synchronization and exception
 handling, you can only use @code{@@synchronized} when compiling with
-exceptions enabled, that is with the command line option
+exceptions enabled, that is with the command-line option
 @option{-fobjc-exceptions}.
 
 
