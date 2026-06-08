@@ -57,6 +57,7 @@ tree rotate_right (Context *ctx, TyTy::FnType *fntype);
 const HandlerBuilder wrapping_op (tree_code op);
 tree offset (Context *ctx, TyTy::FnType *fntype);
 tree sizeof_handler (Context *ctx, TyTy::FnType *fntype);
+tree min_align_of_handler (Context *ctx, TyTy::FnType *fntype);
 tree transmute (Context *ctx, TyTy::FnType *fntype);
 tree rotate (Context *ctx, TyTy::FnType *fntype, tree_code op);
 tree uninit (Context *ctx, TyTy::FnType *fntype);

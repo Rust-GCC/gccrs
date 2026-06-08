@@ -30,6 +30,7 @@ using IValue = Values::Intrinsics;
 static const std::map<std::string, handlers::HandlerBuilder> generic_intrinsics
   = {{IValue::OFFSET, handlers::offset},
      {IValue::SIZE_OF, handlers::sizeof_handler},
+     {IValue::MIN_ALIGN_OF, handlers::min_align_of_handler},
      {IValue::TRANSMUTE, handlers::transmute},
      {IValue::ROTATE_LEFT, handlers::rotate_left},
      {IValue::ROTATE_RIGHT, handlers::rotate_right},
