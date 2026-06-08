@@ -1612,6 +1612,45 @@ sizeof_handler (Context *ctx, TyTy::FnType *fntype)
   return fndecl;
 }
 
+/**
+ * pub fn min_align_of<T>() -> usize;
+ */
+tree
+min_align_of_handler (Context *ctx, TyTy::FnType *fntype)
+{
+  // min_align_of has _zero_ parameters its parameter is the generic one
+  rust_assert (fntype->get_params ().size () == 0);
+
+  tree lookup = NULL_TREE;
+  if (check_for_cached_intrinsic (ctx, fntype, &lookup))
+    return lookup;
+
+  auto fndecl = compile_intrinsic_function (ctx, fntype);
+
+  // get the template parameter type tree fn min_align_of<T>();
+  rust_assert (fntype->get_num_substitutions () == 1);
+  auto &param_mapping = fntype->get_substs ().at (0);
+  const auto param_tyty = param_mapping.get_param_ty ();
+  auto resolved_tyty = param_tyty->resolve ();
+  tree template_parameter_type
+    = TyTyResolveCompile::compile (ctx, resolved_tyty);
+
+  enter_intrinsic_block (ctx, fndecl);
+
+  // BUILTIN min_align_of FN BODY BEGIN
+  tree align_expr
+    = build_int_cst (size_type_node, TYPE_ALIGN_UNIT (template_parameter_type));
+
+  auto return_statement
+    = Backend::return_statement (fndecl, align_expr, UNDEF_LOCATION);
+  ctx->add_statement (return_statement);
+  // BUILTIN min_align_of FN BODY END
+
+  finalize_intrinsic_block (ctx, fndecl);
+
+  return fndecl;
+}
+
 tree
 offset (Context *ctx, TyTy::FnType *fntype)
 {
