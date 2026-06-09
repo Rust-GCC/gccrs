@@ -44,8 +44,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "realmpfr.h"
 #include "constructor.h"
 
-/* Only for gfc_trans_assign and gfc_trans_pointer_assign.  */
-
 /* This maps Fortran intrinsic math functions to external library or GCC
    builtin functions.  */
 typedef struct GTY(()) gfc_intrinsic_map_t {

@@ -21,9 +21,6 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_SEL_SCHED_IR_H
 #define GCC_SEL_SCHED_IR_H
 
-/* For state_t.  */
-/* For reg_note.  */
-
 /* tc_t is a short for target context.  This is a state of the target
    backend.  */
 typedef void *tc_t;

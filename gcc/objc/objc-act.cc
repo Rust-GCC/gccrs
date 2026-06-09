@@ -50,7 +50,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "objc-runtime-hooks.h"
 /* Routines used mainly by the runtimes.  */
 #include "objc-runtime-shared-support.h"
-/* For default_tree_printer ().  */
 
 /* For enum gimplify_status */
 #include "gimple-expr.h"

@@ -21,8 +21,6 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_DDG_H
 #define GCC_DDG_H
 
-/* For sbitmap.  */
-
 typedef struct ddg_node *ddg_node_ptr;
 typedef struct ddg_edge *ddg_edge_ptr;
 typedef struct ddg *ddg_ptr;
