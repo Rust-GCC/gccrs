@@ -20,6 +20,7 @@
 #include "rust-abi.h"
 #include "rust-compile-stmt.h"
 #include "rust-compile-expr.h"
+#include "rust-compile-drop.h"
 #include "rust-compile-fnparam.h"
 #include "rust-compile-var-decl.h"
 #include "rust-compile-type.h"
@@ -707,6 +708,8 @@ HIRCompileBase::compile_function_body (tree fndecl,
 	  return_value = coercion_site (id, return_value, actual, expected,
 					lvalue_locus, rvalue_locus);
 
+	  CompileDrop::emit_current_scope_drop_calls (ctx);
+
 	  tree return_stmt
 	    = Backend::return_statement (fndecl, return_value, locus);
 	  ctx->add_statement (return_stmt);
@@ -729,6 +732,7 @@ HIRCompileBase::compile_function_body (tree fndecl,
       // errors should have occurred
       location_t locus = function_body.get_locus ();
       tree return_value = unit_expression (locus);
+      CompileDrop::emit_current_scope_drop_calls (ctx);
       tree return_stmt
 	= Backend::return_statement (fndecl, return_value, locus);
       ctx->add_statement (return_stmt);
