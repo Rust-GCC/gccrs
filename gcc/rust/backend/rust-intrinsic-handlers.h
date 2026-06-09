@@ -36,8 +36,8 @@ namespace handlers {
 namespace inner {
 tree wrapping_op (Context *ctx, TyTy::FnType *fntype, tree_code op);
 
-tree atomic_store (Context *ctx, TyTy::FnType *fntype, int ordering);
-tree atomic_load (Context *ctx, TyTy::FnType *fntype, int ordering);
+tree atomic_store (Context *ctx, TyTy::FnType *fntype, memmodel model);
+tree atomic_load (Context *ctx, TyTy::FnType *fntype, memmodel model);
 tree atomic_exchange (Context *ctx, TyTy::FnType *fntype, memmodel model);
 inline tree copy (Context *ctx, TyTy::FnType *fntype, bool overlaps);
 inline tree expect (Context *ctx, TyTy::FnType *fntype, bool likely);
@@ -77,9 +77,9 @@ tree prefetch_data (Context *ctx, TyTy::FnType *fntype, Prefetch kind);
 const std::function<tree (Context *, TyTy::FnType *)>
 wrapping_op (tree_code op);
 
-HandlerBuilder atomic_store (int ordering);
+HandlerBuilder atomic_store (memmodel model);
 
-HandlerBuilder atomic_load (int ordering);
+HandlerBuilder atomic_load (memmodel model);
 
 HandlerBuilder atomic_exchange (memmodel model);
 
