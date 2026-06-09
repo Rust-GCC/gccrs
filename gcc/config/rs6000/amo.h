@@ -43,7 +43,10 @@ enum _AMO_LD {
   _AMO_LD_UMIN		= 0x06,		/* Fetch and Unsigned Minimum.  */
   _AMO_LD_SMIN		= 0x07,		/* Fetch and Signed Minimum.  */
   _AMO_LD_SWAP		= 0x08,		/* Swap.  */
-  _AMO_LD_CS_NE		= 0x10,		/* Compare and Swap Not Equal.  */
+  _AMO_LD_CS_NE 	= 0x10,         /* Compare and Swap Not Equal.  */
+#ifdef _ARCH_FUTURE
+  _AMO_LD_CS_EQ 	= 0x11,         /* Compare and Swap Equal.  */
+#endif
   _AMO_LD_INC_BOUNDED	= 0x18,		/* Fetch and Increment Bounded.  */
   _AMO_LD_INC_EQUAL	= 0x19,		/* Fetch and Increment Equal.  */
   _AMO_LD_DEC_BOUNDED	= 0x1C		/* Fetch and Decrement Bounded.  */
@@ -158,6 +161,26 @@ _AMO_LD_CMPSWP    (amo_ldat_scas_neq,     int64_t, "ldat", _AMO_LD_CS_NE)
 _AMO_LD_INCREMENT (amo_ldat_sinc_eq,      int64_t, "ldat", _AMO_LD_INC_EQUAL)
 _AMO_LD_INCREMENT (amo_ldat_sinc_bounded, int64_t, "ldat", _AMO_LD_INC_BOUNDED)
 _AMO_LD_DECREMENT (amo_ldat_sdec_bounded, int64_t, "ldat", _AMO_LD_DEC_BOUNDED)
+
+/* Future specific compare-and-swap equal operations.  */
+#ifdef _ARCH_FUTURE
+_AMO_LD_CMPSWP (amo_lwat_cas_eq,  uint32_t, "lwat", _AMO_LD_CS_EQ)
+_AMO_LD_CMPSWP (amo_lwat_scas_eq, int32_t,  "lwat", _AMO_LD_CS_EQ)
+_AMO_LD_CMPSWP (amo_ldat_cas_eq,  uint64_t, "ldat", _AMO_LD_CS_EQ)
+_AMO_LD_CMPSWP (amo_ldat_scas_eq, int64_t,  "ldat", _AMO_LD_CS_EQ)
+#else /* ! _ARCH_FUTURE */
+/* Dummy declarations with GCC error attribute: Triggers error on use.  */
+#define _AMO_ERR_CMPSWP(NAME, TYPE)					 \
+extern TYPE								 \
+NAME (TYPE *_ADDR, TYPE _COND, TYPE _VALUE)				 \
+  __attribute__ ((error (#NAME " requires ISA<future>; not available on" \
+			       " ISA 3.1 or earlier")));
+_AMO_ERR_CMPSWP (amo_lwat_cas_eq,  uint32_t)
+_AMO_ERR_CMPSWP (amo_lwat_scas_eq, int32_t)
+_AMO_ERR_CMPSWP (amo_ldat_cas_eq,  uint64_t)
+_AMO_ERR_CMPSWP (amo_ldat_scas_eq, int64_t)
+#undef _AMO_ERR_CMPSWP
+#endif
 
 /* Enumeration of the STWAT/STDAT sub-opcodes.  */
 enum _AMO_ST {
