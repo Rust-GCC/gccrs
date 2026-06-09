@@ -162,6 +162,9 @@
 (define_bypass 1 "sifive_7_load,sifive_7_alu,sifive_7_mul,sifive_7_f2i,sifive_7_sfb_alu"
   "sifive_7_store" "riscv_store_data_bypass_p")
 
+(define_bypass 2 "sifive_7_load"
+  "sifive_7_load,sifive_7_store" "riscv_zero_offset_address_bypass_p")
+
 (define_bypass 2 "sifive_7_i2f"
   "sifive_7_sfma,sifive_7_dfma,sifive_7_fp_other,sifive_7_fdiv_h,sifive_7_fdiv_s,sifive_7_fdiv_d,sifive_7_hfma")
 
