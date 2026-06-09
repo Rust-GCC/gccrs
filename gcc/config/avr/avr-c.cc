@@ -516,8 +516,8 @@ avr_cpu_cpp_builtins (cpp_reader *pfile)
   /* Define builtin macros so that the user can easily query whether
      non-generic address spaces (and which) are supported or not.
      This is only supported for C.  For C++, a language extension is needed
-     (as mentioned in ISO/IEC DTR 18037; Annex F.2) which is not
-     implemented in GCC up to now.  */
+     (as mentioned in ISO/IEC DTR 18037; Annex F.2) which is not implemented
+     in GCC up to now, but see PR69549.  */
 
   if (lang_GNU_C ())
     {

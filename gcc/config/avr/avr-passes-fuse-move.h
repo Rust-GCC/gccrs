@@ -517,7 +517,7 @@ struct ply_t
     return memo.value (regno, size);
   }
 
-  // Helper for dump_plys:  Value of 1st source arg provided is a register.
+  // Helper for dump_plys:  Value of 1st source arg, provided it is a register.
   int src1_value (const memento_t &memo) const
   {
     int rsrc = regno;

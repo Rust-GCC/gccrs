@@ -249,7 +249,7 @@ bool avr_need_clear_bss_p = false;
 bool avr_need_copy_data_p = false;
 bool avr_has_rodata_p = false;
 
-/* Counts how often pass avr-fuse-add has been executed.  Is is kept in
+/* Counts how often pass avr-fuse-add has been executed.  It is kept in
    sync with cfun->machine->n_avr_fuse_add_executed and serves as an
    insn condition for shift insn splitters.  */
 int n_avr_fuse_add_executed = 0;
@@ -286,7 +286,7 @@ static_assert (8 * sizeof (decltype (section_common::flags))
 	       "section_common::flags is too narrow");
 
 
-/* Transform UP into lowercase and write the result to LO.
+/* Transform UP to lowercase and write the result to LO.
    You must provide enough space for LO.  Return LO.  */
 
 static char *
@@ -575,7 +575,7 @@ avr_option_override (void)
     flag_delete_null_pointer_checks = 0;
 
   /* PR ipa/92606: Inter-procedural analysis optimizes data across
-     address-spaces and PROGMEM.  As of v14, the PROGMEM part is
+     address-spaces and PROGMEM.  As of GCC 16, the PROGMEM part is
      still not fixed (and there is still no target hook as proposed
      in PR92932).  Just disable respective bogus optimization.  */
   flag_ipa_icf_variables = 0;
@@ -894,7 +894,7 @@ avr_noblock_function_p (tree func)
 }
 
 /* Return 1 if FUNC is a function that has a "ATTR_NAME" attribute
-   (and perhaps also "ATTR_NAME(num)" attributes.  Return -1 if FUNC has
+   (and perhaps also "ATTR_NAME(num)" attributes).  Return -1 if FUNC has
    "ATTR_NAME(num)" attribute(s) but no "ATTR_NAME" attribute.
    When no form of ATTR_NAME is present, return 0.  */
 
@@ -918,7 +918,7 @@ avr_interrupt_signal_function (tree func, const char *attr_name)
 
 
 /* Return 1 if FUNC is an interrupt function that has an "interrupt" attribute
-   (and perhaps also "interrupt(num)" attributes.  Return -1 if FUNC has
+   (and perhaps also "interrupt(num)" attributes).  Return -1 if FUNC has
    "interrupt(num)" attribute(s) but no "interrupt" attribute.  */
 
 static int
@@ -929,7 +929,7 @@ avr_interrupt_function (tree func)
 
 
 /* Return 1 if FUNC is a signal function that has a "signal" attribute
-   (and perhaps also "signal(num)" attributes.  Return -1 if FUNC has
+   (and perhaps also "signal(num)" attributes).  Return -1 if FUNC has
    "signal(num)" attribute(s) but no "signal" attribute.  */
 
 static int
@@ -968,7 +968,7 @@ avr_no_gccisr_function_p (tree func)
 
 
 /* Implement `TARGET_CAN_INLINE_P'.  */
-/* Some options like -mgas_isr_prologues depend on optimization level,
+/* Some options like -mgas-isr-prologues depend on optimization level,
    and the inliner might think that due to different options, inlining
    is not permitted; see PR104327.  */
 
@@ -2534,7 +2534,7 @@ avr_cond_string (rtx_code code, bool cc_overflow_unusable)
 
 
 /* Return true if rtx X is a CONST or SYMBOL_REF with progmem.
-   This must be used for AVR_TINY only because on other cores
+   This must be used for AVR_TINY only, because on other cores
    the flash memory is not visible in the RAM address range and
    cannot be read by, say,  LD instruction.  */
 
@@ -2852,7 +2852,7 @@ avr_print_operand (FILE *file, rtx x, int code)
 	      fprintf (stderr, "\n");
 	    }
 	}
-      /* Use normal symbol for direct address no linker trampoline needed */
+      /* Use normal symbol for direct address, no linker trampoline needed */
       output_addr_const (file, x);
     }
   else if (CONST_FIXED_P (x))
@@ -2893,7 +2893,7 @@ avr_print_operand (FILE *file, rtx x, int code)
 
 
 /* Implement `TARGET_USE_BY_PIECES_INFRASTRUCTURE_P'.  */
-/* Prefer sequence of loads/stores for moves of size upto
+/* Prefer sequence of loads/stores for moves of size up to
    two - two pairs of load/store instructions are always better
    than the 5 instruction sequence for a loop (1 instruction
    for loop counter setup, and 4 for the body of the loop). */
@@ -3952,7 +3952,7 @@ avr_out_fload (rtx_insn * /*insn*/, rtx *xop, int *plen)
    LEN == NULL: output instructions.
    LEN != NULL: set *LEN to the length of the instruction sequence
 		(in words) printed with LEN = NULL.
-   If CLEAR_P is true, OP[0] had been cleard to Zero already.
+   If CLEAR_P is true, OP[0] has already been cleard to Zero.
    If CLEAR_P is false, nothing is known about OP[0].
 
    The effect on cc0 is as follows:
@@ -4126,8 +4126,7 @@ output_reload_in_const (rtx *op, rtx clobber_reg, int *len, bool clear_p)
 	  continue;
 	}
 
-      /* Use T flag or INC to manage powers of 2 if we have
-	 no clobber reg.  */
+      /* Use T flag or INC for powers of 2 if we have no clobber reg.  */
 
       if (NULL_RTX == clobber_reg
 	  && single_one_operand (xval, QImode))
@@ -4575,8 +4574,7 @@ out_movhi_r_mr (rtx_insn *insn, rtx op[], int *plen)
 	}
 
       /* This is a paranoid case. LEGITIMIZE_RELOAD_ADDRESS must exclude
-	 it but I have this situation with extremal
-	 optimization options.  */
+	 it but I have this situation with extremal optimization options.  */
 
       if (reg_base == REG_X)
 	{
@@ -6014,7 +6012,7 @@ out_movhi_mr_r (rtx_insn *insn, rtx op[], int *plen)
 
   /* "volatile" forces writing high-byte first (no-xmega) resp.
      low-byte first (xmega) even if less efficient, for correct
-     operation with 16-bit I/O registers like.  */
+     operation with 16-bit I/O registers.  */
 
   if (AVR_XMEGA)
     return avr_out_movhi_mr_r_xmega (insn, op, plen);
@@ -6250,7 +6248,7 @@ avr_out_set_some (rtx_insn *insn, rtx *xop, int *plen)
    [2] is the regno of a GPR, and
    [3] is the mode size of that GPR.  All SETs [5]... of PARA will set
        bytes of that GPR, but in many cases not all of them.
-   [4]  In a clobber of REG_CC.
+   [4] is a clobber of REG_CC.
    [5] [6] [7] [8]  SETs of an 8-bit register to a const_int value, where
        all destinations are sub-bytes of [2].  Element [5] is mandatory,
        and the following elements are optional.  */
@@ -6300,7 +6298,7 @@ avr_frame_pointer_required_p (void)
 
 
 /* Returns the condition of the branch following INSN, where INSN is some
-   comparison.  If the next insn is not a branch or the condition code set
+   comparison.  If the next insn is not a branch, or the condition code set
    by INSN might be used by more insns than the next one, return UNKNOWN.
    For now, just look at the next insn, which misses some opportunities like
    following jumps.  */
@@ -8821,9 +8819,9 @@ avr_out_add_msb (rtx_insn *insn, rtx *yop, rtx_code cmp, int *plen)
 
       XOP[0] = XOP[0] +/- XOP[2]
 
-   If PLEN == NULL, print assembler instructions to perform the operation;
-   otherwise, set *PLEN to the length of the instruction sequence (in words)
-   printed with PLEN == NULL.  XOP[3] is an 8-bit scratch register or NULL_RTX.
+   XOP[3] is an 8-bit scratch register or NULL_RTX.
+   If PLEN == NULL output the instructions.
+   If PLEN != NULL set *PLEN to the length of the sequence in words.
 
    CODE_SAT == UNKNOWN: Perform ordinary, non-saturating operation.
    CODE_SAT != UNKNOWN: Perform operation and saturate according to CODE_SAT.
@@ -9313,7 +9311,7 @@ avr_out_plus_1 (rtx xinsn, rtx *xop, int *plen, rtx_code code,
       XOP[0] = XOP[0] +/- XOP[2]
 
    This is a helper for the function below.  The only insns that need this
-   are additions/subtraction for pointer modes, i.e. HImode and PSImode.  */
+   are additions/subtractions for pointer modes, i.e. HImode and PSImode.  */
 
 static const char *
 avr_out_plus_symbol (rtx *xop, rtx_code code, int *plen)
@@ -9718,16 +9716,16 @@ avr_len_op8_set_ZN (rtx_code code, rtx *xop)
 }
 
 
-/* Output bit operation (IOR, AND, XOR) with register XOP[0] and compile
-   time constant XOP[2]:
+/* Output bit operation (IOR, AND, XOR) with register XOP[0] and compile-time
+   constant XOP[2]:
 
       XOP[0] = XOP[0] <op> XOP[2]
 
-   and return "".  If PLEN == NULL, print assembler instructions to perform the
-   operation; otherwise, set *PLEN to the length of the instruction sequence
-   (in words) printed with PLEN == NULL.  XOP[3] is either an 8-bit clobber
-   register or SCRATCH if no clobber register is needed for the operation.
-   XINSN is an INSN_P or a pattern of an insn.  */
+   XOP[3] is either an 8-bit clobber register or SCRATCH if no clobber
+   register is needed for the operation  XINSN is an INSN_P or a pattern
+   of an insn.  Return "".
+   If PLEN == NULL output the instructions.
+   If PLEN != NULL set *PLEN to the length of the sequence in words.  */
 
 const char *
 avr_out_bitop (rtx xinsn, rtx *xop, int *plen)
@@ -9931,9 +9929,8 @@ avr_emit_xior_with_shift (rtx_insn *insn, rtx *xop, int bitoff)
 
 
 /* Output sign extension from XOP[1] to XOP[0] and return "".
-   If PLEN == NULL, print assembler instructions to perform the operation;
-   otherwise, set *PLEN to the length of the instruction sequence (in words)
-   as printed with PLEN == NULL.  */
+   If PLEN == NULL output the instructions.
+   If PLEN != NULL set *PLEN to the length of the sequence in words.  */
 
 const char *
 avr_out_sign_extend (rtx_insn *insn, rtx *xop, int *plen)
@@ -10386,15 +10383,15 @@ avr_out_extr_not (rtx_insn * /* insn */, rtx op[], int *plen)
 }
 
 
-/* Outputs instructions needed for fixed point type conversion.
-   This includes converting between any fixed point type, as well
+/* Outputs instructions needed for fixed-point type conversion.
+   This includes converting between any fixed-point type, as well
    as converting to any integer type.  Conversion between integer
    types is not supported.
 
    Converting signed fractional types requires a bit shift if converting
    to or from any unsigned fractional type because the decimal place is
    shifted by 1 bit.  When the destination is a signed fractional, the sign
-   is stored in either the carry or T bit.  */
+   is stored in either the carry or the T bit.  */
 
 const char *
 avr_out_fract (rtx_insn *insn, rtx operands[], bool intsigned, int *plen)
@@ -10984,7 +10981,7 @@ avr_out_round (rtx_insn * /*insn*/, rtx *xop, int *plen)
 }
 
 
-/* Create RTL split patterns for byte sized rotate expressions.  This
+/* Create RTL split patterns for byte-sized rotate expressions.  This
    produces a series of move instructions and considers overlap situations.
    Overlapping non-HImode operands need a scratch register.  */
 
@@ -11149,7 +11146,7 @@ avr_read_number (const char *start, const char **end)
    TPL is the asm template, N_XOP the number of operands, or -1 when the
    asm has no operands (not even zero operands).  XOP[] are these operands.
    LOC is the location of the asm, and DEFAULT_LEN is the code length
-   in words as determined by the middle-end from the number of logical and
+   in words as determined by the middle end from the number of logical and
    physical line breaks in TPL.
 
    When an invalid %-reference or an unrecognized [[len=... is found,
@@ -11164,7 +11161,7 @@ avr_read_number (const char *start, const char **end)
 	Specifies a non-negative decimal integer.
 
    <words> = %[0-9]+
-   <words> = %[<name>]   # Already resolved to %[0-9]+ by the middle-end.
+   <words> = %[<name>]   # Already resolved to %[0-9]+ by the middle end.
 	Refers to the respective asm operand, which must be CONST_INT.
 
    <words> = lds
@@ -11238,7 +11235,7 @@ avr_length_of_asm (rtx_insn *insn, int default_len, const char *tpl,
 	       || n_xop >= 0)
 	{
 	  // A plain decimal number <num>, or %<num> to refer to the
-	  // <num>-th asm operand.  Notice that the middle-end has already
+	  // <num>-th asm operand.  Notice that the middle end has already
 	  // resolved named operand references like %[name] to the respective
 	  // operand number (provided such a named operand exists).
 	  pos += percent_p;
@@ -11286,7 +11283,7 @@ avr_length_of_asm (rtx_insn *insn, int default_len, const char *tpl,
 
 	      if (inc >= n_xop)
 		{
-		  // For asm with >= 0 operands, the middle-end will issue
+		  // For asm with >= 0 operands, the middle end will issue
 		  // an error message.
 		  avr_dump ("\n;;; Ignored: op %d does not exist\n\n", inc);
 		  return -1;
@@ -11345,7 +11342,7 @@ avr_length_of_asm (rtx_insn *insn, int default_len, const char *tpl,
      physical and logical line breaks.  However, almost all AVR instructions
      occupy only one 16-bit word.
 
-   LEN is the length in units of 16-bit words as determined by the middle-end.
+   LEN is the length in units of 16-bit words as determined by the middle end.
    When no annotation has been found or a diagnostic occurred, return -1.  */
 
 static int
@@ -12355,7 +12352,7 @@ static void
 avr_asm_named_section (const char *name, unsigned int flags, tree decl)
 {
   if (flags & AVR_SECTION_PROGMEM
-      // Only use section .progmem*.data if there is no attribute section.
+      // Only use section .progmem*.data if there is no attribute "section".
       && ! (decl
 	    && DECL_SECTION_NAME (decl)
 	    && symtab_node::get (decl)
@@ -12544,7 +12541,7 @@ avr_encode_section_info (tree decl, rtx rtl, int new_decl_p)
 	SYMBOL_REF_FLAGS (sym) |= SYMBOL_FLAG_IO;
       /* If we have an (io) address attribute specification, but the variable
 	 is external, treat the address as only a tentative definition
-	 to be used to determine if an io port is in the lower range, but
+	 to be used to determine if an I/O port is in the lower range, but
 	 don't use the exact value for constant propagation.  */
       if (addr_attr && !DECL_EXTERNAL (decl))
 	SYMBOL_REF_FLAGS (sym) |= SYMBOL_FLAG_ADDRESS;
@@ -12725,7 +12722,7 @@ avr_file_end (void)
 
 /* Worker function for `ADJUST_REG_ALLOC_ORDER'.  */
 /* Choose the order in which to allocate hard registers for
-   pseudo-registers local to a basic block.
+   pseudo registers local to a basic block.
 
    Store the desired register order in the array `reg_alloc_order'.
    Element 0 should be the register to allocate first; element 1, the
@@ -12787,7 +12784,7 @@ avr_adjust_reg_alloc_order (void)
     };
 
   /* Select specific register allocation order.
-     Tiny Core (ATtiny4/5/9/10/20/40) devices have only 16 registers,
+     AVRrc Reduced Core devices have only 16 registers,
      so different allocation order should be used.  */
 
   const int *order = (TARGET_ORDER_1 ? (AVR_TINY ? tiny_order_1 : order_1)
@@ -12837,7 +12834,7 @@ avr_mul_highpart_cost (rtx x, int)
       // This is the wider mode.
       machine_mode mode = GET_MODE (x);
 
-      // The middle-end might still have PR81444, i.e. it is calling the cost
+      // The middle end might still have PR81444, i.e. it is calling the cost
       // functions with strange modes.  Fix this now by also considering
       // PSImode (should actually be SImode instead).
       if (HImode == mode || PSImode == mode || SImode == mode)
@@ -14561,13 +14558,9 @@ avr_regno_mode_code_ok_for_base_p (int regno, machine_mode /*mode*/,
 /* Reload the constant OP[1] into the HI register OP[0].
    CLOBBER_REG is a QI clobber reg needed to move vast majority of consts
    into a NO_LD_REGS register.  If CLOBBER_REG is NULL_RTX we either don't
-   need a clobber reg or have to cook one up.
-
-   PLEN == NULL: Output instructions.
-   PLEN != NULL: Output nothing.  Set *PLEN to number of words occupied
-		 by the insns printed.
-
-   Return "".  */
+   need a clobber reg or have to cook one up.  Return "".
+   PLEN != 0: Set *PLEN to the code length in words. Don't output anything.
+   PLEN == 0: Output instructions.  */
 
 const char *
 output_reload_inhi (rtx *op, rtx clobber_reg, int *plen)
@@ -14580,14 +14573,9 @@ output_reload_inhi (rtx *op, rtx clobber_reg, int *plen)
 /* Reload a SI or SF compile time constant OP[1] into the register OP[0].
    CLOBBER_REG is a QI clobber reg needed to move vast majority of consts
    into a NO_LD_REGS register.  If CLOBBER_REG is NULL_RTX we either don't
-   need a clobber reg or have to cook one up.
-
-   LEN == NULL: Output instructions.
-
-   LEN != NULL: Output nothing.  Set *LEN to number of words occupied
-		by the insns printed.
-
-   Return "".  */
+   need a clobber reg or have to cook one up.  Return "".
+   LEN != 0: Set *LEN to the code length in words. Don't output anything.
+   LEN == 0: Output instructions.  */
 
 const char *
 output_reload_insisf (rtx *op, rtx clobber_reg, int *len)
@@ -14656,7 +14644,7 @@ avr_out_reload_inpsi (rtx *op, rtx clobber_reg, int *len)
    work as expected, cf. PR71151, and we do *NOT* want the table to be
    in .rodata, hence setting JUMP_TABLES_IN_TEXT_SECTION = 0 is of limited
    use; and setting it to 1 attributes table lengths to branch offsets...
-   Moreover, fincal.c keeps switching section before each table entry
+   Moreover, final.cc keeps switching section before each table entry
    which we find too fragile as to rely on section caching.  */
 
 void
@@ -14666,7 +14654,7 @@ avr_output_addr_vec (rtx_insn *labl, rtx table)
 
   // AVR-SD: On functional safety devices, each executed instruction must
   // be followed by a valid opcode.  This is because instruction validation
-  // runs at fetch and decode for the next instruction and while the 2-stage
+  // runs at fetch-and-decode for the next instruction and while the 2-stage
   // pipeline is executing the current one.  There is no multilib option for
   // these devices, so take all multilib variants that contain AVR-SD.
   const bool maybe_sd = (AVR_HAVE_JMP_CALL
@@ -14774,8 +14762,8 @@ avr_conditional_register_usage (void)
 	15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
       };
 
-      /* Set R0-R17 as fixed registers. Reset R0-R17 in call used register list
-	 - R0-R15 are not available in Tiny Core devices
+      /* Set R0-R17 as fixed registers. Reset R0-R17 in call-used register list
+	 - R0-R15 are not available in Reduced Core devices
 	 - R16 and R17 are fixed registers.  */
 
       for (size_t i = REG_0; i <= REG_17;  i++)
@@ -14784,16 +14772,14 @@ avr_conditional_register_usage (void)
 	  call_used_regs[i] = 1;
 	}
 
-      /* Set R18 to R21 as callee saved registers
-	 - R18, R19, R20 and R21 are the callee saved registers in
-	   Tiny Core devices  */
+      /* R18 and R19 are the callee-saved registers in Reduced Core devices  */
 
       for (size_t i = REG_18; i <= LAST_CALLEE_SAVED_REG; i++)
 	{
 	  call_used_regs[i] = 0;
 	}
 
-      /* Update register allocation order for Tiny Core devices */
+      /* Update register allocation order for Reduced Core devices */
 
       for (size_t i = 0; i < ARRAY_SIZE (tiny_reg_alloc_order); i++)
 	{
@@ -15092,9 +15078,9 @@ avr_return_in_memory (const_tree type, const_tree /*fntype*/)
   HOST_WIDE_INT size = int_size_in_bytes (type);
   HOST_WIDE_INT ret_size_limit = AVR_TINY ? 4 : 8;
 
-  /* In avr, there are 8 return registers. But, for Tiny Core
-     (ATtiny4/5/9/10/20/40) devices, only 4 registers are available.
-     Return true if size is unknown or greater than the limit.  */
+  /* In AVR, there are 8 return registers. But, for the Reduced Core,
+     only 4 registers are available.  Return true if size is unknown or
+     greater than the limit.  */
 
   return size == -1 || size > ret_size_limit;
 }
@@ -15284,7 +15270,7 @@ avr_addr_space_convert (rtx src, tree type_old, tree type_new)
 	sym = XEXP (sym, 0);
 
       /* Look at symbol flags:  avr_encode_section_info set the flags
-	 also if attribute progmem was seen so that we get the right
+	 also if attribute progmem was seen, so that we get the right
 	 promotion for, e.g. PSTR-like strings that reside in generic space
 	 but are located in flash.  In that case we patch the incoming
 	 address space.  */
@@ -15379,8 +15365,7 @@ avr_convert_to_type (tree type, tree expr)
 
 	    under the assumption that an explicit casts means that the user
 	    knows what he is doing, e.g. interface with PSTR or old style
-	    code with progmem and pgm_read_xxx.
-  */
+	    code with progmem and pgm_read_xxx.  */
 
   if (avropt_warn_addr_space_convert
       && expr != error_mark_node
@@ -15445,7 +15430,7 @@ avr_legitimate_combined_insn (rtx_insn *insn)
 }
 
 
-/* PR63633: The middle-end might come up with hard regs as input operands.
+/* PR63633: The middle end might come up with hard regs as input operands.
 
    RMASK is a bit mask representing a subset of hard registers R0...R31:
    Rn is an element of that set iff bit n of RMASK is set.
@@ -15512,7 +15497,7 @@ avr_move_fixed_operands (rtx *op, rtx *hreg, unsigned mask)
 }
 
 
-/* PR63633: The middle-end might come up with hard regs as output operands.
+/* PR63633: The middle end might come up with hard regs as output operands.
 
    GEN is a sequence generating function like gen_mulsi3 with 3 operands OP[].
    RMASK is a bit mask representing a subset of hard registers R0...R31:
@@ -16044,7 +16029,7 @@ avr_map_decompose (unsigned int f, const avr_map_op_t *g, bool val_const_p)
 
   /* Step 2:  Compute the cost of the operations.
      The overall cost of doing an operation prior to the insertion is
-      the cost of the insertion plus the cost of the operation.  */
+     the cost of the insertion plus the cost of the operation.  */
 
   /* Step 2a:  Compute cost of F o G^-1  */
 
@@ -16840,7 +16825,7 @@ avr_fold_builtin (tree fndecl, int /*n_args*/, tree *arg, bool /*ignore*/)
 	if (TREE_CODE (tbits) != INTEGER_CST
 	    && avr_map_metric (map, MAP_PREIMAGE_0_7) == 0)
 	  {
-	    /* Similar for the bits to be inserted. If they are unused,
+	    /* Similar for the bits to be inserted.  If they are unused,
 	       we can just as well pass 0.  */
 
 	    tbits = build_int_cst (val_type, 0);

@@ -1251,7 +1251,7 @@ public:
 
 // Append PLY to .plies[].  A SET or BLD ply may start a new sequence of
 // SETs or BLDs and gets assigned the overhead of the sequence like for an
-// initial SET or CLT instruction.  A SET ply may be added in two flavours:
+// initial SET or CLT instruction.  A SET ply may be added in two flavors:
 // One that starts a sequence of single_sets, and one that represents the
 // payload of a set_some insn.  MEMO is the GPR state prior to PLY.
 void
@@ -1262,7 +1262,7 @@ plies_t::add (ply_t ply, const ply_t *prev, const memento_t &memo,
     {
       if (prev && prev->code == SET)
 	{
-	  // Proceed with the SET sequence flavour.
+	  // Proceed with the SET sequence flavor.
 	  ply.in_set_some = prev->in_set_some;
 
 	  if (ply.in_set_some)
