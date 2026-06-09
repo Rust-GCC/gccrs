@@ -32,30 +32,8 @@ current_timestamp = datetime.datetime.now().strftime('%Y%m%d\n')
 
 # Skip the following commits, they cannot be correctly processed
 ignored_commits = {
-        'c2be82058fb40f3ae891c68d185ff53e07f14f45',
-        '04a040d907a83af54e0a98bdba5bfabc0ef4f700',
-        '2e96b5f14e4025691b57d2301d71aa6092ed44bc',
-        '3ab5c8cd03d92bf4ec41e351820349d92fbc40c4',
-        '86d8e0c0652ef5236a460b75c25e4f7093cc0651',
-        'e4cba49413ca429dc82f6aa2e88129ecb3fdd943',
-        '1957bedf29a1b2cc231972aba680fe80199d5498',
-        '040e5b0edbca861196d9e2ea2af5e805769c8d5d',
-        '8057f9aa1f7e70490064de796d7a8d42d446caf8',
-        '109f1b28fc94c93096506e3df0c25e331cef19d0',
-        '39f81924d88e3cc197fc3df74204c9b5e01e12f7',
-        '8e6a25b01becf449d54154b7e83de5f4955cba37',
-        '72677e1119dc40aa680755d009e079ad49446c46',
-        '10d76b7f1e5b63ad6d2b92940c39007913ced037',
-        'de3b277247ce98d189f121155b75f490725a42f6',
-        '13cf22eb557eb5e3d796822247d8d4957bdb25da',
-        'b40ef6e9dc096c8c19399e94947a1965258a6942',
-        'e69bea9b4ccfe79efeec6e87d7d24e6350f31375',
-        '9a7da540b63e7d77e747b5cdd6fdbbd3954e28c8',
-        '69a2c243dd2cf9f77150c0eb86dfbc0931876bc1',
-        'eec8da328cf1f91db302ab4cee803e269e68ad33',
-        '9df40f1f4bec855da864f535e242308ceb1cd5ad',
-        'd5fb79718b22207253d62c92dcf8b1c16e1ea370',
-        '86ff0e88764bfbff1a4989414ec83c0eaa723107'}
+        '843b49269eaca82860ab4171f9644b5c411f05fc',
+        '5c0785d62ca44b9073e543b2b3dbb04f0aca83af'}
 
 FORMAT = '%(asctime)s:%(levelname)s:%(name)s:%(message)s'
 logging.basicConfig(level=logging.INFO, format=FORMAT,
