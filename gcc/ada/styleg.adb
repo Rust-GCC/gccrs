@@ -499,7 +499,7 @@ package body Styleg is
                     or else Style_Check_Comments_Spacing = 1
                   then
                      Error_Msg -- CODEFIX
-                       ("(style) space required?c?", Scan_Ptr + 2);
+                       ("(style) space required?C?", Scan_Ptr + 2);
                   else
                      Error_Msg -- CODEFIX
                        ("(style) two spaces required?c?", Scan_Ptr + 2);
