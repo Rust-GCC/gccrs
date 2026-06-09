@@ -1144,29 +1144,81 @@ th_asm_output_opcode (FILE *asm_out_file, const char *p)
 	  return p+6;
 	}
 
-      if (get_attr_type (current_output_insn) == TYPE_VFNCVTFTOI ||
-	  get_attr_type (current_output_insn) == TYPE_VFNCVTITOF)
+      if (get_attr_type (current_output_insn) == TYPE_VFCVTFTOI
+	  || get_attr_type (current_output_insn) == TYPE_VFCVTITOF)
+	{
+	  if (strstr (p, "xu"))
+	    {
+	      get_attr_type (current_output_insn) == TYPE_VFCVTFTOI
+		? fputs ("th.vfcvt.xu.f.v", asm_out_file)
+		: fputs ("th.vfcvt.f.xu.v", asm_out_file);
+	      if (strstr (p, ".rtz") || strstr (p, ".rod"))
+		return p + 16;
+	      return p + 12;
+	    }
+	  else
+	    {
+	      get_attr_type (current_output_insn) == TYPE_VFCVTFTOI
+		? fputs ("th.vfcvt.x.f.v", asm_out_file)
+		: fputs ("th.vfcvt.f.x.v", asm_out_file);
+	      if (strstr (p, ".rtz") || strstr (p, ".rod"))
+		return p + 15;
+	      return p + 11;
+	    }
+	}
+
+      if (get_attr_type (current_output_insn) == TYPE_VFWCVTFTOI
+	  || get_attr_type (current_output_insn) == TYPE_VFWCVTITOF)
+	{
+	  if (strstr (p, "xu"))
+	    {
+	      get_attr_type (current_output_insn) == TYPE_VFWCVTFTOI
+		? fputs ("th.vfwcvt.xu.f.v", asm_out_file)
+		: fputs ("th.vfwcvt.f.xu.v", asm_out_file);
+	      if (strstr (p, ".rtz") || strstr (p, ".rod"))
+		return p + 17;
+	      return p + 13;
+	    }
+	  else
+	    {
+	      get_attr_type (current_output_insn) == TYPE_VFWCVTFTOI
+		? fputs ("th.vfwcvt.x.f.v", asm_out_file)
+		: fputs ("th.vfwcvt.f.x.v", asm_out_file);
+	      if (strstr (p, ".rtz") || strstr (p, ".rod"))
+		return p + 16;
+	      return p + 12;
+	    }
+	}
+
+      if (get_attr_type (current_output_insn) == TYPE_VFNCVTFTOI
+	  || get_attr_type (current_output_insn) == TYPE_VFNCVTITOF)
 	{
 	  if (strstr (p, "xu"))
 	    {
 	      get_attr_type (current_output_insn) == TYPE_VFNCVTFTOI
-			   ? fputs ("th.vfncvt.xu.f.v", asm_out_file)
-			   : fputs ("th.vfncvt.f.xu.v", asm_out_file);
-	      return p+13;
-	}
+		? fputs ("th.vfncvt.xu.f.v", asm_out_file)
+		: fputs ("th.vfncvt.f.xu.v", asm_out_file);
+	      if (strstr (p, ".rtz") || strstr (p, ".rod"))
+		return p + 17;
+	      return p + 13;
+	    }
 	  else
 	    {
 	      get_attr_type (current_output_insn) == TYPE_VFNCVTFTOI
-			   ? fputs ("th.vfncvt.x.f.v", asm_out_file)
-			   : fputs ("th.vfncvt.f.x.v", asm_out_file);
-	      return p+12;
+		? fputs ("th.vfncvt.x.f.v", asm_out_file)
+		: fputs ("th.vfncvt.f.x.v", asm_out_file);
+	      if (strstr (p, ".rtz") || strstr (p, ".rod"))
+		return p + 16;
+	      return p + 12;
 	    }
 	}
 
       if (get_attr_type (current_output_insn) == TYPE_VFNCVTFTOF)
 	{
 	  fputs ("th.vfncvt.f.f.v", asm_out_file);
-	  return p+12;
+	  if (strstr (p, ".rtz") || strstr (p, ".rod"))
+	    return p + 16;
+	  return p + 12;
 	}
 
       if (get_attr_type (current_output_insn) == TYPE_VFREDU
