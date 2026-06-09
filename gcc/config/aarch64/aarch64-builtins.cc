@@ -3794,7 +3794,7 @@ aarch64_expand_prefetch_range_builtin (tree exp, int fcode)
 	   non-negative integer.  However it is meaningless for
 	   values less than 2^15 or greater than 2^29.  */
 	uint64_t reuse_distance = require_const_argument (exp, argno++, 0,
-							  LONG_LONG_MAX);
+							  LLONG_MAX);
 
 	if (seen_error ())
 	  return;
