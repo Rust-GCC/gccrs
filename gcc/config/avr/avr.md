@@ -121,7 +121,6 @@
   (const_string "arith"))
 
 ;; The size of instructions in bytes.
-;; XXX may depend from "cc"
 
 (define_attr "length" ""
   (cond [(eq_attr "type" "branch")
@@ -4879,11 +4878,11 @@
 
 ;; Overlapping non-HImode registers often (but not always) need a scratch.
 ;; The best we can do is use early clobber alternative "#&r" so that
-;; completely non-overlapping operands dont get a scratch but # so register
+;; completely non-overlapping operands don't get a scratch but # so register
 ;; allocation does not prefer non-overlapping.
 
 
-;; Split word aligned rotates using scratch that is mode dependent.
+;; Split word aligned rotates using a mode-dependent scratch.
 
 ;; "*rotwhi"
 ;; "*rotwsi"
@@ -4905,7 +4904,7 @@
   })
 
 
-;; Split byte aligned rotates using scratch that is always QI mode.
+;; Split byte aligned rotates using a QImode scratch.
 
 ;; "*rotbhi"
 ;; "*rotbpsi"
@@ -5051,7 +5050,7 @@
                    (match_dup 2)))])
 
 ;; ??? Combiner does not recognize that it could split the following insn;
-;;     presumably because he has no register handy?
+;;     presumably because it has no register handy?
 
 ;; "*ashluqihiqi3.mem"
 ;; "*ashlsqihiqi3.mem"
@@ -9983,8 +9982,8 @@
 ;; even on machines that don't have MUL instructions or that
 ;; have to perform the multiplication by means of a libgcc call.
 ;; Try to fix that below.  Notice that on AVR_TINY no MUL insn is
-;; available since is is performed as a libgcc call from which we
-;; cannot roll back.  With !AVR_HAVR_MULMUL it's a transparent call
+;; available since it is performed as a libgcc call from which we
+;; cannot roll back.  With !AVR_HAVE_MUL it's a transparent call
 ;; from avr.md so we can get rid of that at least.
 
 ;; Map

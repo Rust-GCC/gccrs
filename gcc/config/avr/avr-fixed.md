@@ -106,7 +106,7 @@
 ;; Fixme:  It would be nice if we could expand the 32-bit versions to a
 ;;    transparent libgcc call if $2 is a REG.  Problem is that it is
 ;;    not possible to describe that addition is commutative.
-;;    And defining register classes/constraintrs for the involved hard
+;;    And defining register classes/constraints for the involved hard
 ;;    registers and let IRA do the work, yields inacceptable bloated code.
 ;;    Thus, we have to live with the up to 11 instructions that are output
 ;;    for these 32-bit saturated operations.
@@ -164,7 +164,7 @@
 ;; Fixme: This will always result in 0.  Dunno why simplify-rtx.cc says
 ;;   "unknown" on how to optimize this.  libgcc call would be in order,
 ;;   but the performance is *PLAIN* *HORROR* because the optimizers don't
-;;   manage to optimize out MEMCPY that's sprincled all over fixed-bit.c  */
+;;   manage to optimize out MEMCPY that's sprinkled all over fixed-bit.c  */
 
 (define_expand "usneg<mode>2"
   [(parallel [(match_operand:ALL124U 0 "register_operand" "")
@@ -633,7 +633,7 @@
   })
 
 ;; Expand rounding with known rounding points inline so that the addend / mask
-;; will be consumed by operation with immediate operands and there is no
+;; will be consumed by operation with immediate operands, and there is no
 ;; need for a shift with variable offset.
 
 ;; "roundqq3_const"  "rounduqq3_const"

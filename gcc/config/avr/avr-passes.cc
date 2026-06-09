@@ -151,7 +151,7 @@ single_set_with_scratch (rtx_insn *insn, int &regno_scratch)
 using gprmask_t = uint32_t;
 
 // True when this is a valid GPR number for ordinary code, e.g.
-// registers wider than 2 bytes have to start at an exven regno.
+// registers wider than 2 bytes have to start at an even regno.
 // TMP_REG and ZERO_REG are not considered valid, even though
 // the C source can use register vars with them.
 static inline bool
@@ -1251,7 +1251,7 @@ public:
 
 // Append PLY to .plies[].  A SET or BLD ply may start a new sequence of
 // SETs or BLDs and gets assigned the overhead of the sequence like for an
-// initial SET or CLT instruction.  A SET ply my be added in two flavours:
+// initial SET or CLT instruction.  A SET ply may be added in two flavours:
 // One that starts a sequence of single_sets, and one that represents the
 // payload of a set_some insn.  MEMO is the GPR state prior to PLY.
 void
@@ -1579,7 +1579,7 @@ plies_t::emit_sets (const insninfo_t &ii, int &n_insns, const memento_t &memo,
 
 // Try to find an operation such that  Y = op (X).
 // Shifts and rotates are regarded as unary operations with
-// an implied 2nd operand or 1 or 4, respectively.
+// an implied 2nd operand of 1 or 4, respectively.
 static rtx_code
 find_arith (uint8_t y, uint8_t x)
 {
@@ -2471,8 +2471,9 @@ bbinfo_t::find_plies (int len, const insninfo_t &ii, const memento_t &memo0)
 }
 
 
-// Run .find_plies() and return true when .fpd->solution is a sequence of ply_t's
-// that represents II, a REG = CONST insn.  MEMO is the GPR state prior to II.
+// Run .find_plies() and return true when .fpd->solution is a sequence
+// of ply_t's that represents II, a REG = CONST insn.  MEMO is the
+// GPR state prior to II.
 bool
 bbinfo_t::run_find_plies (const insninfo_t &ii, const memento_t &memo) const
 {
@@ -3991,7 +3992,7 @@ avr_is_casesi_sequence (basic_block bb, rtx_insn *insn, rtx_insn *insns[5])
 
   /* We have to deal with quite some operands.  Extracting them by hand
      would be tedious, therefore wrap the insn patterns into a parallel,
-     run recog against it and then use insn extract to get the operands. */
+     run recog against it, and then use insn extract to get the operands. */
 
   rtx_insn *xinsn = avr_parallel_insn_from_insns (insns);
 
@@ -4078,7 +4079,7 @@ avr_optimize_casesi (rtx_insn *insns[5], rtx *xop)
   // makes no sense to have case values outside the mode range.  Notice
   // that case labels which are unreachable because they are outside the
   // mode of the switch value (e.g. "case -1" for uint8_t) have already
-  // been thrown away by the middle-end.
+  // been thrown away by the middle end.
 
   if (SIGN_EXTEND == code
       && low_idx >= imin
@@ -4273,7 +4274,7 @@ public:
   }
 
   // Cloning is required because we are running one instance of the pass
-  // before peephole2. and a second one after cprop_hardreg.
+  // before peephole2, and a second one after cprop_hardreg.
   opt_pass * clone () final override
   {
     return make_avr_pass_fuse_add (m_ctxt);
@@ -4757,7 +4758,7 @@ avr_pass_fuse_add::fuse_mem_add (Mem_Insn &mem, Add_Insn &add)
   return next;
 }
 
-/* Try to post-reload combine PLUS with CONST_INt of pointer registers with:
+/* Try to post-reload combine PLUS with CONST_INT of pointer registers with:
    - Sets to a constant address.
    - PLUS insn of that kind.
    - Indirect loads and stores.
