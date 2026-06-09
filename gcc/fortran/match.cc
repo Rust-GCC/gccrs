@@ -2326,6 +2326,21 @@ match_association_list (bool for_change_team = false)
 	  else
 	    gfc_free_expr (tmp);
 	}
+      else if (newAssoc->target->ts.type == BT_UNKNOWN
+	       && newAssoc->target->expr_type == EXPR_OP)
+	{
+	  /* The selector is an unresolved expression involving an overloaded
+	     intrinsic operator (e.g. a `+' bound via an explicit interface
+	     to a function returning CHARACTER).  Try to extend it now, the
+	     same way the type-bound user-defined operator case above does
+	     for INTRINSIC_USER, so the associate name gets a usable type
+	     before the body of the ASSOCIATE construct is parsed.  */
+	  gfc_expr *tmp = gfc_copy_expr (newAssoc->target);
+	  if (gfc_extend_expr (tmp) == MATCH_YES)
+	    gfc_replace_expr (newAssoc->target, tmp);
+	  else
+	    gfc_free_expr (tmp);
+	}
 
       /* The `variable' field is left blank for now; because the target is not
 	 yet resolved, we can't use gfc_has_vector_subscript to determine it
