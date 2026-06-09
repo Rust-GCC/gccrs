@@ -5374,6 +5374,12 @@ package body Exp_Ch6 is
      --  cause a temporary to be created.
 
    begin
+      --  The decision will be made after the EWA node is expanded
+
+      if Nkind (Par) = N_Expression_With_Actions then
+         return;
+      end if;
+
       --  Optimization: if the returned value is returned again, then no need
       --  to copy/readjust/finalize, we can just pass the value through (see
       --  Expand_Simple_Function_Return), and thus no attachment is needed.
