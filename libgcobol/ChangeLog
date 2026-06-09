@@ -1,3 +1,34 @@
+2026-06-05  Robert Dubner  <rdubner@symas.com>
+
+	PR cobol/125616
+	* libgcobol.cc (format_for_display_internal): Format matches the
+	description in the PR.
+
+2026-06-05  Robert Dubner  <rdubner@symas.com>
+
+	PR cobol/125616
+	* common-defs.h (enum cbl_dialect_t): Move cbl_dialect_t here.
+	* intrinsic.cc (__gg__trim_1): Make a formal parameter const.
+	* libgcobol.cc (format_for_display_internal): Change the formatting
+	of COMP-1/COMP2 when "-dialect ibm" is in force.
+	(default_exception_handler): Whitespace formatting.
+	(ec_type_disposition): Likewise.
+	(ec_is_fatal): Likewise.
+
+2026-06-04  Robert Dubner  <rdubner@symas.com>
+
+	* intrinsic.cc (__gg__formatted_date): Formatting change.
+	(change_case): Likewise.
+	(__gg__trim): Rename as __gg__trim_1.
+	(__gg__trim_1): Reworked to handle an array of single-byte chars.
+	(__gg__trim_a): Reworked to handle an array of multi-byte chars.
+	(iscasematch): Formatting change.
+
+2026-06-04  Xavier Del Campo Romero  <xdelcampo@symas.com>
+
+	* Makefile.am: Install posix copybooks to build tree.
+	* Makefile.in: Likewise.
+
 2026-06-02  Robert Dubner  <rdubner@symas.com>
 
 	* intrinsic.cc (__gg__trim): Eliminate useless comment.

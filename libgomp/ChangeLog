@@ -1,3 +1,28 @@
+2026-06-09  Tobias Burnus  <tburnus@baylibre.com>
+
+	* libgomp.texi (GCN): Mention ROCR_VISIBLE_DEVICES.
+
+2026-06-07  Kwok Cheung Yeung  <kcyeung@baylibre.com>
+	    Andrew Stubbs   <ams@baylibre.com>
+	    Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* testsuite/libgomp.fortran/target-update-iterators-1.f90: New.
+	* testsuite/libgomp.fortran/target-update-iterators-2.f90: New.
+	* testsuite/libgomp.fortran/target-update-iterators-3.f90: New.
+
+2026-06-07  Kwok Cheung Yeung  <kcyeung@baylibre.com>
+	    Andrew Stubbs  <ams@baylibre.com>
+	    Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* target.c (kind_to_name): Handle GOMP_MAP_STRUCT and
+	GOMP_MAP_STRUCT_UNORD.
+	(gomp_add_map): New.
+	(gomp_merge_iterator_maps): Expand fields of a struct mapping
+	breadth-first.
+	* testsuite/libgomp.fortran/target-map-iterators-1.f90: New.
+	* testsuite/libgomp.fortran/target-map-iterators-2.f90: New.
+	* testsuite/libgomp.fortran/target-map-iterators-3.f90: New.
+
 2026-06-02  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
 
 	* oacc-parallel.c (GOACC_parallel_keyed): Use gomp_alloca instead

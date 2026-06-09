@@ -1,3 +1,20 @@
+2026-06-07  Andrew Burgess  <aburgess@redhat.com>
+
+	* d-demangle.c (struct dlang_info::options): New field,
+	carries options passed to the demangler.
+	(struct dlang_info::num_backrefs): Count total number of back
+	referenced types that have been processed.
+	(struct dlang_info::backref_depth): Count the depth of
+	recursive back references.
+	(dlang_type_backref): Track recursive back reference depth,
+	and the total number of back references encountered.  Bail out
+	early if the total number gets too high.
+	(dlang_demangle_init_info): Initialise new 'struct dlang_info'
+	fields.
+	(dlang_demangle): Pass demangler options to
+	dlang_demangle_init_info.
+	* testsuite/d-demangle-expected: Add new test.
+
 2026-06-01  Jakub Jelinek  <jakub@redhat.com>
 
 	* configure: Regenerate.

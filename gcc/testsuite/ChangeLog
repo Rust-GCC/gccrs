@@ -1,3 +1,471 @@
+2026-06-09  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/125669
+	* gfortran.dg/pdt_92.f03: New test.
+
+2026-06-09  Jeevitha Palanisamy  <jeevitha@linux.ibm.com>
+
+	* gcc.target/powerpc/amo8.c: New test.
+	* gcc.target/powerpc/amo9.c: New test.
+
+2026-06-08  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* algol68/compile/error-attr-format-token-1.a68: New test.
+
+2026-06-08  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/125629
+	* c-c++-common/builtin-bswapg-4.c: New test.
+	* c-c++-common/builtin-bitreverseg-3.c: New test.
+
+2026-06-08  Alfie Richards  <alfie.richards@arm.com>
+
+	* gcc.target/aarch64/acle/rprfm.c: New test.
+	* gcc.target/aarch64/acle/rprfm_error.c: New test.
+
+2026-06-08  Alfie Richards  <alfie.richards@arm.com>
+
+	* gcc.target/aarch64/acle/fprcvt.c: New test.
+	* gcc.target/aarch64/fprcvt.c: New test.
+	* gcc.target/aarch64/fprcvt.x: New test.
+	* gcc.target/aarch64/fprcvt_float32_int32.c: New test.
+	* gcc.target/aarch64/fprcvt_float32_int64.c: New test.
+	* gcc.target/aarch64/fprcvt_float32_uint32.c: New test.
+	* gcc.target/aarch64/fprcvt_float32_uint64.c: New test.
+	* gcc.target/aarch64/fprcvt_float64_int32.c: New test.
+	* gcc.target/aarch64/fprcvt_float64_int64.c: New test.
+	* gcc.target/aarch64/fprcvt_float64_uint32.c: New test.
+	* gcc.target/aarch64/fprcvt_float64_uint64.c: New test.
+
+2026-06-08  Alfie Richards  <alfie.richards@arm.com>
+
+	* gcc.target/aarch64/acle/fcvt_intrinsics.c: New test.
+
+2026-06-08  Alfie Richards  <alfie.richards@arm.com>
+
+	* gcc.target/aarch64/pragma_cpp_predefs_4.c: Add
+	__ARM_FEATURE_SSVE_FEXPA test.
+	* gcc.target/aarch64/sve/acle/asm/expa_f16.c: Add streaming mode
+	test.
+	* gcc.target/aarch64/sve/acle/asm/expa_f32.c: Likewise.
+	* gcc.target/aarch64/sve/acle/asm/expa_f64.c: Likewise.
+	* lib/target-supports.exp (sve_ext): Add ssve-fexpa support test.
+	* g++.target/aarch64/sve/aarch64-ssve.exp (GCC target pragma):
+	Add ssve-fexpa.
+	(streaming_ok): Add svexpa.
+	(nonstreaming_only) Remove svexpa.
+
+2026-06-08  Alfie Richards  <alfie.richards@arm.com>
+
+	* lib/target-supports.exp (exts): Add dg conditions for ssve-bitperm.
+	* g++.target/aarch64/sve/aarch64-ssve.exp: Update test for ssve-bitperm.
+	* gcc.target/aarch64/pragma_cpp_predefs_5.c: Update test.
+	* gcc.target/aarch64/sve2/acle/asm/bdep_u16.c: Update for ssve-bitperm.
+	* gcc.target/aarch64/sve2/acle/asm/bdep_u32.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/bdep_u64.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/bdep_u8.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/bext_u16.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/bext_u32.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/bext_u64.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/bext_u8.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/bgrp_u16.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/bgrp_u32.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/bgrp_u64.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/bgrp_u8.c: Likewise.
+	* gcc.target/aarch64/sme2/acle-asm/bdep_u16.c: Likewise.
+	* gcc.target/aarch64/sme2/acle-asm/bdep_u32.c: Likewise.
+	* gcc.target/aarch64/sme2/acle-asm/bdep_u64.c: Likewise.
+	* gcc.target/aarch64/sme2/acle-asm/bdep_u8.c: Likewise.
+	* gcc.target/aarch64/sme2/acle-asm/bext_u16.c: Likewise.
+	* gcc.target/aarch64/sme2/acle-asm/bext_u32.c: Likewise.
+	* gcc.target/aarch64/sme2/acle-asm/bext_u64.c: Likewise.
+	* gcc.target/aarch64/sme2/acle-asm/bext_u8.c: Likewise.
+	* gcc.target/aarch64/sme2/acle-asm/bgrp_u16.c: Likewise.
+	* gcc.target/aarch64/sme2/acle-asm/bgrp_u32.c: Likewise.
+	* gcc.target/aarch64/sme2/acle-asm/bgrp_u64.c: Likewise.
+	* gcc.target/aarch64/sme2/acle-asm/bgrp_u8.c: Likewise.
+
+2026-06-08  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125668
+	* gcc.dg/pr125668.c: New testcase.
+
+2026-06-08  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	PR tree-optimization/125653
+	* gcc.dg/torture/pr125653.c: New test.
+
+2026-06-08  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125652
+	* gcc.dg/torture/pr125652.c: New testcase.
+
+2026-06-08  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125646
+	* gcc.dg/vect/pr125646.c: New testcase.
+
+2026-06-08  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	* g++.dg/modules/test-p1689.py: Make arrays have predictable
+	order.
+
+2026-06-08  Haochen Jiang  <haochen.jiang@intel.com>
+
+	* g++.dg/modules/modules.exp (module_cmi_p): Add std parameter
+	and include it in test report.  Update call site.
+	* lib/lto.exp (lto_handle_diagnostics_for_file): Add optstr
+	parameter and append it to the test report.
+	(lto_handle_diagnostics): Add optstr parameter.
+	(lto-link-and-maybe-run): Update lto_handle_diagnostics call site.
+
+2026-06-08  Naveen  <naveen.siddegowda@oss.qualcomm.com>
+
+	* gcc.dg/tree-ssa/pr118680.c: New test.
+	* gcc.dg/vect/pr113281-5.c: Drop MIN_EXPR and MAX_EXPR narrowing
+	dump checks that are optimized away before vectorization.
+
+2026-06-08  Zhou Qiankang  <wszqkzqk@qq.com>
+
+	PR c++/125642
+	* g++.dg/pr125642.C: New test.
+
+2026-06-07  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/125535
+	* gfortran.dg/implied_do_alloc_comp_1.f90: New test.
+
+2026-06-07  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/125534
+	* gfortran.dg/pdt_array_alloc_1.f90: New test.
+
+2026-06-07  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* lib/gcc-dg.exp (dg-final): Add check_function_bodies options
+	for check-function-bodies directives.
+	* g++.target/i386/cf_check-3.C: Remove explicit
+	{ dg-add-options check_function_bodies }.
+	* g++.target/i386/cf_check-4.C: Likewise.
+	* g++.target/i386/memset-pr101366-1.C: Likewise.
+	* g++.target/i386/memset-pr101366-2.C: Likewise.
+	* g++.target/i386/memset-pr108585-1a.C: Likewise.
+	* g++.target/i386/memset-pr108585-1b.C: Likewise.
+	* g++.target/i386/memset-pr118276-1a.C: Likewise.
+	* g++.target/i386/memset-pr118276-1b.C: Likewise.
+	* g++.target/i386/memset-pr118276-1c.C: Likewise.
+	* gcc.target/i386/20040112-1.c: Likewise.
+	* gcc.target/i386/builtin-copysign-2.c: Likewise.
+	* gcc.target/i386/builtin-copysign-3.c: Likewise.
+	* gcc.target/i386/builtin-copysign-4.c: Likewise.
+	* gcc.target/i386/builtin-copysign-5.c: Likewise.
+	* gcc.target/i386/builtin-copysign-6.c: Likewise.
+	* gcc.target/i386/builtin-copysign-7.c: Likewise.
+	* gcc.target/i386/builtin-copysign-8a.c: Likewise.
+	* gcc.target/i386/builtin-copysign-8b.c: Likewise.
+	* gcc.target/i386/builtin-fabs-1.c: Likewise.
+	* gcc.target/i386/builtin-memmove-10.c: Likewise.
+	* gcc.target/i386/builtin-memmove-11a.c: Likewise.
+	* gcc.target/i386/builtin-memmove-11b.c: Likewise.
+	* gcc.target/i386/builtin-memmove-11c.c: Likewise.
+	* gcc.target/i386/builtin-memmove-12.c: Likewise.
+	* gcc.target/i386/builtin-memmove-13.c: Likewise.
+	* gcc.target/i386/builtin-memmove-14.c: Likewise.
+	* gcc.target/i386/builtin-memmove-15.c: Likewise.
+	* gcc.target/i386/builtin-memmove-1a.c: Likewise.
+	* gcc.target/i386/builtin-memmove-1b.c: Likewise.
+	* gcc.target/i386/builtin-memmove-1c.c: Likewise.
+	* gcc.target/i386/builtin-memmove-1d.c: Likewise.
+	* gcc.target/i386/builtin-memmove-2a.c: Likewise.
+	* gcc.target/i386/builtin-memmove-2b.c: Likewise.
+	* gcc.target/i386/builtin-memmove-2c.c: Likewise.
+	* gcc.target/i386/builtin-memmove-2d.c: Likewise.
+	* gcc.target/i386/builtin-memmove-3a.c: Likewise.
+	* gcc.target/i386/builtin-memmove-3b.c: Likewise.
+	* gcc.target/i386/builtin-memmove-3c.c: Likewise.
+	* gcc.target/i386/builtin-memmove-4a.c: Likewise.
+	* gcc.target/i386/builtin-memmove-4b.c: Likewise.
+	* gcc.target/i386/builtin-memmove-4c.c: Likewise.
+	* gcc.target/i386/builtin-memmove-5a.c: Likewise.
+	* gcc.target/i386/builtin-memmove-5b.c: Likewise.
+	* gcc.target/i386/builtin-memmove-5c.c: Likewise.
+	* gcc.target/i386/builtin-memmove-6.c: Likewise.
+	* gcc.target/i386/builtin-memmove-7.c: Likewise.
+	* gcc.target/i386/builtin-memmove-8.c: Likewise.
+	* gcc.target/i386/builtin-memmove-9.c: Likewise.
+	* gcc.target/i386/cf_check-11.c: Likewise.
+	* gcc.target/i386/cf_check-7.c: Likewise.
+	* gcc.target/i386/memcpy-pr120683-1.c: Likewise.
+	* gcc.target/i386/memcpy-pr120683-2.c: Likewise.
+	* gcc.target/i386/memcpy-pr120683-3.c: Likewise.
+	* gcc.target/i386/memcpy-pr120683-4.c: Likewise.
+	* gcc.target/i386/memcpy-pr120683-5.c: Likewise.
+	* gcc.target/i386/memcpy-pr120683-6.c: Likewise.
+	* gcc.target/i386/memcpy-pr120683-7.c: Likewise.
+	* gcc.target/i386/memcpy-strategy-12.c: Likewise.
+	* gcc.target/i386/memset-pr120683-1.c: Likewise.
+	* gcc.target/i386/memset-pr120683-10.c: Likewise.
+	* gcc.target/i386/memset-pr120683-11.c: Likewise.
+	* gcc.target/i386/memset-pr120683-12.c: Likewise.
+	* gcc.target/i386/memset-pr120683-13.c: Likewise.
+	* gcc.target/i386/memset-pr120683-14.c: Likewise.
+	* gcc.target/i386/memset-pr120683-15.c: Likewise.
+	* gcc.target/i386/memset-pr120683-16.c: Likewise.
+	* gcc.target/i386/memset-pr120683-17.c: Likewise.
+	* gcc.target/i386/memset-pr120683-18.c: Likewise.
+	* gcc.target/i386/memset-pr120683-19.c: Likewise.
+	* gcc.target/i386/memset-pr120683-2.c: Likewise.
+	* gcc.target/i386/memset-pr120683-20.c: Likewise.
+	* gcc.target/i386/memset-pr120683-21.c: Likewise.
+	* gcc.target/i386/memset-pr120683-22.c: Likewise.
+	* gcc.target/i386/memset-pr120683-23.c: Likewise.
+	* gcc.target/i386/memset-pr120683-3.c: Likewise.
+	* gcc.target/i386/memset-pr120683-4.c: Likewise.
+	* gcc.target/i386/memset-pr120683-5.c: Likewise.
+	* gcc.target/i386/memset-pr120683-6.c: Likewise.
+	* gcc.target/i386/memset-pr120683-7.c: Likewise.
+	* gcc.target/i386/memset-pr120683-8.c: Likewise.
+	* gcc.target/i386/memset-pr120683-9.c: Likewise.
+	* gcc.target/i386/memset-pr70308-1a.c: Likewise.
+	* gcc.target/i386/memset-pr70308-1b.c: Likewise.
+	* gcc.target/i386/memset-strategy-10.c: Likewise.
+	* gcc.target/i386/memset-strategy-13.c: Likewise.
+	* gcc.target/i386/memset-strategy-25.c: Likewise.
+	* gcc.target/i386/memset-strategy-28.c: Likewise.
+	* gcc.target/i386/memset-strategy-29.c: Likewise.
+	* gcc.target/i386/memset-strategy-30.c: Likewise.
+	* gcc.target/i386/pr111673.c: Likewise.
+	* gcc.target/i386/pr120936-1.c: Likewise.
+	* gcc.target/i386/pr120936-11.c: Likewise.
+	* gcc.target/i386/pr120936-2.c: Likewise.
+	* gcc.target/i386/pr120936-4.c: Likewise.
+	* gcc.target/i386/pr120936-5.c: Likewise.
+	* gcc.target/i386/pr120936-9.c: Likewise.
+	* gcc.target/i386/pr122343-1a.c: Likewise.
+	* gcc.target/i386/pr122343-1b.c: Likewise.
+	* gcc.target/i386/pr122343-2a.c: Likewise.
+	* gcc.target/i386/pr122343-2b.c: Likewise.
+	* gcc.target/i386/pr122343-3.c: Likewise.
+	* gcc.target/i386/pr122343-4a.c: Likewise.
+	* gcc.target/i386/pr122343-4b.c: Likewise.
+	* gcc.target/i386/pr122343-5a.c: Likewise.
+	* gcc.target/i386/pr122343-5b.c: Likewise.
+	* gcc.target/i386/pr122343-6a.c: Likewise.
+	* gcc.target/i386/pr122343-6b.c: Likewise.
+	* gcc.target/i386/pr122343-7.c: Likewise.
+	* gcc.target/i386/pr122675-1.c: Likewise.
+	* gcc.target/i386/pr125100-4.c: Likewise.
+	* gcc.target/i386/pr125355-2.c: Likewise.
+	* gcc.target/i386/pr125355.c: Likewise.
+	* gcc.target/i386/pr82142a.c: Likewise.
+	* gcc.target/i386/pr82142b.c: Likewise.
+	* gcc.target/i386/pr92080-17.c: Likewise.
+
+2026-06-07  Paul Thomas  <pault@gcc.gnu.org>
+	    Claude Sonnet 4.6  <noreply@anthropic.com>
+
+	PR fortran/121379
+	* gfortran.dg/pdt_59.f03: Add module attribute as required.
+	* gfortran.dg/pr87907.f90: Ditto.
+	* gfortran.dg/pr93461.f90: Ditto.
+	* gfortran.dg/submodule_10.f08: Ditto.
+	* gfortran.dg/submodule_33.f08: Ditto.
+	* gfortran.dg/submodule_36.f90: New test.
+	* gfortran.dg/submodule_37.f90: Add module attribute.
+
+2026-06-07  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/125612
+	* gcc.dg/tree-ssa/pr125612-1.c: New test.
+
+2026-06-07  Kwok Cheung Yeung  <kcyeung@baylibre.com>
+	    Andrew Stubbs   <ams@baylibre.com>
+	    Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* gfortran.dg/gomp/target-update-iterators-1.f90: New.
+	* gfortran.dg/gomp/target-update-iterators-2.f90: New.
+	* gfortran.dg/gomp/target-update-iterators-3.f90: New.
+
+2026-06-07  Kwok Cheung Yeung  <kcyeung@baylibre.com>
+	    Andrew Stubbs  <ams@baylibre.com>
+	    Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* gfortran.dg/gomp/target-map-iterators-1.f90: New.
+	* gfortran.dg/gomp/target-map-iterators-2.f90: New.
+	* gfortran.dg/gomp/target-map-iterators-3.f90: New.
+	* gfortran.dg/gomp/target-map-iterators-4.f90: New.
+	* gfortran.dg/gomp/target-map-iterators-6.f90: New.
+
+2026-06-06  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/125606
+	* gfortran.dg/loc_3.f90: New test.
+
+2026-06-06  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	* gfortran.dg/do_concurrent_assoc_iter_1.f90: New test.
+
+2026-06-06  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/125531
+	* gfortran.dg/associate_infer_program_type.f90: New test.
+
+2026-06-06  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* g++.dg/asan/deep-thread-stack-1.C: Omit duplicate libraries
+	for Darwin.
+
+2026-06-06  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* gcc.dg/analyzer/mkdtemp-1.c: Add unistd header.
+	* gcc.dg/analyzer/mkstemps-1.c: Likewise.
+	* gcc.dg/analyzer/mktemp-1.c: Handle deprecation warnings.
+
+2026-06-06  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/125611
+	* gcc.target/i386/ssse3-pr125611.c: New test.
+
+2026-06-05  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* c-c++-common/gomp/target-map-iterators-2.c: Don't expect warnings
+	about unused iterator variables.
+	* c-c++-common/gomp/target-update-iterators-2.c: Likewise.
+
+2026-06-05  Robert Dubner  <rdubner@symas.com>
+
+	* cobol.dg/group2/DISPLAY_IBM-formatted_COMP-1_and_COMP-2.cob:
+	Tests for "DISPLAY 1.23" as ".123 01".
+	* cobol.dg/group2/DISPLAY_IBM-formatted_COMP-1_and_COMP-2.out:
+	Likewise.
+
+2026-06-05  Andrew MacLeod  <amacleod@redhat.com>
+
+	PR tree-optimization/125501
+	* gcc.dg/pr125501.c: New.
+
+2026-06-05  Robert Dubner  <rdubner@symas.com>
+
+	PR cobol/125616
+	* cobol.dg/group2/DISPLAY_IBM-formatted_COMP-1_and_COMP-2.cob: New test.
+	* cobol.dg/group2/DISPLAY_IBM-formatted_COMP-1_and_COMP-2.out: New test.
+
+2026-06-05  Konstantinos Eleftheriou  <konstantinos.eleftheriou@vrull.eu>
+
+	PR rtl-optimization/124713
+	* gcc.target/aarch64/pr124713.c: New test.
+
+2026-06-05  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	PR target/125538
+	* gcc.target/aarch64/sve/vec_init_5.c: Add new 8/16-bit testcases.
+	* gcc.target/aarch64/vec-init-23.c: Likewise.
+	* gcc.target/aarch64/pr125538.c: New test.
+
+2026-06-05  Jakub Jelinek  <jakub@redhat.com>
+
+	* c-c++-common/builtin-bswapg-2.c: Add further enum related tests.
+	* c-c++-common/builtin-bitreverseg-2.c: Likewise.
+	* c-c++-common/pr111309-2.c: Likewise.
+	* c-c++-common/pr111309-3.c: New test.
+
+2026-06-05  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125602
+	* gcc.dg/torture/pr125602.c: New testcase.
+
+2026-06-05  Jakub Jelinek  <jakub@redhat.com>
+
+	* gcc.dg/bitint-137.c: New test.
+
+2026-06-05  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/122731
+	* c-c++-common/builtin-bswapg-1.c: New test.
+	* c-c++-common/builtin-bswapg-2.c: New test.
+	* c-c++-common/builtin-bswapg-3.c: New test.
+	* c-c++-common/builtin-bitreverseg-1.c: New test.
+	* c-c++-common/builtin-bitreverseg-2.c: New test.
+
+2026-06-05  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	PR tree-optimization/125599
+	* g++.dg/torture/pr125599.C: New test.
+
+2026-06-04  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	Backported from master:
+	2026-06-04  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/125529
+	* gfortran.dg/do_concurrent_assoc_default_none.f90: New test.
+
+2026-06-04  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/125528
+	* gfortran.dg/associate_80.f90: New test.
+
+2026-06-04  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125575
+	PR c++/98524
+	* g++.dg/cpp1y/var-templ90.C: New test.
+	* g++.dg/cpp1y/var-templ91.C: New test.
+	* g++.dg/cpp1y/var-templ92.C: New test.
+	* g++.dg/cpp1y/var-templ93.C: New test.
+
+2026-06-04  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/125072
+	* gcc.dg/pr125072.c: New test.
+	* gcc.dg/ubsan/pointer-counted-by-bounds-124230-union.c: Avoid heap
+	corruption.
+	* gcc.dg/ubsan/pointer-counted-by-bounds-124230.c: Likewise.
+
+2026-06-04  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/60576
+	PR fortran/60576
+	* gfortran.dg/asan/assumed_rank_26.f90: New test covering both
+	assumed-rank and fixed-rank type actuals passed to a CLASS
+	assumed-rank dummy.
+
+2026-06-04  Robert Dubner  <rdubner@symas.com>
+
+	* cobol.dg/group2/FUNCTION_TRIM_with_extra_characters.cob: New test.
+	* cobol.dg/group2/FUNCTION_TRIM_with_extra_characters.out: New test.
+
+2026-06-04  Xavier Del Campo Romero  <xdelcampo@symas.com>
+
+	* cobol.dg/group2/cbltypes.cpy: Removed.
+
+2026-06-04  Paul Thomas  <pault@gcc.gnu.org>
+	    Claude Sonnet 4.6  <noreply@anthropic.com>
+
+	PR fortran/121204
+	* gfortran.dg/submodule_38.f90: New test.
+
+2026-06-04  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/93424
+	* gfortran.dg/submodule_37.f90: New test.
+
+2026-06-04  Raphael Zinsly  <raphael.zinsly@oss.qualcomm.com>
+	    Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR target/125387
+	* gcc.target/riscv/pr125387.c: New test.
+
+2026-06-04  Jeevitha Palanisamy  <jeevitha@linux.ibm.com>
+
+	* lib/target-supports.exp
+	(check_effective_target_powerpc_future_compile_ok): New target support
+	procedure.
+	(check_effective_target_powerpc_future_assemble_ok): Likewise.
+	(check_powerpc_future_hw_available): Likewise.
+	(is-effective-target): Register powerpc_future_hw.
+	(is-effective-target-keyword): Likewise.
+
 2026-06-04  Jeevitha Palanisamy  <jeevitha@linux.ibm.com>
 
 	PR target/106895

@@ -1,3 +1,23 @@
+2026-06-08  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/125629
+	* c-parser.cc (c_parser_postfix_expression) <case RID_BUILTIN_BSWAPG>:
+	Call c_fully_fold on the argument before calling
+	fold_build_builtin_bswapg_bitreverseg.
+
+2026-06-05  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/122731
+	* c-parser.cc (c_parser_postfix_expression): Parse
+	__builtin_bswapg and __builtin_bitreverseg.
+
+2026-06-04  Martin Uecker  <uecker@tugraz.at>
+
+	* c-decl.cc (grokdeclarator): Likewise.
+	* c-typeck.cc (c_verify_type,c_build_array_type,
+	c_expr_countof_expr,comptypes_internal): Use top_array_vla_p.
+	(top_array_vla_p): Rename to use _p convention and simplify.
+
 2026-06-03  Martin Uecker  <uecker@tugraz.at>
 
 	PR c/125252

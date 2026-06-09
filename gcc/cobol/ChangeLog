@@ -1,3 +1,45 @@
+2026-06-05  Robert Dubner  <rdubner@symas.com>
+
+	PR cobol/125616
+	* lang.opt.urls: Regenerated.
+
+2026-06-05  Robert Dubner  <rdubner@symas.com>
+
+	PR cobol/125616
+	* genapi.cc (parser_enter_file): New __gg__dialects variable.
+	(parser_division): Likewise.
+	* genutil.cc: Likewise.
+	* genutil.h: Likewise.
+	* lang.opt.urls: Updated.
+	* symbols.h (enum cbl_dialect_t): Move this enum to common-defs.h.
+
+2026-06-04  Xavier Del Campo Romero  <xdelcampo@symas.com>
+
+	* lang.opt.urls: Regenerate
+
+2026-06-04  Robert Dubner  <rdubner@symas.com>
+
+	* genapi.cc (handle_gg_trim): Provide an array of characters to the
+	library function.
+	(parser_trim): New function that handles the optional trim chars.
+	(parser_intrinsic_call_2): Remove __gg__handling from this routine.
+	* genapi.h (parser_trim): New declaration.
+	* parse.y: Calls parser_trim() with the list of trim chars.
+
+2026-06-04  Xavier Del Campo Romero  <xdelcampo@symas.com>
+
+	* Make-lang.in: Make $(libsubdir) available to cobol1.o.
+	* cobol1.cc (struct GTY): Add dir_separator.
+	(libcompat_copybook): New function.
+	(libposix_copybook): New function.
+	(append_copybook_prefix): New function.
+	(cobol_langhook_handle_option): New function.
+	(cobol_langhook_post_options): New function.
+	(LANG_HOOKS_POST_OPTIONS): New function.
+	* gcobolspec.cc (lang_specific_driver): Remove path searches.
+	* lang-specs.h: Honor %{B*} and %I.
+	* lang.opt: Support -B and -idirafter.
+
 2026-06-02  Robert Dubner  <rdubner@symas.com>
 
 	* compare.cc (cobol_compare_relop): Rename the cobol_compare_relop

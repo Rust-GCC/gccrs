@@ -1,3 +1,7 @@
+2026-06-05  Richard Earnshaw  <rearnsha@arm.com>
+
+	* .forgejo/CODEOWNERS: New file.
+
 2026-06-03  Richard Earnshaw  <rearnsha@arm.com>
 
 	* MAINTAINERS: Add all known missing account names to

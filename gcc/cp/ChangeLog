@@ -1,3 +1,70 @@
+2026-06-08  Jakub Jelinek  <jakub@redhat.com>
+
+	* call.cc (build_op_delete_call_1): Add missing auto_diagnostic_group
+	sentinel.  Formatting fix.
+	(complain_about_access): Add missing auto_diagnostic_group sentinels.
+	(convert_like_internal): Likewise.
+	(build_over_call): Likewise.
+	(maybe_warn_class_memaccess): Likewise.
+	* constexpr.cc (maybe_warn_about_constant_value): Likewise.
+	(cxx_eval_outermost_constant_expr): Likewise.
+	* contracts.cc (check_param_in_postcondition): Likewise.
+	(check_postconditions_in_redecl): Likewise.  Formatting fixes.
+	* decl.cc (identify_goto): Add missing auto_diagnostic_group
+	sentinels.
+	(omp_declare_variant_finalize_one): Likewise.
+	* method.cc (walk_field_subobs): Likewise.
+	* semantics.cc (finish_omp_clauses): Likewise.
+	* tree.cc (validate_trivial_abi_attribute): Likewise.
+	* typeck2.cc (digest_init_r): Likewise.
+
+2026-06-05  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* semantics.cc (cxx_omp_map_array_section): Allow ARRAY_TYPE
+	expressions, not just pointers.
+
+2026-06-05  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/125334
+	* module.cc (depset::hash::add_dependent_adl_entities):
+	Disable when inside a header unit.
+
+2026-06-05  Patrick Palka  <ppalka@redhat.com>
+
+	* module.cc (dep_adl_info::args): Initializer to nullptr
+	instead of immediately allocating.
+	(depset::hash::add_dependent_adl_entities): Exit early
+	for non-type-dependent calls and operator expressions.
+	Only allocate dep_adl_info::args if we're not exiting early.
+	Correct all-type-dependent args test.
+	* name-lookup.cc (name_lookup::preserve_state): Replace
+	propagation of tentative flag with assert that it's not
+	set.
+
+2026-06-05  Marek Polacek  <polacek@redhat.com>
+
+	* pt.cc (check_explicit_inst_of_var_template): Add
+	auto_diagnostic_group.
+
+2026-06-05  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/122731
+	* parser.cc (cp_parser_postfix_expression): Parse
+	__builtin_bswapg and __builtin_bitreverseg.
+	* typeck.cc (build_x_bswapg_bitreverseg): New function.
+	* cp-tree.h (build_x_bswapg_bitreverseg): Declare.
+	* pt.cc (tsubst_expr): Handle IFN_BSWAP and IFN_BITREVERSE.
+	* constexpr.cc (cxx_eval_internal_function): Likewise.
+	(potential_constant_expression_1): Likewise.
+	* cp-gimplify.cc (cp_gimplify_expr): Likewise.
+
+2026-06-04  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125575
+	PR c++/98524
+	* pt.cc (check_explicit_inst_of_var_template): New.
+	(check_explicit_specialization): Use it.
+
 2026-06-03  Patrick Palka  <ppalka@redhat.com>
 
 	PR c++/125378

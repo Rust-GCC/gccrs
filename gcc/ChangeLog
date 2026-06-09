@@ -1,3 +1,462 @@
+2026-06-09  Xi Ruoyao  <xry111@xry111.site>
+
+	PR rtl-optimization/125609
+	PR middle-end/122992
+	* hard-reg-set.h
+	(build_error_on_rvalue): New function.
+	(EXECUTE_IF_SET_IN_HARD_REG_SET): Call the function above.
+
+2026-06-09  Jeevitha Palanisamy  <jeevitha@linux.ibm.com>
+
+	* config/rs6000/amo.h (_AMO_LD): Add _AMO_LD_CS_EQ enumerator, gated on
+	_ARCH_FUTURE.
+	(amo_lwat_cas_eq, amo_lwat_scas_eq, amo_ldat_cas_eq,
+	amo_ldat_scas_eq): New compare-and-swap equal helper functions.
+	(_AMO_ERR_CMPSWP): New macro for error-attribute stubs on non-Future
+	targets.
+	* doc/extend.texi (PowerPC Atomic Memory Operation Functions): Document
+	new functions.
+
+2026-06-08  Sam James  <sam@gentoo.org>
+
+	* doc/tm.texi: Regenerate.
+
+2026-06-08  Gerald Pfeifer  <gerald@pfeifer.com>
+
+	* doc/cpp.texi: Spell "command-line option" with a dash.
+	(Binary Resource Inclusion): Ditto.
+	* doc/fragments.texi (Target Fragment): Ditto.
+	* doc/gcc.texi: Ditto.
+	(Indices): Ditto.
+	* doc/gccint.texi: Ditto.
+	(Top): Ditto.
+	(Option Index): Ditto.
+	* doc/gcov.texi (Invoking Gcov): Ditto. And fix grammar.
+	* doc/gm2.texi (Compiler options): Ditto.
+	(Extensions): Ditto.
+	(The PIM system module): Ditto.
+	(The ISO system module): Ditto.
+	* doc/invoke.texi (Debugging Options): Ditto.
+	(AVR Options): Ditto.
+	* doc/lto.texi (LTO object file layout): Ditto.
+	(WHOPR): Ditto.
+	* doc/md.texi (Machine Constraints): Ditto.
+	* doc/objc.texi (Constant string objects): Ditto. And fix grammar.
+	(Exceptions): Ditto.
+	(Synchronization): Ditto.
+	* doc/tm.texi.in: Ditto. And standardize on "option" over
+	"flag".
+	(strategy): Ditto. And standardize on "option" over "switch"
+	and fix grammar.
+	* target.def: Ditto.
+	* doc/tm.texi: Regenerate.
+
+2026-06-08  Alfie Richards  <alfie.richards@arm.com>
+
+	* config/aarch64/aarch64-builtins.cc (enum aarch64_builtins):
+	Add AARCH64_PREFETCH_PLD_RANGE and AARCH64_PREFETCH_PLDX_RANGE.
+	(aarch64_init_prefetch_builtins): Add initialization of
+	__pld_range and __pldx_range.
+	(require_const_argument): Update to return the minval if value
+	is out of range.
+	(aarch64_expand_prefetch_range_builtin): New function.
+	(aarch64_general_expand_builtin): Add support for
+	AARCH64_PREFETCH_PLD_RANGE and AARCH64_PREFETCH_PLDX_RANGE.
+	* config/aarch64/aarch64-c.cc (aarch64_update_cpp_builtins): Add
+	__ARM_PREFETCH_RANGE macro.
+	* config/aarch64/aarch64.md (unspec): Add UNSPEC_PLDX_RANGE and
+	UNSPEC_PLD_RANGE
+	(aarch64_rprfm): New instruction.
+
+2026-06-08  Alfie Richards  <alfie.richards@arm.com>
+
+	* config/aarch64/aarch64.h (TARGET_FPRCVT): New macro definition.
+	* config/aarch64/aarch64.md (arches): Add fprcvt.
+	(arch_enabled): Add fprcvt.
+	(l<fcvt_pattern><su_optab><GPF_F16:mode><GPI:mode>2): Add
+	FEAT_FPRCVT variant.
+	(<optab>_trunchf<GPI:mode>2): Likewise.
+	(<optab>_trunc<fcvt_change_mode><GPI:mode>2): Likewise.
+	(fix_to_zero_extend<mode>di2): Likewise.
+	(<optab><fcvt_iesize><GPF:mode>2): Likewise.
+	(define_insn "aarch64_fp16_<optab><mode>hf2): Likewise.
+	* config/aarch64/iterators.md (fpw): Add SF and DF variants.
+
+2026-06-08  Alfie Richards  <alfie.richards@arm.com>
+
+	* config/aarch64/aarch64-simd-builtins.def: (lround): Add new
+	forms for new conversions.
+	(lroundu): Likewise.
+	(lceil): Likewise.
+	(lceilu): Likewise.
+	(lfloor): Likewise.
+	(lflooru): Likewise.
+	(lfrintn): Likewise.
+	(lfrintnu): Likewise.
+	* config/aarch64/arm_neon.h (vcvtd_s32_f64): New intrinsic.
+	(vcvtd_s32_f64): Likewise.
+	(vcvtd_u32_f64): Likewise.
+	(vcvts_s64_f32): Likewise.
+	(vcvts_u64_f32): Likewise.
+	(vcvtad_s32_f64): Likewise.
+	(vcvtad_u32_f64): Likewise.
+	(vcvtas_s64_f32): Likewise.
+	(vcvtas_u64_f32): Likewise.
+	(vcvtmd_s32_f64): Likewise.
+	(vcvtmd_u32_f64): Likewise.
+	(vcvtms_s64_f32): Likewise.
+	(vcvtms_u64_f32): Likewise.
+	(vcvtnd_s32_f64): Likewise.
+	(vcvtnd_u32_f64): Likewise.
+	(vcvtns_s64_f32): Likewise.
+	(vcvtns_u64_f32): Likewise.
+	(vcvtpd_s32_f64): Likewise.
+	(vcvtpd_u32_f64): Likewise.
+	(vcvtps_s64_f32): Likewise.
+	(vcvtps_u64_f32): Likewise.
+
+2026-06-08  Alfie Richards  <alfie.richards@arm.com>
+
+	* config/aarch64/aarch64-c.cc (aarch64_update_cpp_builtins): Add
+	__ARM_FEATURE_SSVE_FEXPA.
+	* config/aarch64/aarch64-sve-builtins-base.def (svexpa): Change
+	gating to streaming compatible if AARCH64_FL_SSVE_FEXPA is
+	supported.
+	* config/aarch64/aarch64-sve.md: Update gating to be enabled if
+	TARGET_SSVE_FEXPA.
+	* config/aarch64/aarch64.h (TARGET_SVE_FEXPA): New macro.
+	* config/aarch64/iterators.md (SVE_FP_UNARY_INT): Update FEXPA
+	gating.
+
+2026-06-08  Alfie Richards  <alfie.richards@arm.com>
+
+	* config/aarch64/aarch64-c.cc (aarch64_update_cpp_builtins): Add
+	__ARM_FEATURE_SSVE_BITPERM.
+	* config/aarch64/aarch64-sve-builtins-sve2.def:
+	Make sve-bitperm intrinsics streaming compatible.
+	* config/aarch64/aarch64-sve2.md: Change gating of sve-bitperm
+	instructions.
+	* config/aarch64/aarch64.h (TARGET_SVE_BITPERM): New macro.
+	(TARGET_SVE2_BITPERM): Removed.
+
+2026-06-08  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125668
+	* tree-ssa-forwprop.cc (forward_propagate_addr_expr_1):
+	Preserve alignment of the original access also for propagating
+	into the LHS.
+
+2026-06-08  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	PR tree-optimization/125653
+	* gimple-ssa-backprop.cc (backprop::process_var): Avoid early
+	return for SSA names that occur in abnormal phis.
+
+2026-06-08  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125652
+	* tree-chrec.cc (chrec_fold_plus_poly_poly): Avoid UB
+	integer overflow in accumulating CHREC_RIGHT.
+
+2026-06-08  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125646
+	* tree-vect-patterns.cc (vect_synth_mult_by_constant): Assign
+	vector type to the pattern def sequence stmts.
+
+2026-06-08  Andreas Schwab  <schwab@suse.de>
+
+	PR rtl-optimization/122992
+	* config/m68k/m68k.cc (m68k_conditional_register_usage): Fix
+	signedness of register number var.
+	(m68k_zero_call_used_regs): Fix missing declaration.
+
+2026-06-08  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* config/aarch64/aarch64-sve.md
+	(*aarch64_vec_duplicate_subvector<vconsv><vconq><mode>): Remove
+	<vconq> from name.
+
+2026-06-08  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* simplify-rtx.cc (simplify_context::simplify_unary_operation_1):
+	Simplify vec_duplicates of vec_duplicates.
+	* config/aarch64/aarch64-sve.md
+	(*aarch64_vec_duplicate_subvector<vconsv><vconq><mode>): Remove
+	nested vec_duplicate.
+
+2026-06-08  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* config/sh/sh.md (bswapsi): Remove can_create_pseudo_p () check.
+
+2026-06-08  Xi Ruoyao  <xry111@xry111.site>
+
+	* config/mips/sync.md (sync_old_<optab><mode>): Fix
+	uninitialized operand use.
+	(sync_new_<optab><mode>): Fix uninitialized operand use, use the
+	same expression for the set source of operand 0 and 1.
+
+2026-06-08  Naveen  <naveen.siddegowda@oss.qualcomm.com>
+
+	* match.pd: ((type) minmax (wide) a, wide (b)): New pattern.
+
+2026-06-07  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* doc/sourcebuild.texi: Document that check-function-bodies
+	automatically adds the check_function_bodies options.
+
+2026-06-07  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/125612
+	* tree-ssa-phiopt.cc (cond_store_replacement): For the case where
+	lhs is "known" to be nontrapping make sure there are no loads in
+	the middle bb.
+
+2026-06-07  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	* config/sh/sh.md (bswapsi2): Move check for can_create_pseudos_p
+	into condition rather than FAILing.
+
+2026-06-07  John Ericson  <git@JohnEricson.me>
+
+	* gcc.cc (find_a_file): Remove mode parameter, because always
+	R_OK. Skip suffix logic, because suffix is always empty in that
+	case.
+	(read_specs): Remove mode from find_a_file call.
+	(find_a_program): Suffix is unconditional, inline mode constant.
+	(end_going_arg): Remove mode from find_a_file call.
+	(find_file): Remove mode from find_a_file call.
+	(driver::set_up_specs): Remove mode from find_a_file call.
+	(include_spec_function): Remove mode from find_a_file call.
+
+2026-06-07  John Ericson  <git@JohnEricson.me>
+
+	* gcc.cc (find_a_program): Inline find_a_file, instead of
+	calling.
+
+2026-06-07  Kwok Cheung Yeung  <kcyeung@baylibre.com>
+	    Andrew Stubbs  <ams@baylibre.com>
+	    Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* gimplify.cc (compute_omp_iterator_count): Account for difference
+	in loop boundaries in Fortran.
+	(build_omp_iterator_loop): Change upper boundary condition for
+	Fortran.  Insert block statements into innermost loop.
+	(remove_unused_omp_iterator_vars): Copy block subblocks of old
+	iterator to new iterator and remove original.
+	(extract_base_bit_offset): Add iterator argument.  Remove iterator
+	variables from base.
+	(omp_accumulate_sibling_list): Add iterator argument to
+	extract_base_bit_offset.
+	* tree-pretty-print.cc (dump_block_node): Ignore BLOCK_SUBBLOCKS
+	containing iterator block statements.
+
+2026-06-06  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* optabs-query.cc (can_open_code_p): Use can_open_code_p rather
+	than can_implement_p when testing for AND and XOR.
+
+2026-06-06  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* optabs-query.cc (can_open_code_p): Handle more bswap cases,
+	incorporating logic from...
+	* gimple-ssa-store-merging.cc (maybe_optimize_vector_constructor)
+	(pass_optimize_bswap::execute)
+	(imm_store_chain_info::try_coalesce_bswap): ...here.  Use
+	can_open_code_p instead of direct optab_handler checks.
+
+2026-06-06  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/125611
+	* config/i386/sse.md (<ssse3_avx2>_pmulhrsw<mode>3, smulhrs<mode>3):
+	Use vector_operand instead of nonimmediate_operand.
+
+2026-06-06  Ramin Moussavi  <lordrasmus@gmail.com>
+
+	* config/csky/csky.h (DWARF_ALT_FRAME_RETURN_COLUMN): Define.
+
+2026-06-05  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* gimplify.cc (remove_unused_omp_iterator_vars): Don't warn about
+	possibly-unused iterator variables.  Simplify control flow of
+	remaining code.
+
+2026-06-05  Andrew MacLeod  <amacleod@redhat.com>
+
+	PR tree-optimization/125501
+	* tree-ssa-dom.cc (set_global_ranges_from_unreachable_edges): Abort
+	if there are 2 SSA_NAMES on the branch condition.
+
+2026-06-05  Konstantinos Eleftheriou  <konstantinos.eleftheriou@vrull.eu>
+
+	PR rtl-optimization/124713
+	* avoid-store-forwarding.cc (process_store_forwarding): Re-apply
+	SIGN_EXTEND/ZERO_EXTEND after bit insert sequence when the load is
+	not eliminated.
+
+2026-06-05  Jakub Jelinek  <jakub@redhat.com>
+
+	* gimple-ssa-store-merging.cc (maybe_optimize_vector_constructor):
+	Also support bswap32 if bswapdi2 expander is present.  Add comment
+	about bswap64 support on 32-bit targets with bswapsi2 expander.
+	(pass_optimize_bswap::execute): Likewise.
+	* config/riscv/bitmanip.md (bswapsi2): Change condition to disable
+	the expander on TARGET_64BIT without TARGET_XTHEADBB, never FAIL.
+
+2026-06-05  Roger Sayle  <roger@nextmovesoftware.com>
+	    Richard Earnshaw  <richard.earnshaw@arm.com>
+
+	PR target/56102
+	PR middle-end/122871
+	* config/arm/arm.cc (thumb1_rtx_costs): Provide reasonable costs
+	for PLUS, MINUS, COMPARE, AND, XOR, IOR, NEG, NOT, ASHIFT,
+	ASHIFTRT and ROTATERT for SImode, DImode, HImode and QImode.
+	(thumb1_size_rtx_costs): Likewise.
+	(comp_not_to_clear_mask_str_un): Silence host compiler warning.
+
+2026-06-05  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	PR target/125538
+	* config/aarch64/aarch64-simd.md
+	(*aarch64_simd_dup_subvector<vcons><mode>): New insn pattern.
+	(*aarch64_simd_dup_subvectorv2qiqi): Likewise.
+	* config/aarch64/iterators.md (VSDUP): New mode iterator.
+	(VCONS): New mode attribute.
+	(vcons): Likewise.
+
+2026-06-05  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125602
+	* tree-ssa-loop-niter.cc (number_of_iterations_until_wrap):
+	Avoid double negation for assumption condition.  Compute
+	negated step in niter_type.
+
+2026-06-05  Jakub Jelinek  <jakub@redhat.com>
+
+	* gimple-lower-bitint.cc (bitint_large_huge::lower_bswap_bitreverse):
+	Add OBJ argument, use it instead of m_vars[part] if non-NULL.  Don't
+	gsi_remove stmt.
+	(bitint_large_huge::lower_call): Adjust caller.
+	(bitint_large_huge::lower_stmt): Handle store of
+	IFN_BSWAP/IFN_BITREVERSE result.
+	(stmt_needs_operand_addr): Return true also for
+	IFN_BSWAP/IFN_BITREVERSE.
+	(build_bitint_stmt_ssa_conflicts): Formatting fix.
+	(gimple_lower_bitint): Allow merging IFN_BSWAP/IFN_BITREVERSE with
+	subsequent non-bitfield store.  Allow merging load of
+	IFN_{CLZ,CTZ,CLRSB,FFS,PARITY,POPCOUNT,BSWAP,BITREVERSE} argument
+	with the call.
+
+2026-06-05  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/122731
+	* doc/extend.texi (__builtin_bswapg, __builtin_bitreverseg): Document.
+	* internal-fn.def (DEF_INTERNAL_INTSZ_FN): Define.
+	(DEF_INTERNAL_INTSZ_EXT_FN): Define.
+	(BSWAP): New internal fn.
+	(BITREVERSE): Likewise.
+	* internal-fn.h (expand_BSWAP, expand_BITREVERSE): Declare.
+	* internal-fn.cc (DEF_INTERNAL_INTSZ_EXT_FN): Define.
+	(expand_BSWAP, expand_BITREVERSE): New functions.
+	* builtins.h (fold_build_builtin_bswapg_bitreverseg): Declare.
+	* builtins.cc (fold_build_builtin_bswapg_bitreverseg): New function.
+	* wide-int.h (wi::bswap): Fix up docs that only multiple of 8 bits
+	is required.
+	* gimple-match-exports.cc (build_call_internal): Handle IFN_BSWAP
+	and IFN_BITREVERSE.
+	* gencfn-macros.cc (internal_fn_intsz_names): New variable.
+	(intsz_suffixes): Likewise.
+	(suffix_lists): Add intsz_suffixes.
+	(main): Handle internal_fn_intsz_names.
+	* match.pd (BSWAP, BITREVERSE): Remove.
+	(popcount(bswap(x)) is popcount(x)): Use BSWAP BITREVERSE
+	op lists.
+	* tree-ssa-phiopt.cc (empty_bb_or_one_feeding_into_p): Use
+	CASE_CFN_BSWAP and CASE_CFN_BITREVERSE.
+	(cond_removal_in_builtin_zero_pattern): Likewise.
+	* fold-const-call.cc (fold_const_call_ss): Likewise.
+	* fold-const.cc (tree_call_nonnegative_p): Likewise.
+	* gimple-lower-bitint.cc (struct bitint_large_huge): Declare
+	lower_bswap_bitreverse method.
+	(bitint_large_huge::lower_bswap_bitreverse): New method.
+	(bitint_large_huge::lower_call): Call it.
+	(build_bitint_stmt_ssa_conflicts): Set muldiv_p for IFN_BSWAP
+	and IFN_BITREVERSE.
+
+2026-06-05  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	PR tree-optimization/125599
+	* gimple-ssa-backprop.cc (backprop::execute): Calculate the
+	transitive closure of replacement values.
+
+2026-06-05  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR rtl-optimization/125609
+	PR middle-end/122992
+	* rtl-ssa/insns.cc (function_info::record_call_clobbers): Use a
+	variable to store out the result of abi.full_reg_clobbers().
+
+2026-06-05  Kito Cheng  <kito.cheng@sifive.com>
+
+	* config/riscv/riscv.h (OPTION_DEFAULT_SPECS): Specify default
+	cmodel.
+
+2026-06-04  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* bitmap.cc (bitmap_elt_clear_from): Make static.  Require a
+	list view.
+	(bitmap_tree_listify_from): Delete.
+	(bitmap_list_view): Rewrite to avoid separate vectors.
+	(bitmap_clear): Switch to a list view before calling
+	bitmap_elt_clear_from and restore the original view afterwards.
+
+2026-06-04  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* bitmap.cc (bitmap_tree_unlink_element): Optimize the handling
+	of the maximal node.
+
+2026-06-04  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* bitmap.cc: Include pretty-print.h and splay-tree-utils.h.
+	(bitmap_splay_tree_accessors): New class.
+	(bitmap_splay_tree): New type.
+	(bitmap_first_set_bit_worker): Use bitmap_splay_tree::min_node
+	for tree views.
+	(bitmap_last_set_bit_worker): Use bitmap_splay_tree::max_node
+	for tree views.
+
+2026-06-04  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* bitmap.cc (bitmap_tree_link_element): Require callers to have
+	done a splay operation.  Avoid doing another one here.
+
+2026-06-04  Kito Cheng  <kito.cheng@sifive.com>
+
+	* config/riscv/multilib-generator: Support extra options in the
+	multilib config string.
+	* doc/install.texi (--with-multilib-generator): Document the extra
+	options syntax.
+
+2026-06-04  Kito Cheng  <kito.cheng@sifive.com>
+
+	* common/config/riscv/riscv-common.cc (riscv_supported_std_ext):
+	Move 'v' before 'p' and drop 'n' to match the spec.
+	* config/riscv/arch-canonicalize (CANONICAL_ORDER): Ditto.
+
+2026-06-04  Raphael Zinsly  <raphael.zinsly@oss.qualcomm.com>
+	    Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	PR target/125387
+	* config/riscv/riscv.cc (riscv_rtx_costs): Recognize and properly cost
+	mulh instructions.
+
+2026-06-04  vekumar  <Venkataramanan.Kumar@amd.com>
+
+	* config/i386/x86-tune.def (X86_TUNE_FUSE_ALU_AND_BRANCH_MEM): Enable
+	for m_ZNVER6.
+	(X86_TUNE_FUSE_ALU_AND_BRANCH_MEM_IMM): Likewise.
+	(X86_TUNE_SSE_REDUCTION_PREFER_PSHUF): Likewise.
+
 2026-06-04  Jeevitha Palanisamy  <jeevitha@linux.ibm.com>
 
 	PR target/106895

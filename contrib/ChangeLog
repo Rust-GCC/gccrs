@@ -1,3 +1,15 @@
+2026-06-09  Jakub Jelinek  <jakub@redhat.com>
+
+	* gcc-changelog/git_update_version.py (ignored_commits): Add
+	'843b49269eaca82860ab4171f9644b5c411f05fc' and
+	'5c0785d62ca44b9073e543b2b3dbb04f0aca83af', remove all older
+	hashes.
+
+2026-06-05  Jonathan Wakely  <jwakely@redhat.com>
+
+	* download_prerequisites: use 'command -v' to check for wget and
+	curl.
+
 2026-06-04  Jakub Jelinek  <jakub@redhat.com>
 
 	* gcc-changelog/git_update_version.py (ignored_commits):

@@ -1,3 +1,35 @@
+2026-06-08  Zhou Qiankang  <wszqkzqk@qq.com>
+
+	PR c++/125642
+	* c-cppbuiltin.cc (c_cpp_builtins): Don't define __FRACT_FBIT__
+	in C++.
+
+2026-06-06  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/125618
+	* c-common.cc (complete_array_type): Change back to using
+	build_range_type.
+
+2026-06-05  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/122731
+	* c-common.h (enum rid): Add RID_BUILTIN_BSWAPG and
+	RID_BUILTIN_BITREVERSEG.
+	* c-common.cc (c_common_reswords): Add __builtin_bswapg
+	and __builtin_bitreverseg.
+
+2026-06-04  Martin Uecker  <uecker@tugraz.at>
+
+	PR c/125072
+	* c-ubsan.cc (get_index_from_offset,get_index_from_pointer_addr_expr,
+	is_instrumentable_pointer_array_address): Return factor.
+	(ubsan_maybe_instrument_array_ref): Apply factor.
+
+2026-06-04  Martin Uecker  <uecker@tugraz.at>
+
+	* c-common.cc (complete_array_type): Use build_index_type.
+	* c-ubsan.cc (ubsan_instrument_bounds_pointer_address): Likewise.
+
 2026-06-02  Christopher Bazley  <chris.bazley@arm.com>
 
 	* c-attribs.cc (handle_optimize_attribute):

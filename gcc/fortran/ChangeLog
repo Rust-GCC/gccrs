@@ -1,3 +1,173 @@
+2026-06-09  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/125669
+	* decl.cc (gfc_get_pdt_instance): If the bound expressions for
+	and array component, of the length expression for a character
+	component, gave simplified to a constant, do not set attributes
+	pdt_array and pdt_string respectively.
+
+2026-06-07  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/125535
+	* trans-expr.cc (gfc_conv_procedure_call): Move post block append
+	to after the deep copy of allocatable components for transformational
+	intrinsics, so that argument temporaries are not freed before the
+	result components are copied.
+
+2026-06-07  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/125534
+	* trans-stmt.cc (gfc_trans_allocate): Use GFC_TYPE_ARRAY_RANK from
+	the GFC descriptor type when se.expr is a descriptor, rather than
+	expr->rank, for the rank passed to gfc_allocate_pdt_comp.  Apply
+	the same fix to the CLASS path.
+	(gfc_trans_deallocate): Likewise for gfc_deallocate_pdt_comp.
+
+2026-06-07  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/125527
+	* class.cc (gfc_find_derived_vtab): Stash module namespace and
+	use it as the last place to search for the vtab before building
+	a new one.
+
+2026-06-07  Paul Thomas  <pault@gcc.gnu.org>
+	    Claude Sonnet 4.6  <noreply@anthropic.com>
+
+	PR fortran/121379
+	* decl.cc (get_proc_name): Use module_procedure attr. instead
+	of external to guard the missing-MODULE-prefix diagnostic. Use
+	gfc_error_now and do not return, so that an error cascade does
+	not occur.
+
+2026-06-07  Kwok Cheung Yeung  <kcyeung@baylibre.com>
+	    Andrew Stubbs   <ams@baylibre.com>
+	    Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* dump-parse-tree.cc (show_omp_namelist): Add iterator support for
+	OMP_LIST_TO and OMP_LIST_FROM.
+	* match.cc (gfc_free_omp_namelist): Free namespace for OMP_LIST_TO
+	and OMP_LIST_FROM.
+	* openmp.cc (gfc_match_motion_var_list): Parse 'iterator' modifier.
+	(resolve_omp_clauses): Resolve iterators for OMP_LIST_TO and
+	OMP_LIST_FROM.
+	* trans-openmp.cc (gfc_trans_omp_clauses): Handle iterators in
+	OMP_LIST_TO and OMP_LIST_FROM clauses.  Add expressions to
+	iter_block rather than block.
+
+2026-06-07  Kwok Cheung Yeung  <kcyeung@baylibre.com>
+	    Andrew Stubbs  <ams@baylibre.com>
+	    Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* dump-parse-tree.cc (show_omp_namelist): Add iterator support for
+	OMP_LIST_MAP.
+	* match.cc (gfc_free_omp_namelist): Free namespace in namelist for
+	OMP_LIST_MAP.
+	* openmp.cc (gfc_match_omp_clauses): Parse 'iterator' modifier for
+	'map' clause.
+	(resolve_omp_clauses): Resolve iterators for OMP_LIST_MAP.
+	* trans-openmp.cc: Include tree-ssa-loop-niter.h.
+	(gfc_trans_omp_array_section): Add iterator argument.  Replace
+	instances of iterator variables with the initial value when
+	computing biases.
+	(gfc_trans_omp_clauses): Handle iterators in OMP_LIST_MAP clauses.
+	Add expressions to iter_block rather than block.  Do not apply
+	iterators to firstprivate maps.  Pass iterator to
+	gfc_trans_omp_array_section.
+
+2026-06-07  Kwok Cheung Yeung  <kcyeung@baylibre.com>
+	    Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* gfortran.h (struct gfc_omp_namelist): Move udm field into a new
+	union u3.
+	* match.cc (gfc_free_omp_namelist): Change reference to u2.udm to
+	u3.udm.
+	* openmp.cc (gfc_match_omp_clauses): Likewise.
+
+2026-06-06  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/125606
+	* trans-intrinsic.cc (gfc_conv_intrinsic_loc): When the argument
+	of LOC() is not scalar or known to be simply contiguous, simply
+	take the address of the argument array's first element.
+
+2026-06-06  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	* resolve.cc (replace_in_code_recursive): Add EXEC_BLOCK case to
+	replace shadow iterator references in ASSOCIATE selector expressions
+	and the ASSOCIATE body namespace.
+
+2026-06-06  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/125531
+	* primary.cc (gfc_match_varspec): Before erroring on a zero-argument
+	COMPCALL, check for a same-named data component and fall back to the
+	data-component path.  For inferred-type ASSOCIATE names, retry
+	gfc_find_component with noaccess=true when the normal search fails.
+
+2026-06-05  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/60576
+	* trans-array.cc (gfc_resize_assumed_rank_dim_field): New
+	function extracted from gfc_conv_array_parameter.
+	(gfc_conv_array_parameter): Use the new function.
+
+2026-06-04  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	Backported from master:
+	2026-06-04  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/125529
+	* resolve.cc (check_default_none_expr): Use d->code instead of
+	sym->ns->code to locate the DO CONCURRENT forall_iterator list,
+	avoiding a wrong-union-member read when the symbol's namespace is
+	an ASSOCIATE body.  Skip leading underscore when comparing iterator
+	names for shadow iterators.
+
+2026-06-04  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/125528
+	* class.cc (find_typebound_proc_uop): Set root = NULL instead of
+	returning NULL when derived type lacks f2k_derived, so parent-type
+	type-bound procedures and operators are still found via inheritance.
+	* match.cc (resolve_assoc_operand): New helper.
+	(infer_typebound_uop_type): New helper.
+	(extend_assoc_op): New helper.
+	(match_association_list): Handle ASSOCIATE selectors that are
+	type-bound user-defined operator expressions, including nested cases.
+	* resolve.cc (resolve_typebound_procedures): Move resolve_symbol
+	call for the parent type before the early return so inherited
+	type-bound bindings are resolved even when the child type has none
+	of its own.
+
+2026-06-04  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/60576
+	PR fortran/60576
+	* trans-array.cc (gfc_conv_array_parameter): For an assumed-rank
+	actual argument passed to a CLASS assumed-rank formal, use a
+	runtime-sized memcpy for the dim[] entries instead of a full
+	GFC_MAX_DIMENSIONS static copy.  For a fixed-rank actual to a
+	CLASS assumed-rank formal, pass lhs_type=false to
+	gfc_class_array_data_assign so the dim[] copy is sized by the
+	RHS descriptor type (dim_t[rank]).  Fixed-rank class formals
+	retain lhs_type=true.
+	* trans-expr.cc (gfc_conv_derived_to_class): For an assumed-rank
+	actual, use a runtime-sized memcpy for the derived_array descriptor
+	dim[] copy instead of a full GFC_MAX_DIMENSIONS static copy.
+
+2026-06-04  Paul Thomas  <pault@gcc.gnu.org>
+	    Claude Sonnet 4.6  <noreply@anthropic.com>
+
+	PR fortran/121204
+	* symbol.cc (gfc_copy_attr): Copy the always_explicit attribute.
+
+2026-06-04  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/93424
+	* decl.cc (variable_decl): Do not commit the symbol if it is
+	the implicit result of a module procedure being declared in a
+	function, used in a submodule.
+
 2026-06-03  Henri Menke  <henri@henrimenke.de>
 
 	* gfortran.h (enum ext_attr_id_t): Add EXT_ATTR_INLINE and

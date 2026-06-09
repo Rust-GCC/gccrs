@@ -1,3 +1,24 @@
+2026-06-08  Gerald Pfeifer  <gerald@pfeifer.com>
+
+	* doc/xml/manual/abi.xml: Spell command-line option with a dash.
+	Simplify language.
+	* doc/html/manual/abi.html: Regenerate.
+
+2026-06-08  Haochen Jiang  <haochen.jiang@intel.com>
+
+	* testsuite/libstdc++-prettyprinters/prettyprinters.exp: Pass
+	-flto as the options to make it shown in test report.
+
+2026-06-05  Yuao Ma  <c8ef@outlook.com>
+
+	* include/std/generator (generator::yield_value): Change the
+	second template parameter from range_value_t<R> to void.
+	* testsuite/24_iterators/range_generators/lwg4119.cc: New test.
+
+2026-06-04  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/debug/safe_iterator.h: Remove trailing whitespace.
+
 2026-06-03  Jonathan Wakely  <jwakely@redhat.com>
 
 	* include/bits/version.def: Define macros for hardened

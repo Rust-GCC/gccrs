@@ -1,3 +1,8 @@
+2026-06-08  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-pretty-print.h (a68_attr_format_token): Get diagnostic
+	string from a68_attribute_name.
+
 2026-06-03  Jose E. Marchesi  <jemarch@gnu.org>
 
 	* ga68.texi (Worthy characters): Remove spurious @ entry in the
