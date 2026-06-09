@@ -76,6 +76,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "parse.h" /* FIXME */
 #include "constructor.h"
 #include "cpp.h"
+#include "diagnostic-core.h"
 #include "scanner.h"
 #include <zlib.h>
 
@@ -5443,12 +5444,12 @@ load_omp_udrs (void)
 	  pointer_info *p = get_integer (atom_int);
 	  if (strcmp (p->u.rsym.module, udr->omp_out->module))
 	    {
-	      gfc_error ("Ambiguous !$OMP DECLARE REDUCTION from "
-			 "module %s at %L",
-			 p->u.rsym.module, &gfc_current_locus);
-	      gfc_error ("Previous !$OMP DECLARE REDUCTION from module "
-			 "%s at %L",
-			 udr->omp_out->module, &udr->where);
+	      gfc_error ("Ambiguous !$OMP DECLARE REDUCTION %qs for type %qs "
+			 "from module %qs at %L", udr->name,
+			 gfc_typename (&ts), module_name, &gfc_current_locus);
+	      inform (gfc_get_location (&udr->where),
+		      "Previous !$OMP DECLARE REDUCTION from module %qs",
+		      udr->omp_out->module);
 	    }
 	  skip_list (1);
 	  continue;
