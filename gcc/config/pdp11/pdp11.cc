@@ -2209,7 +2209,7 @@ pdp11_function_arg_advance (cumulative_args_t cum_v,
 static void
 pdp11_conditional_register_usage (void)
 {
-  int i;
+  unsigned int i;
   HARD_REG_SET x;
   if (!TARGET_FPU)
     {
