@@ -7236,8 +7236,10 @@ The implementation remark:
       true, in which case the runtime will attempt to set the @code{HSA_XNACK}
       environment variable to @samp{1} automatically (user-set values are not
       overridden, and the setting only affects the executable itself and any
-      child processes).  If any AMD GPU device is not supported, all AMD GPUs
-      are removed from the list of available devices (``host fallback'').
+      child processes).  If any AMD GPU device does not support unified-shared
+      memory, all AMD GPUs are removed from the list of available devices
+      (``host fallback''); consider using @code{ROCR_VISIBLE_DEVICES} to only
+      enable devices supporting it.
 @item The available stack size can be changed using the @code{GCN_STACK_SIZE}
       environment variable; the default is 32 kiB per thread.
 @item Low-latency memory (@code{omp_low_lat_mem_space}) is supported when the
