@@ -1120,7 +1120,7 @@
       if (t != NULL_RTX)
 	{
 	  if (!rtx_equal_p (cfun->machine->thumb1_cc_op0, operands[1])
-	      || !rtx_equal_p (cfun->machine->thumb1_cc_op1, operands[2]))
+	      || !rtx_equal_p (cfun->machine->thumb1_cc_op1, const0_rtx))
 	    t = NULL_RTX;
 	  if (cfun->machine->thumb1_cc_mode == CC_NZmode)
 	    {
@@ -1135,7 +1135,7 @@
 	  output_asm_insn ("cmp\t%1, #0", operands);
 	  cfun->machine->thumb1_cc_insn = insn;
 	  cfun->machine->thumb1_cc_op0 = operands[1];
-	  cfun->machine->thumb1_cc_op1 = operands[2];
+	  cfun->machine->thumb1_cc_op1 = const0_rtx;
 	  cfun->machine->thumb1_cc_mode = CCmode;
 	}
       else

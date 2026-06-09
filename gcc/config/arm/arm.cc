@@ -26834,7 +26834,8 @@ thumb1_final_prescan_insn (rtx_insn *insn)
     asm_fprintf (asm_out_file, "%@ 0x%04x\n",
 		 INSN_ADDRESSES (INSN_UID (insn)));
   /* Don't overwrite the previous setter when we get to a cbranch.  */
-  if (INSN_CODE (insn) != CODE_FOR_cbranchsi4_insn)
+  if (INSN_CODE (insn) != CODE_FOR_cbranchsi4_insn
+      && INSN_CODE (insn) != CODE_FOR_thumb1_cbz)
     {
       enum attr_conds conds;
 
