@@ -1598,7 +1598,7 @@ DEFUN  __rounduha3
     ;; [ R25:R24  = 1 << (FBIT-1 - RP)
     ;;   R23:R22 += 1 << (FBIT-1 - RP) ]
     XCALL   __addmask_2
-    XJMP    __round_u2_const 
+    XJMP    __round_u2_const
 ENDF  __rounduha3
 
 #endif /* L_round_u2 */
@@ -1627,7 +1627,7 @@ DEFUN __round_u2_const
     ;; C[] = 2^{-RP}
     lsl     C0
     rol     C1
-    ;;      
+    ;;
     NEG2    C0
     ;; Clear the bits beyond the rounding point.
     and     C0, A0
@@ -1717,7 +1717,7 @@ DEFUN  __roundusa3
     ;; [ R25:R22  = 1 << (FBIT-1 - RP)
     ;;   R21:R18 += 1 << (FBIT-1 - RP) ]
     XCALL   __addmask_4
-    XJMP    __round_u4_const 
+    XJMP    __round_u4_const
 ENDF  __roundusa3
 
 #endif /* L_round_u4 */
