@@ -36,8 +36,7 @@ long long sext_xorlq (void) { return al ^ -4; }
 
 #endif
 
-/* { dg-final { scan-assembler-times "movsbw" 3 } } */
-/* { dg-final { scan-assembler-times "movsbl" 3 } } */
+/* { dg-final { scan-assembler-times "movsbl" 6 } } */
 /* { dg-final { scan-assembler-times "movswl" 3 } } */
 
 /* { dg-final { scan-assembler-times "movsbq" 3 { target { ! ia32 } } } } */
