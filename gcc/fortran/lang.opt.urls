@@ -255,6 +255,9 @@ LangUrlSuffix_Fortran(gfortran/Error-and-Warning-Options.html#index-Wtabs)
 Wundefined-do-loop
 LangUrlSuffix_Fortran(gfortran/Error-and-Warning-Options.html#index-Wundefined-do-loop)
 
+Wundefined-vars
+LangUrlSuffix_Fortran(gfortran/Error-and-Warning-Options.html#index-Wundefined-vars)
+
 Wunderflow
 LangUrlSuffix_Fortran(gfortran/Error-and-Warning-Options.html#index-Wunderflow)
 
@@ -269,6 +272,12 @@ UrlSuffix(gcc/Warning-Options.html#index-Wno-unused)
 
 Wunused-dummy-argument
 LangUrlSuffix_Fortran(gfortran/Error-and-Warning-Options.html#index-Wunused-dummy-argument)
+
+Wunused-intent-out
+LangUrlSuffix_Fortran(gfortran/Error-and-Warning-Options.html#index-Wunused-intent-out)
+
+Wunused-read
+LangUrlSuffix_Fortran(gfortran/Error-and-Warning-Options.html#index-Wunused-read)
 
 Wzerotrip
 LangUrlSuffix_Fortran(gfortran/Error-and-Warning-Options.html#index-Wzerotrip)

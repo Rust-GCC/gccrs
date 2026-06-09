@@ -4081,7 +4081,6 @@ gfc_compare_actual_formal (gfc_actual_arglist **ap, gfc_formal_arglist *formal,
 	      goto match;
 	    }
 	}
-
       /* F2023: 15.5.2.5 Ordinary dummy variables:
 	 "(21) If the procedure is nonelemental, the dummy argument does not
 	 have the VALUE attribute, and the actual argument is an array section
@@ -4253,6 +4252,42 @@ gfc_compare_actual_formal (gfc_actual_arglist **ap, gfc_formal_arglist *formal,
 
   if (*ap == NULL && n > 0)
     *ap = new_arg[0];
+
+  if (!in_statement_function)
+    for (f = formal, i = 0; f; f = f->next, i++)
+      {
+	if (new_arg[i]->expr)
+	  {
+	    gfc_expr *e = new_arg[i]->expr;
+
+	    if (f->sym->attr.value)
+	      {
+		gfc_value_used_expr (e, VALUE_VALUE_ARG);
+		continue;
+	      }
+	    switch (f->sym->attr.intent)
+	      {
+	      case INTENT_OUT:
+		{
+		  gfc_symbol *s = e->symtree->n.sym;
+		  gfc_value_set_at (s, &e->where, VALUE_INTENT_OUT);
+
+		  /* INTENT(OUT) allocates variables as far as we know.  */
+		  if (s->attr.allocatable)
+		    s->attr.allocated = 1;
+		}
+		break;
+	      case INTENT_IN:
+		gfc_value_used_expr (e, VALUE_INTENT_IN);
+		break;
+	      case INTENT_INOUT:
+	      case INTENT_UNKNOWN:
+		gfc_value_set_and_used (e, &e->where, VALUE_ARG,
+					VALUE_MAYBE_USED);
+		break;
+	      }
+	  }
+    }
 
   return true;
 }
@@ -4676,6 +4711,11 @@ gfc_procedure_use (gfc_symbol *sym, gfc_actual_arglist **ap, locus *where)
 	      return false;
 	    }
 	}
+
+      if (implicit)
+	for (a = *ap; a; a = a->next)
+	  gfc_value_set_and_used (a->expr, &a->expr->where, VALUE_ARG,
+				  VALUE_MAYBE_USED);
 
       return true;
     }

@@ -1795,6 +1795,7 @@ resolve_tag_format (gfc_expr *e)
 	  return false;
 	}
 
+      gfc_value_used_expr (e, VALUE_USED);
       return true;
     }
 
@@ -1835,6 +1836,7 @@ resolve_tag_format (gfc_expr *e)
 	}
     }
 
+  gfc_value_used_expr (e, VALUE_USED);
   return true;
 }
 
@@ -1904,6 +1906,12 @@ resolve_tag (const io_tag *tag, gfc_expr *e)
 	return false;
     }
 
+  if (tag == &tag_convert)
+    {
+      if (!gfc_notify_std (GFC_STD_GNU, "CONVERT tag at %L", &e->where))
+	return false;
+    }
+
   /* NEWUNIT, IOSTAT, SIZE and IOMSG are variable definition contexts.  */
   if (tag == &tag_newunit || tag == &tag_iostat
       || tag == &tag_size || tag == &tag_iomsg)
@@ -1913,13 +1921,11 @@ resolve_tag (const io_tag *tag, gfc_expr *e)
       sprintf (context, _("%s tag"), tag->name);
       if (!gfc_check_vardef_context (e, false, false, false, context))
 	return false;
-    }
 
-  if (tag == &tag_convert)
-    {
-      if (!gfc_notify_std (GFC_STD_GNU, "CONVERT tag at %L", &e->where))
-	return false;
+      gfc_value_set_at (e->symtree->n.sym, &e->where, VALUE_VARDEF);
     }
+  else
+    gfc_value_used_expr (e, VALUE_USED);
 
   return true;
 }
@@ -3300,6 +3306,7 @@ gfc_resolve_dt (gfc_code *dt_code, gfc_dt *dt, locus *loc)
 {
   gfc_expr *e;
   io_kind k;
+  bool internal_unit;
 
   /* This is set in any case.  */
   gcc_assert (dt->dt_io_kind);
@@ -3348,6 +3355,7 @@ gfc_resolve_dt (gfc_code *dt_code, gfc_dt *dt, locus *loc)
       return false;
     }
 
+  internal_unit = false;
   if (gfc_resolve_expr (e)
       && (e->ts.type != BT_INTEGER
 	  && (e->ts.type != BT_CHARACTER || e->expr_type != EXPR_VARIABLE)))
@@ -3387,6 +3395,7 @@ gfc_resolve_dt (gfc_code *dt_code, gfc_dt *dt, locus *loc)
 
   if (e->ts.type == BT_CHARACTER)
     {
+      internal_unit = true;
       if (gfc_has_vector_index (e))
 	{
 	  gfc_error ("Internal unit with vector subscript at %L", &e->where);
@@ -3395,10 +3404,14 @@ gfc_resolve_dt (gfc_code *dt_code, gfc_dt *dt, locus *loc)
 
       /* If we are writing, make sure the internal unit can be changed.  */
       gcc_assert (k != M_PRINT);
-      if (k == M_WRITE
-	  && !gfc_check_vardef_context (e, false, false, false,
+      if (k == M_WRITE)
+	{
+	  if (!gfc_check_vardef_context (e, false, false, false,
 					_("internal unit in WRITE")))
-	return false;
+	    return false;
+
+	  gfc_value_set_at (e->symtree->n.sym, &e->where);
+	}
     }
 
   if (e->rank && e->ts.type != BT_CHARACTER)
@@ -3414,6 +3427,9 @@ gfc_resolve_dt (gfc_code *dt_code, gfc_dt *dt, locus *loc)
 		 &e->where);
       return false;
     }
+
+  if (!internal_unit)
+    gfc_value_used_expr (e, VALUE_USED);
 
   /* If we are reading and have a namelist, check that all namelist symbols
      can appear in a variable definition context.  */
@@ -3439,6 +3455,7 @@ gfc_resolve_dt (gfc_code *dt_code, gfc_dt *dt, locus *loc)
 			     dt->namelist->name, loc, n->sym->name);
 		  return false;
 		}
+	      gfc_value_set_at (n->sym, NULL);
 	    }
 
 	  t = dtio_procs_present (n->sym, k);
@@ -4776,6 +4793,7 @@ gfc_resolve_inquire (gfc_inquire *inquire)
       if (gfc_check_vardef_context ((expr), false, false, false, \
 				    context) == false) \
 	return false; \
+      gfc_value_set_at (expr->symtree->n.sym, &expr->where); \
     }
   INQUIRE_RESOLVE_TAG (&tag_iomsg, inquire->iomsg);
   INQUIRE_RESOLVE_TAG (&tag_iostat, inquire->iostat);

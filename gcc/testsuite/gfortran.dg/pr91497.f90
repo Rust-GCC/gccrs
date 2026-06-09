@@ -1,7 +1,7 @@
 ! { dg-do compile }
 ! { dg-require-effective-target fortran_real_10 }
 ! { dg-require-effective-target fortran_real_16 }
-! { dg-options "-Wall" }
+! { dg-options "-Wall -Wno-unused-but-set-variable" }
 ! Code contributed by Manfred Schwarb <manfred99 at gmx dot ch>
 ! PR fortran/91497
 !

@@ -3524,13 +3524,13 @@ resolve_function (gfc_expr *expr)
 	      gfc_warning (OPT_Wexternal_argument_mismatch,
 			   "Different argument lists in external dummy "
 			   "function %s at %L and %L", sym->name,
-			   &expr->where, &sym->formal_at);
+			   &expr->where, &sym->other_loc);
 	    }
 	}
       else if (!sym->formal_resolved)
 	{
 	  gfc_get_formal_from_actual_arglist (sym, expr->value.function.actual);
-	  sym->formal_at = expr->where;
+	  sym->other_loc = expr->where;
 	}
     }
   /* See if function is already resolved.  */
@@ -4301,13 +4301,13 @@ resolve_call (gfc_code *c)
 	      gfc_warning (OPT_Wexternal_argument_mismatch,
 			   "Different argument lists in external dummy "
 			   "subroutine %s at %L and %L", csym->name,
-			   &c->loc, &csym->formal_at);
+			   &c->loc, &csym->other_loc);
 	    }
 	}
       else if (!csym->formal_resolved)
 	{
 	  gfc_get_formal_from_actual_arglist (csym, c->ext.actual);
-	  csym->formal_at = c->loc;
+	  csym->other_loc = c->loc;
 	}
     }
 
@@ -8506,6 +8506,12 @@ gfc_resolve_iterator (gfc_iterator *iter, bool real_ok, bool own_scope)
 		     &iter->step->where);
     }
 
+  gfc_value_set_and_used (iter->var, &iter->var->where, VALUE_VARDEF,
+			  VALUE_USED);
+  gfc_value_used_expr (iter->start, VALUE_USED);
+  gfc_value_used_expr (iter->end, VALUE_USED);
+  gfc_value_used_expr (iter->step, VALUE_USED);
+
   return true;
 }
 
@@ -8947,6 +8953,12 @@ resolve_forall_iterators (gfc_forall_iterator *it)
 	}
       if (iter->var->ts.kind != iter->stride->ts.kind)
 	gfc_convert_type (iter->stride, &iter->var->ts, 1);
+
+      gfc_value_set_and_used (iter->var, &iter->var->where, VALUE_VARDEF,
+			      VALUE_USED);
+      gfc_value_used_expr (iter->start, VALUE_USED);
+      gfc_value_used_expr (iter->end, VALUE_USED);
+      gfc_value_used_expr (iter->stride, VALUE_USED);
     }
 
   for (iter = it; iter; iter = iter->next)
@@ -9738,6 +9750,11 @@ check_symbols:
     }
 
 success:
+  gfc_used_in_allocate_expr (e, &e->where);
+
+  if (code->expr3)
+    gfc_value_set_at (e->symtree->n.sym, &code->expr3->where);
+
   return true;
 
 failure:
@@ -11758,13 +11775,17 @@ resolve_transfer (gfc_code *code)
 		      && exp->expr_type != EXPR_STRUCTURE))
     return;
 
-  /* If we are reading, the variable will be changed.  Note that
-     code->ext.dt may be NULL if the TRANSFER is related to
-     an INQUIRE statement -- but in this case, we are not reading, either.  */
-  if (dt && dt->dt_io_kind->value.iokind == M_READ
-      && !gfc_check_vardef_context (exp, false, false, false,
-				    _("item in READ")))
-    return;
+  if (dt && dt->dt_io_kind->value.iokind == M_READ)
+    {
+      /* If we are reading, the variable will be changed.  Note that
+	 code->ext.dt may be NULL if the TRANSFER is related to an INQUIRE
+	 statement -- but in this case, we are not reading, either.  */
+      if (!gfc_check_vardef_context (exp, false, false, false,
+				     _("item in READ")))
+	return;
+
+      gfc_value_set_at (exp->symtree->n.sym, &exp->where, VALUE_READ);
+    }
 
   const gfc_typespec *ts = exp->expr_type == EXPR_STRUCTURE
 			|| exp->expr_type == EXPR_FUNCTION
@@ -11879,6 +11900,11 @@ resolve_transfer (gfc_code *code)
 		 "an assumed-size array", &code->loc);
       return;
     }
+
+  if (dt && (dt->dt_io_kind->value.iokind == M_WRITE
+	     || dt->dt_io_kind->value.iokind == M_PRINT))
+    gfc_value_used_expr (exp, VALUE_USED);
+
 }
 
 
@@ -13082,7 +13108,8 @@ gfc_resolve_blocks (gfc_code *b, gfc_namespace *ns)
 	default:
 	  gfc_internal_error ("gfc_resolve_blocks(): Bad block type");
 	}
-
+      gfc_value_used_expr (b->expr1, VALUE_USED);
+      gfc_value_used_expr (b->expr2, VALUE_USED);
       gfc_resolve_code (b->next, ns);
     }
 }
@@ -14181,6 +14208,7 @@ deferred_op_assign (gfc_code **code, gfc_namespace *ns)
   return true;
 }
 
+static void mark_lhs_assignments_set (gfc_code *code);
 
 /* Given a block of code, recursively resolve everything pointed to by this
    code block.  */
@@ -14192,6 +14220,7 @@ gfc_resolve_code (gfc_code *code, gfc_namespace *ns)
   int forall_save, do_concurrent_save;
   code_stack frame;
   bool t;
+  gfc_code *orig_code = code;
 
   frame.prev = cs_base;
   frame.head = code;
@@ -14862,7 +14891,12 @@ start:
 	default:
 	  gfc_internal_error ("gfc_resolve_code(): Bad statement code");
 	}
+      gfc_value_used_expr (code->expr2, VALUE_USED);
+      gfc_value_used_expr (code->expr3, VALUE_USED);
+      gfc_value_used_expr (code->expr4, VALUE_USED);
     }
+
+  mark_lhs_assignments_set (orig_code);
 
   cs_base = frame.prev;
 }
@@ -20531,6 +20565,35 @@ gfc_resolve_uops (gfc_symtree *symtree)
     check_uop_procedure (itr->sym, itr->sym->declared_at);
 }
 
+/* Mark all lhs in assignment statement as used.  It is better to put this into
+   its own function rather than into the different switch cases in
+   gfc_resolve_code.  */
+
+static void
+mark_lhs_assignments_set (gfc_code *code)
+{
+
+  for (; code; code = code->next)
+    {
+      gfc_expr *lvalue = code->expr1, *rvalue = code->expr2;
+
+      if (lvalue == NULL || lvalue->symtree == NULL || rvalue == NULL)
+	continue;
+
+      switch (code->op)
+	{
+	case EXEC_ASSIGN:
+	  if (gfc_is_reallocatable_lhs (lvalue) && lvalue->rank == rvalue->rank)
+	    gfc_lvalue_allocated_at (lvalue->symtree->n.sym, &lvalue->where);
+
+	  gcc_fallthrough();
+	case EXEC_POINTER_ASSIGN:
+	  gfc_value_set_at (lvalue->symtree->n.sym, &rvalue->where);
+	default:
+	  break;
+	}
+    }
+}
 
 /* Examine all of the expressions associated with a program unit,
    assign types to all intermediate expressions, make sure that all
@@ -20678,6 +20741,234 @@ resolve_codes (gfc_namespace *ns)
   labels_obstack = old_obstack;
 }
 
+/* Return true if the value of a variable can be considered used, either
+   through the value_used flag or because it is a suitable dummy argument.  */
+
+static bool
+var_value_is_used (gfc_symbol *sym)
+{
+  if (sym->attr.value_used != VALUE_UNUSED)
+    return true;
+
+  if (!sym->attr.dummy)
+    return false;
+
+  if (sym->attr.value)
+    return false;
+
+  switch (sym->attr.intent)
+    {
+    case INTENT_UNKNOWN:
+    case INTENT_INOUT:
+    case INTENT_OUT:
+      return true;
+
+    case INTENT_IN:
+    default:
+      return false;
+    }
+}
+
+/* Similar, see if the variable could have gotten its value from somewhere.  */
+
+static bool
+var_value_is_set (gfc_symbol *sym)
+{
+  if (sym->attr.value_set != VALUE_UNSET)
+    return true;
+
+  if (sym->value)
+    return true;
+
+  if (sym->ts.type == BT_DERIVED
+      && gfc_has_default_initializer (sym->ts.u.derived))
+    return true;
+
+  if (!sym->attr.dummy)
+    return false;
+
+  if (sym->attr.value)
+    return true;
+
+  if (sym->attr.intent == INTENT_OUT)
+    return false;
+
+  return true;
+}
+
+/* Callback function to catch set but never used variables.  */
+
+static void
+find_unused_vs_set (gfc_symbol *sym)
+{
+  symbol_attribute *attr = &sym->attr;
+
+  if (attr->flavor != FL_VARIABLE)
+    return;
+
+  /* Do not warn about anything too far out of the ordinary.  This might be
+     tightened later.  */
+  if (attr->in_common || attr->in_equivalence || attr->artificial
+      || attr->cray_pointer || attr->cray_pointee || attr->associate_var
+      || attr->target || attr->fe_temp || attr->omp_declare_target
+      || attr->omp_declare_target_link || attr->omp_declare_target_local
+      || attr->omp_declare_target_indirect || attr->oacc_declare_create
+      || attr->oacc_declare_copyin || attr->oacc_declare_deviceptr
+      || attr->oacc_declare_device_resident || attr->oacc_declare_link
+      || attr->result || attr->warning_emitted || !attr->referenced)
+    return;
+
+  if (warn_unused_intent_out && attr->value_set == VALUE_INTENT_OUT
+      && !var_value_is_used (sym))
+    {
+      gfc_warning (OPT_Wunused_intent_out, "Variable %qs passed to "
+		   "INTENT(OUT) argument at %L but value never used",
+		   sym->name, &sym->other_loc);
+      attr->warning_emitted = 1;
+      return;
+    }
+
+  if (warn_unused_read && attr->value_set == VALUE_READ && !var_value_is_used (sym))
+    {
+      gfc_warning (OPT_Wunused_read, "Variable %qs read at %L but never "
+		   "used", sym->name, &sym->other_loc);
+      attr->warning_emitted = 1;
+      return;
+    }
+
+  /* There is no allocation in sight, but the variable is used anyway.  This
+     might be hidden behind PRESENT, but issue a warning nonetheless.  If
+     people complain, we might want to make this to an extra option to be
+     included with -Wextra.  */
+
+  if (warn_undefined_vars && attr->allocatable && !attr->allocated
+      && var_value_is_used (sym))
+    {
+      if (attr->dummy && attr->intent == INTENT_OUT)
+	{
+	  gfc_warning (OPT_Wundefined_vars, "Unallocated INTENT(OUT) variable "
+		       "%qs referenced at %L", sym->name, &sym->other_loc);
+	  attr->warning_emitted = 1;
+	  return;
+	}
+
+      if (!attr->dummy)
+	{
+	  gfc_warning (OPT_Wundefined_vars, "Unallocated variable %qs "
+		       "referenced at %L", sym->name, &sym->other_loc);
+	  attr->warning_emitted = 1;
+	  return;
+	}
+    }
+
+  if (warn_undefined_vars && !var_value_is_set (sym))
+    {
+      /* Warn about variables which have been allocated and used, but never
+	 set.  */
+      if (attr->allocated && sym->attr.value_used > VALUE_MAYBE_USED)
+	{
+	  switch (sym->attr.value_used)
+	    {
+	    case VALUE_INTENT_IN:
+	      gfc_warning (OPT_Wundefined_vars, "Allocated variable %qs passed "
+			   "undefined to INTENT(IN) argument at %L", sym->name,
+			   &sym->other_loc);
+	      break;
+
+	    case VALUE_VALUE_ARG:
+	      gfc_warning (OPT_Wundefined_vars, "Allocated variable %qs passed "
+			   "undefined to VALUE argument at %L", sym->name,
+			   &sym->other_loc);
+	      break;
+	    case VALUE_USED:
+	      gfc_warning (OPT_Wundefined_vars, "Allocated undefined variable "
+			   "%qs used at %L", sym->name, &sym->other_loc);
+	      break;
+	    default:
+	      gfc_internal_error ("Wrong value_set");
+	      break;
+	    }
+	  attr->warning_emitted = 1;
+	  return;
+	}
+
+      /* Similar, when undefined variables are passed to INTENT(IN), VALUE
+	 arguments or are used in general.  */
+
+      if (attr->value_used == VALUE_INTENT_IN)
+	{
+	  gfc_warning (OPT_Wundefined_vars, "Undefined variable %qs passed "
+		       "to INTENT(IN) argument at %L", sym->name, &sym->other_loc);
+	  attr->warning_emitted = 1;
+	  return;
+	}
+      else if (attr->value_used == VALUE_VALUE_ARG)
+	{
+	  gfc_warning (OPT_Wundefined_vars, "Undefined variable %qs passed "
+		       "to VALUE argument at %L", sym->name, &sym->other_loc);
+	  attr->warning_emitted = 1;
+	  return;
+	}
+      else if (attr->value_used == VALUE_USED)
+	{
+	  if (attr->dummy && attr->intent == INTENT_OUT)
+	    gfc_warning (OPT_Wundefined_vars, "Undefined INTENT(OUT) variable %qs "
+			 "used at %L", sym->name, &sym->other_loc);
+	  else
+	    gfc_warning (OPT_Wundefined_vars, "Undefined variable %qs used at "
+			 "%L", sym->name, &sym->other_loc);
+
+	  attr->warning_emitted = 1;
+	  return;
+	}
+
+      /* PR 28004 - warn about INTENT(OUT) variables that are never set.  If
+	 the variable or a component are allocatable, do not warn since this is
+	 a frequent shortcut for deallocation.  */
+
+      if (sym->attr.dummy && sym->attr.intent == INTENT_OUT
+	  && !(attr->allocatable || attr->alloc_comp))
+	{
+	  gfc_warning (OPT_Wundefined_vars, "INTENT(OUT) variable %qs  "
+		       "declared at %L is not assigned a value", sym->name,
+		       &sym->declared_at);
+	  attr->warning_emitted = 1;
+	  return;
+	}
+    }
+
+  /* Warn for unused but defined variables.  */
+
+  if (warn_unused_but_set_variable)
+    {
+      if (attr->value_set == VALUE_VARDEF && !var_value_is_used (sym))
+	{
+	  gfc_warning (OPT_Wunused_but_set_variable_, "Variable %qs defined at "
+		       "%L but never used", sym->name, &sym->other_loc);
+	  attr->warning_emitted = 1;
+	  return;
+	}
+      if (attr->allocatable && attr->allocated && !var_value_is_used (sym))
+	{
+	  gfc_warning (OPT_Wunused_but_set_variable_, "Variable %qs "
+		       "allocated at %L but never used", sym->name,
+		       &sym->extra_loc);
+	  attr->warning_emitted = 1;
+	  return;
+	}
+    }
+}
+
+/* Run warn_unused_vs_set over a namespace recursively.  */
+
+static void
+warn_unused_vs_set (gfc_namespace *ns)
+{
+  gfc_traverse_ns (ns, find_unused_vs_set);
+
+  for (gfc_namespace *n = ns->contained; n; n = n->sibling)
+    warn_unused_vs_set (n);
+}
 
 /* This function is called after a complete program unit has been compiled.
    Its purpose is to examine all of the expressions associated with a program
@@ -20708,6 +20999,10 @@ gfc_resolve (gfc_namespace *ns)
   resolve_types (ns);
   component_assignment_level = 0;
   resolve_codes (ns);
+
+  if (warn_unused_but_set_variable || warn_unused_intent_out
+      || warn_unused_read || warn_undefined_vars)
+    warn_unused_vs_set (ns);
 
   if (ns->omp_assumes)
     gfc_resolve_omp_assumptions (ns->omp_assumes);

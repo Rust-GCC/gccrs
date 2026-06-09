@@ -1,4 +1,4 @@
-! { dg-additional-options "-Wall -fdump-tree-gimple" }
+! { dg-additional-options "-Wall -fdump-tree-gimple -Wno-unused-but-set-variable" }
 
 module m
 use iso_c_binding

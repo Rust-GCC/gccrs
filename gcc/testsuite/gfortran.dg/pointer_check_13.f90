@@ -13,7 +13,7 @@ contains
     implicit none
     integer, target  :: so
     integer, pointer :: sp
-    sp => so
+    sp => so ! { dg-warning "but never used" }
     return
   end function So
 end module s

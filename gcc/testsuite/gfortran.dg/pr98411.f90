@@ -1,5 +1,5 @@
 ! { dg-do compile }
-! { dg-options "-std=f2008 -Wall -fautomatic -fmax-stack-var-size=100" }
+! { dg-options "-std=f2008 -Wall -fautomatic -fmax-stack-var-size=100 -Wno-unused-but-set-variable" }
 ! PR fortran/98411 - Pointless warning for static variables 
 
 module try

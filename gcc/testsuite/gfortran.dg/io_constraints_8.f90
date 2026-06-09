@@ -1,5 +1,5 @@
 ! { dg-do compile }
-! { dg-options "-fmax-errors=100 -Wall" }
+! { dg-options "-fmax-errors=100 -Wall -Wno-unused-but-set-variable" }
 !
 ! PR fortran/48972
 !

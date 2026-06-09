@@ -19,7 +19,7 @@
 ! gfc_warning:
 1234  complex :: cplx ! { dg-error "defined but cannot be used" }
       cplx = 20.
-
+      print *,cplx
        end
 ! { dg-final { output-exists-not } }
 ! { dg-prune-output "warnings being treated as errors" }

@@ -4999,11 +4999,52 @@ finish:
   return true;
 }
 
+/* Mark actual arguments as used according to the INTENTs of a
+   formal arglist.  */
 
-/* Initialize the gfc_current_intrinsic_arg[] array for the benefit of
-   error messages.  This subroutine returns false if a subroutine
-   has more than MAX_INTRINSIC_ARGS, in which case the actual argument
-   list cannot match any intrinsic.  */
+static void
+mark_args_as_used (gfc_intrinsic_arg *f, gfc_actual_arglist *a)
+{
+  while (f != NULL && a != NULL)
+    {
+      if (a->expr != NULL)
+	{
+	  if (f->value)
+	    {
+	      gfc_value_used_expr (a->expr, VALUE_VALUE_ARG);
+	      continue;
+	    }
+
+	  switch (f->intent)
+	    {
+	    case INTENT_INOUT:
+	    case INTENT_UNKNOWN:
+	      gfc_value_set_and_used (a->expr, &a->expr->where, VALUE_ARG,
+				      VALUE_MAYBE_USED);
+	      break;
+
+	    case INTENT_IN:
+	      gfc_value_used_expr (a->expr, VALUE_INTENT_IN);
+	      break;
+
+	    case INTENT_OUT:
+	      if (a->expr->expr_type == EXPR_VARIABLE)
+		{
+		  gfc_symbol *s = a->expr->symtree->n.sym;
+		  gfc_value_set_at (s, &a->expr->where, VALUE_INTENT_OUT);
+		  if (s->attr.allocatable)
+		    s->attr.allocated = 1;
+		}
+	      break;
+	    }
+	}
+      f = f->next;
+      a = a->next;
+    }
+}
+
+/* Initialize the gfc_current_intrinsic_arg[] array for the benefit of error
+   messages.  Errors out if there are too many arguments.  */
 
 static void
 init_arglist (gfc_intrinsic_sym *isym)
@@ -5464,6 +5505,7 @@ gfc_intrinsic_sub_interface (gfc_code *c, int error_flag)
 
   c->resolved_sym->attr.noreturn = isym->noreturn;
 
+  mark_args_as_used (isym->formal, c->ext.actual);
   return MATCH_YES;
 
 fail:

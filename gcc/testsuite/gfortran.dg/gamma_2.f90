@@ -28,5 +28,6 @@ rsp = lgamma(rsp)
 rdp = lgamma(rdp)
 rsp = algama(rsp)
 rdp = dlgama(rdp)
+print *,rsp,rdp
 end subroutine foo
 end

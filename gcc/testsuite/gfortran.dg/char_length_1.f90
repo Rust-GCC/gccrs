@@ -16,4 +16,5 @@ program test
   a =  (/ 'Takata ', 'Tanaka ', 'Hayashi' /)
   b = "abc" ! { dg-error "no IMPLICIT" }
   c = "abcdefg"   ! { dg-warning "will be truncated" }
+  print *,a,b,c
 end program test

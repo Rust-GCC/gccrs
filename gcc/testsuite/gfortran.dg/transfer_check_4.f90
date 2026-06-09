@@ -1,5 +1,5 @@
 ! { dg-do compile }
-! { dg-options "-Wall" }
+! { dg-options "-Wall -Wno-unused-but-set-variable" }
 
 ! PR 57022: [4.7/4.8/4.9 Regression] Inappropriate warning for use of TRANSFER with arrays
 ! Contributed by William Clodius <wclodius@los-alamos.net>

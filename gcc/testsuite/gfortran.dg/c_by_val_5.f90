@@ -1,6 +1,6 @@
 ! { dg-do run }
 ! Overwrite -pedantic setting:
-! { dg-options "-Wall" }
+! { dg-options "-Wall -Wno-unused-but-set-variable" }
 !
 ! Tests the fix for PR31668, in which %VAL was rejected for
 ! module and internal procedures.

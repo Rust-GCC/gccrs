@@ -23,6 +23,7 @@ program main
   ip(1) = 1
   ip(2) = 2
   ip(3) = 3
+  if (ip(3) /= 3) stop 1
   call omp_free (p, a)
   call omp_destroy_allocator (a)
 end program main

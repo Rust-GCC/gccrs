@@ -1,5 +1,5 @@
 ! { dg-do compile }
-! { dg-options "-Wall" }
+! { dg-options "-Wall -Wno-unused-but-set-variable" }
 
 ! This will verify that the # <line> <file> directive later does not
 ! mess up the diagnostic on this line

@@ -1,5 +1,5 @@
 ! { dg-do compile }
-! { dg-options "-O2 -Wall" }
+! { dg-options "-O2 -Wall -Wno-unused-but-set-variable" }
 ! PR fortran/103475 - ICE in gfc_expr_attr
 ! Contributed by G.Steinmetz
 

@@ -1,5 +1,5 @@
 ! { dg-do compile }
-! { dg-options "-Wall" }
+! { dg-options "-Wall -Wno-unused-but-set-variable" }
 !
 ! PR 58471: [4.8/4.9 Regression] ICE on invalid with missing type constructor and -Wall
 !

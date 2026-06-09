@@ -1,5 +1,5 @@
 ! { dg-do compile }
-! { dg-options "-Wall" }
+! { dg-options "-Wall -Wno-undefined-vars" }
 !
 ! PR 55855: [OOP] incorrect warning with procedure pointer component on pointer-valued base object
 !
@@ -13,4 +13,5 @@
   type(event), pointer :: myEvent
   allocate(myEvent)
   r=myEvent%task()  ! { dg-warning "uninitialized" }
+  call foo(r)
 end 

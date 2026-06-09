@@ -1,5 +1,5 @@
 ! { dg-do compile }
-! { dg-options "-O -Wall -Wconversion-extra -fdump-tree-original" }
+! { dg-options "-O -Wall -Wconversion-extra -fdump-tree-original -Wno-unused-but-set-variable" }
 ! { dg-final { scan-tree-dump-not "_gfortran_stop_numeric" "original" } }
 ! PR fortran/87711 - ICE in gfc_trans_transfer
 ! PR fortran/87851 - return type for len_trim

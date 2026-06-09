@@ -15,6 +15,7 @@ c=0
 for k in $possible_real_kinds; do
   echo "  real (kind=$k) :: x" > tmp$$.f90
   echo "  x = 1.0_$k" >> tmp$$.f90
+  echo "  print *,x" >> tmp$$.f90
   echo "  end" >> tmp$$.f90
   if $compile -S tmp$$.f90 > /dev/null 2>&1; then
     kinds="$kinds $k"

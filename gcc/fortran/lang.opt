@@ -345,6 +345,10 @@ Wundefined-do-loop
 Fortran Warning Var(warn_undefined_do_loop) LangEnabledBy(Fortran,Wall)
 Warn about an invalid DO loop.
 
+Wundefined-vars
+Fortran Warning Var(warn_undefined_vars) LangEnabledBy(Fortran,Wall)
+Warn about variables which are not defined but referenced.
+
 Wunderflow
 Fortran Warning Var(warn_underflow) Init(1)
 Warn about underflow of numerical constant expressions.
@@ -364,6 +368,14 @@ LangEnabledBy(Fortran,Wall)
 Wunused-dummy-argument
 Fortran Warning Var(warn_unused_dummy_argument) LangEnabledBy(Fortran,Wall)
 Warn about unused dummy arguments.
+
+Wunused-intent-out
+Fortran Warning Var(warn_unused_intent_out) LangEnabledBy(Fortran,Wextra)
+Warn about INTENT(OUT) arguments whose values are not used.
+
+Wunused-read
+Fortran Warning Var(warn_unused_read) LangEnabledBy(Fortran,Wextra)
+Warn about variables read in whose values are not used.
 
 Wzerotrip
 Fortran Warning Var(warn_zerotrip) LangEnabledBy(Fortran,Wall)

@@ -13,4 +13,5 @@ program gfcbug62
   i = 1
   k = 1
   if (tdefi(1) .ne. ctl%tdefi(1)) STOP 1
+  if (i /=1 .or. k /= 1) stop 2
 end program gfcbug62

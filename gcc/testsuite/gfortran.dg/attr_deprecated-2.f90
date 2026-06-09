@@ -1,5 +1,5 @@
 ! { dg-do compile }
-! { dg-additional-options "-Wall" }
+! { dg-additional-options "-Wall -Wno-undefined-vars" }
 !
 ! Ensure that only those parameters are warned for which are actually used
 !

@@ -401,6 +401,26 @@ enum oacc_routine_lop
   OACC_ROUTINE_LOP_ERROR
 };
 
+/* How a variable gets its value.  Ordering is significant.  */
+
+enum value_set
+{ VALUE_UNSET = 0,
+  VALUE_INTENT_OUT,
+  VALUE_ARG,
+  VALUE_READ,
+  VALUE_VARDEF
+};
+
+/* How a variable's value is used.  */
+enum value_used
+{
+  VALUE_UNUSED = 0,
+  VALUE_MAYBE_USED,
+  VALUE_INTENT_IN,
+  VALUE_VALUE_ARG,
+  VALUE_USED
+};
+
 /* Strings for all symbol attributes.  We use these for dumping the
    parse tree, in error messages, and also when reading and writing
    modules.  In symbol.cc.  */
@@ -1011,6 +1031,19 @@ typedef struct
   /* Set if the symbol has been referenced in an expression.  No further
      modification of type or type parameters is permitted.  */
   unsigned referenced:1;
+
+  /* Set if the value of the symbol has been assigned one way or another.  */
+  ENUM_BITFIELD (value_set) value_set:3;
+
+  /* Set if the value of the symbol has been used.  */
+  ENUM_BITFIELD (value_used) value_used:3;
+
+  /* Set if the symbol has been allocated in the current procedure.  */
+  unsigned allocated:1;
+
+  /* Set if we already emitted a warning for this symbol and the
+     middle-end should not add additional ones.  */
+  unsigned warning_emitted:1;
 
   /* Set if this is the symbol for the main program.  */
   unsigned is_main_program:1;
@@ -2163,9 +2196,12 @@ typedef struct gfc_symbol
   /* Link to next entry in derived type list */
   struct gfc_symbol *dt_next;
 
-  /* This is for determining where the symbol has been used first, for better
-     location of error messages.  */
-  locus formal_at;
+  /* For when we would like an additional location in an error message.  */
+  locus other_loc;
+
+  /* For when we would like even one more location. Currently used to store
+     where a variable is allocated.  */
+  locus extra_loc;
 }
 gfc_symbol;
 
@@ -3967,6 +4003,17 @@ match gfc_intrinsic_sub_interface (gfc_code *, int);
 void gfc_warn_intrinsic_shadow (const gfc_symbol*, bool, bool);
 bool gfc_check_intrinsic_standard (const gfc_intrinsic_sym*, const char**,
 				      bool, locus);
+
+bool gfc_value_set_at (gfc_symbol *, locus *loc = NULL,
+		       enum value_set = VALUE_VARDEF);
+
+bool gfc_lvalue_allocated_at (gfc_symbol *, locus *);
+void gfc_mark_lhs_as_used (gfc_expr *, locus *);
+
+void gfc_value_used_expr (gfc_expr *, enum value_used);
+void gfc_value_set_and_used (gfc_expr *, locus *loc,
+			     enum value_set, enum value_used);
+void gfc_used_in_allocate_expr (gfc_expr *, locus *loc);
 
 /* match.cc -- FIXME */
 void gfc_free_iterator (gfc_iterator *, int);

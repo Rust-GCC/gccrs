@@ -1,5 +1,5 @@
 ! { dg-do compile }
-! { dg-options "-Werror -Wall" }
+! { dg-options "-Werror -Wall -Wno-undefined-vars" }
 module foo
    contains
       subroutine bar 

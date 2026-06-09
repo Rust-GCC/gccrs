@@ -1,5 +1,5 @@
 ! { dg-do compile }
-! { dg-options "-O1 -Wall" }
+! { dg-options "-O1 -Wall -Wno-unused-but-set-variable" }
 !
 ! PR fortran/96312. The line with the call to 'matmul' gave the warning
 ! ‘tmp.dim[0].lbound’ is used uninitialized in this function

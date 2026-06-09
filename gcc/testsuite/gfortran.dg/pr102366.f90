@@ -1,5 +1,5 @@
 ! { dg-do compile }
-! { dg-options "-fdump-tree-original -Wall" }
+! { dg-options "-fdump-tree-original -Wall -Wno-unused-but-set-variable" }
 ! { dg-final { scan-tree-dump-times "static real" 1 "original" } }
 ! PR fortran/102366 - large arrays no longer become static
 

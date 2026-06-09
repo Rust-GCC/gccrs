@@ -48,7 +48,7 @@
         call c_f_pointer (cp, p, [3])
         p(1) = 1
         p(2) = 2
-        p(3) = 3
+        p(3) = p(1) + p(2) ! Shut up -Wunused-but-set-variable
         call omp_free (cp, omp_default_mem_alloc)
 
         cp = omp_alloc (2_c_size_t * c_sizeof (i),                      &
@@ -64,6 +64,7 @@
         if (mod (transfer (cp, intptr), 4_c_intptr_t) /= 0) stop 3
         call c_f_pointer (cp, p0)
         p0 = 3
+        p0 = p0 + 0 ! Shut up -Wunused-but-set-variable
         call omp_free (cp, omp_get_default_allocator ())
 
         traits = [omp_alloctrait (omp_atk_alignment, 64),               &
@@ -115,12 +116,14 @@
         if (mod (transfer (cq, intptr), 16_c_intptr_t) /= 0) stop 12
         call c_f_pointer (cq, q, [768 / c_sizeof (i)])
         q(1) = 7
+        q(1) = q(1) + 0 ! Shut up -Wunused-but-set-variable
         q(768 / c_sizeof (i)) = 8
         cr = omp_alloc (512_c_size_t, a2)
         if (mod (transfer (cr, intptr), 4_c_intptr_t) /= 0) stop 13
         call c_f_pointer (cr, r, [512 / c_sizeof (i)])
         r(1) = 9
         r(512 / c_sizeof (i)) = 10
+        r(1) = r(1) + 0 ! Shut up -Wunused-but-set-variable
         call omp_free (cp, omp_null_allocator)
         call omp_free (cq, a2)
         call omp_free (cr, omp_null_allocator)

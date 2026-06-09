@@ -1,5 +1,5 @@
 ! { dg-do run }
-! { dg-options "-Wall -pedantic" }
+! { dg-options "-Wall -pedantic -Wno-unused-but-set-variable" }
 !
 ! PR fortran/41872
 !

@@ -164,6 +164,16 @@ gfc_debug_code (gfc_code *c)
 }
 
 DEBUG_FUNCTION void
+gfc_debug_code_node (gfc_code *c)
+{
+  FILE *tmp = dumpfile;
+  dumpfile = stderr;
+  show_code_node (1, c);
+  fputc ('\n', dumpfile);
+  dumpfile = tmp;
+}
+
+DEBUG_FUNCTION void
 debug (gfc_symbol *sym)
 {
   FILE *tmp = dumpfile;
@@ -930,6 +940,8 @@ show_attr (symbol_attribute *attr, const char * module)
     fputs (" CAF-TOKEN", dumpfile);
   if (attr->select_type_temporary)
     fputs (" SELECT-TYPE-TEMPORARY", dumpfile);
+  if (attr->select_rank_temporary)
+    fputs (" SELECT-RANK-TEMPORARY", dumpfile);
   if (attr->associate_var)
     fputs (" ASSOCIATE-VAR", dumpfile);
   if (attr->pdt_kind)
@@ -1004,7 +1016,7 @@ show_attr (symbol_attribute *attr, const char * module)
   if (attr->recursive)
     fputs (" RECURSIVE", dumpfile);
   if (attr->unmaskable)
-    fputs (" UNMASKABKE", dumpfile);
+    fputs (" UNMASKABLE", dumpfile);
   if (attr->masked)
     fputs (" MASKED", dumpfile);
   if (attr->contained)
@@ -1023,6 +1035,52 @@ show_attr (symbol_attribute *attr, const char * module)
     fputs (" ALWAYS-EXPLICIT", dumpfile);
   if (attr->is_main_program)
     fputs (" IS-MAIN-PROGRAM", dumpfile);
+  if (attr->referenced)
+    fputs (" REFERENCED", dumpfile);
+
+  switch (attr->value_set)
+    {
+    case VALUE_UNSET:
+      break;
+    case VALUE_ARG:
+      fputs (" VALUE-SET(ARG)", dumpfile);
+      break;
+    case VALUE_INTENT_OUT:
+      fputs (" VALUE-SET(INTENT-OUT)", dumpfile);
+      break;
+    case VALUE_READ:
+      fputs (" VALUE-SET(READ)", dumpfile);
+      break;
+    case VALUE_VARDEF:
+      fputs (" VALUE-SET(VARDEF)", dumpfile);
+      break;
+    default:
+      gfc_internal_error ("Wrong value for value_set");
+    }
+
+  if (attr->allocated)
+    fputs (" ALLOCATED", dumpfile);
+
+  switch (attr->value_used)
+    {
+    case VALUE_UNUSED:
+      break;
+    case VALUE_MAYBE_USED:
+      fputs (" VALUE-USED(MAYBE-USED)", dumpfile);
+      break;
+    case VALUE_USED:
+      fputs (" VALUE-USED(USED)", dumpfile);
+      break;
+    case VALUE_INTENT_IN:
+      fputs (" VALUE-USED(INTENT-IN)", dumpfile);
+      break;
+    case VALUE_VALUE_ARG:
+      fputs (" VALUE-USED(VALUE-ARG)", dumpfile);
+	break;
+    default:
+      gfc_internal_error ("Wrong value for value_used");
+    }
+
   if (attr->oacc_routine_nohost)
     fputs (" OACC-ROUTINE-NOHOST", dumpfile);
   if (attr->temporary)

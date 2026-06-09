@@ -657,6 +657,11 @@ gfc_finish_var_decl (tree decl, gfc_symbol * sym)
       && (sym->attr.dimension || sym->ts.type == BT_DERIVED))
     TREE_READONLY (decl) = 1;
 
+  /* The front end already warned the user about this decl.  Once should be
+     enough.  */
+  if (sym->attr.warning_emitted)
+    suppress_warning (decl);
+
   /* Chain this decl to the pending declarations.  Don't do pushdecl()
      because this would add them to the current scope rather than the
      function scope.  */
