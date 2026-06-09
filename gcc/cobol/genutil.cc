@@ -3183,10 +3183,25 @@ get_location(tree &retval, const cbl_refer_t &refer)
   // This routine looks at a refer and returns a UCHAR_P pointer to the data
   // of the object.
   retval = gg_define_variable(UCHAR_P);
+
   if( refer_is_super_clean(refer) )
     {
     // Working storage, not external, no refmods or subscripts:
     // gg_assign(retval, member(refer.field->var_decl_node,"data"));
+
+#if 0
+    /* This should work.  It doesn't.  This needs investigating.  */
+    // To prevent aliasing problems, we use a memcpy
+    gg_memcpy(gg_get_address_of(retval),
+             gg_get_address(refer.field->data_decl_node),
+              build_int_cst_type(SIZE_T, gg_sizeof(UCHAR_P)));
+
+    if( refer.field->offset )
+      {
+      tree offset = build_int_cst_type(SIZE_T, refer.field->offset);
+      gg_assign(retval, gg_add(retval, offset));
+      }
+#else
     tree base   = gg_cast(UCHAR_P,
                           gg_get_address(refer.field->data_decl_node));
     if( refer.field->offset )
@@ -3198,6 +3213,7 @@ get_location(tree &retval, const cbl_refer_t &refer)
       {
       gg_assign(retval, base);
       }
+#endif
     }
   else
     {
@@ -3232,3 +3248,174 @@ get_length(tree &retval, const cbl_refer_t &refer)
     retval = refer_size_source(refer);
     }
   }
+
+void
+treeplet_fill_source(TREEPLET &treeplet, const cbl_refer_t &refer)
+  {
+  if( refer_is_clean(refer) )
+    {
+    treeplet.pfield = gg_get_address_of(refer.field->var_decl_node);
+    treeplet.offset = size_t_zero_node;
+    treeplet.length = refer_size_source(refer);
+    }
+  else
+    {
+    treeplet.pfield = gg_get_address_of(refer.field->var_decl_node);
+    treeplet.offset = refer_offset(refer);
+    treeplet.length = refer_size_source(refer);
+    }
+  }
+
+tree
+data_decl_type_for(cbl_field_t *field)
+  {
+  // The idea behind this function is to provide a useful data_type for the
+  // the data_decl_node for the field.  Where we can get it right, we do, like
+  // for little-endian FldNumericBin3.  For other types of 1, 2, 4, 8, or 16
+  // bytes, we alias it to uint8_t, uint16_t, and so on.  The idea there is to
+  // be able to create efficient GENERIC for doing moves between identical
+  // types.  Otherwise we generate a type for an array of uint8_t.
+  tree retval = NULL_TREE;
+  switch(field->type)
+    {
+    case FldGroup:
+      break;
+    case FldAlphanumeric:
+      break;
+    case FldNumericBinary:
+      break;
+    case FldFloat:
+      if( field->attr & ieeedec_e )
+        {
+        cbl_internal_error("%s: called with the unimplemented %s flag for %s",
+                            __func__,
+                            "IEEE",
+                            field->name);
+        }
+      switch(field->data.capacity())
+        {
+        case 4:
+          retval = FLOAT;
+          break;
+        case 8:
+          retval = DOUBLE;
+          break;
+        case 16:
+          retval = FLOAT128;
+          break;
+        }
+      break;
+    case FldPacked:
+      break;
+    case FldNumericBin5:
+      if( field->attr & signable_e )
+        {
+        // Because it is signable, we handle it here.  Unsigned fall through
+        // to the default handler
+        switch(field->data.capacity())
+          {
+          case 1:
+            retval = CHAR;
+            break;
+          case 2:
+            retval = SHORT;
+            break;
+          case 4:
+            retval = INT;
+            break;
+          case 8:
+            retval = LONG;
+            break;
+          case 16:
+            retval = INT128;
+            break;
+          default:
+            cbl_internal_error("%s: called with type %s but strange byte count for %s",
+                                __func__,
+                                cbl_field_type_str(field->type),
+                                field->name);
+            retval = NULL_TREE;
+            break;
+          }
+        }
+      break;
+    case FldNumericDisplay:
+      break;
+    case FldNumericEdited:
+      break;
+    case FldAlphaEdited:
+      break;
+    case FldClass:
+      // Doesn't actually need storage, but we give it one character to avoid
+      // having a NULL data pointer.
+      retval = UCHAR;
+      break;
+    case FldIndex:
+      break;
+    case FldPointer:
+      break;
+    default:
+      cbl_internal_error("%s: called with type %s for %s",
+                          __func__,
+                          cbl_field_type_str(field->type),
+                          field->name);
+      retval = NULL_TREE;
+      break;
+    }
+  // At this point, if there isn't already an assigned type, we specify an
+  // unsigned integer scalar if we can, and otherwise an array of uint8_t.
+
+  if( !retval )
+    {
+    size_t bytes_needed = std::max(field->data.memsize,
+                                                 field->data.capacity());
+    switch(bytes_needed)
+      {
+      case 1:
+        retval = UCHAR;
+        break;
+      case 2:
+        retval = USHORT;
+        break;
+      case 4:
+        retval = UINT;
+        break;
+      case 8:
+        retval = ULONG;
+        break;
+      case 16:
+        retval = UINT128;
+        break;
+      default:
+        retval = build_array_type_nelts(UCHAR, bytes_needed);
+        break;
+      }
+    }
+
+  return retval;
+  }
+
+void
+attribute_bit_clear(struct cbl_field_t *var, cbl_field_attr_t bits)
+  {
+  gg_assign(  member(var, "attr"),
+              gg_bitwise_and( member(var, "attr"),
+                              gg_bitwise_not( build_int_cst_type(SIZE_T, bits) )));
+  }
+
+tree
+attribute_bit_get(struct cbl_field_t *var, cbl_field_attr_t bits)
+  {
+  tree retval = gg_bitwise_and( member(var, "attr"),
+                                build_int_cst_type(SIZE_T, bits) );
+  return retval;
+  }
+
+void
+attribute_bit_set(struct cbl_field_t *var, cbl_field_attr_t bits)
+  {
+  gg_assign(  member(var, "attr"),
+              gg_bitwise_or(member(var, "attr"),
+                            build_int_cst_type(SIZE_T, bits)));
+  }
+

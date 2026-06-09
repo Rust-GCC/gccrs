@@ -1,0 +1,31 @@
+same-same
+ 123.4500 should be  123.4500
++123.4500 should be +123.4500
++123.4500 should be +123.4500
+ 123.4500 should be  123.4500
++123.4500 should be +123.4500
++123.4500 should be +123.4500
+ 123.4500 should be  123.4500
+-123.4500 should be -123.4500
+-123.4500 should be -123.4500
+big-small to small-big
+ 234.5600 should be  234.5600
++234.5600 should be +234.5600
++234.5600 should be +234.5600
+ 234.5600 should be  234.5600
++234.5600 should be +234.5600
++234.5600 should be +234.5600
+ 234.5600 should be  234.5600
+-234.5600 should be -234.5600
+-234.5600 should be -234.5600
+small-big to big-small
+ 0123.45 should be  0123.4500
++0123.45 should be +0123.4500
++0123.45 should be +0123.4500
+ 0123.45 should be  0123.4500
++0123.45 should be +0123.4500
++0123.45 should be +0123.4500
+ 0123.45 should be  0123.4500
+-0123.45 should be -0123.4500
+-0123.45 should be -0123.4500
+

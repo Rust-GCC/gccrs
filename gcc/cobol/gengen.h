@@ -568,6 +568,7 @@ extern tree gg_array_of_field_pointers( size_t N,
 extern tree gg_array_of_size_t( size_t N, size_t *values);
 extern tree gg_array_of_bytes( size_t N, unsigned char *values);
 extern tree gg_indirect(tree pointer, tree byte_offset = NULL_TREE);
+extern tree gg_indirect_i(tree pointer, size_t offset=0);
 extern tree gg_string_literal(const char *string);
 
 #define CURRENT_LINE_NUMBER (cobol_location().first_line)

@@ -149,4 +149,12 @@ bool      get_binary_value(tree &value,
 void      get_location(tree &retval, const cbl_refer_t &refer);
 void      get_length(tree &retval, const cbl_refer_t &refer);
 
+void treeplet_fill_source(TREEPLET &treeplet, const cbl_refer_t &refer);
+
+tree data_decl_type_for(cbl_field_t *field);
+
+void attribute_bit_clear(struct cbl_field_t *var, cbl_field_attr_t bits);
+tree attribute_bit_get(struct cbl_field_t *var, cbl_field_attr_t bits);
+void attribute_bit_set(struct cbl_field_t *var, cbl_field_attr_t bits);
+
 #endif

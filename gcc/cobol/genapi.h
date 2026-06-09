@@ -39,6 +39,13 @@ typedef enum
   refer_source,
   } refer_type_t;
 
+typedef struct TREEPLET
+  {
+  tree pfield;
+  tree offset;
+  tree length;
+  } TREEPLET;
+
 void parser_display_internal( tree file_descriptor,
                               cbl_refer_t refer,
                               bool advance=DISPLAY_NO_ADVANCE);
@@ -620,5 +627,15 @@ tree parser_compile_dcls( const std::vector<uint64_t>& dcls );
 
 void parser_trim( cbl_field_t *tgt, const cbl_refer_t& input,
                   size_t how, const std::vector<cbl_refer_t>& args );
+
+void 
+move_helper(tree        size_error,  // INT
+            cbl_refer_t destref,
+            cbl_refer_t sourceref,
+            TREEPLET    &tsource,
+            cbl_round_t rounded,
+            bool check_for_error,
+            bool restore_on_error = false
+            );
 
 #endif

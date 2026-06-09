@@ -9675,10 +9675,10 @@ done:
   return overflow;
   }
 
-static std::set<size_t> to_be_canceled;
+static std::set<void *> to_be_canceled;
 
 extern "C"
-void __gg__to_be_canceled(size_t function_pointer)
+void __gg__to_be_canceled(void * function_pointer)
   {
   if( function_pointer )
     {
@@ -9687,9 +9687,9 @@ void __gg__to_be_canceled(size_t function_pointer)
   }
 
 extern "C"
-int __gg__is_canceled(size_t function_pointer)
+int __gg__is_canceled(void * function_pointer)
   {
-  int retval = static_cast<int>(to_be_canceled.erase(function_pointer));
+  int retval = to_be_canceled.erase(function_pointer);
   return retval;
   }
 

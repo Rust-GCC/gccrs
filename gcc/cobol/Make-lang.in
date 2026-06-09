@@ -72,6 +72,7 @@ cobol1_OBJS =    \
  cobol/genmath.o    \
  cobol/gengen.o     \
  cobol/lexio.o      \
+ cobol/move.o       \
  cobol/messages.o   \
  cobol/parse.o      \
  cobol/scan.o       \

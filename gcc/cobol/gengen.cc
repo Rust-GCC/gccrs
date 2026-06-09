@@ -391,6 +391,13 @@ gg_trunc(tree integer_type, tree floating_var)
 tree
 gg_cast(tree type, tree var)
   {
+#if 0
+  if(POINTER_TYPE_P(var) || TREE_CODE(var) == ADDR_EXPR)
+    {
+    fprintf(stderr, "HULL_BREACH ON DECK TEN!!\n");
+    }
+#endif
+
   return fold_convert(type, var);
   }
 
@@ -435,10 +442,10 @@ gg_show_type(tree type)
     }
 
   int code = TREE_CODE(type);
-
   if( DECL_P(type) )
     {
     type = TREE_TYPE(type);
+    code = TREE_CODE(type);
     }
   if( !TYPE_P(type) && code != ARRAY_REF)
     {
@@ -459,6 +466,14 @@ gg_show_type(tree type)
       strcpy(ach2, gg_show_type(TREE_TYPE(type)));
       sprintf(ach, "ARRAY");
       break;
+
+    case VAR_DECL:
+      {
+      tree type_of_decl = TREE_TYPE(type);
+      strcpy(ach2, gg_show_type(type_of_decl));
+      sprintf(ach, "VAR_DECL %s", ach2);
+      break;
+      }
 
     case ARRAY_REF:
       sprintf(ach, "ARRAY_REF");
@@ -495,7 +510,7 @@ gg_show_type(tree type)
       break;
 
     default:
-      cbl_internal_error("Unknown type %d", TREE_CODE(type));
+      cbl_internal_error("Unknown type %d %d %d", INTEGER_TYPE, TREE_CODE(type), code);
     }
 
   if( DECL_P(original_type) && TREE_STATIC(original_type) )
@@ -1511,6 +1526,12 @@ gg_indirect(tree pointer, tree byte_offset)
   }
 
 tree
+gg_indirect_i(tree pointer, size_t offset)
+  {
+  return gg_indirect(pointer, build_int_cst_type(SIZE_T, offset));
+  }
+
+tree
 gg_array_value(tree pointer, tree offset)
   {
   // We arrange the function so that it can work on either an ARRAY_TYPE
@@ -1528,7 +1549,7 @@ gg_array_value(tree pointer, tree offset)
     tree retval =  build4(ARRAY_REF,
                   element_type,
                   pointer,
-                  fold_convert(SIZE_T, offset),
+                  gg_cast(SIZE_T, offset),
                   NULL_TREE,
                   NULL_TREE);
     return retval;
@@ -2356,7 +2377,7 @@ gg_memset(tree dest, const tree value, tree size)
 tree
 gg_memchr(tree buf, tree ch, tree length)
   {
-  tree the_call = fold_convert(
+  tree the_call = gg_cast(
       pvoid_type_node,
       build_call_expr_loc(gg_token_location(),
                           builtin_decl_explicit (BUILT_IN_MEMCHR),
@@ -2432,7 +2453,7 @@ gg_strcpy(tree dest, tree src)
 tree
 gg_strcmp(tree A, tree B)
   {
-  tree the_call = fold_convert(
+  tree the_call = gg_cast(
       integer_type_node,
       build_call_expr_loc(gg_token_location(),
                           builtin_decl_explicit (BUILT_IN_STRCMP),
@@ -2464,7 +2485,7 @@ gg_close(tree int_A)
 tree
 gg_strncmp(tree char_star_A, tree char_star_B, tree size_t_N)
   {
-  tree the_call = fold_convert(
+  tree the_call = gg_cast(
       integer_type_node,
       build_call_expr_loc(gg_token_location(),
                           builtin_decl_explicit (BUILT_IN_STRNCMP),
@@ -3273,7 +3294,7 @@ gg_abort()
 tree
 gg_strlen(tree psz)
   {
-  tree the_call = fold_convert(
+  tree the_call = gg_cast(
       size_type_node,
       build_call_expr_loc(gg_token_location(),
                           builtin_decl_explicit (BUILT_IN_STRLEN),
@@ -3285,7 +3306,7 @@ gg_strlen(tree psz)
 tree
 gg_strdup(tree psz)
   {
-  tree the_call = fold_convert(
+  tree the_call = gg_cast(
       build_pointer_type(char_type_node),
       build_call_expr_loc(gg_token_location(),
                           builtin_decl_explicit (BUILT_IN_STRDUP),
@@ -3299,7 +3320,7 @@ gg_strdup(tree psz)
 tree
 gg_malloc(tree size)
   {
-  tree the_call = fold_convert(
+  tree the_call = gg_cast(
       pvoid_type_node,
       build_call_expr_loc(gg_token_location(),
                           builtin_decl_explicit (BUILT_IN_MALLOC),
@@ -3311,7 +3332,7 @@ gg_malloc(tree size)
 tree
 gg_realloc(tree base, tree size)
   {
-  tree the_call = fold_convert(
+  tree the_call = gg_cast(
       pvoid_type_node,
       build_call_expr_loc(gg_token_location(),
                           builtin_decl_explicit (BUILT_IN_REALLOC),
