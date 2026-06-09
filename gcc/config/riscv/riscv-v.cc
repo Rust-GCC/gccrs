@@ -865,9 +865,10 @@ void
 emit_hard_vlmax_vsetvl (machine_mode vmode, rtx vl)
 {
   unsigned int sew = get_sew (vmode);
+  rtx altfmt = gen_int_mode (ALTFMT_NONE, Pmode);
   emit_insn (gen_vsetvl (Pmode, vl, RVV_VLMAX, gen_int_mode (sew, Pmode),
 			 gen_int_mode (get_vlmul (vmode), Pmode), const0_rtx,
-			 const0_rtx));
+			 const0_rtx, altfmt));
 }
 
 void
@@ -2413,11 +2414,12 @@ rtx
 gen_no_side_effects_vsetvl_rtx (machine_mode vmode, rtx vl, rtx avl)
 {
   unsigned int sew = get_sew (vmode);
+  rtx altfmt = gen_int_mode (ALTFMT_NONE, Pmode);
   rtx tail_policy = gen_int_mode (get_prefer_tail_policy (), Pmode);
   rtx mask_policy = gen_int_mode (get_prefer_mask_policy (), Pmode);
   return gen_vsetvl_no_side_effects (Pmode, vl, avl, gen_int_mode (sew, Pmode),
 				     gen_int_mode (get_vlmul (vmode), Pmode),
-				     tail_policy, mask_policy);
+				     tail_policy, mask_policy, altfmt);
 }
 
 /* GET VL * 2 rtx.  */

@@ -43,6 +43,11 @@ along with GCC; see the file COPYING3.  If not see
 		     available_p, fuse)
 #endif
 
+#ifndef DEF_ALTFMT_RULE
+#define DEF_ALTFMT_RULE(prev_demand, next_demand, fused_demand, compatible_p,  \
+			available_p, fuse)
+#endif
+
 /* Define SEW and LMUL rules.  */
 DEF_SEW_LMUL_RULE (sew_lmul, sew_lmul, sew_lmul, sew_lmul_eq_p, sew_lmul_eq_p,
 		   nop)
@@ -175,6 +180,16 @@ DEF_AVL_RULE (ignore_avl, non_zero_avl, non_zero_avl, can_use_next_avl_p,
 	      always_false, use_next_avl)
 DEF_AVL_RULE (ignore_avl, ignore_avl, ignore_avl, always_true, always_true, nop)
 
+/* Define ALTFMT compatible and merge rules.  */
+
+DEF_ALTFMT_RULE (altfmt, altfmt, altfmt, altfmt_eq_p, altfmt_eq_p, nop)
+DEF_ALTFMT_RULE (altfmt, ignore_altfmt, altfmt, always_true, always_true, nop)
+DEF_ALTFMT_RULE (ignore_altfmt, altfmt, altfmt, always_true, always_false,
+		 use_next_altfmt)
+DEF_ALTFMT_RULE (ignore_altfmt, ignore_altfmt, ignore_altfmt, always_true,
+		 always_true, nop)
+
 #undef DEF_SEW_LMUL_RULE
 #undef DEF_POLICY_RULE
 #undef DEF_AVL_RULE
+#undef DEF_ALTFMT_RULE

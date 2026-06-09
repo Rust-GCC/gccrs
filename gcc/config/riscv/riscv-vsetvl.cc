@@ -257,6 +257,21 @@ policy_to_str (bool agnostic_p)
   return agnostic_p ? "agnostic" : "undisturbed";
 }
 
+/* Return a printable name for the VTYPE altfmt value ALTFMT.  */
+static const char *
+altfmt_to_str (uint8_t altfmt)
+{
+  switch (altfmt)
+    {
+    case ALTFMT_NONE:
+      return "none";
+    case ALTFMT_ALT:
+      return "alt";
+    default:
+      return "any";
+    }
+}
+
 /* Return true if it is an RVV instruction that depends on VTYPE global
    status register.  */
 bool
@@ -501,6 +516,15 @@ mask_agnostic_p (rtx_insn *rinsn)
   extract_insn_cached (rinsn);
   int ma = get_attr_ma (rinsn);
   return ma == INVALID_ATTRIBUTE ? get_default_ma () : IS_AGNOSTIC (ma);
+}
+
+/* Return the alternate FP8 format requirement of RINSN.  INVALID_ATTRIBUTE
+   means that RINSN does not require a specific VTYPE altfmt value.  */
+static uint8_t
+get_altfmt (rtx_insn *rinsn)
+{
+  extract_insn_cached (rinsn);
+  return get_attr_altfmt (rinsn);
 }
 
 /* Return true if FN has a vector instruction that use VL/VTYPE.  */
@@ -819,19 +843,21 @@ enum demand_flags : unsigned
   DEMAND_MASK_POLICY_P = 1 << 5,
   DEMAND_AVL_P = 1 << 6,
   DEMAND_NON_ZERO_AVL_P = 1 << 7,
+  DEMAND_ALTFMT_P = 1 << 8,
 };
 
-/* We split the demand information into three parts.  They are sew and lmul
+/* We split the demand information into four parts.  They are sew and lmul
    related (sew_lmul_demand_type), tail and mask policy related
-   (policy_demand_type) and avl related (avl_demand_type). Then we define three
-   interfaces available_p, compatible_p and merge. available_p is
-   used to determine whether the two vsetvl infos prev_info and next_info are
-   available or not.  If prev_info is available for next_info, it means that the
-   RVV insn corresponding to next_info on the path from prev_info to next_info
-   can be used without inserting a separate vsetvl instruction. compatible_p
-   is used to determine whether prev_info is compatible with next_info, and if
-   so, merge can be used to merge the stricter demand information from
-   next_info into prev_info so that prev_info becomes available to next_info.
+   (policy_demand_type), avl related (avl_demand_type) and alternate FP8 format
+   related (altfmt_demand_type).  Then we define three interfaces available_p,
+   compatible_p and merge.  available_p is used to determine whether the two
+   vsetvl infos prev_info and next_info are available or not.  If prev_info is
+   available for next_info, it means that the RVV insn corresponding to
+   next_info on the path from prev_info to next_info can be used without
+   inserting a separate vsetvl instruction.  compatible_p is used to determine
+   whether prev_info is compatible with next_info, and if so, merge can be used
+   to merge the stricter demand information from next_info into prev_info so
+   that prev_info becomes available to next_info.
  */
 
 enum class sew_lmul_demand_type : unsigned
@@ -858,6 +884,12 @@ enum class avl_demand_type : unsigned
   avl = demand_flags::DEMAND_AVL_P,
   non_zero_avl = demand_flags::DEMAND_NON_ZERO_AVL_P,
   ignore_avl = demand_flags::DEMAND_EMPTY_P,
+};
+
+enum class altfmt_demand_type : unsigned
+{
+  altfmt = demand_flags::DEMAND_ALTFMT_P,
+  ignore_altfmt = demand_flags::DEMAND_EMPTY_P,
 };
 
 /* Go through all uses of INSN looking for a single use of register REG.
@@ -904,10 +936,12 @@ private:
   uint8_t m_ratio;
   bool m_ta;
   bool m_ma;
+  uint8_t m_altfmt;
 
   sew_lmul_demand_type m_sew_lmul_demand;
   policy_demand_type m_policy_demand;
   avl_demand_type m_avl_demand;
+  altfmt_demand_type m_altfmt_demand;
 
   enum class state_type
   {
@@ -927,11 +961,13 @@ public:
   vsetvl_info ()
     : m_insn (nullptr), m_bb (nullptr), m_avl (NULL_RTX), m_vl (NULL_RTX),
       m_avl_def (nullptr), m_sew (0), m_max_sew (0), m_vlmul (LMUL_RESERVED),
-      m_ratio (0), m_ta (false), m_ma (false),
+      m_ratio (0), m_ta (false), m_ma (false), m_altfmt (ALTFMT_NONE),
       m_sew_lmul_demand (sew_lmul_demand_type::sew_lmul),
       m_policy_demand (policy_demand_type::tail_mask_policy),
-      m_avl_demand (avl_demand_type::avl), m_state (state_type::UNINITIALIZED),
-      m_delete (false), m_change_vtype_only (false), m_read_vl_insn (nullptr),
+      m_avl_demand (avl_demand_type::avl),
+      m_altfmt_demand (altfmt_demand_type::altfmt),
+      m_state (state_type::UNINITIALIZED), m_delete (false),
+      m_change_vtype_only (false), m_read_vl_insn (nullptr),
       m_vl_used_by_non_rvv_insn (false)
   {}
 
@@ -952,6 +988,7 @@ public:
   void set_max_sew (uint8_t max_sew) { m_max_sew = max_sew; }
   void set_change_vtype_only () { m_change_vtype_only = true; }
   void set_read_vl_insn (insn_info *insn) { m_read_vl_insn = insn; }
+  void set_altfmt (uint8_t altfmt) { m_altfmt = altfmt; }
 
   rtx get_avl () const { return m_avl; }
   rtx get_vl () const { return m_vl; }
@@ -959,6 +996,7 @@ public:
   uint8_t get_sew () const { return m_sew; }
   vlmul_type get_vlmul () const { return m_vlmul; }
   uint8_t get_ratio () const { return m_ratio; }
+  uint8_t get_altfmt () const { return m_altfmt; }
   bool get_ta () const { return m_ta; }
   bool get_ma () const { return m_ma; }
   insn_info *get_insn () const { return m_insn; }
@@ -1034,8 +1072,13 @@ public:
   {
     return m_sew_lmul_demand;
   }
+  void set_altfmt_demand (altfmt_demand_type demand)
+  {
+    m_altfmt_demand = demand;
+  }
   policy_demand_type get_policy_demand () const { return m_policy_demand; }
   avl_demand_type get_avl_demand () const { return m_avl_demand; }
+  altfmt_demand_type get_altfmt_demand () const { return m_altfmt_demand; }
 
   void normalize_demand (unsigned demand_flags)
   {
@@ -1093,6 +1136,18 @@ public:
       default:
 	gcc_unreachable ();
       }
+
+    switch (demand_flags & DEMAND_ALTFMT_P)
+      {
+      case (unsigned) altfmt_demand_type::altfmt:
+	m_altfmt_demand = altfmt_demand_type::altfmt;
+	break;
+      case (unsigned) altfmt_demand_type::ignore_altfmt:
+	m_altfmt_demand = altfmt_demand_type::ignore_altfmt;
+	break;
+      default:
+	gcc_unreachable ();
+      }
   }
 
   void parse_insn (rtx_insn *rinsn)
@@ -1111,6 +1166,10 @@ public:
     m_vlmul = ::get_vlmul (rinsn);
     m_ta = tail_agnostic_p (rinsn);
     m_ma = mask_agnostic_p (rinsn);
+    m_altfmt = ::get_altfmt (rinsn);
+    m_altfmt_demand = m_altfmt == INVALID_ATTRIBUTE
+			? altfmt_demand_type::ignore_altfmt
+			: altfmt_demand_type::altfmt;
   }
 
   void parse_insn (insn_info *insn)
@@ -1171,6 +1230,7 @@ public:
       m_ratio = calculate_ratio (m_sew, m_vlmul);
     m_ta = tail_agnostic_p (insn->rtl ());
     m_ma = mask_agnostic_p (insn->rtl ());
+    m_altfmt = ::get_altfmt (insn->rtl ());
 
     /* If merge operand is undef value, we prefer agnostic.  */
     int merge_op_idx = get_attr_merge_op_idx (insn->rtl ());
@@ -1235,6 +1295,9 @@ public:
 	  dflags |= demand_flags::DEMAND_MASK_POLICY_P;
       }
 
+    if (m_altfmt != INVALID_ATTRIBUTE)
+      dflags |= demand_flags::DEMAND_ALTFMT_P;
+
     normalize_demand (dflags);
 
     /* Optimize AVL from the vsetvl instruction.  */
@@ -1293,13 +1356,17 @@ public:
     rtx vlmul = gen_int_mode (get_vlmul (), Pmode);
     rtx ta = gen_int_mode (get_ta (), Pmode);
     rtx ma = gen_int_mode (get_ma (), Pmode);
+    /* If this vsetvl_info has no specific altfmt demand, default to
+       ALTFMT_NONE.  */
+    rtx altfmt = gen_int_mode (
+      get_altfmt () == ALTFMT_ALT ? ALTFMT_ALT : ALTFMT_NONE, Pmode);
 
     if (change_vtype_only_p ())
-      return gen_vsetvl_vtype_change_only (sew, vlmul, ta, ma);
+      return gen_vsetvl_vtype_change_only (sew, vlmul, ta, ma, altfmt);
     else if (has_vl () && !ignore_vl)
-      return gen_vsetvl (Pmode, get_vl (), avl, sew, vlmul, ta, ma);
+      return gen_vsetvl (Pmode, get_vl (), avl, sew, vlmul, ta, ma, altfmt);
     else
-      return gen_vsetvl_discard_result (Pmode, avl, sew, vlmul, ta, ma);
+      return gen_vsetvl_discard_result (Pmode, avl, sew, vlmul, ta, ma, altfmt);
   }
 
   /* Return true that the non-AVL operands of THIS will be modified
@@ -1339,9 +1406,11 @@ public:
 	   && get_sew () == other.get_sew ()
 	   && get_vlmul () == other.get_vlmul () && get_ta () == other.get_ta ()
 	   && get_ma () == other.get_ma ()
+	   && get_altfmt () == other.get_altfmt ()
 	   && get_avl_demand () == other.get_avl_demand ()
 	   && get_sew_lmul_demand () == other.get_sew_lmul_demand ()
-	   && get_policy_demand () == other.get_policy_demand ();
+	   && get_policy_demand () == other.get_policy_demand ()
+	   && get_altfmt_demand () == other.get_altfmt_demand ();
   }
 
   void dump (FILE *file, const char *indent = "") const
@@ -1390,6 +1459,9 @@ public:
       fprintf (file, " demand_avl");
     else if (m_avl_demand == avl_demand_type::non_zero_avl)
       fprintf (file, " demand_non_zero_avl");
+
+    if (m_altfmt_demand == altfmt_demand_type::altfmt)
+      fprintf (file, " demand_altfmt");
     fprintf (file, "\n");
 
     fprintf (file, "%sSEW=%d, ", indent, get_sew ());
@@ -1398,7 +1470,8 @@ public:
     fprintf (file, "MAX_SEW=%d\n", get_max_sew ());
 
     fprintf (file, "%sTAIL_POLICY=%s, ", indent, policy_to_str (get_ta ()));
-    fprintf (file, "MASK_POLICY=%s\n", policy_to_str (get_ma ()));
+    fprintf (file, "MASK_POLICY=%s, ", policy_to_str (get_ma ()));
+    fprintf (file, "ALTFMT=%s\n", altfmt_to_str (get_altfmt ()));
 
     fprintf (file, "%sAVL=", indent);
     print_rtl_single (file, get_avl ());
@@ -1671,6 +1744,13 @@ private:
     return tail_policy_eq_p (prev, next) && mask_policy_eq_p (prev, next);
   }
 
+  /* Predictors for altfmt.  */
+
+  inline bool altfmt_eq_p (const vsetvl_info &prev, const vsetvl_info &next)
+  {
+    return prev.get_altfmt () == next.get_altfmt ();
+  }
+
   /* predictors for avl */
 
   inline bool modify_or_use_vl_p (insn_info *i, const vsetvl_info &info)
@@ -1918,6 +1998,13 @@ private:
     use_mask_policy (prev, next);
   }
 
+  /* Modifiers for altfmt.  */
+
+  inline void use_next_altfmt (vsetvl_info &prev, const vsetvl_info &next)
+  {
+    prev.set_altfmt (next.get_altfmt ());
+  }
+
   /* modifiers for avl */
 
   inline void use_next_avl (vsetvl_info &prev, const vsetvl_info &next)
@@ -2158,6 +2245,59 @@ public:
     gcc_unreachable ();
   }
 
+  bool altfmt_compatible_p (const vsetvl_info &prev, const vsetvl_info &next)
+  {
+    gcc_assert (prev.valid_p () && next.valid_p ());
+    altfmt_demand_type prev_flags = prev.get_altfmt_demand ();
+    altfmt_demand_type next_flags = next.get_altfmt_demand ();
+#define DEF_ALTFMT_RULE(PREV_FLAGS, NEXT_FLAGS, NEW_FLAGS, COMPATIBLE_P,       \
+			AVAILABLE_P, FUSE)                                     \
+  if (prev_flags == altfmt_demand_type::PREV_FLAGS                             \
+      && next_flags == altfmt_demand_type::NEXT_FLAGS)                         \
+    return COMPATIBLE_P (prev, next);
+
+#include "riscv-vsetvl.def"
+
+    gcc_unreachable ();
+  }
+
+  bool altfmt_available_p (const vsetvl_info &prev, const vsetvl_info &next)
+  {
+    gcc_assert (prev.valid_p () && next.valid_p ());
+    altfmt_demand_type prev_flags = prev.get_altfmt_demand ();
+    altfmt_demand_type next_flags = next.get_altfmt_demand ();
+#define DEF_ALTFMT_RULE(PREV_FLAGS, NEXT_FLAGS, NEW_FLAGS, COMPATIBLE_P,       \
+			AVAILABLE_P, FUSE)                                     \
+  if (prev_flags == altfmt_demand_type::PREV_FLAGS                             \
+      && next_flags == altfmt_demand_type::NEXT_FLAGS)                         \
+    return AVAILABLE_P (prev, next);
+
+#include "riscv-vsetvl.def"
+
+    gcc_unreachable ();
+  }
+
+  void merge_altfmt (vsetvl_info &prev, const vsetvl_info &next)
+  {
+    gcc_assert (prev.valid_p () && next.valid_p ());
+    altfmt_demand_type prev_flags = prev.get_altfmt_demand ();
+    altfmt_demand_type next_flags = next.get_altfmt_demand ();
+#define DEF_ALTFMT_RULE(PREV_FLAGS, NEXT_FLAGS, NEW_FLAGS, COMPATIBLE_P,       \
+			AVAILABLE_P, FUSE)                                     \
+  if (prev_flags == altfmt_demand_type::PREV_FLAGS                             \
+      && next_flags == altfmt_demand_type::NEXT_FLAGS)                         \
+    {                                                                          \
+      gcc_assert (COMPATIBLE_P (prev, next));                                  \
+      FUSE (prev, next);                                                       \
+      prev.set_altfmt_demand (altfmt_demand_type::NEW_FLAGS);                  \
+      return;                                                                  \
+    }
+
+#include "riscv-vsetvl.def"
+
+    gcc_unreachable ();
+  }
+
   bool vl_not_in_conflict_p (const vsetvl_info &prev, const vsetvl_info &next)
   {
     /* We don't fuse this following case:
@@ -2227,19 +2367,19 @@ public:
 
   bool compatible_p (const vsetvl_info &prev, const vsetvl_info &next)
   {
-    bool compatible_p = sew_lmul_compatible_p (prev, next)
-			&& policy_compatible_p (prev, next)
-			&& avl_compatible_p (prev, next)
-			&& vl_not_in_conflict_p (prev, next);
+    bool compatible_p
+      = sew_lmul_compatible_p (prev, next) && policy_compatible_p (prev, next)
+	&& altfmt_compatible_p (prev, next) && avl_compatible_p (prev, next)
+	&& vl_not_in_conflict_p (prev, next);
     return compatible_p;
   }
 
   bool available_p (const vsetvl_info &prev, const vsetvl_info &next)
   {
-    bool available_p = sew_lmul_available_p (prev, next)
-		       && policy_available_p (prev, next)
-		       && avl_available_p (prev, next)
-		       && vl_not_in_conflict_p (prev, next);
+    bool available_p
+      = sew_lmul_available_p (prev, next) && policy_available_p (prev, next)
+	&& altfmt_available_p (prev, next) && avl_available_p (prev, next)
+	&& vl_not_in_conflict_p (prev, next);
     gcc_assert (!available_p || compatible_p (prev, next));
     return available_p;
   }
@@ -2249,6 +2389,7 @@ public:
     gcc_assert (compatible_p (prev, next));
     merge_sew_lmul (prev, next);
     merge_policy (prev, next);
+    merge_altfmt (prev, next);
     merge_avl (prev, next);
     gcc_assert (available_p (prev, next));
   }
