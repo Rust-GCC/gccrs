@@ -423,6 +423,39 @@ static const unsigned int function_does_not_return = 1 << 2;
 // possible.  This is used for field tracking.
 static const unsigned int function_in_unique_section = 1 << 3;
 
+// Set if the function should be inlined.
+// Incompatible with `function_is_uninlinable`.
+static const unsigned int function_is_inline = 1 << 4;
+
+// Set if the function should be inlined.
+// Incompatible with `function_is_uninlinable`.
+static const unsigned int function_always_inline = 1 << 5;
+
+// Set if the function represents a compiler-generated entity.
+static const unsigned int function_is_artificial = 1 << 6;
+
+// Set if the function has public visibility.
+static const unsigned int function_is_public = 1 << 7;
+
+// Set if the function only accesses memory with read-only operations.
+static const unsigned int function_is_readonly = 1 << 8;
+
+// Set if the function has side-effects.
+// For example, creating an implicit memory barrier.
+static const unsigned int function_has_side_effects = 1 << 9;
+
+// Set default flags for intrinsic functions.
+static const unsigned int function_intrinsic_default
+  = function_is_readonly | function_is_artificial | function_is_inline;
+
+// Set default flags for an intrinsic function with side effects.
+static const unsigned int function_intrinsic_with_side_effects
+  = function_is_artificial | function_is_inline | function_has_side_effects;
+
+// Set default flags for an intrinsic function that should always be inlined.
+static const unsigned int function_intrinsic_always_inline
+  = function_is_artificial | function_is_inline | function_always_inline;
+
 // Declare or define a function of FNTYPE.
 // NAME is the Go name of the function.  ASM_NAME, if not tl::nullopt,
 // is the name that should be used in the symbol table; this

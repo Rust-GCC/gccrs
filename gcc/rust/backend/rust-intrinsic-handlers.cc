@@ -112,7 +112,8 @@ check_for_cached_intrinsic (Context *ctx, TyTy::FnType *fntype, tree *lookup)
 }
 
 static tree
-compile_intrinsic_function (Context *ctx, TyTy::FnType *fntype)
+compile_intrinsic_function (Context *ctx, TyTy::FnType *fntype,
+			    unsigned int flags)
 {
   maybe_override_ctx (fntype);
 
@@ -123,15 +124,8 @@ compile_intrinsic_function (Context *ctx, TyTy::FnType *fntype)
     = canonical_path.get () + fntype->subst_as_string ();
   std::string asm_name = ctx->mangle_item (fntype, canonical_path);
 
-  unsigned int flags = 0;
   tree fndecl = Backend::function (compiled_fn_type, ir_symbol_name, asm_name,
 				   flags, fntype->get_ident ().locus);
-
-  TREE_PUBLIC (fndecl) = 0;
-  TREE_READONLY (fndecl) = 1;
-  DECL_ARTIFICIAL (fndecl) = 1;
-  DECL_EXTERNAL (fndecl) = 0;
-  DECL_DECLARED_INLINE_P (fndecl) = 1;
 
   return fndecl;
 }
@@ -242,7 +236,9 @@ unchecked_op (Context *ctx, TyTy::FnType *fntype, tree_code op)
   if (check_for_cached_intrinsic (ctx, fntype, &lookup))
     return lookup;
 
-  auto fndecl = compile_intrinsic_function (ctx, fntype);
+  auto fndecl
+    = compile_intrinsic_function (ctx, fntype,
+				  Backend::function_intrinsic_default);
 
   // setup the params
   std::vector<Bvariable *> param_vars;
@@ -287,7 +283,9 @@ expect (Context *ctx, TyTy::FnType *fntype, bool likely)
   if (check_for_cached_intrinsic (ctx, fntype, &lookup))
     return lookup;
 
-  auto fndecl = compile_intrinsic_function (ctx, fntype);
+  auto fndecl
+    = compile_intrinsic_function (ctx, fntype,
+				  Backend::function_intrinsic_default);
 
   enter_intrinsic_block (ctx, fndecl);
 
@@ -331,16 +329,13 @@ try_handler (Context *ctx, TyTy::FnType *fntype, bool is_new_api)
   tree lookup = NULL_TREE;
   if (check_for_cached_intrinsic (ctx, fntype, &lookup))
     return lookup;
-  auto fndecl = compile_intrinsic_function (ctx, fntype);
-
-  enter_intrinsic_block (ctx, fndecl);
-
   // The following tricks are needed to make sure the try-catch blocks are not
   // optimized away
-  TREE_READONLY (fndecl) = 0;
-  DECL_DISREGARD_INLINE_LIMITS (fndecl) = 1;
-  DECL_ATTRIBUTES (fndecl) = tree_cons (get_identifier ("always_inline"),
-					NULL_TREE, DECL_ATTRIBUTES (fndecl));
+  auto fndecl
+    = compile_intrinsic_function (ctx, fntype,
+				  Backend::function_intrinsic_always_inline);
+
+  enter_intrinsic_block (ctx, fndecl);
 
   // BUILTIN try_handler FN BODY BEGIN
   // setup the params
@@ -431,7 +426,9 @@ wrapping_op (Context *ctx, TyTy::FnType *fntype, tree_code op)
   if (check_for_cached_intrinsic (ctx, fntype, &lookup))
     return lookup;
 
-  auto fndecl = compile_intrinsic_function (ctx, fntype);
+  auto fndecl
+    = compile_intrinsic_function (ctx, fntype,
+				  Backend::function_intrinsic_default);
 
   // setup the params
   std::vector<Bvariable *> param_vars;
@@ -478,7 +475,9 @@ op_with_overflow (Context *ctx, TyTy::FnType *fntype, tree_code op)
   if (check_for_cached_intrinsic (ctx, fntype, &lookup))
     return lookup;
 
-  auto fndecl = compile_intrinsic_function (ctx, fntype);
+  auto fndecl
+    = compile_intrinsic_function (ctx, fntype,
+				  Backend::function_intrinsic_default);
 
   // setup the params
   std::vector<Bvariable *> param_vars;
@@ -581,11 +580,9 @@ copy (Context *ctx, TyTy::FnType *fntype, bool overlaps)
   if (check_for_cached_intrinsic (ctx, fntype, &lookup))
     return lookup;
 
-  auto fndecl = compile_intrinsic_function (ctx, fntype);
-
   // Most intrinsic functions are pure - not `copy_nonoverlapping` and `copy`
-  TREE_READONLY (fndecl) = 0;
-  TREE_SIDE_EFFECTS (fndecl) = 1;
+  auto fndecl = compile_intrinsic_function (
+    ctx, fntype, Backend::function_intrinsic_with_side_effects);
 
   // setup the params
   std::vector<Bvariable *> param_vars;
@@ -642,11 +639,9 @@ atomic_store (Context *ctx, TyTy::FnType *fntype, memmodel model)
   if (check_for_cached_intrinsic (ctx, fntype, &lookup))
     return lookup;
 
-  auto fndecl = compile_intrinsic_function (ctx, fntype);
-
   // Most intrinsic functions are pure but not the atomic ones
-  TREE_READONLY (fndecl) = 0;
-  TREE_SIDE_EFFECTS (fndecl) = 1;
+  auto fndecl = compile_intrinsic_function (
+    ctx, fntype, Backend::function_intrinsic_with_side_effects);
 
   // setup the params
   std::vector<Bvariable *> param_vars;
@@ -703,12 +698,11 @@ atomic_load (Context *ctx, TyTy::FnType *fntype, memmodel model)
   if (check_for_cached_intrinsic (ctx, fntype, &lookup))
     return lookup;
 
-  auto fndecl = compile_intrinsic_function (ctx, fntype);
-
   // Most intrinsic functions are pure but not the atomic ones
   // FIXME: Is atomic_load_* pure? Feels like it shouldn't so
-  TREE_READONLY (fndecl) = 0;
-  TREE_SIDE_EFFECTS (fndecl) = 1;
+  //   Probably not, since it involves an implicit memory barrier
+  auto fndecl = compile_intrinsic_function (
+    ctx, fntype, Backend::function_intrinsic_with_side_effects);
 
   // setup the params
   std::vector<Bvariable *> param_vars;
@@ -765,11 +759,9 @@ atomic_exchange (Context *ctx, TyTy::FnType *fntype, memmodel model)
   if (check_for_cached_intrinsic (ctx, fntype, &lookup))
     return lookup;
 
-  auto fndecl = compile_intrinsic_function (ctx, fntype);
-
   // Most intrinsic functions are pure but not the atomic ones
-  TREE_READONLY (fndecl) = 0;
-  TREE_SIDE_EFFECTS (fndecl) = 1;
+  auto fndecl = compile_intrinsic_function (
+    ctx, fntype, Backend::function_intrinsic_with_side_effects);
 
   // setup the params
   std::vector<Bvariable *> param_vars;
@@ -837,7 +829,9 @@ ctlz_handler (Context *ctx, TyTy::FnType *fntype, bool nonzero)
   if (check_for_cached_intrinsic (ctx, fntype, &lookup))
     return lookup;
 
-  auto fndecl = compile_intrinsic_function (ctx, fntype);
+  auto fndecl
+    = compile_intrinsic_function (ctx, fntype,
+				  Backend::function_intrinsic_default);
 
   std::vector<Bvariable *> param_vars;
   compile_fn_params (ctx, fntype, fndecl, &param_vars);
@@ -982,7 +976,9 @@ cttz_handler (Context *ctx, TyTy::FnType *fntype, bool nonzero)
   if (check_for_cached_intrinsic (ctx, fntype, &lookup))
     return lookup;
 
-  auto fndecl = compile_intrinsic_function (ctx, fntype);
+  auto fndecl
+    = compile_intrinsic_function (ctx, fntype,
+				  Backend::function_intrinsic_default);
 
   std::vector<Bvariable *> param_vars;
   compile_fn_params (ctx, fntype, fndecl, &param_vars);
@@ -1203,13 +1199,10 @@ assume (Context *ctx, TyTy::FnType *fntype)
   if (check_for_cached_intrinsic (ctx, fntype, &lookup))
     return lookup;
 
-  auto fndecl = compile_intrinsic_function (ctx, fntype);
-
   // TODO: make sure these are necessary
-  TREE_READONLY (fndecl) = 0;
-  DECL_DISREGARD_INLINE_LIMITS (fndecl) = 1;
-  DECL_ATTRIBUTES (fndecl) = tree_cons (get_identifier ("always_inline"),
-					NULL_TREE, DECL_ATTRIBUTES (fndecl));
+  auto fndecl
+    = compile_intrinsic_function (ctx, fntype,
+				  Backend::function_intrinsic_always_inline);
 
   std::vector<Bvariable *> param_vars;
   compile_fn_params (ctx, fntype, fndecl, &param_vars);
@@ -1268,7 +1261,9 @@ discriminant_value (Context *ctx, TyTy::FnType *fntype)
   if (check_for_cached_intrinsic (ctx, fntype, &lookup))
     return lookup;
 
-  auto fndecl = compile_intrinsic_function (ctx, fntype);
+  auto fndecl
+    = compile_intrinsic_function (ctx, fntype,
+				  Backend::function_intrinsic_default);
 
   std::vector<Bvariable *> param_vars;
   compile_fn_params (ctx, fntype, fndecl, &param_vars);
@@ -1320,7 +1315,9 @@ variant_count (Context *ctx, TyTy::FnType *fntype)
   if (check_for_cached_intrinsic (ctx, fntype, &lookup))
     return lookup;
 
-  auto fndecl = compile_intrinsic_function (ctx, fntype);
+  auto fndecl
+    = compile_intrinsic_function (ctx, fntype,
+				  Backend::function_intrinsic_default);
 
   std::vector<Bvariable *> param_vars;
   compile_fn_params (ctx, fntype, fndecl, &param_vars);
@@ -1359,11 +1356,9 @@ move_val_init (Context *ctx, TyTy::FnType *fntype)
   if (check_for_cached_intrinsic (ctx, fntype, &lookup))
     return lookup;
 
-  auto fndecl = compile_intrinsic_function (ctx, fntype);
-
   // Most intrinsic functions are pure - not `move_val_init`
-  TREE_READONLY (fndecl) = 0;
-  TREE_SIDE_EFFECTS (fndecl) = 1;
+  auto fndecl = compile_intrinsic_function (
+    ctx, fntype, Backend::function_intrinsic_with_side_effects);
 
   // get the template parameter type tree fn size_of<T>();
   rust_assert (fntype->get_num_substitutions () == 1);
@@ -1414,11 +1409,9 @@ uninit (Context *ctx, TyTy::FnType *fntype)
   if (check_for_cached_intrinsic (ctx, fntype, &lookup))
     return lookup;
 
-  auto fndecl = compile_intrinsic_function (ctx, fntype);
-
   // Most intrinsic functions are pure - not `uninit_handler`
-  TREE_READONLY (fndecl) = 0;
-  TREE_SIDE_EFFECTS (fndecl) = 1;
+  auto fndecl = compile_intrinsic_function (
+    ctx, fntype, Backend::function_intrinsic_with_side_effects);
 
   // get the template parameter type tree fn uninit<T>();
   rust_assert (fntype->get_num_substitutions () == 1);
@@ -1490,11 +1483,9 @@ prefetch_data (Context *ctx, TyTy::FnType *fntype, Prefetch kind)
   if (check_for_cached_intrinsic (ctx, fntype, &lookup))
     return lookup;
 
-  auto fndecl = compile_intrinsic_function (ctx, fntype);
-
   // prefetching isn't pure and shouldn't be discarded after GIMPLE
-  TREE_READONLY (fndecl) = 0;
-  TREE_SIDE_EFFECTS (fndecl) = 1;
+  auto fndecl = compile_intrinsic_function (
+    ctx, fntype, Backend::function_intrinsic_with_side_effects);
 
   std::vector<Bvariable *> args;
   compile_fn_params (ctx, fntype, fndecl, &args);
@@ -1554,7 +1545,9 @@ rotate (Context *ctx, TyTy::FnType *fntype, tree_code op)
   if (check_for_cached_intrinsic (ctx, fntype, &lookup))
     return lookup;
 
-  auto fndecl = compile_intrinsic_function (ctx, fntype);
+  auto fndecl
+    = compile_intrinsic_function (ctx, fntype,
+				  Backend::function_intrinsic_default);
 
   // setup the params
   std::vector<Bvariable *> param_vars;
@@ -1593,7 +1586,9 @@ transmute (Context *ctx, TyTy::FnType *fntype)
   if (check_for_cached_intrinsic (ctx, fntype, &lookup))
     return lookup;
 
-  auto fndecl = compile_intrinsic_function (ctx, fntype);
+  auto fndecl
+    = compile_intrinsic_function (ctx, fntype,
+				  Backend::function_intrinsic_default);
 
   std::vector<Bvariable *> param_vars;
   std::vector<tree_node *> compiled_types;
@@ -1667,7 +1662,9 @@ sizeof_handler (Context *ctx, TyTy::FnType *fntype)
   if (check_for_cached_intrinsic (ctx, fntype, &lookup))
     return lookup;
 
-  auto fndecl = compile_intrinsic_function (ctx, fntype);
+  auto fndecl
+    = compile_intrinsic_function (ctx, fntype,
+				  Backend::function_intrinsic_default);
 
   // get the template parameter type tree fn size_of<T>();
   rust_assert (fntype->get_num_substitutions () == 1);
@@ -1697,7 +1694,9 @@ offset (Context *ctx, TyTy::FnType *fntype)
   // offset intrinsic has two params dst pointer and offset isize
   rust_assert (fntype->get_params ().size () == 2);
 
-  auto fndecl = compile_intrinsic_function (ctx, fntype);
+  auto fndecl
+    = compile_intrinsic_function (ctx, fntype,
+				  Backend::function_intrinsic_default);
 
   std::vector<Bvariable *> param_vars;
   compile_fn_params (ctx, fntype, fndecl, &param_vars);
@@ -1737,7 +1736,9 @@ bswap_handler (Context *ctx, TyTy::FnType *fntype)
   if (check_for_cached_intrinsic (ctx, fntype, &lookup))
     return lookup;
 
-  auto fndecl = compile_intrinsic_function (ctx, fntype);
+  auto fndecl
+    = compile_intrinsic_function (ctx, fntype,
+				  Backend::function_intrinsic_default);
 
   auto locus = fntype->get_locus ();
 
