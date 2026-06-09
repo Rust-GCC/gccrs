@@ -4220,13 +4220,8 @@ write_reflection (tree refl)
   else if (strcmp (prefix, "pa") == 0)
     {
       tree fn = DECL_CONTEXT (arg);
-      tree args = FUNCTION_FIRST_USER_PARM (fn);
-      int idx = 0;
-      while (arg != args)
-	{
-	  args = DECL_CHAIN (args);
-	  ++idx;
-	}
+      /* DECL_PARM_INDEX is 1-based but here we want a 0-based index.  */
+      const int idx = DECL_PARM_INDEX (arg) - 1;
       write_compact_number (idx);
       write_encoding (fn);
     }
