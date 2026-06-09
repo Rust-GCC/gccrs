@@ -262,7 +262,7 @@ package body System.Generic_Bignums is
          --  X ** 1 is X
 
          when 1 =>
-            return Normalize (X.D);
+            return Normalize (X.D, X.Neg);
 
          --  X ** 2 is X * X
 
@@ -331,14 +331,14 @@ package body System.Generic_Bignums is
       elsif Y.Len > 1 then
          raise Storage_Error with "exponentiation result is too large";
 
-      --  Special case (+/-)2 ** K, where K is 1 .. 31 using a shift
+      --  Special case (+/-)2 ** K, where K is in 1 .. 31, using a left shift
 
       elsif X.Len = 1 and then X.D (1) = 2 and then Y.D (1) < 32 then
          declare
             D : constant Digit_Vector (1 .. 1) :=
                   [Shift_Left (SD'(1), Natural (Y.D (1)))];
          begin
-            return Normalize (D, X.Neg);
+            return Normalize (D, X.Neg and then (Y.D (1) and 1) = 1);
          end;
 
       --  Remaining cases have right operand of one word
