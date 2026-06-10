@@ -143,7 +143,10 @@
 					[(match_dup 2) (const_int 0)])
 				      (const_int 0)
 				      (match_dup 5)))]
-  { PUT_CODE (operands[1], GET_CODE (operands[1]) == EQ ? NE : EQ); })
+  { operands[1] = gen_rtx_fmt_ee (GET_CODE (operands[1]) == EQ ? NE : EQ,
+				  GET_MODE (operands[1]),
+				  operands[2],
+				  CONST0_RTX (GET_MODE (operands[1]))); })
 
 (define_split
   [(set (match_operand:X 0 "register_operand")
@@ -158,7 +161,10 @@
 					[(match_dup 2) (const_int 0)])
 				      (const_int 0)
 				      (match_dup 5)))]
-  { PUT_CODE (operands[1], GET_CODE (operands[1]) == EQ ? NE : EQ); })
+  { operands[1] = gen_rtx_fmt_ee (GET_CODE (operands[1]) == EQ ? NE : EQ,
+				  GET_MODE (operands[1]),
+				  operands[2],
+				  CONST0_RTX (GET_MODE (operands[1]))); })
 
 
 ;; Similarly but GE/GEU which requires (const_int 1) as an operand.
@@ -175,7 +181,10 @@
 				       [(match_dup 2) (const_int 0)])
 				      (const_int 0)
 				      (match_dup 4)))]
-  { PUT_CODE (operands[1], GET_CODE (operands[1]) == EQ ? NE : EQ); })
+  { operands[1] = gen_rtx_fmt_ee (GET_CODE (operands[1]) == EQ ? NE : EQ,
+				  GET_MODE (operands[1]),
+				  operands[2],
+				  CONST0_RTX (GET_MODE (operands[1]))); })
 
 (define_split
   [(set (match_operand:X 0 "register_operand")
@@ -190,7 +199,10 @@
 				       [(match_dup 2) (const_int 0)])
 				      (const_int 0)
 				      (match_dup 4)))]
-  { PUT_CODE (operands[1], GET_CODE (operands[1]) == EQ ? NE : EQ); })
+  { operands[1] = gen_rtx_fmt_ee (GET_CODE (operands[1]) == EQ ? NE : EQ,
+				  GET_MODE (operands[1]),
+				  operands[2],
+				  CONST0_RTX (GET_MODE (operands[1]))); })
 
 ;; Similarly but LU/LTU which allows an arith_operand
 (define_split
@@ -206,7 +218,10 @@
 				       [(match_dup 2) (const_int 0)])
 				      (const_int 0)
 				      (match_dup 5)))]
-  { PUT_CODE (operands[1], GET_CODE (operands[1]) == EQ ? NE : EQ); })
+  { operands[1] = gen_rtx_fmt_ee (GET_CODE (operands[1]) == EQ ? NE : EQ,
+				  GET_MODE (operands[1]),
+				  operands[2],
+				  CONST0_RTX (GET_MODE (operands[1]))); })
 
 ;; Finally LE/LEU which requires sle_operand.
 (define_split
@@ -222,7 +237,10 @@
 				       [(match_dup 2) (const_int 0)])
 				      (const_int 0)
 				      (match_dup 5)))]
-  { PUT_CODE (operands[1], GET_CODE (operands[1]) == EQ ? NE : EQ); })
+  { operands[1] = gen_rtx_fmt_ee (GET_CODE (operands[1]) == EQ ? NE : EQ,
+				  GET_MODE (operands[1]),
+				  operands[2],
+				  CONST0_RTX (GET_MODE (operands[1]))); })
 
 ;; We can splat the sign bit across a GPR with an arithmetic right shift
 ;; which gives us a 0, -1 result.  We then turn on bit #0 unconditionally
