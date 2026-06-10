@@ -5907,18 +5907,15 @@ cp_make_fname_decl (location_t loc, tree id, int type_dep)
       if (!release_name)
 	{
 	  cpp_string cstr = { 0, 0 }, strname;
-	  size_t len = strlen (name) + 3; /* Two for '"'s.  One for NULL.  */
-	  char *namep = XNEWVEC (char, len);
-	  snprintf (namep, len, "\"%s\"", name);
-	  strname.text = (unsigned char *) namep;
-	  strname.len = len - 1;
-	  if (cpp_interpret_string (parse_in, &strname, 1, &cstr, CPP_STRING))
+	  strname.text
+	    = const_cast <unsigned char *> ((const unsigned char *) name);
+	  strname.len = strlen (name) + 1;
+	  if (cpp_translate_string (parse_in, &strname, &cstr, CPP_STRING,
+				    false))
 	    {
 	      name = (const char *) cstr.text;
 	      release_name = true;
 	    }
-
-	  XDELETEVEC (namep);
 	}
 
       size_t length = strlen (name);
