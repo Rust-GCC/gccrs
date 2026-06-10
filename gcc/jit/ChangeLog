@@ -1,3 +1,8 @@
+2026-06-09  Antoni Boucher  <bouanto@zoho.com>
+
+	* libgccjit.cc: Allow cast between integers and pointers in
+	is_valid_cast.
+
 2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* TODO.rst: Fix typos.

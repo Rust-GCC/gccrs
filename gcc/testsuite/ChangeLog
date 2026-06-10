@@ -1,3 +1,107 @@
+2026-06-09  Robert Dubner  <rdubner@symas.com>
+
+	* cobol.dg/group2/COMP-3_to_COMP-3__IN-PHASE__MOVES.cob: New test.
+	* cobol.dg/group2/COMP-3_to_COMP-3__IN-PHASE__MOVES.out: New test.
+	* cobol.dg/group2/COMP-3_to_COMP-3__OUT-OF-PHASE__MOVES.cob: New test.
+	* cobol.dg/group2/COMP-3_to_COMP-3__OUT-OF-PHASE__MOVES.out: New test.
+
+2026-06-09  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/bigint1.adb: New  test.
+
+2026-06-09  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/121287
+	PR c++/125212
+	PR c++/105667
+	PR c++/121597
+	PR c++/110961
+	* g++.dg/cpp26/lambda-targ1.C: New test.
+	* g++.dg/cpp2a/lambda-targ26.C: New test.
+	* g++.dg/cpp2a/lambda-targ27.C: New test.
+	* g++.dg/cpp2a/lambda-targ28.C: New test.
+	* g++.dg/cpp2a/lambda-targ29.C: New test.
+	* g++.dg/cpp2a/lambda-targ30.C: New test.
+	* g++.dg/cpp2a/lambda-targ31.C: New test.
+	* g++.dg/cpp2a/lambda-targ32.C: New test.
+
+2026-06-09  Uros Bizjak  <ubizjak@gmail.com>
+
+	PR target/125636
+	* gcc.target/i386/pr89954.c: Update assembler scan
+	directives to expect movsbl instead of movsbw.
+
+2026-06-09  Ciprian Arbone  <Ciprian.Arbone@microchip.com>
+	    Senthil Kumar Selvaraj  <saaadhu@gcc.gnu.org>
+
+	PR target/124077
+	* gcc.target/arm/pr124077.c: New test.
+
+2026-06-09  Antoni Boucher  <bouanto@zoho.com>
+
+	* jit.dg/test-cast.c: Add test case for pointer to int cast.
+
+2026-06-09  Wilco Dijkstra  <wilco.dijkstra@arm.com>
+
+	* gcc.target/aarch64/sve/acle/asm/dup_bf16.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/dup_f16.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/dup_f32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/dup_f64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/dup_s16.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/dup_s32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/dup_s64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/dup_s8.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/dup_u16.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/dup_u32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/dup_u64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/dup_u8.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/mul_s16.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/mul_s32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/mul_s64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/mul_s8.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/mul_u16.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/mul_u32.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/mul_u64.c: Update.
+	* gcc.target/aarch64/sve/acle/asm/mul_u8.c: Update.
+	* gcc.target/aarch64/sve/vcond_18.c: Update.
+	* g++.target/aarch64/sve/dup_sel_5.C: Update.
+	* g++.target/aarch64/sve/dup_sel_6.C: Update.
+
+2026-06-09  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	PR target/125550
+	* gcc.target/aarch64/ldp_stp_16.c: Adjust testcases.
+	* gcc.target/aarch64/pr109072_1.c: Likewise.
+	* gcc.target/aarch64/simd/mf8_data_1.c: Likewise.
+	* gcc.target/aarch64/sve/vec_init_5.c: Likewise.
+	* gcc.target/aarch64/vec-init-14.c: Likewise.
+	* gcc.target/aarch64/vec-init-23.c: Likewise.
+	* gcc.target/aarch64/vec-init-9.c: Likewise.
+	* gcc.target/aarch64/sve/pr125550.c: New test.
+
+2026-06-09  JRobinNTA  <johnrobin044@gmail.com>
+
+	PR target/125395
+	* gcc.target/riscv/rvv/xtheadvector/pr125395.c: New test.
+
+2026-06-09  Alex Coplan  <alex.coplan@arm.com>
+
+	PR middle-end/125621
+	* gcc.target/aarch64/torture/pr125621.c: New test.
+
+2026-06-09  Monk Chiang  <monk.chiang@sifive.com>
+	     "Jim Wilson  <jimw@sifive.com>
+
+	* gcc.target/riscv/sifive-7-load-address-bypass.c: New test.
+
+2026-06-09  Monk Chiang  <monk.chiang@sifive.com>
+
+	* gcc.target/riscv/zicfilp-trampoline.c: New test.
+
+2026-06-09  Tobias Burnus  <tburnus@baylibre.com>
+
+	* gfortran.dg/gomp/declare-reduction-1.f90: New test.
+
 2026-06-09  Paul Thomas  <pault@gcc.gnu.org>
 
 	PR fortran/125669

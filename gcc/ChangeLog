@@ -1,3 +1,98 @@
+2026-06-09  Georg-Johann Lay  <avr@gjlay.de>
+
+	* config/avr/avr.cc: Fix typos in comments.
+	* config/avr/avr-c.cc: Same.
+	* config/avr/avr-passes.cc: Same.
+	* config/avr/avr-passes-fuse-move.h: Same.
+
+2026-06-09  Uros Bizjak  <ubizjak@gmail.com>
+
+	PR target/125636
+	* config/i386/i386.md (extendqihi2): Use movsbl instead of movsbw.
+	Adjust the destination operand to use %k0 and update the mode
+	attribute accordingly.
+
+2026-06-09  Ciprian Arbone  <Ciprian.Arbone@microchip.com>
+	    Senthil Kumar Selvaraj  <saaadhu@gcc.gnu.org>
+
+	PR target/124077
+	* config/arm/arm.cc (thumb1_final_prescan_insn): Also skip
+	condition code update for thumb1_cbz instructions.
+	* config/arm/thumb1.md (thumb1_cbz): Use const0_rtx as the
+	recorded cc_op1 instead of operands[2].
+
+2026-06-09  Lino Hsing-Yu Peng  <linopeng@andestech.com>
+
+	* config/riscv/riscv-protos.h (enum altfmt_type): New.
+	* config/riscv/riscv-v.cc (emit_hard_vlmax_vsetvl): Pass
+	ALTFMT_NONE to gen_vsetvl.
+	(gen_no_side_effects_vsetvl_rtx): Pass ALTFMT_NONE to
+	gen_vsetvl_no_side_effects.
+	* config/riscv/riscv-vector-builtins-bases.cc: Include insn-attr.h.
+	(vsetvl::expand): Pass ALTFMT_NONE to gen_vsetvl_no_side_effects.
+	* config/riscv/riscv-vsetvl.cc (altfmt_to_str): New function.
+	(get_altfmt): New function.
+	(demand_flags): Add DEMAND_ALTFMT_P.
+	(altfmt_demand_type): New enum.
+	(vsetvl_info): Track altfmt.
+	(demand_system): Add altfmt compatibility, availability, and merge handling.
+	* config/riscv/riscv-vsetvl.def: Add altfmt rules.
+	* config/riscv/vector.md (altfmt): New attribute, numeric with
+	INVALID_ATTRIBUTE default.
+	(@vsetvl<mode>, vsetvl_vtype_change_only,
+	@vsetvl_discard_result<mode>, @vsetvl<mode>_no_side_effects,
+	*vsetvldi_no_side_effects_si_extend): Add altfmt operand.
+
+2026-06-09  Georg-Johann Lay  <avr@gjlay.de>
+
+	* config/avr/avr.md: Fix typos in comments.
+	* config/avr/avr-fixed.md: Same.
+	* config/avr/avr-passes.cc: Same
+	* config/avr/avr-passes-fuse-move.h: Same.
+
+2026-06-09  Wilco Dijkstra  <wilco.dijkstra@arm.com>
+
+	* config/aarch64/aarch64-sve.md: Remove zeroing movprfx of merging MOV
+
+2026-06-09  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	PR target/125550
+	* config/aarch64/aarch64-simd.md
+	(*aarch64_combine_internal<mode>): Use zip1 instead of uzp1
+	to concatenate values residing in SIMD registers.
+	(*aarch64_combine_internal_be<mode>): Likewise.
+
+2026-06-09  JRobinNTA  <johnrobin044@gmail.com>
+
+	PR target/125395
+	* config/riscv/thead.cc (th_asm_output_opcode): Add VFCVT
+	and VFWCVT blocks. Add offset logic for static rounding suffixes.
+
+2026-06-09  Alex Coplan  <alex.coplan@arm.com>
+
+	PR middle-end/125621
+	* expmed.cc (make_tree): Fix CONST_POLY_INT case to pass type
+	instead of t, move it to its own switch case.
+
+2026-06-09  Monk Chiang  <monk.chiang@sifive.com>
+	     "Jim Wilson  <jimw@sifive.com>
+
+	* config/riscv/riscv-protos.h (riscv_zero_offset_address_bypass_p):
+	New function.
+	* config/riscv/riscv.cc (riscv_zero_offset_address_bypass_p): New
+	function.
+	* config/riscv/sifive-7.md: Add bypass definition.
+
+2026-06-09  Monk Chiang  <monk.chiang@sifive.com>
+
+	* config/riscv/riscv.cc (riscv_trampoline_init): Remove redundant
+	LUI instruction.
+
+2026-06-09  Martin Jambor  <mjambor@suse.cz>
+
+	* config/pdp11/pdp11.cc (pdp11_conditional_register_usage): Change i
+	from int to unsigned int.
+
 2026-06-09  Xi Ruoyao  <xry111@xry111.site>
 
 	PR rtl-optimization/125609

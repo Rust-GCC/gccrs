@@ -1,3 +1,16 @@
+2026-06-09  Georg-Johann Lay  <avr@gjlay.de>
+
+	* config/avr/lib1funcs.S: Fix trailing blanks.
+	(mov_h): Remove macro and invocations.
+	(mov_l): Remove macro.  Replace invocations with wmov.
+	(__zero_reg__, __tmp_reg__, __SREG__, __SP_H__)
+	(__SP_L__, __RAMPZ__, __EIND__, skip, NEG2, NEG4)
+	(wmov, wsubi, waddi, mov4, XCALL, XJMP, XICALL, XIJMP)
+	(do_prologue_saves, do_epilogue_restores, .branch_plus)
+	(DEFUN, ENDF, FALIAS): Move macros to...
+	* config/avr/asm-defs.h: ...this new file.
+	* config/avr/lib1funcs-fixed.S: Fix trailing blanks.
+
 2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* config/s390/tpf-unwind.h (s390_fallback_frame_state): Likewise.

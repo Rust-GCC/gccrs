@@ -1,3 +1,7 @@
+2026-06-09  Tobias Burnus  <tburnus@baylibre.com>
+
+	* module.cc (load_omp_udrs): Improve reduction diagnostic output.
+
 2026-06-09  Paul Thomas  <pault@gcc.gnu.org>
 
 	PR fortran/125669

@@ -1,3 +1,68 @@
+2026-06-09  Robert Dubner  <rdubner@symas.com>
+
+	* Make-lang.in: Incorporate new move.cc file.
+	* genapi.cc (gg_attribute_bit_get): Removed.
+	(treeplet_fill_source): Moved.
+	(file_static_variable): Likewise.
+	(move_helper): Likewise.
+	(parser_initialize_programs): Use pointer without converting to
+	size_t.
+	(get_binary_value_from_float): Moved.
+	(gg_attribute_bit_clear): Removed.
+	(gg_attribute_bit_set): Removed.
+	(digits_to_bytes): Moved.
+	(get_bytes_needed): Moved.
+	(data_decl_type_for): Moved.
+	(parser_display_internal): Forward reference to move_helper.
+	(get_literalN_value): Moved.
+	(is_figconst_t): Moved.
+	(parser_initialize_table): Moved.
+	(is_figconst): Moved.
+	(parser_move): Moved.
+	(parser_move_multi): Moved.
+	(parser_division): Use function_address as pointer in call to
+	__gg__is_canceled.
+	(conditional_abs): Moved.
+	(get_reference_to_data): Moved.
+	(mh_identical): Moved.
+	(mh_source_is_literalN): Moved.
+	(float_type_of): Moved.
+	(mh_dest_is_float): Moved.
+	(picky_memset): Moved.
+	(picky_memcpy): Moved.
+	(mh_numeric_display): Moved.
+	(mh_little_endian): Moved.
+	(mh_source_is_group): Moved.
+	(mh_source_is_literalA): Moved.
+	(have_common_parent): Moved.
+	(mh_alpha_to_alpha): Moved.
+	* genapi.h (move_helper): New declaration.
+	* gengen.cc (gg_cast): Changes to someday detect aliasing
+	conditions.
+	(gg_show_type): Expand types.
+	(gg_indirect_i): Take a size_t parameter.
+	(gg_array_value): Use gg_cast() wrapper instead of fold_convert().
+	(gg_memchr): Likewise.
+	(gg_strcmp): Likewise.
+	(gg_strncmp): Likewise.
+	(gg_strlen): Likewise.
+	(gg_strdup): Likewise.
+	(gg_malloc): Likewise.
+	(gg_realloc): Moved.
+	* gengen.h (gg_indirect_i): New declaration.
+	* genutil.cc (get_location): Starting to look for aliasing.
+	(treeplet_fill_source): Moved.
+	(data_decl_type_for): Moved.
+	(attribute_bit_clear): Moved.
+	(attribute_bit_get): Moved.
+	(attribute_bit_set): Moved.
+	* genutil.h (treeplet_fill_source): New declaration.
+	(data_decl_type_for): Likewise.
+	(attribute_bit_clear): Likewise.
+	(attribute_bit_get): Likewise.
+	(attribute_bit_set): Likewise.
+	* move.cc: New file.
+
 2026-06-05  Robert Dubner  <rdubner@symas.com>
 
 	PR cobol/125616

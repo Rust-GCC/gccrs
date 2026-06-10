@@ -1,3 +1,19 @@
+2026-06-09  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/121287
+	PR c++/125212
+	PR c++/105667
+	PR c++/121597
+	PR c++/110961
+	* cp-tree.h (TYPE_DECL_OPAQUE_ALIAS_P): Define.
+	(any_lambdas_p): Declare.
+	* decl.cc (grokdeclarator): Set TYPE_DECL_OPAQUE_ALIAS_P.
+	* pt.cc (dependent_opaque_alias_p): Refine to check
+	TYPE_DECL_OPAQUE_ALIAS_P.
+	(tsubst_decl) <case TYPE_DECL>: Set TYPE_DECL_OPAQUE_ALIAS_P.
+	(any_lambdas_p): New, factored out of...
+	(regenerate_decl_from_template): ...this.  Call it.
+
 2026-06-08  Jakub Jelinek  <jakub@redhat.com>
 
 	* call.cc (build_op_delete_call_1): Add missing auto_diagnostic_group
