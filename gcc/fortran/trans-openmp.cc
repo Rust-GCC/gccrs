@@ -177,6 +177,24 @@ gfc_omp_array_data (tree decl, bool type_only)
   return decl;
 }
 
+/* Returns true if DECL is an array for which the actual array data has to be
+   privatized; the caller must ensure that DECL is an array descriptor,
+   i.e. 'omp_array_data' returns true.  */
+
+bool
+gfc_omp_array_data_privatize (tree decl)
+{
+  tree type = TREE_TYPE (decl);
+
+  if (POINTER_TYPE_P (type))
+    type = TREE_TYPE (type);
+
+  gcc_assert (GFC_DESCRIPTOR_TYPE_P (type));
+
+  return (GFC_TYPE_ARRAY_AKIND (type) != GFC_ARRAY_POINTER
+	  && GFC_TYPE_ARRAY_AKIND (type) != GFC_ARRAY_POINTER_CONT);
+}
+
 /* Return the byte-size of the passed array descriptor. */
 
 tree

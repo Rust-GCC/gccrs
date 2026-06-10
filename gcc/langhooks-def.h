@@ -263,6 +263,7 @@ extern tree lhd_unit_size_without_reusable_padding (tree);
 #define LANG_HOOKS_POST_COMPILATION_PARSING_CLEANUPS NULL
 #define LANG_HOOKS_DECL_OK_FOR_SIBCALL	lhd_decl_ok_for_sibcall
 #define LANG_HOOKS_OMP_ARRAY_DATA	hook_tree_tree_bool_null
+#define LANG_HOOKS_OMP_ARRAY_DATA_PRIVATIZE hook_bool_tree_false
 #define LANG_HOOKS_OMP_ARRAY_SIZE	lhd_omp_array_size
 #define LANG_HOOKS_OMP_IS_ALLOCATABLE_OR_PTR hook_bool_const_tree_false
 #define LANG_HOOKS_OMP_CHECK_OPTIONAL_ARGUMENT hook_tree_tree_bool_null
@@ -305,7 +306,8 @@ extern tree lhd_unit_size_without_reusable_padding (tree);
   LANG_HOOKS_POST_COMPILATION_PARSING_CLEANUPS, \
   LANG_HOOKS_DECL_OK_FOR_SIBCALL, \
   LANG_HOOKS_OMP_ARRAY_DATA, \
-  LANG_HOOKS_OMP_ARRAY_SIZE, \
+  LANG_HOOKS_OMP_ARRAY_DATA_PRIVATIZE, \
+  LANG_HOOKS_OMP_ARRAY_SIZE,		\
   LANG_HOOKS_OMP_IS_ALLOCATABLE_OR_PTR, \
   LANG_HOOKS_OMP_CHECK_OPTIONAL_ARGUMENT, \
   LANG_HOOKS_OMP_PRIVATIZE_BY_REFERENCE, \

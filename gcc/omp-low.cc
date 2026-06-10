@@ -1464,7 +1464,8 @@ scan_sharing_clauses (tree clauses, omp_context *ctx)
 	  if (OMP_CLAUSE_CODE (c) == OMP_CLAUSE_FIRSTPRIVATE
 	      && is_gimple_omp_offloaded (ctx->stmt)
 	      && !is_gimple_omp_oacc (ctx->stmt)
-	      && lang_hooks.decls.omp_array_data (decl, true))
+	      && lang_hooks.decls.omp_array_data (decl, true)
+	      && lang_hooks.decls.omp_array_data_privatize (decl))
 	    {
 	      install_var_field (decl, false, 16 | 3, ctx);
 	      install_var_field (decl, true, 8 | 3, ctx);
@@ -13078,7 +13079,8 @@ lower_omp_target (gimple_stmt_iterator *gsi_p, omp_context *ctx)
 	  }
 	  /* Fortran array descriptors: firstprivate of data + attach.  */
 	  if (OMP_CLAUSE_CODE (c) != OMP_CLAUSE_HAS_DEVICE_ADDR
-	      && lang_hooks.decls.omp_array_data (var, true))
+	      && lang_hooks.decls.omp_array_data (var, true)
+	      && lang_hooks.decls.omp_array_data_privatize (var))
 	    map_cnt += 2;
 
       do_dtor:
@@ -13757,7 +13759,8 @@ lower_omp_target (gimple_stmt_iterator *gsi_p, omp_context *ctx)
 				    build_int_cstu (tkind_type, tkind));
 	    /* Fortran array descriptors: firstprivate of data + attach.  */
 	    if (OMP_CLAUSE_CODE (c) != OMP_CLAUSE_HAS_DEVICE_ADDR
-		&& lang_hooks.decls.omp_array_data (ovar, true))
+		&& lang_hooks.decls.omp_array_data (ovar, true)
+		&& lang_hooks.decls.omp_array_data_privatize (ovar))
 	      {
 		tree not_null_lb, null_lb, after_lb;
 		tree var1, var2, size1, size2;

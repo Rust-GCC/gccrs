@@ -243,6 +243,13 @@ struct lang_hooks_for_decls
      is true, only the TREE_TYPE is returned without generating a new tree.  */
   tree (*omp_array_data) (tree, bool);
 
+  /* Return true if the actual array data of the passed array descriptor decl
+     shall be privatized as well, otherwise only the array descriptor is to
+     be privatized.  The argument must be a decl for an array descriptor,
+     i.e. it may only be called for a decl for which omp_array_data returns
+     a non-NULL_TREE.  */
+  bool (*omp_array_data_privatize) (tree);
+
   /* Return a tree for the actual data of an array descriptor - or NULL_TREE
      if original tree is not an array descriptor.  If the second argument
      is true, only the TREE_TYPE is returned without generating a new tree.  */
