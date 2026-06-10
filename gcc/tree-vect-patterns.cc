@@ -4244,7 +4244,7 @@ target_supports_mult_synth_alg (struct algorithm *alg, mult_variant var,
 static gimple *
 synth_lshift_by_additions (vec_info *vinfo,
 			   tree dest, tree op, HOST_WIDE_INT amnt,
-			   stmt_vec_info stmt_info)
+			   stmt_vec_info stmt_info, tree vectype)
 {
   HOST_WIDE_INT i;
   tree itype = TREE_TYPE (op);
@@ -4258,7 +4258,7 @@ synth_lshift_by_additions (vec_info *vinfo,
         = gimple_build_assign (tmp_var, PLUS_EXPR, prev_res, prev_res);
       prev_res = tmp_var;
       if (i < amnt - 1)
-	append_pattern_def_seq (vinfo, stmt_info, stmt);
+	append_pattern_def_seq (vinfo, stmt_info, stmt, vectype);
       else
 	return stmt;
     }
@@ -4276,7 +4276,8 @@ synth_lshift_by_additions (vec_info *vinfo,
 static tree
 apply_binop_and_append_stmt (vec_info *vinfo,
 			     tree_code code, tree op1, tree op2,
-			     stmt_vec_info stmt_vinfo, bool synth_shift_p)
+			     stmt_vec_info stmt_vinfo, tree vectype,
+			     bool synth_shift_p)
 {
   if (integer_zerop (op2)
       && (code == LSHIFT_EXPR
@@ -4294,13 +4295,14 @@ apply_binop_and_append_stmt (vec_info *vinfo,
       && synth_shift_p)
     {
       stmt = synth_lshift_by_additions (vinfo, tmp_var, op1,
-					TREE_INT_CST_LOW (op2), stmt_vinfo);
-      append_pattern_def_seq (vinfo, stmt_vinfo, stmt);
+					TREE_INT_CST_LOW (op2), stmt_vinfo,
+					vectype);
+      append_pattern_def_seq (vinfo, stmt_vinfo, stmt, vectype);
       return tmp_var;
     }
 
   stmt = gimple_build_assign (tmp_var, code, op1, op2);
-  append_pattern_def_seq (vinfo, stmt_vinfo, stmt);
+  append_pattern_def_seq (vinfo, stmt_vinfo, stmt, vectype);
   return tmp_var;
 }
 
@@ -4420,7 +4422,7 @@ vect_synth_mult_by_constant (vec_info *vinfo, tree op, tree val,
 	  if (synth_shift_p)
 	    stmt
 	      = synth_lshift_by_additions (vinfo, accum_tmp, accumulator,
-					   alg.log[i], stmt_vinfo);
+					   alg.log[i], stmt_vinfo, vectype);
 	  else
 	    stmt = gimple_build_assign (accum_tmp, LSHIFT_EXPR, accumulator,
 					 shft_log);
@@ -4428,14 +4430,14 @@ vect_synth_mult_by_constant (vec_info *vinfo, tree op, tree val,
 	case alg_add_t_m2:
 	  tmp_var
 	    = apply_binop_and_append_stmt (vinfo, LSHIFT_EXPR, op, shft_log,
-					   stmt_vinfo, synth_shift_p);
+					   stmt_vinfo, vectype, synth_shift_p);
 	  stmt = gimple_build_assign (accum_tmp, PLUS_EXPR, accumulator,
 				       tmp_var);
 	  break;
 	case alg_sub_t_m2:
 	  tmp_var = apply_binop_and_append_stmt (vinfo, LSHIFT_EXPR, op,
 						 shft_log, stmt_vinfo,
-						 synth_shift_p);
+						 vectype, synth_shift_p);
 	  /* In some algorithms the first step involves zeroing the
 	     accumulator.  If subtracting from such an accumulator
 	     just emit the negation directly.  */
@@ -4448,26 +4450,30 @@ vect_synth_mult_by_constant (vec_info *vinfo, tree op, tree val,
 	case alg_add_t2_m:
 	  tmp_var
 	    = apply_binop_and_append_stmt (vinfo, LSHIFT_EXPR, accumulator,
-					   shft_log, stmt_vinfo, synth_shift_p);
+					   shft_log, stmt_vinfo, vectype,
+					   synth_shift_p);
 	  stmt = gimple_build_assign (accum_tmp, PLUS_EXPR, tmp_var, op);
 	  break;
 	case alg_sub_t2_m:
 	  tmp_var
 	    = apply_binop_and_append_stmt (vinfo, LSHIFT_EXPR, accumulator,
-					   shft_log, stmt_vinfo, synth_shift_p);
+					   shft_log, stmt_vinfo, vectype,
+					   synth_shift_p);
 	  stmt = gimple_build_assign (accum_tmp, MINUS_EXPR, tmp_var, op);
 	  break;
 	case alg_add_factor:
 	  tmp_var
 	    = apply_binop_and_append_stmt (vinfo, LSHIFT_EXPR, accumulator,
-					   shft_log, stmt_vinfo, synth_shift_p);
+					   shft_log, stmt_vinfo, vectype,
+					   synth_shift_p);
 	  stmt = gimple_build_assign (accum_tmp, PLUS_EXPR, accumulator,
 				       tmp_var);
 	  break;
 	case alg_sub_factor:
 	  tmp_var
 	    = apply_binop_and_append_stmt (vinfo, LSHIFT_EXPR, accumulator,
-					   shft_log, stmt_vinfo, synth_shift_p);
+					   shft_log, stmt_vinfo, vectype,
+					   synth_shift_p);
 	  stmt = gimple_build_assign (accum_tmp, MINUS_EXPR, tmp_var,
 				      accumulator);
 	  break;
