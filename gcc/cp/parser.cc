@@ -16015,11 +16015,9 @@ warn_for_range_copy (tree decl, tree expr)
 
   /* Since small trivially constructible types are cheap to construct, we
      suppress the warning for them.  64B is a common size of a cache line.  */
-  tree vec = make_tree_vec (1);
-  TREE_VEC_ELT (vec, 0) = TREE_TYPE (expr);
   if (TREE_CODE (TYPE_SIZE_UNIT (type)) != INTEGER_CST
       || (tree_to_uhwi (TYPE_SIZE_UNIT (type)) <= 64
-	  && is_trivially_xible (INIT_EXPR, type, vec)))
+	  && trivially_copy_constructible_p (type)))
     return;
 
   /* If we can initialize a reference directly, suggest that to avoid the

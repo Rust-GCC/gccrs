@@ -4661,10 +4661,7 @@ eval_is_trivially_default_constructible_type (tree type)
 static tree
 eval_is_trivially_copy_constructible_type (tree type)
 {
-  tree arg = make_tree_vec (1);
-  TREE_VEC_ELT (arg, 0)
-    = build_stub_type (type, cp_type_quals (type) | TYPE_QUAL_CONST, false);
-  if (is_trivially_xible (INIT_EXPR, type, arg))
+  if (trivially_copy_constructible_p (type))
     return boolean_true_node;
   else
     return boolean_false_node;

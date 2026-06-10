@@ -4909,6 +4909,17 @@ trivial_type_p (const_tree t)
     return scalarish_type_p (t);
 }
 
+/* Returns true iff type T is a trivially copy constructible type.  */
+
+bool
+trivially_copy_constructible_p (tree t)
+{
+  tree arg = make_tree_vec (1);
+  TREE_VEC_ELT (arg, 0)
+    = build_stub_type (t, cp_type_quals (t) | TYPE_QUAL_CONST, false);
+  return is_trivially_xible (INIT_EXPR, t, arg);
+}
+
 /* Returns 1 iff type T is an implicit-lifetime type, as defined in
    [basic.types.general] and [class.prop].  */
 

@@ -4517,8 +4517,8 @@ void fn () @{
 @}
 @end smallexample
 
-It does not warn when the type being copied is a trivially-copyable type whose
-size is less than 64 bytes.
+It does not warn when the type being copied is a trivially copy constructible
+type whose size is less than 64 bytes.
 
 This warning also warns when a loop variable in a range-based for-loop is
 initialized with a value of a different type resulting in a copy.  For example:
