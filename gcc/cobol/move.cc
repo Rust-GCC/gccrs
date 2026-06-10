@@ -2419,6 +2419,8 @@ parser_move(size_t ntgt, cbl_refer_t *tgts, cbl_refer_t src, cbl_round_t rounded
     }
   }
 
+#if 0
+// This is a debugging function used from time-to-time
 static void
 hex_of(tree location, size_t bytes)
   {
@@ -2428,6 +2430,7 @@ hex_of(tree location, size_t bytes)
     gg_printf("%2.2X", gg_indirect_i(gg_cast(UCHAR_P, location), i), NULL_TREE);
     }
   }
+#endif
 
 static bool
 mh_packed_to_packed(const cbl_refer_t &destref,
@@ -2520,10 +2523,6 @@ mh_packed_to_packed(const cbl_refer_t &destref,
               gg_bitwise_and(gg_indirect(source_p),
                              build_int_cst_type(UCHAR, 0x0F)));
 
-//    gg_printf("KILROY after rightmost ", NULL_TREE);
-//    hex_of(shifted_p_left, shifted_size);
-//    gg_printf("\n", NULL_TREE);
-
     gg_decrement(source_p);
     gg_decrement(shifted_p_right);
     WHILE(shifted_p_right, gt_op, shifted_p_left)
@@ -2538,10 +2537,6 @@ mh_packed_to_packed(const cbl_refer_t &destref,
       gg_assign(carry, carry_next);
       gg_decrement(source_p);
       gg_decrement(shifted_p_right);
-
-//      gg_printf("KILROY          middle ", NULL_TREE);
-//      hex_of(shifted_p_left, shifted_size);
-//      gg_printf("\n", NULL_TREE);
       }
     WEND
     // At this point, shifted_p_right equals shifted_p_left
@@ -2560,10 +2555,6 @@ mh_packed_to_packed(const cbl_refer_t &destref,
                                         build_int_cst_type(SIZE_T, 4)),
                               carry));
       }
-
-//    gg_printf("KILROY after leftmost  ", NULL_TREE);
-//    hex_of(shifted_p_left, shifted_size);
-//    gg_printf("\n", NULL_TREE);
 
     // We now have the left-shifted source in 'shifted'.
     source_digits  += 1;
