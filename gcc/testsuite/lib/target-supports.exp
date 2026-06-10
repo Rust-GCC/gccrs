@@ -10409,6 +10409,16 @@ proc check_effective_target_popcount { } {
     } "" ]
 }
 
+
+# Return 1 if target supports spaceship optab
+
+proc check_effective_target_spaceship { } {
+  return [expr { [check_effective_target_x86]
+                   || [istarget aarch64*-*-*]
+                   || [check_effective_target_s390_mvx] }]
+}
+
+
 # Return 1 if the target supports clz on int.
 
 proc check_effective_target_clz { } {

@@ -115,6 +115,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "domwalk.h"
 #include "tree-ssa-math-opts.h"
 #include "dbgcnt.h"
+#include "langhooks.h"
 #include "cfghooks.h"
 
 /* This structure represents one basic block that either computes a
@@ -4124,6 +4125,7 @@ extern bool gimple_unsigned_integer_sat_add (tree, tree*, tree (*)(tree));
 extern bool gimple_unsigned_integer_sat_sub (tree, tree*, tree (*)(tree));
 extern bool gimple_unsigned_integer_sat_trunc (tree, tree*, tree (*)(tree));
 extern bool gimple_unsigned_integer_sat_mul (tree, tree*, tree (*)(tree));
+extern bool gimple_spaceship (tree, tree*, tree (*)(tree));
 
 extern bool gimple_signed_integer_sat_add (tree, tree*, tree (*)(tree));
 extern bool gimple_signed_integer_sat_sub (tree, tree*, tree (*)(tree));
@@ -4332,6 +4334,110 @@ match_saturation_mul (gimple_stmt_iterator *gsi, gphi *phi)
 							phi_result, ops[0],
 							ops[1]);
 }
+
+/* Try to match variants of spaceship operation:
+   <bb 2>
+   if (a_3(D) >= b_4(D)) -- CMP_1
+     goto <bb 3>;
+   else
+     goto <bb 4>;
+
+   <bb 3>
+   _1 = a_3(D) > b_4(D); -- CMP_2
+   _5 = (int) _1;
+
+   <bb 4>
+   # _2 = PHI <-1(2), _5(3)>
+   =>
+   _2 = .SPACESHIP (a_3(D), b_4(D), -1);
+
+   All possible canonical variants of the comparison operator in CMP_1 and
+   CMP_2 has been included in gimple_spaceship function.  */
+static bool
+match_spaceship (gimple_stmt_iterator *gsi, gphi *phi)
+{
+  if (gimple_phi_num_args (phi) != 2)
+    return false;
+  tree ops[2];
+  tree phi_result = gimple_phi_result (phi);
+
+  if (!gimple_spaceship (phi_result, ops, NULL))
+    return false;
+
+  /* Allow different modes as long as both are integral types.  */
+  if (!INTEGRAL_TYPE_P (TREE_TYPE (phi_result))
+      || !INTEGRAL_TYPE_P (TREE_TYPE (ops[0])))
+    return false;
+
+  tree ops_type = TREE_TYPE (ops[0]);
+  machine_mode ops_mode = TYPE_MODE (ops_type);
+  machine_mode promoted_mode = ops_mode;
+  tree promoted_type = ops_type;
+  bool is_unsigned = TYPE_UNSIGNED (ops_type);
+
+  /* Check if spaceship optab is available for the operand mode.
+     If not, try promoting to a wider mode that is supported.  */
+  if (optab_handler (spaceship_optab, ops_mode) == CODE_FOR_nothing)
+    {
+      /* Try promoting to wider modes (e.g., QI/HI -> SI -> DI).  */
+      machine_mode wider_mode;
+      FOR_EACH_WIDER_MODE_FROM (wider_mode, ops_mode)
+	{
+	  if (optab_handler (spaceship_optab, wider_mode)
+	      != CODE_FOR_nothing)
+	    {
+	      /* Check if we can get a type for this mode with matching
+		 signedness.  */
+	      promoted_type = lang_hooks.types.type_for_mode (wider_mode,
+							      is_unsigned);
+	      if (promoted_type != NULL_TREE && INTEGRAL_TYPE_P (promoted_type))
+		{
+		  promoted_mode = wider_mode;
+		  break;
+		}
+	    }
+	}
+
+      // If no suitable promoted mode found, give up.
+      if (promoted_mode == ops_mode)
+	return false;
+    }
+
+  /* If promotion is needed, insert conversion statements.
+     We must use GIMPLE assignments rather than fold_convert because
+     gimple_call arguments must be valid GIMPLE values (SSA names or
+     constants), not tree expressions.  */
+  ops[0] = gimple_convert (gsi, true, GSI_SAME_STMT, UNKNOWN_LOCATION,
+			   promoted_type, ops[0]);
+  ops[1] = gimple_convert (gsi, true, GSI_SAME_STMT, UNKNOWN_LOCATION,
+			   promoted_type, ops[1]);
+
+  tree spaceship_arg_3 = is_unsigned ? build_one_cst (integer_type_node)
+    : build_minus_one_cst (integer_type_node);
+
+  gcall *call = gimple_build_call_internal (IFN_SPACESHIP, 3, ops[0], ops[1],
+					    spaceship_arg_3);
+
+  /* SPACESHIP optab always returns signed int (SI mode).
+     Cast to phi_result's type if needed.  */
+  tree call_result_type = integer_type_node;
+  if (!types_compatible_p (TREE_TYPE (phi_result), call_result_type))
+    {
+      tree call_result = make_ssa_name (call_result_type);
+      gimple_call_set_lhs (call, call_result);
+      gsi_insert_before (gsi, call, GSI_SAME_STMT);
+      gassign *cast_stmt = gimple_build_assign (phi_result, NOP_EXPR,
+						call_result);
+      gsi_insert_before (gsi, cast_stmt, GSI_SAME_STMT);
+    }
+  else
+    {
+      gimple_call_set_lhs (call, phi_result);
+      gsi_insert_before (gsi, call, GSI_SAME_STMT);
+    }
+  return true;
+}
+
 
 /*
  * Try to match saturation unsigned sub.
@@ -6515,7 +6621,8 @@ math_opts_dom_walker::after_dom_children (basic_block bb)
       if (match_saturation_add (&gsi, phi)
 	  || match_saturation_sub (&gsi, phi)
 	  || match_saturation_trunc (&gsi, phi)
-	  || match_saturation_mul (&gsi, phi))
+	  || match_saturation_mul (&gsi, phi)
+	  || match_spaceship (&gsi, phi))
 	remove_phi_node (&psi, /* release_lhs_p */ false);
     }
 
