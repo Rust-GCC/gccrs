@@ -7126,6 +7126,8 @@ build_x_bswapg_bitreverseg (location_t loc, internal_fn ifn,
       return error_mark_node;
     }
   tree arg = (*args)[0];
+  if (error_operand_p (arg))
+    return error_mark_node;
   if (type_dependent_expression_p (arg))
     {
       tree exp = build_min_nt_call_vec (NULL, args);

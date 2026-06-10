@@ -13564,6 +13564,11 @@ c_parser_postfix_expression (c_parser *parser)
 	    c_expr_t *arg_p = &(*cexpr_list)[0];
 	    *arg_p = convert_lvalue_to_rvalue (loc, *arg_p, true, true);
 	    tree arg = arg_p->value;
+	    if (error_operand_p (arg))
+	      {
+		expr.set_error ();
+		break;
+	      }
 	    tree type = TYPE_MAIN_VARIANT (TREE_TYPE (arg));
 	    if (!INTEGRAL_TYPE_P (type))
 	      {
