@@ -30,7 +30,7 @@ public:
   // Use GC memory when GC is true, otherwise use obstacks.
   vrange_allocator (bool gc = false);
   ~vrange_allocator ();
-  class vrange_storage *clone (const vrange &r);
+  class vrange_storage *clone (const vrange &r, bool shared_p = true);
   vrange_storage *clone_varying (tree type);
   vrange_storage *clone_undefined (tree type);
   void *alloc (size_t size);
@@ -49,7 +49,8 @@ private:
 class GTY((desc ("%h.m_discriminator"), tag("VR_UNKNOWN"))) vrange_storage
 {
 public:
-  static vrange_storage *alloc (vrange_internal_alloc &, const vrange &);
+  static vrange_storage *alloc (vrange_internal_alloc &, const vrange &,
+				bool shared_p = true);
   void get_vrange (vrange &r, tree type) const;
   void set_vrange (const vrange &r);
   bool fits_p (const vrange &r) const;
@@ -121,7 +122,8 @@ public:
   friend void gt_pch_nx_vrange_storage(void *);
   friend void gt_pch_p_14vrange_storage(void *, void *, gt_pointer_operator,
 					void *);
-  static prange_storage *alloc (vrange_internal_alloc &, const prange &);
+  static prange_storage *alloc (vrange_internal_alloc &, const prange &,
+				bool shared_p = true);
   void set_prange (const prange &r);
   void get_prange (prange &r, tree type) const;
   bool equal_p (const prange &r) const;
@@ -135,6 +137,8 @@ private:
 
   enum prange_kind m_kind;
   bool m_has_bitmask;
+  bool m_points_to_p;
+  tree m_pt;
 
   // We don't use TRAILING_WIDE_INT_ACCESSOR because the getters here
   // must be const.  Perhaps TRAILING_WIDE_INT_ACCESSOR could be made
@@ -170,6 +174,7 @@ class GTY((tag ("VR_FRANGE"))) frange_storage : public vrange_storage
 };
 
 extern vrange_storage *ggc_alloc_vrange_storage (tree type);
-extern vrange_storage *ggc_alloc_vrange_storage (const vrange &);
+extern vrange_storage *ggc_alloc_vrange_storage (const vrange &,
+						 bool shared_p = true);
 
 #endif // GCC_VALUE_RANGE_STORAGE_H

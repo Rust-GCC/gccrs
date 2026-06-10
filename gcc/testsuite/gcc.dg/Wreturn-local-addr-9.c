@@ -44,7 +44,7 @@ struct S* g (int i)
      }
 
      which leads to:  */
-  return p;         /* { dg-bogus "may return address of local variable" "" { xfail *-*-* } } */
+  return p;
 
   /* Whereas as -O2 the pass sees:
 

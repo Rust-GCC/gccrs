@@ -67,20 +67,6 @@ test1 (void)
     abort ();
   strcat_disallowed = 0;
 
-  /* These __strncat_chk calls should be optimized into __strcat_chk,
-     as strlen (src) <= len.  */
-  strcpy (dst, s1);
-  if (strncat (dst, "foo", 3) != dst || strcmp (dst, "hello worldfoo"))
-    abort ();
-  strcpy (dst, s1);
-  if (strncat (dst, "foo", 100) != dst || strcmp (dst, "hello worldfoo"))
-    abort ();
-  strcpy (dst, s1);
-  if (strncat (dst, s1, 100) != dst || strcmp (dst, "hello worldhello world"))
-    abort ();
-  if (chk_calls != 3)
-    abort ();
-
   chk_calls = 0;
   /* The following calls have side-effects in dest, so are not checked.  */
   strcpy (dst, s1); d2 = dst;

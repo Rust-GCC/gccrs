@@ -370,24 +370,29 @@ pointer_plus_operator::fold_range (prange &r, tree type,
   else
    r.set_varying (type);
 
+  // If op1 refers to an object, op1 + 0 will also refer to the object.
+  if (rh_lb == rh_ub && rh_lb == 0)
+    r.set_pt (op1);
+
   update_known_bitmask (r, POINTER_PLUS_EXPR, op1, op2);
   return true;
 }
 
 bool
 pointer_plus_operator::op2_range (irange &r, tree type,
-				  const prange &lhs ATTRIBUTE_UNUSED,
-				  const prange &op1 ATTRIBUTE_UNUSED,
+				  const prange &lhs,
+				  const prange &op1,
 				  relation_trio trio) const
 {
   relation_kind rel = trio.lhs_op1 ();
   r.set_varying (type);
 
   // If the LHS and OP1 are equal, the op2 must be zero.
-  if (rel == VREL_EQ)
+  if (rel == VREL_EQ || lhs.pt_invariant_p (op1))
     r.set_zero (type);
   // If the LHS and OP1 are not equal, the offset must be non-zero.
-  else if (rel == VREL_NE)
+  // AWM: Check if aliasing may mean we can't do the not_equal check.
+  else if (rel == VREL_NE || lhs.pt_inverted_p (op1))
     r.set_nonzero (type);
   else
     return false;
@@ -490,6 +495,9 @@ operator_pointer_diff::fold_range (irange &r, tree type,
   r.set_varying (type);
   relation_kind rel = trio.op1_op2 ();
   op1_op2_relation_effect (r, type, op1, op2, rel);
+  // if op1 and op2 point to the same object, the diff is 0.
+  if (op1.pt_invariant_p (op2))
+    r.set_zero (type);
   update_bitmask (r, op1, op2);
   return true;
 }
@@ -564,6 +572,10 @@ operator_cast::fold_range (prange &r, tree type,
     return true;
 
   r.set (type, inner.lower_bound (), inner.upper_bound ());
+
+  // The resulting pointer still points to the same object.
+  r.set_pt (inner);
+
   r.update_bitmask (inner.get_bitmask ());
   return true;
 }
@@ -725,6 +737,15 @@ operator_cast::lhs_op1_relation (const prange &lhs,
 	return VREL_VARYING;
     }
 
+  // If the pointer precisions are the same, check for equality and
+  // inequality in the points to fields.
+  if (lhs_prec == op1_prec)
+    {
+      if (lhs.pt_invariant_p (op1))
+	return VREL_EQ;
+      if (lhs.pt_inverted_p (op1))
+	return VREL_NE;
+    }
   unsigned prec = MIN (lhs_prec, op1_prec);
   return bits_to_pe (prec);
 }
@@ -878,7 +899,12 @@ operator_equal::fold_range (irange &r, tree type,
   // consist of a single value, and then compare them.
   bool op1_const = wi::eq_p (op1.lower_bound (), op1.upper_bound ());
   bool op2_const = wi::eq_p (op2.lower_bound (), op2.upper_bound ());
-  if (op1_const && op2_const)
+  // Check for points to equality and inequality first.
+  if (op1.pt_invariant_p (op2))
+    r = range_true (type);
+  else if (op1.pt_inverted_p (op2))
+    r = range_false (type);
+  else if (op1_const && op2_const)
     {
       if (wi::eq_p (op1.lower_bound (), op2.upper_bound()))
 	r = range_true (type);
@@ -977,7 +1003,12 @@ operator_not_equal::fold_range (irange &r, tree type,
   // consist of a single value, and then compare them.
   bool op1_const = wi::eq_p (op1.lower_bound (), op1.upper_bound ());
   bool op2_const = wi::eq_p (op2.lower_bound (), op2.upper_bound ());
-  if (op1_const && op2_const)
+  // Check for points to equality and inequality first.
+  if (op1.pt_inverted_p (op2))
+    r = range_true (type);
+  else if (op1.pt_invariant_p (op2))
+    r = range_false (type);
+  else if (op1_const && op2_const)
     {
       if (wi::ne_p (op1.lower_bound (), op2.upper_bound()))
 	r = range_true (type);

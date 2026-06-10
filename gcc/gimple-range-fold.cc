@@ -651,6 +651,25 @@ gimple_range_adjustment (vrange &res, const gimple *stmt)
     }
 }
 
+// Provide context to the gimple fold callback.
+
+static struct
+{
+  gimple *m_stmt;
+  range_query *m_query;
+} x_fold_context;
+
+// Gimple fold callback.
+
+static tree
+pta_valueize (tree name)
+{
+  tree ret
+    = x_fold_context.m_query->value_of_expr (name, x_fold_context.m_stmt);
+
+  return ret ? ret : name;
+}
+
 // Calculate a range for statement S and return it in R. If NAME is provided it
 // represents the SSA_NAME on the LHS of the statement. It is only required
 // if there is more than one lhs/output.  If a range cannot
@@ -720,6 +739,34 @@ fold_using_range::fold_stmt (vrange &r, gimple *s, fur_source &src, tree name)
     {
       gcc_checking_assert (range_compatible_p (r.type (), TREE_TYPE (name)));
       range_cast (r, TREE_TYPE (name));
+    }
+
+  // IF this is not a prange, we are done.
+  if (!is_a <prange> (r))
+    return true;
+
+  prange &p = as_a <prange> (r);
+  // Check to see if points_to should be set.
+  if (p.pt_unknown_p () && name && gimple_code (s) == GIMPLE_ASSIGN)
+    {
+      tree rhs = gimple_assign_rhs1 (s);
+      tree_code code = gimple_assign_rhs_code (s);
+      // If code is SSA_NAME, any points to would already be copied.
+      if (code != SSA_NAME && get_gimple_rhs_class (code) == GIMPLE_SINGLE_RHS
+	  && TREE_CODE (rhs) == ADDR_EXPR)
+	{
+	  p.set_pt (rhs, true);
+	}
+      else
+	{
+	  // If we couldn't find anything, try fold.
+	  x_fold_context = { s, src.query () };
+	  rhs = gimple_fold_stmt_to_constant_1 (s, pta_valueize, pta_valueize);
+	  if (rhs && TREE_CODE (rhs) == ADDR_EXPR)
+	    {
+	      p.set_pt (rhs, true);
+	    }
+	}
     }
   return true;
 }
@@ -1172,7 +1219,7 @@ fold_using_range::range_of_phi (vrange &r, gphi *phi, fur_source &src)
 	  seen_arg = true;
 	  single_arg = arg;
 	}
-      else if (single_arg != arg)
+      else if (!vrp_operand_equal_p (single_arg, arg))
 	single_arg = NULL_TREE;
 
       // Once the value reaches varying, stop looking.
@@ -1210,14 +1257,27 @@ fold_using_range::range_of_phi (vrange &r, gphi *phi, fur_source &src)
 	  if (single_arg)
 	    src.register_relation (phi, VREL_EQ, phi_def, single_arg);
 	}
-      else if (src.get_operand (arg_range, single_arg)
-	       && arg_range.singleton_p ())
+      else if (src.get_operand (arg_range, single_arg))
 	{
+	  // Check if the single argument points to a specific object.
+	  if (is_a <prange> (arg_range))
+	    {
+	      prange &ptr = as_a <prange> (arg_range);
+	      // If it doesn't already point at something, set points to.
+	      if (!ptr.pt_unknown_p ()
+		  && TREE_CODE (single_arg) == ADDR_EXPR)
+		ptr.set_pt (single_arg, true);
+	      r = ptr;
+	      return true;
+	    }
 	  // Numerical arguments that are a constant can be returned as
 	  // the constant. This can help fold later cases where even this
 	  // constant might have been UNDEFINED via an unreachable edge.
-	  r = arg_range;
-	  return true;
+	  if (arg_range.singleton_p ())
+	    {
+	      r = arg_range;
+	      return true;
+	    }
 	}
     }
 

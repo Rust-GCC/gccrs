@@ -24,6 +24,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "backend.h"
 #include "tree.h"
 #include "gimple.h"
+#include "gimplify.h"
 #include "ssa.h"
 #include "tree-pretty-print.h"
 #include "fold-const.h"
@@ -108,9 +109,9 @@ vrange_allocator::free (void *p)
 // it.
 
 vrange_storage *
-vrange_allocator::clone (const vrange &r)
+vrange_allocator::clone (const vrange &r, bool shared_p)
 {
-  return vrange_storage::alloc (*m_alloc, r);
+  return vrange_storage::alloc (*m_alloc, r, shared_p);
 }
 
 vrange_storage *
@@ -141,12 +142,13 @@ vrange_allocator::clone_undefined (tree type)
 // it.  Return NULL if R is unsupported.
 
 vrange_storage *
-vrange_storage::alloc (vrange_internal_alloc &allocator, const vrange &r)
+vrange_storage::alloc (vrange_internal_alloc &allocator, const vrange &r,
+		       bool shared_p)
 {
   if (is_a <irange> (r))
     return irange_storage::alloc (allocator, as_a <irange> (r));
   if (is_a <prange> (r))
-    return prange_storage::alloc (allocator, as_a <prange> (r));
+    return prange_storage::alloc (allocator, as_a <prange> (r), shared_p);
   if (is_a <frange> (r))
     return frange_storage::alloc (allocator, as_a <frange> (r));
   return NULL;
@@ -591,7 +593,8 @@ frange_storage::fits_p (const frange &) const
 //============================================================================
 
 prange_storage *
-prange_storage::alloc (vrange_internal_alloc &allocator, const prange &r)
+prange_storage::alloc (vrange_internal_alloc &allocator, const prange &r,
+		       bool shared_p)
 {
   unsigned num_words;
   prange_format (r, num_words);
@@ -606,6 +609,9 @@ prange_storage::alloc (vrange_internal_alloc &allocator, const prange &r)
   size_t size = sizeof (prange_storage) + extra_size;
   prange_storage *p = static_cast <prange_storage *> (allocator.alloc (size));
   new (p) prange_storage (r);
+  if (p->m_pt && !shared_p)
+    p->m_pt = unshare_expr_without_location (p->m_pt);
+
   return p;
 }
 
@@ -657,7 +663,8 @@ prange_storage::prange_format (const prange &r, unsigned &num_words)
     num_words += 2;
 
   // PR_FULL must have a bitmask or points to, or it should be PR_VARYING.
-  gcc_checking_assert (kind != PR_FULL || !r.get_bitmask ().unknown_p ());
+  gcc_checking_assert (kind != PR_FULL || !r.get_bitmask ().unknown_p ()
+		       || r.m_pt != NULL_TREE);
   return kind;
 }
 
@@ -667,6 +674,8 @@ prange_storage::set_prange (const prange &r)
   unsigned num_words;
   m_kind = prange_format (r, num_words);
   m_has_bitmask = !r.get_bitmask ().unknown_p ();
+  m_pt = r.m_pt;
+  m_points_to_p = r.m_points_to_p;
 
   unsigned index = 0;
 
@@ -751,6 +760,9 @@ prange_storage::get_prange (prange &r, tree type) const
   else
     r.m_bitmask.set_unknown (TYPE_PRECISION (type));
 
+  r.m_points_to_p = m_points_to_p;
+  r.m_pt = m_pt;
+
   if (flag_checking)
     r.verify_range ();
 }
@@ -803,6 +815,11 @@ prange_storage::equal_p (const prange &r) const
     if (!r.m_bitmask.unknown_p ())
       return false;
 
+  if (m_pt != r.m_pt)
+    return false;
+  if (m_points_to_p != r.m_points_to_p)
+    return false;
+
   return true;
 }
 
@@ -827,7 +844,7 @@ vrange_storage *ggc_alloc_vrange_storage (tree type)
   return ggc_vrange_allocator.clone_varying (type);
 }
 
-vrange_storage *ggc_alloc_vrange_storage (const vrange &r)
+vrange_storage *ggc_alloc_vrange_storage (const vrange &r, bool shared_p)
 {
-  return ggc_vrange_allocator.clone (r);
+  return ggc_vrange_allocator.clone (r, shared_p);
 }

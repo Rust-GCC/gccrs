@@ -388,13 +388,16 @@ range_query::get_tree_range (vrange &r, tree expr, gimple *stmt,
 
     case ADDR_EXPR:
       {
-	// Handle &var which can show up in phi arguments.
+	// Handle &expr, and set points to.
 	if (tree_single_nonzero_p (expr))
-	  {
-	    r.set_nonzero (type);
-	    return true;
-	  }
-	break;
+	 r.set_nonzero (type);
+	else
+	  r.set_varying (type);
+	// Set points to field.
+	gcc_checking_assert (is_a <prange> (r));
+	prange &ptr = as_a <prange> (r);
+	ptr.set_pt (expr, true);
+	return true;
       }
 
     default:

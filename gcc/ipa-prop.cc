@@ -148,7 +148,7 @@ ipa_vr::ipa_vr ()
 }
 
 ipa_vr::ipa_vr (const vrange &r)
-  : m_storage (ggc_alloc_vrange_storage (r)),
+  : m_storage (ggc_alloc_vrange_storage (r, false /* shared_p */)),
     m_type (r.type ())
 {
 }
