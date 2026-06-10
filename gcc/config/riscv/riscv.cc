@@ -1030,6 +1030,10 @@ static const attribute_spec riscv_gnu_attributes[] =
     standard vector calling convention variant.  Syntax:
     __attribute__((norelax)). */
   {"norelax", 0, 0, true, false, false, false, NULL, NULL},
+  /* Marks functions that may return indirectly.  With Zicfilp, the compiler
+     inserts a landing-pad after calls to such functions.  Syntax:
+     __attribute__ ((indirect_return)).  */
+  {"indirect_return", 0, 0, false, true, true, true, NULL, NULL},
 };
 
 static const scoped_attribute_specs riscv_gnu_attribute_table  =
@@ -8074,6 +8078,29 @@ riscv_legitimize_call_address (rtx addr)
     emit_insn (gen_set_lpl (Pmode, const0_rtx));
 
   return addr;
+}
+
+/* Return true if a Zicfilp landing-pad must follow a call to ADDR.
+   Indirect calls to returns_twice or indirect_return functions are not
+   covered.  */
+
+bool
+riscv_call_needs_lpad_p (rtx addr)
+{
+  if (!is_zicfilp_p () || GET_CODE (addr) != SYMBOL_REF)
+    return false;
+
+  tree decl = SYMBOL_REF_DECL (addr);
+  if (!decl || TREE_CODE (decl) != FUNCTION_DECL)
+    return false;
+
+  /* Use setjmp_call_p to cover both ECF_RETURNS_TWICE builtins (e.g.  the
+     C-library setjmp) and explicit __attribute__ ((returns_twice)).  */
+  if (setjmp_call_p (decl))
+    return true;
+
+  tree fntype = TREE_TYPE (decl);
+  return lookup_attribute ("indirect_return", TYPE_ATTRIBUTES (fntype)) != NULL;
 }
 
 /* Print symbolic operand OP, which is part of a HIGH or LO_SUM

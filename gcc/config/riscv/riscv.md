@@ -4190,8 +4190,12 @@
 	      (use (match_operand 2 ""))])]
   ""
 {
-  rtx target = riscv_legitimize_call_address (XEXP (operands[0], 0));
-  emit_call_insn (gen_call_internal (target, operands[1]));
+  rtx addr = XEXP (operands[0], 0);
+  rtx target = riscv_legitimize_call_address (addr);
+  if (riscv_call_needs_lpad_p (addr))
+    emit_call_insn (gen_call_internal_cfi (target, operands[1]));
+  else
+    emit_call_insn (gen_call_internal (target, operands[1]));
   DONE;
 })
 
@@ -4206,6 +4210,37 @@
    call\t%0@plt"
   [(set_attr "type" "call")])
 
+;; Zicfilp-protected call: .option push/pop guards prevent c.jal compression
+;; and jal linker relaxation from moving the return address off the lpad.
+;; .p2align 2 ensures the lpad is 4-byte aligned.
+(define_insn "call_internal_cfi"
+  [(call (mem:SI (match_operand 0 "call_insn_operand" "l,S,U"))
+	 (match_operand 1 "" ""))
+   (clobber (reg:SI RETURN_ADDR_REGNUM))]
+  "TARGET_ZICFILP"
+  {
+    output_asm_insn (".p2align\t2", operands);
+    output_asm_insn (".option push", operands);
+    output_asm_insn (".option norelax", operands);
+    output_asm_insn (".option norvc", operands);
+    switch (which_alternative)
+      {
+      case 0:
+	output_asm_insn ("jalr\t%0", operands);
+	break;
+      case 1:
+	output_asm_insn ("call\t%0", operands);
+	break;
+      default:
+	output_asm_insn ("call\t%0@plt", operands);
+	break;
+      }
+    output_asm_insn (".option pop", operands);
+    return "lpad\t0";
+  }
+  [(set_attr "type" "call")
+   (set_attr "length" "8,12,12")])
+
 (define_expand "call_value"
   [(parallel [(set (match_operand 0 "")
 		   (call (match_operand 1 "")
@@ -4213,8 +4248,13 @@
 	      (use (match_operand 3 ""))])]
   ""
 {
-  rtx target = riscv_legitimize_call_address (XEXP (operands[1], 0));
-  emit_call_insn (gen_call_value_internal (operands[0], target, operands[2]));
+  rtx addr = XEXP (operands[1], 0);
+  rtx target = riscv_legitimize_call_address (addr);
+  if (riscv_call_needs_lpad_p (addr))
+    emit_call_insn (gen_call_value_internal_cfi (operands[0], target,
+						 operands[2]));
+  else
+    emit_call_insn (gen_call_value_internal (operands[0], target, operands[2]));
   DONE;
 })
 
@@ -4229,6 +4269,38 @@
    call\t%1
    call\t%1@plt"
   [(set_attr "type" "call")])
+
+;; Zicfilp-protected call: .option push/pop guards prevent c.jal compression
+;; and jal linker relaxation from moving the return address off the lpad.
+;; .p2align 2 ensures the lpad is 4-byte aligned.
+(define_insn "call_value_internal_cfi"
+  [(set (match_operand 0 "" "")
+	(call (mem:SI (match_operand 1 "call_insn_operand" "l,S,U"))
+	      (match_operand 2 "" "")))
+   (clobber (reg:SI RETURN_ADDR_REGNUM))]
+  "TARGET_ZICFILP"
+  {
+    output_asm_insn (".p2align\t2", operands);
+    output_asm_insn (".option push", operands);
+    output_asm_insn (".option norelax", operands);
+    output_asm_insn (".option norvc", operands);
+    switch (which_alternative)
+      {
+      case 0:
+	output_asm_insn ("jalr\t%1", operands);
+	break;
+      case 1:
+	output_asm_insn ("call\t%1", operands);
+	break;
+      default:
+	output_asm_insn ("call\t%1@plt", operands);
+	break;
+      }
+    output_asm_insn (".option pop", operands);
+    return "lpad\t0";
+  }
+  [(set_attr "type" "call")
+   (set_attr "length" "8,12,12")])
 
 ;; Call subroutine returning any type.
 

@@ -156,6 +156,7 @@ extern rtx riscv_emit_binary (enum rtx_code code, rtx dest, rtx x, rtx y);
 #endif
 extern bool riscv_expand_conditional_move (rtx, rtx, rtx, rtx);
 extern rtx riscv_legitimize_call_address (rtx);
+extern bool riscv_call_needs_lpad_p (rtx);
 extern bool riscv_expand_zilsd_misaligned_move (rtx, rtx);
 extern bool riscv_zilsd_valid_mem_p (rtx, machine_mode);
 extern void riscv_set_return_address (rtx, rtx);
