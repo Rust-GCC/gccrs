@@ -1386,8 +1386,8 @@ ipa_param_body_adjustments::prepare_debug_expressions (tree dead_ssa)
 	}
 
       gcc_assert (TREE_CODE (value) == SSA_NAME);
-      tree *d = m_dead_ssa_debug_equiv.get (value);
-      m_dead_ssa_debug_equiv.put (dead_ssa, *d);
+      tree d = *m_dead_ssa_debug_equiv.get (value);
+      m_dead_ssa_debug_equiv.put (dead_ssa, d);
       return true;
     }
 
