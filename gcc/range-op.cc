@@ -4367,6 +4367,24 @@ operator_trunc_mod::wi_fold (irange &r, tree type,
   new_ub = wi::min (new_ub, tmp, sign);
 
   value_range_with_overflow (r, type, new_lb, new_ub);
+
+  // When all positive and all X/Y combinations produce the same quotient
+  // we can refine the result with    X % Y == X - Q * Y.
+  // Ensure that division by 0 is not an option.
+  if (wi::gt_p (rh_lb, 0, sign) && wi::ge_p (lh_lb, 0, sign))
+    {
+      wide_int q_lb = wi::div_trunc (lh_lb, rh_ub, sign);
+      wide_int q_ub = wi::div_trunc (lh_ub, rh_lb, sign);
+
+      if (q_lb == q_ub)
+	{
+	  new_lb = lh_lb - q_lb * rh_ub;
+	  new_ub = lh_ub - q_lb * rh_lb;
+
+	  int_range<2> refined (type, new_lb, new_ub);
+	  r.intersect (refined);
+	}
+    }
 }
 
 bool
