@@ -31,6 +31,7 @@
 #include "rust-type-util.h"
 #include "rust-system.h"
 #include "rust-compile-base.h"
+#include "rust-resolve-builtins.h"
 
 namespace Rust {
 namespace Resolver {
@@ -349,6 +350,14 @@ TypeCheckType::resolve_root_path (HIR::TypePath &path, size_t *offset,
 	  // assign the ref_node_id if we've found something
 	  nr_ctx.lookup (ast_node_id, Resolver2_0::Namespace::Types)
 	    .map ([&ref_node_id] (NodeId resolved) { ref_node_id = resolved; });
+
+	  // TODO: Should we add a special method to the name resolver to handle
+	  // that case? Resolving something in the Types NS when we want to
+	  // prioritize builtin types over modules or other conflicting things?
+	  if (auto builtin_type_id
+	      = Resolver2_0::Builtins::find_builtin_node_id (seg->to_string ()))
+	    if (mappings.is_module (ref_node_id))
+	      ref_node_id = builtin_type_id.value ();
 	}
 
       // ref_node_id is the NodeId that the segments refers to.
@@ -411,7 +420,8 @@ TypeCheckType::resolve_root_path (HIR::TypePath &path, size_t *offset,
 	  // A::B::C::this_is_a_module
 	  //          ^^^^^^^^^^^^^^^^
 	  // This is an error, we are not expecting a module.
-	  rust_error_at (seg->get_locus (), "expected value");
+	  rust_error_at (seg->get_locus (), "expected value, got module");
+
 	  return new TyTy::ErrorType (path.get_mappings ().get_hirid ());
 	}
 
