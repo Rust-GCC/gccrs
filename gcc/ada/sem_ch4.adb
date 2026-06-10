@@ -2486,6 +2486,7 @@ package body Sem_Ch4 is
 
       A        : Node_Id;
       EWA_Scop : Entity_Id;
+      SE       : Scope_Stack_Entry;
 
    --  Start of processing for Analyze_Expression_With_Actions
 
@@ -2523,8 +2524,28 @@ package body Sem_Ch4 is
          In_Declare_Expr := In_Declare_Expr - 1;
       end if;
 
+      --  If the analysis of the expression has created a transient
+      --  scope, we first need to save the transient scope and pop it.
+
+      if Scope_Is_Transient then
+         SE := Scope_Stack.Table (Scope_Stack.Last);
+         Scope_Stack.Decrement_Last;
+      else
+         SE.Is_Transient := False;
+      end if;
+
+      --  Remove the scope and its declarations from visibility. Note that
+      --  the scope is purely static and the EWA is not a master construct
+      --  (see AI22-0017) so the lifetime of the objects does not end here.
+
       pragma Assert (Current_Scope = Scope_Link (N));
       End_Scope;
+
+      --  Push again the transient scope, if any
+
+      if SE.Is_Transient then
+         Scope_Stack.Append (SE);
+      end if;
    end Analyze_Expression_With_Actions;
 
    ---------------------------

@@ -67,6 +67,7 @@ with Sem_Ch4;        use Sem_Ch4;
 with Sem_Ch5;        use Sem_Ch5;
 with Sem_Ch6;        use Sem_Ch6;
 with Sem_Ch8;        use Sem_Ch8;
+with Sem_Ch9;        use Sem_Ch9;
 with Sem_Ch13;       use Sem_Ch13;
 with Sem_Dim;        use Sem_Dim;
 with Sem_Disp;       use Sem_Disp;
@@ -7752,145 +7753,49 @@ package body Sem_Res is
    -- Resolve_Declare_Expression --
    --------------------------------
 
-   procedure Resolve_Declare_Expression
-     (N   : Node_Id;
-      Typ : Entity_Id)
-   is
-      Expr : constant Node_Id := Expression (N);
-
-      Decl  : Node_Id;
-      Local : Entity_Id := Empty;
-
-      Save_Hidden_Map : constant Elist_Id := New_Elmt_List;
-      --  Stores the map of identifiers, and corresponding entities, that
-      --  temporarily loose visibility due to homonym declarations in the
-      --  current declare expression.
-
-      function Replace_Local (N  : Node_Id) return Traverse_Result;
-      --  Use a tree traversal to replace each occurrence of the name of
-      --  a local object declared in the construct, with the corresponding
-      --  entity. This replaces the usual way to perform name capture by
-      --  visibility, because it is not possible to place on the scope
-      --  stack the fake scope created for the analysis of the local
-      --  declarations; such a scope conflicts with the transient scopes
-      --  that may be generated if the expression includes function calls
-      --  requiring finalization.
-
-      -------------------
-      -- Replace_Local --
-      -------------------
-
-      function Replace_Local (N  : Node_Id) return Traverse_Result is
-      begin
-         --  The identifier may be the prefix of a selected component,
-         --  but not a selector name, because the local entities do not
-         --  have a scope that can be named: a selected component whose
-         --  selector is a homonym of a local entity must denote some
-         --  global entity.
-
-         if Nkind (N) = N_Identifier
-           and then Chars (N) = Chars (Local)
-           and then No (Entity (N))
-           and then
-             (Nkind (Parent (N)) /= N_Selected_Component
-               or else N = Prefix (Parent (N)))
-         then
-            Set_Entity (N, Local);
-            Set_Etype (N, Etype (Local));
-            Generate_Reference (Local, N);
-         end if;
-
-         return OK;
-      end Replace_Local;
-
-      procedure Replace_Local_Ref is new Traverse_Proc (Replace_Local);
-
-   --  Start of processing for Resolve_Declare_Expression
+   procedure Resolve_Declare_Expression (N : Node_Id; Typ : Entity_Id) is
+      After : Node_Id;
+      SE    : Scope_Stack_Entry;
 
    begin
-      --  Create a transient scope if the type of this declare-expression
-      --  or its expression requires it; this must be done before we push
-      --  in the scope stack the scope of this declare expression (in order
-      --  to properly remove it from the stack on exit from this routine).
-      --  Given that we don't know yet if secondary stack management will
-      --  be needed, we assume the worst case.
-
-      if Expander_Active
-        and then (Requires_Transient_Scope (Typ)
-                    or else Has_Sec_Stack_Call (Expr))
-      then
-         Establish_Transient_Scope (N, Manage_Sec_Stack => True);
-      end if;
+      --  First push the scope of the EWA and install its declarations
 
       Push_Scope (Scope_Link (N));
+      Install_Declarations (Scope_Link (N));
 
-      Decl := First (Actions (N));
-
-      while Present (Decl) loop
-         if Nkind (Decl) in
-            N_Object_Declaration | N_Object_Renaming_Declaration
-              and then Comes_From_Source (Defining_Identifier (Decl))
-         then
-            Local := Defining_Identifier (Decl);
-            Replace_Local_Ref (Expr);
-
-            --  Traverse the expression to replace references to local
-            --  variables that occur within declarations of the
-            --  declare_expression.
-
-            declare
-               D : Node_Id := Next (Decl);
-            begin
-               while Present (D) loop
-                  Replace_Local_Ref (D);
-                  Next (D);
-               end loop;
-            end;
-
-            --  Homonyms of the new local declaration are saved to be restored
-            --  after the resolution of the declare block's expression.
-
-            Append_Elmt (Local, Save_Hidden_Map);
-            Append_Elmt (Get_Name_Entity_Id (Chars (Local)), Save_Hidden_Map);
-
-            --  Update the references to local in the name table and make them
-            --  immediately visible to be available within the expression.
-
-            Set_Current_Entity (Local);
-            Set_Is_Immediately_Visible (Local);
-            Set_Is_Not_Self_Hidden (Local);
-         end if;
-
-         Next (Decl);
-      end loop;
-
-      --  The end of the declarative list is a freeze point for the
+      --  The end of the declarative list is a freezing point for the
       --  local declarations.
 
-      if Present (Local) then
-         Decl := Parent (Local);
-         Freeze_All (First_Entity (Scope (Local)), Decl);
+      After := Last (Actions (N));
+      Freeze_All (First_Entity (Scope_Link (N)), After);
+
+      --  Now resolve the expression
+
+      Resolve (Expression (N), Typ);
+      Check_Unset_Reference (Expression (N));
+
+      --  If the resolution of the expression has created a transient
+      --  scope, we first need to save the transient scope and pop it.
+
+      if Scope_Is_Transient then
+         SE := Scope_Stack.Table (Scope_Stack.Last);
+         Scope_Stack.Decrement_Last;
+      else
+         SE.Is_Transient := False;
       end if;
 
-      Resolve (Expr, Typ);
-      Check_Unset_Reference (Expr);
-
-      --  Restore any hidden entity homonyms to a local one
-
-      declare
-         Cursor : Elmt_Id := First_Elmt (Save_Hidden_Map);
-         Name : Name_Id;
-      begin
-         while Present (Cursor) loop
-            Name := Chars (Node (Cursor));
-            Next_Elmt (Cursor);
-            Set_Name_Entity_Id (Name, Node (Cursor));
-            Next_Elmt (Cursor);
-         end loop;
-      end;
+      --  Remove the scope and its declarations from visibility. Note that
+      --  the scope is purely static and the EWA is not a master construct
+      --  (see AI22-0017) so the lifetime of the objects does not end here.
 
       pragma Assert (Current_Scope = Scope_Link (N));
       End_Scope;
+
+      --  Push again the transient scope, if any
+
+      if SE.Is_Transient then
+         Scope_Stack.Append (SE);
+      end if;
    end Resolve_Declare_Expression;
 
    -----------------------------------
