@@ -2852,7 +2852,7 @@ solve_flow_graph (function_info *fn)
 
   /* If the graph has been correctly solved, every block will have a
      valid count.  */
-  for (unsigned i = 0; ix < fn->blocks.size (); i++)
+  for (unsigned i = 0; i < fn->blocks.size (); i++)
     if (!fn->blocks[i].count_valid)
       {
 	fnotice (stderr, "%s:graph is unsolvable for '%s'\n",
