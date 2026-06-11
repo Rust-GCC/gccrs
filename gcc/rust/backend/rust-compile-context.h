@@ -20,7 +20,7 @@
 #define RUST_COMPILE_CONTEXT
 
 #include "rust-system.h"
-#include "rust-compile-drop.h"
+#include "rust-compile-drop-candidate.h"
 #include "rust-hir-map.h"
 #include "rust-name-resolver.h"
 #include "rust-hir-type-check.h"

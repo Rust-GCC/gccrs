@@ -16,26 +16,25 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-#ifndef RUST_COMPILE_DROP_H
-#define RUST_COMPILE_DROP_H
+#ifndef RUST_COMPILE_DROP_CANDIDATE_H
+#define RUST_COMPILE_DROP_CANDIDATE_H
 
-#include "rust-compile-context.h"
+#include "rust-system.h"
+#include "rust-hir-map.h"
 
 namespace Rust {
 namespace Compile {
 
-class CompileDrop
+struct DropCandidate
 {
-public:
-  static bool type_has_drop_impl (Context *ctx, TyTy::BaseType *ty);
+  DropCandidate (HirId hirid, location_t locus) : hirid (hirid), locus (locus)
+  {}
 
-  static tree compile_drop_call (Context *ctx, Bvariable *var,
-				 TyTy::BaseType *ty, location_t locus);
-
-  static void emit_current_scope_drop_calls (Context *ctx);
+  HirId hirid;
+  location_t locus;
 };
 
 } // namespace Compile
 } // namespace Rust
 
-#endif // RUST_COMPILE_DROP_H
+#endif // RUST_COMPILE_DROP_CANDIDATE_H
