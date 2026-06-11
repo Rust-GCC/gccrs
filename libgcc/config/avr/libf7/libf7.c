@@ -122,9 +122,9 @@ int8_t ssat8_range (int16_t a, int8_t range)
 F7_WEAK
 f7_double_t __floatundidf (uint64_t x)
 {
-  f7_t xx;
-  f7_set_u64 (&xx, x);
-  return f7_get_double (&xx);
+  f7_t xx7, *xx = &xx7;
+  xx = f7_set_u64 (xx, x);
+  return f7_get_double (xx);
 }
 #endif // F7MOD_floatundidf_
 
@@ -133,9 +133,9 @@ f7_double_t __floatundidf (uint64_t x)
 F7_WEAK
 f7_double_t __floatdidf (int64_t x)
 {
-  f7_t xx;
-  f7_set_s64 (&xx, x);
-  return f7_get_double (&xx);
+  f7_t xx7, *xx = &xx7;
+  xx = f7_set_s64 (xx, x);
+  return f7_get_double (xx);
 }
 #endif // F7MOD_floatdidf_
 
