@@ -94,6 +94,11 @@ extern int writeargv (char * const *, FILE *);
 
 extern int countargv (char * const *);
 
+/* Expand VAL as a response file if it begins with '@' and return the
+   result as a shell-quoted string.  */
+
+extern char *expandargstr (const char *, const char *);
+
 /* Return the last component of a path name.  Note that we can't use a
    prototype here because the parameter is declared inconsistently
    across different systems, sometimes as "char *" and sometimes as

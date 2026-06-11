@@ -1,0 +1,78 @@
+# Copyright (C) 2026 Free Software Foundation, Inc.
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with GCC; see the file COPYING3.  If not see
+# <http://www.gnu.org/licenses/>.
+
+# PR driver/111527 - very long COLLECT_GCC_OPTIONS exceeding
+# COLLECT2_OPTIONS_MAX_LENGTH.  The driver should spill
+# the option list to a response file when it would not fit.
+
+load_lib gcc-defs.exp
+load_lib target-supports.exp
+
+if { [is_remote host] } {
+    return
+}
+
+global GCC_UNDER_TEST
+if { ![info exists GCC_UNDER_TEST] } {
+    set GCC_UNDER_TEST [find_gcc]
+}
+
+# Use @file rather than additional_flags: DejaGnu collapses very
+# long flag strings.  The driver still expands @file into argv and
+# builds COLLECT_GCC_OPTIONS from it, exercising the spill path.
+set work_dir [pwd]
+set src [file join $work_dir "pr111527.c"]
+set rsp [file join $work_dir "pr111527.rsp"]
+set obj [file join $work_dir "pr111527.o"]
+
+set f [open $src w]
+puts $f "int main (void) { return 0; }"
+close $f
+
+set f [open $rsp w]
+for { set i 0 } { $i < 50 } { incr i } {
+    puts $f "-DPR111527_PADDING_$i=1"
+}
+close $f
+
+# (1) Build must succeed.
+set cmd "$GCC_UNDER_TEST -c $src -o $obj @$rsp"
+verbose -log "Test 1: $cmd"
+set status [remote_exec host $cmd]
+set rc [lindex $status 0]
+set out [lindex $status 1]
+if { $rc == 0 } {
+    pass "PR111527: build with very long COLLECT_GCC_OPTIONS"
+} else {
+    fail "PR111527: build with very long COLLECT_GCC_OPTIONS"
+    verbose -log "compiler output: $out"
+}
+file delete -force $obj
+
+# (2) Confirm spill path engaged.
+set cmd "$GCC_UNDER_TEST -v -c $src -o $obj @$rsp"
+verbose -log "Test 2: $cmd"
+set status [remote_exec host $cmd]
+set out [lindex $status 1]
+if { [regexp {COLLECT_GCC_OPTIONS=@[^[:space:]]+} $out] } {
+    pass "PR111527: driver spilled to @file"
+} else {
+    fail "PR111527: driver spilled to @file"
+    verbose -log "compiler output: $out"
+}
+
+file delete -force $obj
+file delete -force $rsp
+file delete -force $src

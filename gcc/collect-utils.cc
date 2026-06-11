@@ -269,3 +269,22 @@ utils_cleanup (bool from_signal)
 
   tool_cleanup (from_signal);
 }
+
+/* Return COLLECT_GCC_OPTIONS, expanding an @file reference if present.
+   Returns nullptr if unset.  Result is owned by an internal cache.  */
+
+const char *
+read_collect_gcc_options (void)
+{
+  static char *cached;
+
+  if (cached)
+    return cached;
+
+  const char *raw = getenv ("COLLECT_GCC_OPTIONS");
+  if (raw == nullptr)
+    return nullptr;
+
+  cached = expandargstr (tool_name, raw);
+  return cached;
+}

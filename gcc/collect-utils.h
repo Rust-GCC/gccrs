@@ -33,7 +33,7 @@ extern int collect_wait (const char *, struct pex_obj *);
 extern void do_wait (const char *, struct pex_obj *);
 extern void fork_execute (const char *, char **, bool, const char *);
 extern void utils_cleanup (bool);
-
+extern const char *read_collect_gcc_options (void);
 
 extern bool debug;
 extern bool verbose;

@@ -5659,6 +5659,52 @@ process_command (unsigned int decoded_options_count,
   infiles[n_infiles].name = 0;
 }
 
+/* Set COLLECT_GCC_OPTIONS in the environment.  If the value would
+   exceed COLLECT2_OPTIONS_MAX_LENGTH, spill it to a temporary
+   response file and set the variable to @<path> instead.  */
+
+static void
+xsetenv_collect_gcc_options (char *string)
+{
+  if (strlen (string) <= COLLECT2_OPTIONS_MAX_LENGTH)
+    {
+      xputenv (string);
+      return;
+    }
+
+  static const char prefix[] = "COLLECT_GCC_OPTIONS=";
+  gcc_assert (startswith (string, prefix));
+
+  /* parse_options_from_collect_gcc_options expects argc to start
+     at 1, so push a placeholder argv[0].  */
+  struct obstack argv_obstack;
+  obstack_init (&argv_obstack);
+  obstack_ptr_grow (&argv_obstack, const_cast<char *> (progname));
+  int argc;
+  parse_options_from_collect_gcc_options (string + sizeof (prefix) - 1,
+					  &argv_obstack, &argc);
+  char **argv = XOBFINISH (&argv_obstack, char **);
+
+  char *temp_file = make_temp_file ("");
+  FILE *f = fopen (temp_file, "wb");
+  if (f == nullptr)
+    fatal_error (input_location,
+		 "cannot open response file %qs: %m", temp_file);
+  /* writeargv walks until NULL; skip our placeholder argv[0].  */
+  if (writeargv (argv + 1, f) != 0)
+    fatal_error (input_location,
+		 "cannot write response file %qs: %m", temp_file);
+  if (fclose (f) != 0)
+    fatal_error (input_location,
+		 "cannot close response file %qs: %m", temp_file);
+
+  char *env_val = concat (prefix, "@", temp_file, nullptr);
+  /* Delete on both success and failure unless -save-temps.  */
+  record_temp_file (temp_file, !save_temps_flag, !save_temps_flag);
+  obstack_free (&argv_obstack, nullptr);
+  xputenv (env_val);
+}
+
 /* Store switches not filtered out by %<S in spec in COLLECT_GCC_OPTIONS
    and place that in the environment.  */
 
@@ -5737,7 +5783,7 @@ set_collect_gcc_options (void)
     }
 
   obstack_grow (&collect_obstack, "\0", 1);
-  xputenv (XOBFINISH (&collect_obstack, char *));
+  xsetenv_collect_gcc_options (XOBFINISH (&collect_obstack, char *));
 }
 
 /* Process a spec string, accumulating and running commands.  */

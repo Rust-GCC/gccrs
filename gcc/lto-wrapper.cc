@@ -1452,7 +1452,7 @@ run_gcc (unsigned argc, char *argv[])
   if (!collect_gcc)
     fatal_error (input_location,
 		 "environment variable %<COLLECT_GCC%> must be set");
-  collect_gcc_options = getenv ("COLLECT_GCC_OPTIONS");
+  collect_gcc_options = const_cast<char *> (read_collect_gcc_options ());
   if (!collect_gcc_options)
     fatal_error (input_location,
 		 "environment variable %<COLLECT_GCC_OPTIONS%> must be set");

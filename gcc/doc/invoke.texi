@@ -37776,6 +37776,13 @@ set and it cannot connect to it.
 
 This feature is experimental and subject to change or removal without
 notice.
+
+@vindex COLLECT_GCC_OPTIONS
+@item COLLECT_GCC_OPTIONS
+Set by the driver and read by @command{collect2}, @command{lto-wrapper},
+and the LTO linker plugin to pass the driver's option list.  If
+the list is too long (over 1 KiB by default), the driver writes it to a
+temporary file and sets this variable to @samp{@@@var{path}} instead.
 @end table
 
 @noindent

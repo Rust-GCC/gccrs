@@ -205,6 +205,11 @@ will not work reliably.
 If defined, a C statement (sans semicolon) that performs host-dependent
 initialization when @code{collect2} is being initialized.
 
+@item COLLECT2_OPTIONS_MAX_LENGTH
+If defined, the maximum byte length of @env{COLLECT_GCC_OPTIONS}
+before the driver spills it to a response file.  The default is
+@code{1024}.
+
 @item GCC_DRIVER_HOST_INITIALIZATION
 If defined, a C statement (sans semicolon) that performs host-dependent
 initialization when a compilation driver is being initialized.

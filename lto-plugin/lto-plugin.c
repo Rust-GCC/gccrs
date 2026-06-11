@@ -1506,6 +1506,26 @@ negotiate_api_version (void)
     }
 }
 
+/* Return COLLECT_GCC_OPTIONS, expanding an @file reference if present.
+   Returns NULL if unset.  Result owned by an internal cache.  */
+
+static const char *
+read_collect_gcc_options (void)
+{
+  static char *cached;
+  const char *raw;
+
+  if (cached)
+    return cached;
+
+  raw = getenv ("COLLECT_GCC_OPTIONS");
+  if (raw == NULL)
+    return NULL;
+
+  cached = expandargstr ("lto-plugin", raw);
+  return cached;
+}
+
 /* Called by a linker after loading the plugin. TV is the transfer vector. */
 
 enum ld_plugin_status
@@ -1617,7 +1637,7 @@ onload (struct ld_plugin_tv *tv)
 	     "could not register the all_symbols_read callback");
     }
 
-  char *collect_gcc_options = getenv ("COLLECT_GCC_OPTIONS");
+  const char *collect_gcc_options = read_collect_gcc_options ();
   if (collect_gcc_options)
     {
       /* Support -fno-use-linker-plugin by failing to load the plugin

@@ -1463,4 +1463,10 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 typedef TARGET_UNIT target_unit;
 #endif
 
+/* Maximum length of COLLECT_GCC_OPTIONS before the driver spills it
+   to a response file.  Hosts with tighter limits may override this.  */
+#ifndef COLLECT2_OPTIONS_MAX_LENGTH
+#define COLLECT2_OPTIONS_MAX_LENGTH 1024
+#endif
+
 #endif  /* ! GCC_DEFAULTS_H */
