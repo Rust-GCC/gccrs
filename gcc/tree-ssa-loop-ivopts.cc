@@ -1162,8 +1162,8 @@ alloc_iv (struct ivopts_data *data, tree base, tree step,
 					      sizeof (struct iv));
   gcc_assert (step != NULL_TREE);
 
-  /* Canonicalize the address expression in base if it were an unsigned
-      computation. That leads to more equalities being detected and results in:
+  /* Canonicalize the address expression in base.
+     That leads to more equalities being detected and results in:
 
        1) More accurate cost can be computed for address expressions;
        2) Duplicate candidates won't be created for bases in different
@@ -1171,10 +1171,8 @@ alloc_iv (struct ivopts_data *data, tree base, tree step,
        3) Duplicate candidates won't be created for IV expressions that differ
 	  only in their sign.  */
   aff_tree comb;
-  STRIP_NOPS (expr);
-  expr = fold_convert (unsigned_type_for (TREE_TYPE (expr)), expr);
   tree_to_aff_combination (expr, TREE_TYPE (expr), &comb);
-  base = fold_convert (TREE_TYPE (base), aff_combination_to_tree (&comb));
+  base = aff_combination_to_tree (&comb);
 
   iv->base = base;
   iv->base_object = determine_base_object (data, base);
