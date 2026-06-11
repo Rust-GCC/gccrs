@@ -29,12 +29,14 @@ F7_ASM_PARTS += D_cmp D_eq D_ne D_ge D_gt D_le D_lt D_unord D_fminfmax
 F7_ASM_PARTS += call_dd call_ddd
 
 # Fixed-point -> double conversions
-F7_ASM_PARTS += qq2D uqq2D            sq2D usq2D
-F7_ASM_PARTS +=            ha2D uha2D sa2D usa2D
+F7_ASM_PARTS += qq2D uqq2D            sq2D usq2D dq2D udq2D
+F7_ASM_PARTS +=            ha2D uha2D sa2D usa2D da2D uda2D ta2D uta2D
+F7_ASM_PARTS += fx2D
 
 # Double -> fixed-point conversions
 F7_ASM_PARTS += D2qq D2uqq D2hq D2uhq
 F7_ASM_PARTS +=            D2ha D2uha D2sa D2usa
+F7_ASM_PARTS += D2fx
 
 # Integer -> double conversions
 F7_ASM_PARTS += D_floatsidf D_floatunsidf
@@ -107,7 +109,7 @@ F7F_asm += set_u64 set_s64 addsub_mant_scaled mul_mant
 F7F_asm += to_integer to_unsigned clr_mant_lsbs
 F7F_asm += div sqrt_approx sqrt16_round sqrt16_floor
 F7F_asm += lshrdi3 ashldi3
-
+F7F_asm += d_to_fx64 ufx64_to_d sfx64_to_d
 F7F_asm += class_D
 
 F7F_asm += call_ddd call_xdd call_ddx

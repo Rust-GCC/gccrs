@@ -2308,8 +2308,85 @@ _ENDF __fractqqdf
 #endif /* F7MOD_qq2D_ */
 
 
+#ifdef F7MOD_fx2D_
+;;; Convert an [un]signed 64-bit fixed point value R18[] to double.
+;;;    double ufx64_to_d (ufx64_t R18, uint8_t fbit R30);
+;;;    double sfx64_to_d (sfx64_t R18, uint8_t fbit R30);
+;;; FBIT accounts for the fractional bits of the fixed point type,
+;;; e.g. pass __DA_FBIT__ for long accum etc.
+DEFUN ufx64_to_d
+    push    r30
+    XCALL __floatundidf
+    rjmp  1f
+
+LABEL sfx64_to_d
+    push    r30
+    XCALL __floatdidf
+1:  pop     r30
+
+    ;; The MSB indicates a value of 0.  Notice that at this point,
+    ;; we have a normal floating point number with a biased exponent
+    ;; that won't underflow below.
+    tst     r25
+    breq 0f
+
+    ;; Subtract fbit from the double exponent.  R30[] = fbit << 4.
+    swap    r30
+    mov     r31, r30
+    andi    r30, lo8 (0x0ff0)
+    andi    r31, hi8 (0x0ff0)
+    sub     r24, r30
+    sbc     r25, r31
+
+0:  ret
+ENDF ufx64_to_d
+#endif /* F7MOD_fx2D_ */
+
+#ifdef F7MOD_da2D_
+_DEFUN __fractdadf
+    ldi     r30, __DA_FBIT__
+    F7jmp   sfx64_to_d
+_ENDF __fractdadf
+#endif /* F7MOD_da2D_ */
+
+#ifdef F7MOD_uda2D_
+_DEFUN __fractudadf
+    ldi     r30, __UDA_FBIT__
+    F7jmp   ufx64_to_d
+_ENDF __fractudadf
+#endif /* F7MOD_uda2D_ */
+
+#ifdef F7MOD_ta2D_
+_DEFUN __fracttadf
+    ldi     r30, __TA_FBIT__
+    F7jmp   sfx64_to_d
+_ENDF __fracttadf
+#endif /* F7MOD_ta2D_ */
+
+#ifdef F7MOD_uta2D_
+_DEFUN __fractutadf
+    ldi     r30, __UTA_FBIT__
+    F7jmp   ufx64_to_d
+_ENDF __fractutadf
+#endif /* F7MOD_uta2D_ */
+
+#ifdef F7MOD_dq2D_
+_DEFUN __fractdqdf
+    ldi     r30, __DQ_FBIT__
+    F7jmp   sfx64_to_d
+_ENDF __fractdqdf
+#endif /* F7MOD_dq2D_ */
+
+#ifdef F7MOD_udq2D_
+_DEFUN __fractudqdf
+    ldi     r30, __UDQ_FBIT__
+    F7jmp   ufx64_to_d
+_ENDF __fractudqdf
+#endif /* F7MOD_udq2D_ */
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; Fixed-point -> double conversions.
+;;; Double -> fixed-point conversions.
 
 #ifdef F7MOD_D2qq_
 _DEFUN __fractdfqq
@@ -2387,6 +2464,49 @@ _DEFUN __fractdfusa
     XJMP    __fixunsdfsi
 _ENDF __fractdfusa
 #endif /* F7MOD_D2usa_ */
+
+
+#ifdef F7MOD_D2fx_
+;;; Convert double R18 to a 64-bit fixed point value.
+;;; R18 d_to_fx64 (double R18, int8_t fbit R16);
+;;; |FBIT| accounts for the extra fbits compared to [u]int64_t.
+;;; FBIT < 0 indicates a signed conversion.
+;;; FBIT > 0 indicates an unsigned conversion.
+DEFUN d_to_fx64
+    do_prologue_saves  4, F7_SIZEOF
+
+    ;; Y = FramePointer + 1
+    adiw    Y,      1
+
+    ;; FP + 1 = (f7_t) arg
+    wmov    r16,    Y
+
+    ;; Convert double R18 to f7_t *R16.
+    XCALL   F7_NAME (set_double_impl)
+
+    ;; Prepare for *R24 = ldexp (*R24, R22).  ldexp() accounts for the
+    ;; fractional bits of the fixed point value, i.e. we have to <<= FBIT.
+    wmov    r24,    r16
+    ;; Zero-extend FBIT.
+    clr     r23
+    ;; R16 has been clobbered.  Fetch it from where prologue_saves put it.
+    ldd     r22,    Y + F7_SIZEOF + 3       ; Saved R16
+    tst     r22
+    brmi 1f
+
+    ;; Positive FBIT indicates an unsigned conversion.
+    XCALL   F7_NAME (Ildexp)
+    XCALL   F7_NAME (get_u64)
+    rjmp 9f
+
+1:  ;; Negative FBIT indicates a signed conversion.
+    neg     r22                 ; FBIT := |FBIT|
+    XCALL   F7_NAME (Ildexp)
+    XCALL   F7_NAME (get_s64)
+
+9:  do_epilogue_restores  4, F7_SIZEOF
+ENDF d_to_fx64
+#endif /* F7MOD_D2fx_ */
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
