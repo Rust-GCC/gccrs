@@ -169,6 +169,9 @@ struct simd_immediate_info
   /* The mode of the elements.  */
   scalar_mode elt_mode;
 
+  /* If nonzero, the vector width to print the AdvSIMD immediate.  */
+  unsigned int width = 0;
+
   /* The instruction to use to move the immediate into a vector.  */
   insn_type insn;
 
@@ -203,7 +206,7 @@ struct simd_immediate_info
    ELT_MODE_IN and value VALUE_IN.  */
 inline simd_immediate_info
 ::simd_immediate_info (scalar_float_mode elt_mode_in, rtx value_in)
-  : elt_mode (elt_mode_in), insn (MOV)
+  : elt_mode (elt_mode_in), width (0), insn (MOV)
 {
   u.mov.value = value_in;
   u.mov.modifier = LSL;
@@ -218,7 +221,7 @@ inline simd_immediate_info
 		       unsigned HOST_WIDE_INT value_in,
 		       insn_type insn_in, modifier_type modifier_in,
 		       unsigned int shift_in)
-  : elt_mode (elt_mode_in), insn (insn_in)
+  : elt_mode (elt_mode_in), width (0), insn (insn_in)
 {
   u.mov.value = gen_int_mode (value_in, elt_mode_in);
   u.mov.modifier = modifier_in;
@@ -229,7 +232,7 @@ inline simd_immediate_info
    and where element I is equal to BASE_IN + I * STEP_IN.  */
 inline simd_immediate_info
 ::simd_immediate_info (scalar_mode elt_mode_in, rtx base_in, rtx step_in)
-  : elt_mode (elt_mode_in), insn (INDEX)
+  : elt_mode (elt_mode_in), width (0), insn (INDEX)
 {
   u.index.base = base_in;
   u.index.step = step_in;
@@ -240,7 +243,7 @@ inline simd_immediate_info
 inline simd_immediate_info
 ::simd_immediate_info (scalar_int_mode elt_mode_in,
 		       aarch64_svpattern pattern_in)
-  : elt_mode (elt_mode_in), insn (PTRUE)
+  : elt_mode (elt_mode_in), width (0), insn (PTRUE)
 {
   u.pattern = pattern_in;
 }
@@ -24635,11 +24638,32 @@ aarch64_simd_valid_imm (rtx op, simd_immediate_info *info,
 	}
     }
 
-  /* The immediate must repeat every eight bytes.  */
+  /* The immediate must normally repeat every eight bytes.  For MOV
+     also allow a 128-bit AdvSIMD constant whose high 64 bits are zero
+     since it can be materialized using a 64-bit MOVI.  */
   unsigned int nbytes = bytes.length ();
-  for (unsigned i = 8; i < nbytes; ++i)
+  unsigned int output_width = 0;
+  bool repeats_every_8_bytes = true;
+
+  for (unsigned int i = 8; i < nbytes; ++i)
     if (bytes[i] != bytes[i - 8])
-      return false;
+      {
+	repeats_every_8_bytes = false;
+	break;
+      }
+
+  if (!repeats_every_8_bytes)
+    {
+      if (which != AARCH64_CHECK_MOV || !(vec_flags & VEC_ADVSIMD)
+	  || aarch64_sve_mode_p (mode) || nbytes != 16)
+	return false;
+
+      for (unsigned int i = 8; i < nbytes; ++i)
+	if (bytes[i] != 0)
+	  return false;
+
+      output_width = 64;
+    }
 
   /* Get the repeating 8-byte value as an integer.  No endian correction
      is needed here because bytes is already in lsb-first order.  */
@@ -24692,6 +24716,7 @@ aarch64_simd_valid_imm (rtx op, simd_immediate_info *info,
 	    {
 	      rtx float_val = const_double_from_real_value (r, fmode);
 	      *info = simd_immediate_info (fmode, float_val);
+	      info->width = output_width;
 	    }
 	  return true;
 	}
@@ -24701,7 +24726,11 @@ aarch64_simd_valid_imm (rtx op, simd_immediate_info *info,
     return aarch64_sve_valid_immediate (ival, imode, info, which);
 
   if (aarch64_advsimd_valid_immediate (val64, imode, info, which))
-    return true;
+    {
+      if (info)
+	info->width = output_width;
+      return true;
+    }
 
   if (TARGET_SVE)
     return aarch64_sve_valid_immediate (ival, imode, info, which);
@@ -27234,6 +27263,9 @@ aarch64_output_simd_imm (rtx const_vector, unsigned width,
 
   is_valid = aarch64_simd_valid_imm (const_vector, &info, which);
   gcc_assert (is_valid);
+
+  if (info.width != 0)
+    width = info.width;
 
   element_char = sizetochar (GET_MODE_BITSIZE (info.elt_mode));
   lane_count = width / GET_MODE_BITSIZE (info.elt_mode);
