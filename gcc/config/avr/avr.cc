@@ -10538,7 +10538,7 @@ avr_out_fract (rtx_insn *insn, rtx operands[], bool intsigned, int *plen)
 	{
 	  avr_asm_len ("clr __tmp_reg__" CR_TAB
 		       "sbrc %1,0"       CR_TAB
-		       "dec __tmp_reg__", xop, plen, 1);
+		       "dec __tmp_reg__", xop, plen, 3);
 	  sn = src.regno;
 	  if (sn < s0)
 	    {
@@ -10553,7 +10553,7 @@ avr_out_fract (rtx_insn *insn, rtx operands[], bool intsigned, int *plen)
 	    avr_asm_len ("clt"                CR_TAB
 			 "bld __tmp_reg__,7"  CR_TAB
 			 "adc %0,__tmp_reg__",
-			 &all_regs_rtx[s0], plen, 1);
+			 &all_regs_rtx[s0], plen, 3);
 	  else
 	    avr_asm_len ("lsr __tmp_reg" CR_TAB
 			 "add %0,__tmp_reg__",
@@ -10752,8 +10752,8 @@ avr_out_fract (rtx_insn *insn, rtx operands[], bool intsigned, int *plen)
 	  xop[2] = all_regs_rtx[s0];
 	  if (!lsb_in_tmp_reg && !MAY_CLOBBER (s0))
 	    avr_asm_len ("mov __tmp_reg__,%2", xop, plen, 1);
-	  avr_asm_len ("tst %0" CR_TAB "brpl 0f",
-		       &all_regs_rtx[src.regno_msb], plen, 2);
+	  avr_asm_len ("tst %0" CR_TAB
+		       "brpl 0f", &all_regs_rtx[src.regno_msb], plen, 2);
 	  if (!lsb_in_tmp_reg)
 	    {
 	      unsigned sn = src.regno;
