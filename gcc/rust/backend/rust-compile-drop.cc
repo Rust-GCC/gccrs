@@ -1,3 +1,21 @@
+// Copyright (C) 2026 Free Software Foundation, Inc.
+
+// This file is part of GCC.
+
+// GCC is free software; you can redistribute it and/or modify it under
+// the terms of the GNU General Public License as published by the Free
+// Software Foundation; either version 3, or (at your option) any later
+// version.
+
+// GCC is distributed in the hope that it will be useful, but WITHOUT ANY
+// WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+// for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with GCC; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
+
 #include "rust-compile-drop.h"
 #include "rust-compile-base.h"
 #include "rust-compile-context.h"
@@ -52,23 +70,21 @@ CompileDrop::compile_drop_call (Context *ctx, Bvariable *var,
   auto candidates
     = Resolver::PathProbeImplTrait::Probe (ty->get_root (), segment, drop_ref);
 
-  for (auto &candidate : candidates)
-    {
-      if (!candidate.is_impl_candidate ()
-	  || candidate.ty->get_kind () != TyTy::TypeKind::FNDEF)
-	continue;
+  rust_assert (candidates.size () == 1);
 
-      auto *fn_type = static_cast<TyTy::FnType *> (candidate.ty);
-      tree fn_addr
-	= CompileInherentImplItem::Compile (candidate.item.impl.impl_item, ctx,
-					    fn_type, locus);
+  auto &candidate = *candidates.begin ();
+  rust_assert (candidate.is_impl_candidate ());
+  rust_assert (candidate.ty->get_kind () == TyTy::TypeKind::FNDEF);
 
-      tree var_expr = Backend::var_expression (var, locus);
-      tree var_addr = HIRCompileBase::address_expression (var_expr, locus);
+  auto *fn_type = static_cast<TyTy::FnType *> (candidate.ty);
+  tree fn_addr
+    = CompileInherentImplItem::Compile (candidate.item.impl.impl_item, ctx,
+					fn_type, locus);
 
-      return Backend::call_expression (fn_addr, {var_addr}, nullptr, locus);
-    }
-  return NULL_TREE;
+  tree var_expr = Backend::var_expression (var, locus);
+  tree var_addr = HIRCompileBase::address_expression (var_expr, locus);
+
+  return Backend::call_expression (fn_addr, {var_addr}, nullptr, locus);
 }
 
 void
