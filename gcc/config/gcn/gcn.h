@@ -428,7 +428,7 @@ enum reg_class
    "EXECZ_CONDITIONAL_REG", \
    "ALL_CONDITIONAL_REGS",  \
    "EXEC_MASK_REG",	    \
-   "MEMORY_APERTURE_REGS"   \
+   "MEMORY_APERTURE_REGS",  \
    "SGPR_REGS",		    \
    "SGPR_EXEC_REGS",	    \
    "SGPR_VOP3A_SRC_REGS",   \
