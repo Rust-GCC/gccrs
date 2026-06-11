@@ -1874,6 +1874,14 @@ gcn_addr_space_subset_p (addr_space_t subset, addr_space_t superset)
   return false;
 }
 
+static bool
+gcn_addr_space_zero_address_valid (addr_space_t as)
+{
+  if (as == ADDR_SPACE_LDS)
+    return true;
+  return false;
+}
+
 static addr_space_t
 gcn_addr_space_resolve_default (addr_space_t as)
 {
@@ -8085,6 +8093,8 @@ gcn_dwarf_register_span (rtx rtl)
 #define TARGET_ADDR_SPACE_POINTER_MODE gcn_addr_space_pointer_mode
 #undef  TARGET_ADDR_SPACE_SUBSET_P
 #define TARGET_ADDR_SPACE_SUBSET_P gcn_addr_space_subset_p
+#undef  TARGET_ADDR_SPACE_ZERO_ADDRESS_VALID
+#define TARGET_ADDR_SPACE_ZERO_ADDRESS_VALID gcn_addr_space_zero_address_valid
 #undef  TARGET_ADDR_SPACE_CONVERT
 #define TARGET_ADDR_SPACE_CONVERT gcn_addr_space_convert
 #undef  TARGET_ARG_PARTIAL_BYTES
