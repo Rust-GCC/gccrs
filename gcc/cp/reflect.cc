@@ -3324,11 +3324,15 @@ eval_size_of (location_t loc, const constexpr_ctx *ctx, tree r,
   else
     type = type_of (r, kind);
   tree ret;
-  if (!complete_type_or_maybe_complain (type, NULL_TREE, tf_none)
-      /* No special casing of references needed, c_sizeof_or_alignof_type
-	 returns the same size for POINTER_TYPE and REFERENCE_TYPE.  */
-      || ((ret = c_sizeof_or_alignof_type (loc, type, true, false, 0))
-	  == error_mark_node))
+  if (FUNC_OR_METHOD_TYPE_P (type))
+    return throw_exception (loc, ctx,
+			    "reflection of function type in size_of",
+			    fun, non_constant_p, jump_target);
+  else if (!complete_type_or_maybe_complain (type, NULL_TREE, tf_none)
+	   /* No special casing of references needed, c_sizeof_or_alignof_type
+	      returns the same size for POINTER_TYPE and REFERENCE_TYPE.  */
+	   || ((ret = c_sizeof_or_alignof_type (loc, type, true, false, 0))
+	       == error_mark_node))
     return throw_exception (loc, ctx,
 			    "reflection with incomplete type in size_of",
 			    fun, non_constant_p, jump_target);
