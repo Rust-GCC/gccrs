@@ -1,3 +1,8 @@
+2026-06-10  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+	(Contributing under the DCO): Add myself.
+
 2026-06-05  Richard Earnshaw  <rearnsha@arm.com>
 
 	* .forgejo/CODEOWNERS: New file.

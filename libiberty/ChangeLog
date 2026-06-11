@@ -1,3 +1,8 @@
+2026-06-10  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	* simple-object-mach-o.c (MACH_O_MH_DYLIB): New definition.
+	(simple_object_mach_o_match): Accept dylibs as well as object files.
+
 2026-06-07  Andrew Burgess  <aburgess@redhat.com>
 
 	* d-demangle.c (struct dlang_info::options): New field,

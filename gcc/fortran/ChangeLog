@@ -1,3 +1,35 @@
+2026-06-10  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	Backported from master:
+	2026-06-10  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/125650
+	* match.cc (match_association_list): Handle ASSOCIATE selectors
+	that are overloaded intrinsic operator expressions by extending
+	them with gfc_extend_expr at parse time, so the associate name is
+	typed before the construct body is parsed.
+
+2026-06-10  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	Backported from master:
+	2026-06-10  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/125530
+	* match.cc (gfc_match_call): Route ASSOCIATE names followed by '%'
+	to match_typebound_call without first resolving the selector, to
+	avoid prematurely marking a contained-function selector as EXTERNAL.
+	* symbol.cc (find_derived_types): Also search type-bound procedure
+	names via gfc_find_typebound_proc when inferring the type of an
+	inferred-type ASSOCIATE name; exclude vtable types.
+
+2026-06-10  Chung-Lin Tang  <cltang@baylibre.com>
+
+	PR fortran/122910
+	* f95-lang.cc (LANG_HOOKS_OMP_ARRAY_DATA_PRIVATIZE): Define as
+	gfc_omp_array_data_privatize.
+	* trans-openmp.cc (gfc_omp_array_data_privatize): New function.
+	* trans.h (gfc_omp_array_data_privatize): New declaration.
+
 2026-06-09  Tobias Burnus  <tburnus@baylibre.com>
 
 	* module.cc (load_omp_udrs): Improve reduction diagnostic output.

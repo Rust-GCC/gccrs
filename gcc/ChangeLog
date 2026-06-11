@@ -1,3 +1,78 @@
+2026-06-10  Andrew MacLeod  <amacleod@redhat.com>
+
+	* value-range-storage.cc (irange_storage::irange_storage):
+	Explicitly initialize vrange_storage.
+	(prange_storage::prange_storage): Likewise.
+	* value-range-storage.h (vrange_storage): Add GTY marker and
+	discriminator field.
+	(irange_storage): Add GTY marker.
+	(prange_storage): Add GTY marker and friend GTY functions.
+	(frange_storage): Add GTY marker and explcitly initialize
+	vrange_storage.
+
+2026-06-10  Andrew MacLeod  <amacleod@redhat.com>
+
+	* value-range-storage.cc (prange_storage::equal_p): Compare just
+	the required fields.
+
+2026-06-10  Andrew MacLeod  <amacleod@redhat.com>
+
+	* value-range-storage.cc (prange_storage::alloc): Use new
+	prange_format function.
+	(prange_storage::prange_storage): Likewise.
+	(prange_storage::prange_format): Rename from prange_format
+	constructor and rework.
+	(prange_storage::set_prange): Use prange_format function.
+	(prange_storage::fits_p): Likewise.
+	* value-range-storage.h (enum prange_kind): Move out of
+	prange_storage class.
+	(PRANGE_STORAGE_NINTS): Likewise.
+	(class prange_format): remove.
+	(m_trailing_ints): Use PRANGE_STORAGE_NINTS.
+
+2026-06-10  tobby.li  <tobby.li@armchina.com>
+
+	* config/arm/arm-cpus.in (cortex-m52): Remove quirk_vlldm.
+	* doc/invoke.texi: Remove cortex-m52 from the list of CPUs that
+	enable -mfix-cmse-cve-2021-35465 by default.  Fix typo in CVE
+	number (CVE-2021-365465 -> CVE-2021-35465).
+
+2026-06-10  Chung-Lin Tang  <cltang@baylibre.com>
+
+	PR fortran/122910
+	* langhooks-def.h (LANG_HOOKS_OMP_ARRAY_DATA_PRIVATIZE): Define.
+	* langhooks.h (struct lang_hooks_for_decls): Define
+	omp_array_data_privatize hook.
+	* omp-low.cc (scan_sharing_clauses): Add new calls to
+	lang_hooks.decls.omp_array_data_privatize,
+	(lower_omp_target): Likewise.
+
+2026-06-10  tobby.li  <tobby.li@armchina.com>
+
+	* config/arm/arm-cpus.in (star-mc3): New CPU.
+	* config/arm/arm-tables.opt: Regenerate.
+	* config/arm/arm-tune.md: Regenerate.
+	* doc/invoke.texi: Update docs.
+
+2026-06-10  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR ipa/125699
+	* ipa-param-manipulation.cc (ipa_param_body_adjustments::prepare_debug_expressions): Fix
+	lifetime issue with m_dead_ssa_debug_equiv usage.
+
+2026-06-10  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	* config/riscv/zicond.md (combined sCC splitters): Avoid using
+	PUT_MODE to change existing RTL.  Instead just generate a new node.
+
+2026-06-10  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125686
+	* tree-vect-patterns.cc (synth_lshift_by_additions): Specify
+	pattern vector type.
+	(apply_binop_and_append_stmt): Likewise.
+	(vect_synth_mult_by_constant): Adjust.
+
 2026-06-09  Georg-Johann Lay  <avr@gjlay.de>
 
 	* config/avr/avr.cc: Fix typos in comments.

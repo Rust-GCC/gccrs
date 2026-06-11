@@ -1,3 +1,22 @@
+2026-06-10  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/125694
+	* typeck.cc (build_x_bswapg_bitreverseg ): If arg is error_operand_p,
+	return error_mark_node.
+
+2026-06-10  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/91155
+	* decl.cc (cp_make_fname_decl): Use cpp_translate_string instead of
+	cpp_interpret_string, don't prefix name strname.text with " and suffix
+	with " and NUL.
+
+2026-06-10  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125498
+	* mangle.cc (write_reflection): Use DECL_PARM_INDEX for
+	computing the parameter index.
+
 2026-06-09  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/121287
