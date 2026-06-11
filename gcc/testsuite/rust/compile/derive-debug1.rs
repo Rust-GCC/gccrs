@@ -1,6 +1,5 @@
 #![feature(no_core)]
 #![no_core]
-
 #![feature(lang_items)]
 #[lang = "sized"]
 trait Sized {}
@@ -29,7 +28,11 @@ mod core {
 
 #[derive(Debug)]
 // { dg-warning "stub implementation" "" { target *-*-* } .-1 }
-struct Foo { a: i32, b: i64 } // { dg-warning "is never constructed" }
+struct Foo {
+    // { dg-warning "is never constructed" "" { target *-*-* } .-1 }
+    a: i32,
+    b: i64,
+}
 
 #[derive(Debug)]
 // { dg-warning "stub implementation" "" { target *-*-* } .-1 }
@@ -37,9 +40,8 @@ struct Bar(i32, i32); // { dg-warning "is never constructed" }
 
 #[derive(Debug)]
 // { dg-warning "stub implementation" "" { target *-*-* } .-1 }
-enum Baz {
+pub enum Baz {
     A,
     B(i32),
-    C { a: i32 }
+    C { a: i32 },
 }
-

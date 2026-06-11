@@ -88,8 +88,8 @@ struct Foo { // { dg-warning "never constructed" }
 struct Bar(i32, i64); // { dg-warning "never constructed" }
 
 #[derive(Hash)]
-enum Baz {
+pub enum Baz {
     A,
     B(i32),
-    C { a: i64 }
+    C { a: i64 },
 }
