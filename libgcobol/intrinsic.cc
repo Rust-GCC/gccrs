@@ -1212,6 +1212,40 @@ __gg__char( cblc_field_t *dest,
 
 extern "C"
 void
+__gg__char_national(cblc_field_t *dest,
+              const cblc_field_t *source,
+                    size_t        source_offset,
+                    size_t        source_size )
+  {
+  // Since we haven't tried to implement collation sequences for National,
+  // this whole subroutine is a Hail Mary play.  I frankly don't even know
+  // why we tried.
+  int rdigits;
+
+  // The CHAR function takes an integer, the ordinal position.  It
+  // returns a single-character string, which is the character at that
+  // ordinal position in the DISPLAY collation.
+
+  // 'A', with the ascii value of 65, is at the ordinal position 66
+  // in the default collation.
+
+  int ordinal = (int)(__gg__binary_value_from_qualified_field(&rdigits,
+                                                              source,
+                                                              source_offset,
+                                                              source_size));
+  ordinal /= __gg__power_of_ten(rdigits);
+  ordinal -= 1;
+
+  // We need to convert the ch character to the destination encoding.
+  // THIS IS A KLUDGE UNTIL WE MAKE THE CURRENT_COLLATION TO BE A MAP OF
+  // WIDE CHARACTERS!
+  const charmap_t *charmap_dest = __gg__get_charmap(dest->encoding);
+
+  memcpy(dest->data, &ordinal, charmap_dest->stride());
+  }
+
+extern "C"
+void
 __gg__combined_datetime(cblc_field_t *dest,
                   const cblc_field_t *arg1,
                         size_t arg1_offset,

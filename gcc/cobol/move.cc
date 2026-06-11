@@ -1994,8 +1994,306 @@ mh_alpha_to_alpha(const cbl_refer_t &destref,
   }
 
 static bool
-mh_packed_to_packed(const cbl_refer_t &destref,
+mh_numdisp_to_packed(const cbl_refer_t &destref,
                     const cbl_refer_t &sourceref);
+
+static bool
+mh_packed_to_packed(const cbl_refer_t &destref,
+                    const cbl_refer_t &sourceref)
+  {
+  if(    (destref.field->type   != FldPacked        )
+      || (sourceref.field->type != FldPacked        )
+      || (destref.field->attr    & scaled_e         )
+      || (sourceref.field->attr  & scaled_e         )
+      || (destref.field->attr    & packed_no_sign_e )
+      || (sourceref.field->attr  & packed_no_sign_e ) )
+    {
+    return false;
+    }
+  // Arriving here means both are packed, neither is scaled, and neither is
+  // COMP-6 or PACKED NO SIGN.
+
+  // We are going to move source to the dest doing the absolute minimum number
+  // of operations.  We are thus going to use memcpy (with constant lengths)
+  // as much as we can, and use conditionals and nybble operations as little
+  // little as possible.
+
+  // There are two broad cases.  The more straightforward case is where source
+  // rdigits and dest rdigits are both even, or both odd.  When that is the
+  // case, the source and destination decimal places are "in phase" somewhere
+  // inside both the dest and the source.  Once we figure out the right
+  // offsets, we can memcpy the "inside" of the source to the correct location
+  // in the dest.  We fiddle with the leading digits, the trailing digits, and
+  // the sign nybble as necessary.
+
+  tree source_location = gg_define_variable(UCHAR_P);
+  tree dest_location   = gg_define_variable(UCHAR_P);
+  tree source_sign     = gg_define_variable(UCHAR_P);
+  tree dest_sign       = gg_define_variable(UCHAR_P);
+  tree temp;
+
+  get_location(temp, destref);
+  gg_assign(dest_location, temp);
+
+  get_location(temp, sourceref);
+  gg_assign(source_location, temp);
+
+  int      source_digits   = sourceref.field->data.digits;
+  int      source_rdigits  = sourceref.field->data.rdigits;
+  size_t   source_capacity = source_digits/2 + 1;
+  if( ((destref.field->data.rdigits ^ source_rdigits) & 1) )
+    {
+    /* This is an "out-of-phase" move, e.g., MOVE 999v99 to 999v9.  The code
+       below handles in-phase moves, so we handle this by making a left-shifted
+       copy of the source side.  By left-shifting it one nybble, incrementing
+       the source_rdigits, and changing the location to the shifted version, we
+       turn the out-of-phase problem into an in-phase problem.  */
+    size_t shifted_size;
+    if( source_digits & 1 )
+      {
+      // The source, plus the sign nybble, fills an even number of nybbles, and
+      // so the shift requires an addition byte on the left.
+      shifted_size = source_capacity + 1;
+      }
+    else
+      {
+      // The highest-order source nybble is a zero, so the shift will fill it
+      // without any additional storage needed.
+      shifted_size = source_capacity;
+      }
+    // Allocate storage for the shifted version:
+    tree shifted_type = build_array_type_nelts(UCHAR, shifted_size);
+    tree shifted = gg_define_variable(shifted_type);
+    TREE_ADDRESSABLE(shifted) = 1;
+    tree source_p        = gg_define_variable(UCHAR_P);
+    tree shifted_p_left  = gg_define_variable(UCHAR_P);
+    tree shifted_p_right = gg_define_variable(UCHAR_P);
+    tree carry      = gg_define_variable(UCHAR);
+    tree carry_next = gg_define_variable(UCHAR);
+    gg_assign(source_p,
+              gg_add(source_location,
+                     build_int_cst_type(SIZE_T,
+                                        source_capacity-1)));
+    gg_assign(shifted_p_left, gg_pointer_to_array(shifted));
+    gg_assign(shifted_p_right,
+              gg_add(shifted_p_left,
+                     build_int_cst_type(SIZE_T, shifted_size-1)));
+    // Start with the right side.
+    // Pick up the carry, which is the left side of the rightmost byte
+    gg_assign(carry,
+              gg_rshift(gg_indirect(source_p),
+                        build_int_cst_type(SIZE_T, 4)));
+    // Keep the sign nybble in place, but with a zero to its left
+    gg_assign(gg_indirect(shifted_p_right),
+              gg_bitwise_and(gg_indirect(source_p),
+                             build_int_cst_type(UCHAR, 0x0F)));
+
+    gg_decrement(source_p);
+    gg_decrement(shifted_p_right);
+    WHILE(shifted_p_right, gt_op, shifted_p_left)
+      {
+      gg_assign(carry_next,
+                gg_rshift(gg_indirect(source_p),
+                          build_int_cst_type(SIZE_T, 4)));
+      gg_assign(gg_indirect(shifted_p_right),
+                gg_bitwise_or(gg_lshift(gg_indirect(source_p),
+                                        build_int_cst_type(SIZE_T, 4)),
+                              carry));
+      gg_assign(carry, carry_next);
+      gg_decrement(source_p);
+      gg_decrement(shifted_p_right);
+      }
+    WEND
+    // At this point, shifted_p_right equals shifted_p_left
+    if( source_digits & 1 )
+      {
+      // The source, plus the sign nybble, fills an even number of nybbles, and
+      // so the shift requires an addition byte on the left.
+      gg_assign(gg_indirect(shifted_p_left), carry);
+      }
+    else
+      {
+      // The highest-order source nybble is a zero, so the shift will fill it
+      // without any additional storage needed.
+      gg_assign(gg_indirect(shifted_p_left),
+                gg_bitwise_or(gg_lshift(gg_indirect(source_p),
+                                        build_int_cst_type(SIZE_T, 4)),
+                              carry));
+      }
+
+    // We now have the left-shifted source in 'shifted'.
+    source_digits  += 1;
+    source_rdigits += 1;
+    source_capacity = source_digits/2 + 1;
+    gg_assign(source_location, shifted_p_left);
+    }
+  gg_assign(source_sign,
+            gg_add(source_location,
+                   build_int_cst_type(SIZE_T,
+                                      source_capacity-1)));
+  gg_assign(dest_sign,
+            gg_add(dest_location,
+                   build_int_cst_type(SIZE_T,
+                                      destref.field->data.capacity()-1)));
+
+  // This is the straightforward case, where the dest and source decimal
+  // places are in phase, which means that the middles of the values can
+  // simply be moved.
+  int dest_rbytes  = destref.field->data.rdigits/2 + 1;
+  int dest_lbytes  = destref.field->data.capacity() - dest_rbytes;
+
+  int source_rbytes = source_rdigits/2 + 1;
+  int source_lbytes = source_capacity - source_rbytes;
+
+  uint32_t dest_bytes = destref.field->data.capacity();
+
+  if( source_lbytes > dest_lbytes )
+    {
+    // There are too many source lbytes.   We just skip those extra bytes,
+    // truncating off those high-order digits.
+    gg_assign(source_location,
+              gg_add(source_location,
+                     build_int_cst_type(SIZE_T,
+                                        source_lbytes-dest_lbytes)));
+    }
+  else if( source_lbytes < dest_lbytes )
+    {
+    // There are too few source lbytes.  We zero out the extra bytes on the
+    // left side of the destination.
+    gg_memset(dest_location,
+              integer_zero_node,
+              build_int_cst_type(SIZE_T, dest_lbytes-source_lbytes));
+    gg_assign(dest_location,
+              gg_add(dest_location,
+                     build_int_cst_type(SIZE_T, dest_lbytes-source_lbytes)));
+    // And reduce the total number to move by the number we zeroed:
+    dest_bytes -= dest_lbytes-source_lbytes;
+    }
+  source_lbytes = dest_lbytes;
+  // We have lined up source_location and dest_location so that the source
+  // lbytes will go into the correct location in the destination
+
+  // We copy over as many bytes as we have in the source that can fit into
+  // the destination:
+  size_t bytes_to_copy =
+            std::min(static_cast<uint32_t>(source_lbytes) + source_rbytes,
+                                           dest_bytes);
+  gg_memcpy(dest_location,
+            source_location,
+            build_int_cst_type(SIZE_T, bytes_to_copy));
+
+  // We make sure the final sign nybble is correct.
+
+  if( source_rbytes == dest_rbytes )
+    {
+    // The sign nybble from the source is now in the destination.  It might
+    // need to be changed
+    if(    !(sourceref.field->attr  & signable_e)
+        &&  (destref.field->attr    & signable_e) )
+      {
+      // The unsignable source has an 0xF sign nybble, so we need to turn
+      // that into an positive 0xC in the signable destination:
+      gg_assign(gg_indirect(dest_sign),
+                gg_bitwise_and(gg_indirect(dest_sign),
+                               build_int_cst_type(UCHAR, 0xFC)));
+      }
+    else if(    (sourceref.field->attr  & signable_e)
+            && !(destref.field->attr & signable_e) )
+      {
+      // The signable source has an 0xC or 0xD sign nybble, so we need to
+      // turn that into an 0xF in the unsignable destination:
+      gg_assign(gg_indirect(dest_sign),
+                gg_bitwise_or(gg_indirect(dest_sign),
+                              build_int_cst_type(UCHAR, 0x0F)));
+      }
+    }
+  else
+    {
+    // There is mismatch between source and dest rdigits:
+    if( source_rbytes < dest_rbytes )
+      {
+      // The source was too short to fill the destination, which means we
+      // currently have a source's sign nybble sitting in the middle of the
+      // destination.  We need to zero out that nybble
+      gg_assign(gg_indirect(dest_location,
+                            build_int_cst_type(SIZE_T,
+                                               bytes_to_copy-1)),
+                gg_bitwise_and(gg_indirect(dest_location,
+                               build_int_cst_type(SIZE_T,
+                                                  bytes_to_copy-1)),
+                                           build_int_cst_type(UCHAR, 0xF0)));
+      // And then we need to zero out the remaining dest_rbytes:
+      int remaining_rbytes = dest_rbytes - source_rbytes;
+      if( remaining_rbytes > 1 )
+        {
+        gg_memset(gg_add(dest_location,
+                         build_int_cst_type(SIZE_T, bytes_to_copy)),
+                  integer_zero_node,
+                  build_int_cst_type(SIZE_T,
+                           destref.field->data.capacity() - bytes_to_copy));
+        }
+      // And now we have to adjust the final nybble:
+
+      if(    !(sourceref.field->attr  & signable_e)
+          &&  (destref.field->attr & signable_e) )
+        {
+        // The source is unsignable, so we turn that into an positive 0xC in
+        // the signable destination:
+        gg_assign(gg_indirect(dest_sign), build_int_cst_type(UCHAR, 0x0C));
+        }
+      else if(    (sourceref.field->attr  & signable_e)
+              && !(destref.field->attr & signable_e) )
+        {
+        gg_assign(gg_indirect(dest_sign), build_int_cst_type(UCHAR, 0x0F));
+        }
+      else
+        {
+        // The source and the destination are either both signable, or
+        // both unsignable.  We copy the source's sign nybble to the dest.
+        gg_assign(gg_indirect(dest_sign),
+                  gg_bitwise_or(gg_indirect(dest_sign),
+                                gg_bitwise_and(gg_indirect(source_sign),
+                                               build_int_cst_type(UCHAR,
+                                                                  0x0F))));
+        }
+      }
+    else // source_rbytes > dest_rbytes
+      {
+      // There were more source_rbytes than we needed, which means the final
+      // nybble of the destination is a digit that needs to be truncated
+      // away and replaced with the correct sign nybble.
+      if(    !(sourceref.field->attr  & signable_e)
+          &&  (destref.field->attr & signable_e) )
+        {
+        // The source was unsignable, so we set the sign nybble to a
+        // a positive 0x0C
+        gg_assign(gg_indirect(dest_sign),
+                  gg_bitwise_or(gg_bitwise_and(gg_indirect(dest_sign),
+                                     build_int_cst_type(UCHAR, 0xF0)),
+                                     build_int_cst_type(UCHAR, 0x0C)));
+        }
+      else if(    (sourceref.field->attr  & signable_e)
+              && !(destref.field->attr & signable_e) )
+        {
+        // The dest is unsignable; turn the final nybble into an 0xFo
+        gg_assign(gg_indirect(dest_sign),
+                  gg_bitwise_or(gg_indirect(dest_sign),
+                                build_int_cst_type(UCHAR, 0x0F)));
+        }
+      else
+        {
+        // The source and the destination are either both signable, or
+        // both unsignable.  We copy the source's sign nybble to the dest.
+        gg_assign(gg_indirect(dest_sign),
+                  gg_bitwise_or(gg_bitwise_and(gg_indirect(dest_sign),
+                                build_int_cst_type(UCHAR, 0xF0)),
+                                gg_bitwise_and(gg_indirect(source_sign),
+                                build_int_cst_type(UCHAR, 0x0F))));
+        }
+      }
+    }
+  return true;
+  }
 
 void
 move_helper(tree size_error,        // This is an INT
@@ -2055,6 +2353,18 @@ move_helper(tree size_error,        // This is an INT
 
   if( !moved )
     {
+    moved = mh_packed_to_packed(destref,
+                                sourceref);
+    }
+
+  if( !moved )
+    {
+    moved = mh_numdisp_to_packed(destref,
+                                sourceref);
+    }
+
+  if( !moved )
+    {
     moved = mh_source_is_literalN(destref,
                                   sourceref,
                                   check_for_error,
@@ -2102,12 +2412,6 @@ move_helper(tree size_error,        // This is an INT
                               sourceref,
                               rounded,
                               size_error);
-    }
-
-  if( !moved )
-    {
-    moved = mh_packed_to_packed(destref,
-                                sourceref);
     }
 
   if( !moved )
@@ -2430,302 +2734,291 @@ hex_of(tree location, size_t bytes)
     gg_printf("%2.2X", gg_indirect_i(gg_cast(UCHAR_P, location), i), NULL_TREE);
     }
   }
+
+static void
+hex_msg(const char *msg, tree location, size_t bytes)
+  {
+  gg_printf("%s ", gg_string_literal(msg), NULL_TREE);
+  hex_of(location, bytes);
+  gg_printf("\n", NULL_TREE);
+  }
+
 #endif
 
 static bool
-mh_packed_to_packed(const cbl_refer_t &destref,
+mh_numdisp_to_packed(const cbl_refer_t &destref,
                     const cbl_refer_t &sourceref)
   {
-  if(    (destref.field->type   != FldPacked        )
-      || (sourceref.field->type != FldPacked        )
-      || (destref.field->attr    & scaled_e         )
-      || (sourceref.field->attr  & scaled_e         )
-      || (destref.field->attr    & packed_no_sign_e )
-      || (sourceref.field->attr  & packed_no_sign_e ) )
+  const charmap_t *charmap =
+                   __gg__get_charmap(sourceref.field->codeset.encoding);
+  if(    (destref.field->type   != FldPacked         )
+      || (sourceref.field->type != FldNumericDisplay )
+      || (charmap->stride()     != 1                 )
+      || (destref.field->attr    & scaled_e          )
+      || (sourceref.field->attr  & scaled_e          )
+      || (destref.field->attr    & packed_no_sign_e  )
+      || (sourceref.field->attr  & leading_e         )
+      || (sourceref.field->attr  & separate_e        ) )
     {
     return false;
     }
-  // Arriving here means both are packed, neither is scaled, and neither is
-  // COMP-6 or PACKED NO SIGN.
-
-  // We are going to move source to the dest doing the absolute minimum number
-  // of operations.  We are thus going to use memcpy (with constant lengths)
-  // as much as we can, and use conditionals and nybble operations as little
-  // little as possible.
-
-  // There are two broad cases.  The more straightforward case is where source
-  // rdigits and dest rdigits are both even, or both odd.  When that is the
-  // case, the source and destination decimal places are "in phase" somewhere
-  // inside both the dest and the source.  Once we figure out the right
-  // offsets, we can memcpy the "inside" of the source to the correct location
-  // in the dest.  We fiddle with the leading digits, the trailing digits, and
-  // the sign nybble as necessary.
+  /* Source is NumericDisplay, dest is packed, neither are scaled, the
+     packed destination has a sign nybble, and the numeric source has an
+     ordinarysign bit encoded in the final digit.  */
+  tree uzero = build_int_cst_type(UCHAR,    0);
+  tree umask = build_int_cst_type(UCHAR, 0x0F);
+  tree ufour = build_int_cst_type(SIZE_T,   4);
 
   tree source_location = gg_define_variable(UCHAR_P);
   tree dest_location   = gg_define_variable(UCHAR_P);
-  tree source_sign     = gg_define_variable(UCHAR_P);
-  tree dest_sign       = gg_define_variable(UCHAR_P);
+  tree dest_p          = gg_define_variable(UCHAR_P);
+  tree source_p        = gg_define_variable(UCHAR_P);
+
   tree temp;
 
   get_location(temp, destref);
   gg_assign(dest_location, temp);
-
+  gg_assign(dest_p, dest_location);
   get_location(temp, sourceref);
   gg_assign(source_location, temp);
 
-  int      source_digits   = sourceref.field->data.digits;
-  int      source_rdigits  = sourceref.field->data.rdigits;
-  size_t   source_capacity = source_digits/2 + 1;
-  if( ((destref.field->data.rdigits ^ source_rdigits) & 1) )
+  int source_digits   = sourceref.field->data.digits;
+  int source_rdigits  = sourceref.field->data.rdigits;
+  int source_ldigits  = source_digits - source_rdigits;
+  int dest_digits     = destref.field->data.digits;
+  int dest_rdigits    = destref.field->data.rdigits;
+  int dest_ldigits    = dest_digits - dest_rdigits;
+
+  int truncate_ldigits = std::max(0, source_ldigits-dest_ldigits);
+  int truncate_rdigits = std::max(0, source_rdigits-dest_rdigits);
+  int leading_zeroes   = std::max(0, dest_ldigits-source_ldigits);
+  int trailing_zeroes  = std::max(0, dest_rdigits-source_rdigits);
+
+  int zero_pairs;
+  int digit_pairs;
+  int source_remaining;
+
+  if( truncate_ldigits )
     {
-    /* This is an "out-of-phase" move, e.g., MOVE 999v99 to 999v9.  The code
-       below handles in-phase moves, so we handle this by making a left-shifted
-       copy of the source side.  By left-shifting it one nybble, incrementing
-       the source_rdigits, and changing the location to the shifted version, we
-       turn the out-of-phase problem into an in-phase problem.  */
-    size_t shifted_size;
-    if( source_digits & 1 )
-      {
-      // The source, plus the sign nybble, fills an even number of nybbles, and
-      // so the shift requires an addition byte on the left.
-      shifted_size = source_capacity + 1;
-      }
-    else
-      {
-      // The highest-order source nybble is a zero, so the shift will fill it
-      // without any additional storage needed.
-      shifted_size = source_capacity;
-      }
-    // Allocate storage for the shifted version:
-    tree shifted_type = build_array_type_nelts(UCHAR, shifted_size);
-    tree shifted = gg_define_variable(shifted_type);
-    TREE_ADDRESSABLE(shifted) = 1;
-    tree source_p        = gg_define_variable(UCHAR_P);
-    tree shifted_p_left  = gg_define_variable(UCHAR_P);
-    tree shifted_p_right = gg_define_variable(UCHAR_P);
-    tree carry      = gg_define_variable(UCHAR);
-    tree carry_next = gg_define_variable(UCHAR);
+    // We handle truncation of digits on the left by moving the starting line.
     gg_assign(source_p,
               gg_add(source_location,
-                     build_int_cst_type(SIZE_T,
-                                        source_capacity-1)));
-    gg_assign(shifted_p_left, gg_pointer_to_array(shifted));
-    gg_assign(shifted_p_right,
-              gg_add(shifted_p_left,
-                     build_int_cst_type(SIZE_T, shifted_size-1)));
-    // Start with the right side.
-    // Pick up the carry, which is the left side of the rightmost byte
-    gg_assign(carry,
-              gg_rshift(gg_indirect(source_p),
-                        build_int_cst_type(SIZE_T, 4)));
-    // Keep the sign nybble in place, but with a zero to its left
-    gg_assign(gg_indirect(shifted_p_right),
-              gg_bitwise_and(gg_indirect(source_p),
-                             build_int_cst_type(UCHAR, 0x0F)));
-
-    gg_decrement(source_p);
-    gg_decrement(shifted_p_right);
-    WHILE(shifted_p_right, gt_op, shifted_p_left)
-      {
-      gg_assign(carry_next, 
-                gg_rshift(gg_indirect(source_p),
-                          build_int_cst_type(SIZE_T, 4)));
-      gg_assign(gg_indirect(shifted_p_right),
-                gg_bitwise_or(gg_lshift(gg_indirect(source_p),
-                                        build_int_cst_type(SIZE_T, 4)),
-                              carry));
-      gg_assign(carry, carry_next);
-      gg_decrement(source_p);
-      gg_decrement(shifted_p_right);
-      }
-    WEND
-    // At this point, shifted_p_right equals shifted_p_left
-    if( source_digits & 1 )
-      {
-      // The source, plus the sign nybble, fills an even number of nybbles, and
-      // so the shift requires an addition byte on the left.
-      gg_assign(gg_indirect(shifted_p_left), carry);
-      }
-    else
-      {
-      // The highest-order source nybble is a zero, so the shift will fill it
-      // without any additional storage needed.
-      gg_assign(gg_indirect(shifted_p_left),
-                gg_bitwise_or(gg_lshift(gg_indirect(source_p),
-                                        build_int_cst_type(SIZE_T, 4)),
-                              carry));
-      }
-
-    // We now have the left-shifted source in 'shifted'.
-    source_digits  += 1;
-    source_rdigits += 1;
-    source_capacity = source_digits/2 + 1;
-    gg_assign(source_location, shifted_p_left);
-    }
-  gg_assign(source_sign,
-            gg_add(source_location,
-                   build_int_cst_type(SIZE_T,
-                                      source_capacity-1)));
-  gg_assign(dest_sign,
-            gg_add(dest_location,
-                   build_int_cst_type(SIZE_T,
-                                      destref.field->data.capacity()-1)));
-
-  // This is the straightforward case, where the dest and source decimal
-  // places are in phase, which means that the middles of the values can
-  // simply be moved.
-  int dest_rbytes  = destref.field->data.rdigits/2 + 1;
-  int dest_lbytes  = destref.field->data.capacity() - dest_rbytes;
-
-  int source_rbytes = source_rdigits/2 + 1;
-  int source_lbytes = source_capacity - source_rbytes;
-
-  uint32_t dest_bytes = destref.field->data.capacity();
-
-  if( source_lbytes > dest_lbytes )
-    {
-    // There are too many source lbytes.   We just skip those extra bytes,
-    // truncating off those high-order digits.
-    gg_assign(source_location,
-              gg_add(source_location,
-                     build_int_cst_type(SIZE_T,
-                                        source_lbytes-dest_lbytes)));
-    }
-  else if( source_lbytes < dest_lbytes )
-    {
-    // There are too few source lbytes.  We zero out the extra bytes on the
-    // left side of the destination.
-    gg_memset(dest_location,
-              integer_zero_node,
-              build_int_cst_type(SIZE_T, dest_lbytes-source_lbytes));
-    gg_assign(dest_location,
-              gg_add(dest_location,
-                     build_int_cst_type(SIZE_T, dest_lbytes-source_lbytes)));
-    // And reduce the total number to move by the number we zeroed:
-    dest_bytes -= dest_lbytes-source_lbytes;
-    }
-  source_lbytes = dest_lbytes;
-  // We have lined up source_location and dest_location so that the source
-  // lbytes will go into the correct location in the destination
-
-  // We copy over as many bytes as we have in the source that can fit into
-  // the destination:
-  size_t bytes_to_copy =
-            std::min(static_cast<uint32_t>(source_lbytes) + source_rbytes,
-                                           dest_bytes);
-  gg_memcpy(dest_location,
-            source_location,
-            build_int_cst_type(SIZE_T, bytes_to_copy));
-
-  // We make sure the final sign nybble is correct.
-
-  if( source_rbytes == dest_rbytes )
-    {
-    // The sign nybble from the source is now in the destination.  It might
-    // need to be changed
-    if(    !(sourceref.field->attr  & signable_e)
-        &&  (destref.field->attr    & signable_e) )
-      {
-      // The unsignable source has an 0xF sign nybble, so we need to turn
-      // that into an positive 0xC in the signable destination:
-      gg_assign(gg_indirect(dest_sign),
-                gg_bitwise_and(gg_indirect(dest_sign),
-                               build_int_cst_type(UCHAR, 0xFC)));
-      }
-    else if(    (sourceref.field->attr  & signable_e)
-            && !(destref.field->attr & signable_e) )
-      {
-      // The signable source has an 0xC or 0xD sign nybble, so we need to
-      // turn that into an 0xF in the unsignable destination:
-      gg_assign(gg_indirect(dest_sign),
-                gg_bitwise_or(gg_indirect(dest_sign),
-                              build_int_cst_type(UCHAR, 0x0F)));
-      }
+                     build_int_cst_type(SIZE_T, truncate_ldigits)));
+    source_digits  -= truncate_ldigits;
+    source_ldigits -= truncate_ldigits;
     }
   else
     {
-    // There is mismatch between source and dest rdigits:
-    if( source_rbytes < dest_rbytes )
-      {
-      // The source was too short to fill the destination, which means we
-      // currently have a source's sign nybble sitting in the middle of the
-      // destination.  We need to zero out that nybble
-      gg_assign(gg_indirect(dest_location,
-                            build_int_cst_type(SIZE_T,
-                                               bytes_to_copy-1)),
-                gg_bitwise_and(gg_indirect(dest_location,
-                               build_int_cst_type(SIZE_T,
-                                                  bytes_to_copy-1)),
-                                           build_int_cst_type(UCHAR, 0xF0)));
-      // And then we need to zero out the remaining dest_rbytes:
-      int remaining_rbytes = dest_rbytes - source_rbytes;
-      if( remaining_rbytes > 1 )
-        {
-        gg_memset(gg_add(dest_location,
-                         build_int_cst_type(SIZE_T, bytes_to_copy)),
-                  integer_zero_node,
-                  build_int_cst_type(SIZE_T,
-                           destref.field->data.capacity() - bytes_to_copy));
-        }
-      // And now we have to adjust the final nybble:
+    gg_assign(source_p, source_location);
+    }
 
-      if(    !(sourceref.field->attr  & signable_e)
-          &&  (destref.field->attr & signable_e) )
-        {
-        // The source is unsignable, so we turn that into an positive 0xC in
-        // the signable destination:
-        gg_assign(gg_indirect(dest_sign), build_int_cst_type(UCHAR, 0x0C));
-        }
-      else if(    (sourceref.field->attr  & signable_e)
-              && !(destref.field->attr & signable_e) )
-        {
-        gg_assign(gg_indirect(dest_sign), build_int_cst_type(UCHAR, 0x0F));
-        }
-      else
-        {
-        // The source and the destination are either both signable, or
-        // both unsignable.  We copy the source's sign nybble to the dest.
-        gg_assign(gg_indirect(dest_sign),
-                  gg_bitwise_or(gg_indirect(dest_sign),
-                                gg_bitwise_and(gg_indirect(source_sign),
-                                               build_int_cst_type(UCHAR,
-                                                                  0x0F))));
-        }
-      }
-    else // source_rbytes > dest_rbytes
+  if( truncate_rdigits )
+    {
+    // We handle truncation of digits on the right by moving the finish line.
+    source_digits  -= truncate_rdigits;
+    source_ldigits -= truncate_rdigits;
+    }
+
+  if( !source_digits )
+    {
+    // When source_digits is zero, it means that some pervert of a COBOL
+    // programmer told us to MOVE 999V TO V999.  The result has to be zero,
+    // and our life down below will be easier when we know that there is at
+    // least one digit that needs to be moved from the source to the
+    // destination.
+    gg_memset(dest_p,
+              integer_zero_node,
+              build_int_cst_type(SIZE_T, destref.field->data.capacity()));
+    goto adjust_sign;
+    }
+
+  source_remaining = source_digits;
+
+  // The first thing we need to do is adjust the first byte of the destination
+  // so that we know where we are in left-nybble/right-nybble space.  Let's
+  // call the digit at source_p "N".  (That digit might be a leading zero.)
+  // When dest_digits is an even number, it means the final result is something
+  // like 0N.23.4s.  So, when dest_digits is even, we have to start things off
+  // with "0N".
+
+  if( !(dest_digits & 0x01) )
+    {
+    // dest_digits is an even number.
+    if( leading_zeroes )
       {
-      // There were more source_rbytes than we needed, which means the final
-      // nybble of the destination is a digit that needs to be truncated
-      // away and replaced with the correct sign nybble.
-      if(    !(sourceref.field->attr  & signable_e)
-          &&  (destref.field->attr & signable_e) )
-        {
-        // The source was unsignable, so we set the sign nybble to a
-        // a positive 0x0C
-        gg_assign(gg_indirect(dest_sign),
-                  gg_bitwise_or(gg_bitwise_and(gg_indirect(dest_sign),
-                                     build_int_cst_type(UCHAR, 0xF0)),
-                                     build_int_cst_type(UCHAR, 0x0C)));
-        }
-      else if(    (sourceref.field->attr  & signable_e)
-              && !(destref.field->attr & signable_e) )
-        {
-        // The dest is unsignable; turn the final nybble into an 0xFo
-        gg_assign(gg_indirect(dest_sign),
-                  gg_bitwise_or(gg_indirect(dest_sign),
-                                build_int_cst_type(UCHAR, 0x0F)));
-        }
-      else
-        {
-        // The source and the destination are either both signable, or
-        // both unsignable.  We copy the source's sign nybble to the dest.
-        gg_assign(gg_indirect(dest_sign),
-                  gg_bitwise_or(gg_bitwise_and(gg_indirect(dest_sign),
-                                build_int_cst_type(UCHAR, 0xF0)),
-                                gg_bitwise_and(gg_indirect(source_sign),
-                                build_int_cst_type(UCHAR, 0x0F))));
-        }
+      // The first byte is "0N", but N is zero:
+      gg_assign(gg_indirect(dest_p), uzero);
+      leading_zeroes -= 1;
+      }
+    else
+      {
+      // The first byte is "0N", where N is the value from the first character
+      // of the source.  We know that source_remaining is at least one at this
+      // point.
+      gg_assign(gg_indirect(dest_p),
+                gg_bitwise_and(gg_indirect(source_p), umask));
+      gg_increment(source_p);
+      source_remaining -= 1;
+      }
+    gg_increment(dest_p);
+    }
+
+  // At this point, we know that leading + source + trailing is an odd
+  // number.
+
+  // We know that dest_p is set up to accept a left/right pair next.  Let's
+  // see if we have enough leading_zeroes to warrant using memset:
+  zero_pairs = leading_zeroes/2;
+  if( zero_pairs )
+    {
+    // We can use memset to handle left-side zero-fill:
+    tree tpairs = build_int_cst_type(SIZE_T, zero_pairs);
+    gg_memset(dest_p, integer_zero_node, tpairs);
+    gg_assign(dest_p, gg_add(dest_p, tpairs));
+    leading_zeroes -= 2 * zero_pairs;
+    }
+
+  // dest-p is still set up for a left/right pair.
+  if( leading_zeroes )
+    {
+    // But we still have one leading zero left.  We know at this point that
+    // there is at least one source digit left, so build the byte using
+    // zero/*source_p
+    gg_assign(gg_indirect(dest_p),
+              gg_bitwise_and(gg_indirect(source_p), umask));
+    //leading_zeroes   -= 1;
+    source_remaining -= 1;
+    gg_increment(source_p);
+    gg_increment(dest_p);
+    }
+
+  // At this point, we know that leading_zeroes is zero.  We know that
+  // source_remaining + trailing_zeroes is an odd number.  We
+  // currently have dest_p lined up on a left-right boundary.
+
+  // We are going to transfer as many pairs of source_remaining digits as we
+  // can.
+
+  digit_pairs = source_remaining/2;
+  if( digit_pairs )
+    {
+    tree dest_end = gg_define_variable(UCHAR_P);
+    gg_assign(dest_end,
+              gg_add(dest_p,
+                     build_int_cst_type(SIZE_T, digit_pairs)));
+    WHILE( dest_p, lt_op, dest_end )
+      {
+      tree left_nybble  = gg_lshift(gg_indirect(source_p), ufour);
+      tree right_nybble = gg_bitwise_and(gg_indirect(source_p,
+                                                     integer_one_node),
+                                         umask);
+      gg_assign(gg_indirect(dest_p),
+                gg_bitwise_or(left_nybble, right_nybble));
+      gg_increment(dest_p);
+      gg_assign(source_p,
+                gg_add(source_p, build_int_cst_type(SIZE_T, 2)));
+      }
+    WEND
+    source_remaining -= 2 * digit_pairs;
+    }
+
+  // At this point, source_remaining is zero or one
+
+  if( source_remaining )
+    {
+    gg_assign(gg_indirect(dest_p),
+              gg_lshift(gg_indirect(source_p), ufour));
+    gg_increment(dest_p);
+    //source_remaining -= 1;
+    if( trailing_zeroes )
+      {
+      trailing_zeroes -= 1;
       }
     }
+  // At this point, we know trailing_zeroes has to be an even number, and we
+  // need to zero out that many nybbles:
+
+  if( trailing_zeroes >= 2 )
+    {
+    zero_pairs = trailing_zeroes/2;
+    // We can use memset to handle left-side zero-fill:
+    tree tpairs = build_int_cst_type(SIZE_T, zero_pairs);
+    gg_memset(dest_p, integer_zero_node, tpairs);
+    gg_assign(dest_p, gg_add(dest_p, tpairs));
+    trailing_zeroes -= 2 * zero_pairs;
+    }
+
+  if( trailing_zeroes )
+    {
+    // There is one trailing zero left
+    gg_assign(gg_indirect(dest_p), uzero);
+    gg_increment(dest_p);
+    //trailing_zeroes -= 1;
+    }
+
+  adjust_sign:
+  gg_assign(dest_p, gg_add(dest_location,
+                           build_int_cst_type(SIZE_T,
+                                           destref.field->data.capacity()-1)));
+
+  if( !(destref.field->attr & signable_e) )
+    {
+    // The destination is not signable
+    gg_assign(gg_indirect(dest_p),
+              gg_bitwise_or(gg_indirect(dest_p), umask));
+    }
+  else
+    {
+    if( sourceref.field->attr & signable_e )
+      {
+    // This is the location of the character with the sign flag.
+      gg_assign(source_p, gg_add(source_location,
+                               build_int_cst_type(SIZE_T,
+                                         sourceref.field->data.capacity()-1)));
+      if( charmap->is_like_ebcdic() )
+        {
+        // EBCDIC digits are 0xF0 through 0xF9; negative is flagged by
+        // 0xD0 through 0xD9
+        IF( gg_indirect(source_p), lt_op, build_int_cst_type(UCHAR, 0xF0) )
+          {
+          gg_assign(gg_indirect(dest_p),
+                    gg_bitwise_or(gg_indirect(dest_p),
+                                  build_int_cst_type(UCHAR, 0x0D)));
+          }
+        ELSE
+          {
+          gg_assign(gg_indirect(dest_p),
+                    gg_bitwise_or(gg_indirect(dest_p),
+                                  build_int_cst_type(UCHAR, 0x0C)));
+          }
+        ENDIF
+        }
+      else
+        {
+        // EBCDIC digits are 0x30 through 0x39; negative is flagged by
+        // 0x70 through 0x79
+        IF( gg_indirect(source_p), ge_op, build_int_cst_type(UCHAR, 0x70) )
+          {
+          gg_assign(gg_indirect(dest_p),
+                    gg_bitwise_or(gg_indirect(dest_p),
+                                  build_int_cst_type(UCHAR, 0x0D)));
+          }
+        ELSE
+          {
+          gg_assign(gg_indirect(dest_p),
+                    gg_bitwise_or(gg_indirect(dest_p),
+                                  build_int_cst_type(UCHAR, 0x0C)));
+          }
+        ENDIF
+        }
+      }
+    else
+      {
+      gg_assign(gg_indirect(dest_p),
+                gg_bitwise_or(gg_indirect(dest_p),
+                              build_int_cst_type(UCHAR, 0x0C)));
+      }
+    }
+
   return true;
   }

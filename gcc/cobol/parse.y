@@ -11918,9 +11918,7 @@ intrinsic0:     CURRENT_DATE {
 intrinsic_I:    BOOLEAN_OF_INTEGER     { $$ = BOOLEAN_OF_INTEGER;
 		  cbl_unimplemented("BOOLEAN-OF-INTEGER");
 		}
-        |       CHAR_NATIONAL          { $$ = CHAR_NATIONAL;
-		    cbl_unimplemented("CHAR-NATIONAL");
-		}
+        |       CHAR_NATIONAL          { $$ = CHAR_NATIONAL; }
         |       DATE_OF_INTEGER        { $$ = DATE_OF_INTEGER; }
         |       DAY_OF_INTEGER         { $$ = DAY_OF_INTEGER; }
         |       FACTORIAL              { $$ = FACTORIAL; }
