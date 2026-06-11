@@ -1171,8 +1171,11 @@ ranger_cache::set_global_range (tree name, const vrange &r, bool changed)
   // Timestamp must always be updated, or dependent calculations may
   // not include this latest value. PR 100774.
 
-  if (r.singleton_p ()
-      || (POINTER_TYPE_P (TREE_TYPE (name)) && r.nonzero_p ()))
+  // With Points_to info in prange now, it is no longer acceptable to make
+  // [1, +INF] invariant, as most points to values will have that range,
+  // and then we lose the ability to propagate points to info.
+
+  if (r.singleton_p ())
     gori_ssa ()->set_range_invariant (name);
   m_temporal->set_timestamp (name);
 }
