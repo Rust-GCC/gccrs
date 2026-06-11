@@ -7,7 +7,7 @@
 #[lang = "sized"]
 pub trait Sized {}
 
-enum BookFormat {
+pub enum BookFormat {
     Paperback,
     Hardback,
     Ebook,

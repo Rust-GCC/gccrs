@@ -1,7 +1,7 @@
 #![feature(no_core)]
 #![no_core]
 
-enum E {
+pub enum E {
     T0(),
     T1(i32),
     T2(i32, u32),
