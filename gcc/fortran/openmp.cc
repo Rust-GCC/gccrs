@@ -5976,11 +5976,21 @@ gfc_omp_udm_find (gfc_symtree *st, gfc_typespec *ts)
   if (st == NULL)
     return NULL;
 
+  gfc_symbol *dt = (ts->type == BT_CLASS
+		    ? CLASS_DATA (ts->u.derived)->ts.u.derived
+		    : ts->u.derived);
   for (omp_udm = st->n.omp_udm; omp_udm; omp_udm = omp_udm->next)
-    if ((omp_udm->ts.type == BT_DERIVED || omp_udm->ts.type == BT_CLASS)
-	&& (ts->type == BT_DERIVED || ts->type == BT_CLASS)
-	&& strcmp (omp_udm->ts.u.derived->name, ts->u.derived->name) == 0)
-      return omp_udm;
+    {
+      if (dt == omp_udm->ts.u.derived)
+	return omp_udm;
+      /* Special case for comparing derived types across namespaces.  If the
+	 true names and module names are the same and the module name is
+	 nonnull, then they are equal.  */
+      if (dt->module && omp_udm->ts.u.derived->module
+	  && strcmp (dt->name, omp_udm->ts.u.derived->name) == 0
+	  && strcmp (dt->module, omp_udm->ts.u.derived->module) == 0)
+	return omp_udm;
+    }
 
   return NULL;
 }
@@ -6292,14 +6302,25 @@ gfc_omp_udr_find (gfc_symtree *st, gfc_typespec *ts)
   if (st == NULL)
     return NULL;
 
+  gfc_symbol *dt = NULL;
+  if (ts->type == BT_DERIVED || ts->type == BT_CLASS)
+    dt = (ts->type == BT_CLASS
+	  ? CLASS_DATA (ts->u.derived)->ts.u.derived : ts->u.derived);
   for (omp_udr = st->n.omp_udr; omp_udr; omp_udr = omp_udr->next)
     if (omp_udr->ts.type == ts->type
-	|| ((omp_udr->ts.type == BT_DERIVED || omp_udr->ts.type == BT_CLASS)
-	    && (ts->type == BT_DERIVED || ts->type == BT_CLASS)))
+	|| (dt && omp_udr->ts.type == BT_DERIVED))
       {
-	if (omp_udr->ts.type == BT_DERIVED || omp_udr->ts.type == BT_CLASS)
+	if (dt && omp_udr->ts.type == BT_DERIVED)
 	  {
-	    if (strcmp (omp_udr->ts.u.derived->name, ts->u.derived->name) == 0)
+	    gfc_symbol *dtu = omp_udr->ts.u.derived;
+	    if (dt == dtu)
+	      return omp_udr;
+	    /* Special case for comparing derived types across namespaces.  If
+	       the true names and module names are the same and the module name
+	       is nonnull, then they are equal.  */
+	    if (dt->module && dtu->module
+		&& strcmp (dt->name, dtu->name) == 0
+		&& strcmp (dt->module, dtu->module) == 0)
 	      return omp_udr;
 	  }
 	else if (omp_udr->ts.kind == ts->kind)
