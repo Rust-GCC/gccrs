@@ -2466,7 +2466,8 @@ gfc_match_dupl_atomic (bool not_dupl, const char *name)
 
 
 /* Search upwards though namespace NS and its parents to find an
-   !$omp declare mapper named MAPPER_ID, for typespec TS.  */
+   !$omp declare mapper named MAPPER_ID, for typespec TS.  The default
+   mapper has mapper_id == "".  */
 
 gfc_omp_udm *
 gfc_find_omp_udm (gfc_namespace *ns, const char *mapper_id, gfc_typespec *ts)
@@ -3841,6 +3842,8 @@ gfc_match_omp_clauses (gfc_omp_clauses **cp, const omp_mask mask,
 		      m = gfc_match (" %n ) ", mapper_id);
 		      if (m != MATCH_YES)
 			goto error;
+		      if (strcmp (mapper_id, "default") == 0)
+			mapper_id[0] = '\0';
 		    }
 		  else if (gfc_match_iterator (&ns_iter, true) == MATCH_YES)
 		    {
@@ -3934,17 +3937,11 @@ gfc_match_omp_clauses (gfc_omp_clauses **cp, const omp_mask mask,
 		  for (n = *head; n; n = n->next)
 		    {
 		      n->u.map.op = map_op;
-		      gfc_typespec *ts;
-		      if (n->expr)
-			ts = &n->expr->ts;
-		      else
-			ts = &n->sym->ts;
-
-		      gfc_omp_udm *udm
-			= gfc_find_omp_udm (gfc_current_ns, mapper_id, ts);
-		      if (udm)
+		      if (mapper_id[0] != '\0')
 			{
-			  n->u3.udm.udm = udm;
+			  n->u3.udm = gfc_get_omp_namelist_udm ();
+			  n->u3.udm->mapper_id
+			    = gfc_get_string ("%s", mapper_id);
 			}
 		      n->u2.ns = ns_iter;
 		      if (ns_iter)
@@ -10452,6 +10449,33 @@ resolve_omp_clauses (gfc_code *code, gfc_omp_clauses *omp_clauses,
 		    default:
 		      break;
 		    }
+		if (list == OMP_LIST_MAP
+		    || list == OMP_LIST_TO
+		    || list == OMP_LIST_FROM)
+		  {
+		    gfc_typespec *ts = n->expr ? &n->expr->ts : &n->sym->ts;
+
+		    if (ts->type == BT_DERIVED || ts->type == BT_CLASS)
+		      {
+			const char *mapper_id = (n->u3.udm
+						 ? n->u3.udm->mapper_id : "");
+			gfc_omp_udm *udm = gfc_find_omp_udm (gfc_current_ns,
+							     mapper_id, ts);
+			if (mapper_id[0] != '\0' && !udm)
+			  gfc_error ("User-defined mapper %qs not found at %L",
+				     mapper_id, &n->where);
+			else if (udm)
+			  {
+			    if (!n->u3.udm)
+			      {
+				gcc_assert (mapper_id[0] == '\0');
+				n->u3.udm = gfc_get_omp_namelist_udm ();
+				n->u3.udm->mapper_id = mapper_id;
+			      }
+			    n->u3.udm->udm = udm;
+			  }
+		      }
+		  }
 	      }
 
 	    if (list != OMP_LIST_DEPEND)

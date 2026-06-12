@@ -8,7 +8,7 @@ end type
 
 integer :: q, z
 
-!$omp declare mapper(t :: v) map(v%x(1:5)) ! { dg-error "Sorry, 'declare mapper', used at .1., is not yet implemented" }
+!$omp declare mapper(t :: v) map(v%x(1:5))
 !$omp declare mapper(my_name : t :: v2) map(q) map(v2) map(z)
 
 type(t) :: var(4)
@@ -29,7 +29,6 @@ type t
 end type t
 integer :: y
 !$omp declare mapper( t :: var) map(to: y) ! { dg-error "At least one 'map' clause in !.OMP DECLARE MAPPER at .1. must map 'var' or an element of it" }
-! { dg-error "Sorry, 'declare mapper', used at .1., is not yet implemented" "" { target *-*-* } .-1 }
 end
 
 
@@ -39,7 +38,6 @@ type t
 end type t
 integer :: y
 !$omp declare mapper( t :: var) ! { dg-error "At least one 'map' clause in !.OMP DECLARE MAPPER at .1. must map 'var' or an element of it" }
-! { dg-error "Sorry, 'declare mapper', used at .1., is not yet implemented" "" { target *-*-* } .-1 }
 end
 
 subroutine four
@@ -50,6 +48,5 @@ subroutine four
   !$omp declare mapper(my_id : t :: v3) map(v3)  ! { dg-error "Redefinition of !.OMP DECLARE MAPPER at .1. for type 'TYPE\\(t\\)' with id 'my_id'" }
 
   !$omp declare mapper(t :: v4) map(v4)  ! { dg-note "Previous !.OMP DECLARE MAPPER here" }
-! { dg-error "Sorry, 'declare mapper', used at .1., is not yet implemented" "" { target *-*-* } .-1 }
   !$omp declare mapper(t :: v5) map(v5)  ! { dg-error "Redefinition of !.OMP DECLARE MAPPER at .1. for type 'TYPE\\(t\\)'" }
 end

@@ -20694,9 +20694,6 @@ resolve_types (gfc_namespace *ns)
   gfc_resolve_omp_udrs (ns->omp_udr_root);
 
   gfc_resolve_omp_udms (ns->omp_udm_root);
-  if (ns->omp_udm_root)
-    gfc_error ("Sorry, %<declare mapper%>, used at %L, is not yet implemented",
-	       &ns->omp_udm_root->n.omp_udm->where);
 
   ns->types_resolved = 1;
 

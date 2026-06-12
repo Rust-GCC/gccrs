@@ -1456,15 +1456,6 @@ enum gfc_omp_linear_op
   OMP_LINEAR_UVAL
 };
 
-typedef struct gfc_omp_namelist_udm
-{
-  /* When adding more struct members, change the struct use in gfc_omp_namelist
-     to a pointer and move the struct definition down, placing it after
-     '#define gfc_get_omp_udm'.  */
-  struct gfc_omp_udm *udm;
-}
-gfc_omp_namelist_udm;
-
 /* For use in OpenMP clauses in case we need extra information
    (aligned clause alignment, linear clause step, etc.).  */
 
@@ -1518,7 +1509,7 @@ typedef struct gfc_omp_namelist
     } u2;
   union
     {
-      struct gfc_omp_namelist_udm udm;
+      struct gfc_omp_namelist_udm *udm;
     } u3;
   struct gfc_omp_namelist *next;
   locus where;
@@ -1930,6 +1921,15 @@ typedef struct gfc_omp_udm
 }
 gfc_omp_udm;
 #define gfc_get_omp_udm() XCNEW (gfc_omp_udm)
+
+typedef struct gfc_omp_namelist_udm
+{
+  const char *mapper_id;
+  struct gfc_omp_udm *udm;
+}
+gfc_omp_namelist_udm;
+#define gfc_get_omp_namelist_udm() XCNEW (gfc_omp_namelist_udm)
+
 
 /* The gfc_st_label structure is a BBT attached to a namespace that
    records the usage of statement labels within that space.  */
