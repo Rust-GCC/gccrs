@@ -2185,7 +2185,18 @@ find_costs_and_classes (void)
 	    i_mem_cost = 0;
 	  else if (ira_use_lra_p)
 	    {
-	      if (equiv_savings > 0)
+	      rtx x;
+	      if (equiv_savings > 0
+		  /* During LRA constraint pass, some equivalences are
+		     invalidated.  Align IRA with LRA here and do not consider
+		     those equivalences since otherwise those pseudos are
+		     spilled.  */
+		  && (!pic_offset_table_rtx
+		      || (x = ira_reg_equiv[i].constant) == NULL
+		      || ((!CONST_POOL_OK_P (PSEUDO_REGNO_MODE (i), x)
+			   || targetm.preferred_reload_class
+			      (x, reg_allocno_class (i)) != NO_REGS)
+			  && !contains_symbol_ref_p (x))))
 		{
 		  i_mem_cost = 0;
 		  if (ira_dump_file != NULL && internal_flag_ira_verbose > 5)

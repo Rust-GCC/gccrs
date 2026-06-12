@@ -1715,4 +1715,13 @@ ira_caller_save_loop_spill_p (ira_allocno_t a, ira_allocno_t subloop_a,
   return call_cost && call_cost >= spill_cost;
 }
 
+/* True if X is a constant that can be forced into the constant pool.
+   MODE is the mode of the operand, or VOIDmode if not known.  */
+#define CONST_POOL_OK_P(MODE, X)		\
+  ((MODE) != VOIDmode				\
+   && CONSTANT_P (X)				\
+   && GET_CODE (X) != HIGH			\
+   && GET_MODE_SIZE (MODE).is_constant ()	\
+   && !targetm.cannot_force_const_mem (MODE, X))
+
 #endif /* GCC_IRA_INT_H */

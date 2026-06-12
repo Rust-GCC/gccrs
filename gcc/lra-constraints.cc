@@ -123,6 +123,7 @@
 #include "optabs.h"
 #include "regs.h"
 #include "ira.h"
+#include "ira-int.h"
 #include "recog.h"
 #include "output.h"
 #include "addresses.h"
@@ -1012,15 +1013,6 @@ operands_match_p (rtx x, rtx y, int y_hard_regno)
     }
   return true;
 }
-
-/* True if X is a constant that can be forced into the constant pool.
-   MODE is the mode of the operand, or VOIDmode if not known.  */
-#define CONST_POOL_OK_P(MODE, X)		\
-  ((MODE) != VOIDmode				\
-   && CONSTANT_P (X)				\
-   && GET_CODE (X) != HIGH			\
-   && GET_MODE_SIZE (MODE).is_constant ()	\
-   && !targetm.cannot_force_const_mem (MODE, X))
 
 /* If REG is a reload pseudo, try to make its class satisfying CL.  */
 static void
