@@ -3651,6 +3651,47 @@ cond_if_else_store_replacement (basic_block then_bb, basic_block else_bb,
   return ok;
 }
 
+/* Factor out operations and stores from the phi of the MERGE block coming
+   in from the edges E1 and E2 if possible. COND_STMT is the conditional
+   statement of the origin block. DIAMOND_P says that both E1 and E2 src
+   are not the origin block but rather 2 middle BBs. EARLY_P is true if
+   this was the early phi-opt.
+   Returns true if a factoring happened. */
+static bool
+factor_out_all (edge e1, edge e2, basic_block merge,
+		gcond *cond_stmt, bool diamond_p, bool early_p)
+{
+  bool changed = false;
+  bool do_over;
+  basic_block bb1 = e1->src;
+  basic_block bb2 = e2->src;
+  do
+    {
+      do_over = false;
+      if (diamond_p && get_virtual_phi (merge))
+	{
+	  if (cond_if_else_store_replacement_limited (bb1, bb2, merge))
+	    {
+	      changed = true;
+	      do_over = true;
+	      continue;
+	    }
+	}
+      if (!single_pred_p (bb1))
+	break;
+      gphi_iterator gsi;
+      for (gsi = gsi_start_phis (merge); !gsi_end_p (gsi); gsi_next (&gsi))
+	if (factor_out_conditional_operation (e1, e2, merge, *gsi,
+					      cond_stmt, early_p))
+	  {
+	    changed = true;
+	    do_over = true;
+	    break;
+	  }
+    } while (do_over);
+  return changed;
+}
+
 /* Return TRUE if STMT has a VUSE whose corresponding VDEF is in BB.  */
 
 static bool
@@ -4153,44 +4194,22 @@ pass_phiopt::execute (function *)
 	      && !predictable_edge_p (EDGE_SUCC (bb, 0))
 	      && !predictable_edge_p (EDGE_SUCC (bb, 1)))
 	    hoist_adjacent_loads (bb, bb1, bb2, bb3);
-
-	  /* Try to see if there are only store in each side of the if
-	     and try to remove that; don't do this for -Og.
-	     With sinking the stores we might end up with empty blocks.  */
-	  if (EDGE_COUNT (bb3->preds) == 2 && !optimize_debug)
-	    while (cond_if_else_store_replacement_limited (bb1, bb2, bb3))
-	      cfgchanged = true;
 	}
 
       gimple_stmt_iterator gsi;
 
       /* Check that we're looking for nested phis.  */
       basic_block merge = diamond_p ? EDGE_SUCC (bb2, 0)->dest : bb2;
+
+      /* Factor out operations from the phi if possible. */
+      if (EDGE_COUNT (merge->preds) == 2
+	  && !optimize_debug && factor_out_all (e1, e2, merge, cond_stmt, diamond_p, early_p))
+	cfgchanged = true;
+
       gimple_seq phis = phi_nodes (merge);
 
       if (gimple_seq_empty_p (phis))
 	return;
-
-      /* Factor out operations from the phi if possible. */
-      if (single_pred_p (bb1)
-	  && EDGE_COUNT (merge->preds) == 2
-	  && !optimize_debug)
-	{
-	  for (gsi = gsi_start (phis); !gsi_end_p (gsi); )
-	    {
-	      gphi *phi = as_a <gphi *> (gsi_stmt (gsi));
-
-	      if (factor_out_conditional_operation (e1, e2, merge, phi,
-		  cond_stmt, early_p))
-		{
-		  /* Start over if there was an operation that was factored out because the new phi might have another opportunity.  */
-		  phis = phi_nodes (merge);
-		  gsi = gsi_start (phis);
-		}
-	      else
-		gsi_next (&gsi);
-	    }
-	}
 
       /* Value replacement can work with more than one PHI
 	 so try that first. */
