@@ -6818,8 +6818,9 @@ mark_used (tree decl, tsubst_flags_t complain /* = tf_warning_or_error */)
 
   if (builtin_pack_fn_p (decl))
     {
-      error ("use of built-in parameter pack %qD outside of a template",
-	     DECL_NAME (decl));
+      if (complain & tf_error)
+	error ("use of built-in parameter pack %qD outside of a template",
+	       DECL_NAME (decl));
       return false;
     }
 
