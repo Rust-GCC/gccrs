@@ -7,13 +7,12 @@ program main
   use omp_lib
   implicit none
   integer:: unit_number, v1, v2, i
-  character(11) :: file_name
+  character(16) :: file_name
   character(3) :: async = "no"
   !$omp parallel private (unit_number, v1, v2, file_name, async, i)
     do i = 0, 100
       unit_number = 10 + omp_get_thread_num ()
-      write (file_name, "(I3, A)") unit_number, "_tst.dat"
-      file_name = adjustl(file_name)
+      write (file_name, "(I5.5, A)") unit_number, "_tst.dat"
       open (unit_number, file=file_name, asynchronous="yes")
       ! call inquire with file parameter to test find_file in unix.c
       inquire (file=file_name, asynchronous=async)
