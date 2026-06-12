@@ -2849,10 +2849,10 @@ package body Sem_Type is
          --  Ada 2005 (AI-251): Complete the error notification
 
          elsif Is_Class_Wide_Type (Etype (R))
-           and then Is_Interface (Etype (Class_Wide_Type (Etype (R))))
+           and then Is_Interface (Etype (R))
          then
             Error_Msg_NE ("(Ada 2005) does not implement interface }",
-                          L, Etype (Class_Wide_Type (Etype (R))));
+                          L, Root_Type (Etype (R)));
 
          --  Specialize message if one operand is a limited view, a priori
          --  unrelated to all other types.

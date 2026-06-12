@@ -593,6 +593,13 @@ package body Accessibility is
             then
                return Make_Level_Literal (Scope_Depth (Standard_Standard));
 
+            --  For 'Old return the level of the associated entity, if any
+
+            elsif Attribute_Name (E) = Name_Old
+              and then Is_Entity_Name (Expr)
+            then
+               return Accessibility_Level (Entity (Expr));
+
             --  'Access can be taken further against other special attributes,
             --  so handle these cases explicitly.
 

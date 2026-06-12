@@ -10253,7 +10253,6 @@ package body Sem_Res is
 
       L : constant Node_Id := Left_Opnd  (N);
       R : constant Node_Id := Right_Opnd (N);
-      T : Entity_Id;
 
       procedure Resolve_Set_Membership;
       --  Analysis has determined a unique type for the left operand. Use it as
@@ -10265,6 +10264,7 @@ package body Sem_Res is
 
       procedure Resolve_Set_Membership is
          Alt : Node_Id;
+         T   : Entity_Id;
 
       begin
          --  If the left operand is overloaded, find type compatible with not
@@ -10365,6 +10365,10 @@ package body Sem_Res is
          end if;
       end Resolve_Set_Membership;
 
+      --  Local variables
+
+      T : Entity_Id;
+
    --  Start of processing for Resolve_Membership_Op
 
    begin
@@ -10436,25 +10440,14 @@ package body Sem_Res is
             Analyze (R);
          end if;
 
-      --  Ada 2005 (AI-251): Support the following case:
+      --  If the right operand is a tagged type, the type of the left operand
+      --  needs to be convertible to it, which was checked during analysis.
 
-      --      type I is interface;
-      --      type T is tagged ...
-
-      --      function Test (O : I'Class) is
-      --      begin
-      --         return O in T'Class.
-      --      end Test;
-
-      --  In this case we have nothing else to do. The membership test will be
-      --  done at run time.
-
-      elsif Ada_Version >= Ada_2005
-        and then Is_Class_Wide_Type (Etype (L))
-        and then Is_Interface (Etype (L))
-        and then not Is_Interface (Etype (R))
+      elsif Is_Entity_Name (R)
+        and then Is_Type (Entity (R))
+        and then Is_Tagged_Type (Entity (R))
       then
-         return;
+         T := Etype (L);
 
       else
          T := Intersect_Types (L, R);
@@ -13746,11 +13739,6 @@ package body Sem_Res is
       --  discriminant selected from a dereference of another such "bad"
       --  conversion argument.
 
-      function Valid_Tagged_Conversion
-        (Target_Type : Entity_Id;
-         Opnd_Type   : Entity_Id) return Boolean;
-      --  Specifically test for validity of tagged conversions
-
       function Valid_Array_Conversion return Boolean;
       --  Check index and component conformance, and accessibility levels if
       --  the component types are anonymous access types (Ada 2005).
@@ -14022,165 +14010,6 @@ package body Sem_Res is
 
          return True;
       end Valid_Array_Conversion;
-
-      -----------------------------
-      -- Valid_Tagged_Conversion --
-      -----------------------------
-
-      function Valid_Tagged_Conversion
-        (Target_Type : Entity_Id;
-         Opnd_Type   : Entity_Id) return Boolean
-      is
-      begin
-         --  Upward conversions are allowed (RM 4.6(22))
-
-         if Covers (Target_Type, Opnd_Type)
-           or else Is_Ancestor (Target_Type, Opnd_Type)
-         then
-            return True;
-
-         --  Downward conversion are allowed if the operand is class-wide
-         --  (RM 4.6(23)).
-
-         elsif Is_Class_Wide_Type (Opnd_Type)
-           and then Covers (Opnd_Type, Target_Type)
-         then
-            return True;
-
-         elsif Covers (Opnd_Type, Target_Type)
-           or else Is_Ancestor (Opnd_Type, Target_Type)
-         then
-            --  Deal with non-extension derivation involving an
-            --  untagged view of a tagged type.
-
-            if not Is_Tagged_Type (Target_Type) then
-               return True;
-            end if;
-
-            return
-              Conversion_Check (False,
-                "downward conversion of tagged objects not allowed");
-
-         --  Ada 2005 (AI-251): A conversion is valid if the operand and target
-         --  types are both class-wide types and the specific type associated
-         --  with at least one of them is an interface type (RM 4.6 (23.1/2));
-         --  at run-time a check will verify the validity of this interface
-         --  type conversion.
-
-         elsif Is_Class_Wide_Type (Target_Type)
-            and then Is_Class_Wide_Type (Opnd_Type)
-            and then (Is_Interface (Target_Type)
-                        or else Is_Interface (Opnd_Type))
-         then
-            return True;
-
-         --  Report errors
-
-         elsif Is_Class_Wide_Type (Target_Type)
-           and then Is_Interface (Target_Type)
-           and then not Is_Interface (Opnd_Type)
-           and then not Interface_Present_In_Ancestor
-                          (Typ   => Opnd_Type,
-                           Iface => Target_Type)
-         then
-            Error_Msg_Name_1 := Chars (Etype (Target_Type));
-            Error_Msg_Name_2 := Chars (Opnd_Type);
-            Report_Error_N
-              ("wrong interface conversion (% is not a progenitor "
-               & "of %)", N, Report_Errs);
-            return False;
-
-         elsif Is_Class_Wide_Type (Opnd_Type)
-           and then Is_Interface (Opnd_Type)
-           and then not Is_Interface (Target_Type)
-           and then not Interface_Present_In_Ancestor
-                          (Typ   => Target_Type,
-                           Iface => Opnd_Type)
-         then
-            Error_Msg_Name_1 := Chars (Etype (Opnd_Type));
-            Error_Msg_Name_2 := Chars (Target_Type);
-            Report_Error_N
-              ("wrong interface conversion (% is not a progenitor "
-               & "of %)", N, Report_Errs);
-
-            --  Search for interface types shared between the target type and
-            --  the operand interface type to complete the text of the error
-            --  since the source of this error is a missing type conversion
-            --  to such interface type.
-
-            if Has_Interfaces (Target_Type) then
-               declare
-                  Operand_Ifaces_List : Elist_Id;
-                  Operand_Iface_Elmt  : Elmt_Id;
-                  Target_Ifaces_List  : Elist_Id;
-                  Target_Iface_Elmt   : Elmt_Id;
-                  First_Candidate     : Boolean := True;
-
-               begin
-                  Collect_Interfaces (Base_Type (Target_Type),
-                    Target_Ifaces_List);
-                  Collect_Interfaces (Root_Type (Base_Type (Opnd_Type)),
-                    Operand_Ifaces_List);
-
-                  Operand_Iface_Elmt := First_Elmt (Operand_Ifaces_List);
-                  while Present (Operand_Iface_Elmt) loop
-                     Target_Iface_Elmt := First_Elmt (Target_Ifaces_List);
-                     while Present (Target_Iface_Elmt) loop
-                        if Node (Operand_Iface_Elmt)
-                          = Node (Target_Iface_Elmt)
-                        then
-                           Error_Msg_Name_1 :=
-                             Chars (Node (Target_Iface_Elmt));
-
-                           if First_Candidate then
-                              First_Candidate := False;
-                              Report_Error_N
-                                ("\must convert to `%''Class` before downward "
-                                 & "conversion", Operand, Report_Errs);
-                           else
-                              Report_Error_N
-                                ("\or must convert to `%''Class` before "
-                                 & "downward conversion",
-                                 Operand, Report_Errs);
-                           end if;
-                        end if;
-
-                        Next_Elmt (Target_Iface_Elmt);
-                     end loop;
-
-                     Next_Elmt (Operand_Iface_Elmt);
-                  end loop;
-               end;
-            end if;
-
-            return False;
-
-         elsif not Is_Class_Wide_Type (Target_Type)
-           and then Is_Interface (Target_Type)
-         then
-            Report_Error_N
-              ("wrong use of interface type in tagged conversion",
-               N, Report_Errs);
-            Report_Error_N
-              ("\add ''Class to the target interface type",
-               N, Report_Errs);
-            return False;
-
-         elsif not Is_Class_Wide_Type (Opnd_Type)
-           and then Is_Interface (Opnd_Type)
-         then
-            Report_Error_N
-              ("must convert to class-wide interface type before downward "
-               & "conversion", Operand, Report_Errs);
-            return False;
-
-         else
-            Report_Error_NE
-              ("invalid tagged conversion, not compatible with}",
-               N, First_Subtype (Opnd_Type), Report_Errs);
-            return False;
-         end if;
-      end Valid_Tagged_Conversion;
 
    --  Start of processing for Valid_Conversion
 
@@ -14602,7 +14431,7 @@ package body Sem_Res is
 
          begin
             if Is_Tagged_Type (Target) then
-               return Valid_Tagged_Conversion (Target, Opnd);
+               return Valid_Tagged_Conversion (N, Target, Opnd, Report_Errs);
 
             else
                if not Same_Base then
@@ -14797,7 +14626,8 @@ package body Sem_Res is
                   and then
                     Is_Tagged_Type (Implementation_Base_Type (Opnd_Type)))
       then
-         return Valid_Tagged_Conversion (Target_Type, Opnd_Type);
+         return
+           Valid_Tagged_Conversion (N, Target_Type, Opnd_Type, Report_Errs);
 
       --  Types derived from the same root type are convertible
 
@@ -14860,5 +14690,165 @@ package body Sem_Res is
          return False;
       end if;
    end Valid_Conversion;
+
+   -----------------------------
+   -- Valid_Tagged_Conversion --
+   -----------------------------
+
+   function Valid_Tagged_Conversion
+     (N           : Node_Id;
+      Target_Type : Entity_Id;
+      Opnd_Type   : Entity_Id;
+      Report_Errs : Boolean := True) return Boolean
+   is
+   begin
+      --  Upward conversions are allowed (RM 4.6(22))
+
+      if Covers (Target_Type, Opnd_Type)
+        or else Is_Ancestor (Target_Type, Opnd_Type)
+      then
+         return True;
+
+      --  Downward conversion are allowed if the operand is class-wide
+      --  (RM 4.6(23)).
+
+      elsif Is_Class_Wide_Type (Opnd_Type)
+        and then Covers (Opnd_Type, Target_Type)
+      then
+         return True;
+
+      elsif Covers (Opnd_Type, Target_Type)
+        or else Is_Ancestor (Opnd_Type, Target_Type)
+      then
+         --  Deal with non-extension derivation involving an
+         --  untagged view of a tagged type.
+
+         if Is_Tagged_Type (Target_Type) then
+            Report_Error_N
+              ("downward conversion of tagged objects not allowed",
+               N, Report_Errs);
+            return False;
+         else
+            return True;
+         end if;
+
+      --  Ada 2005 (AI-251): A conversion is valid if the operand and target
+      --  types are both class-wide types and the specific type associated
+      --  with at least one of them is an interface type (RM 4.6 (23.1/2));
+      --  at run-time a check will verify the validity of this interface
+      --  type conversion.
+
+      elsif Is_Class_Wide_Type (Target_Type)
+         and then Is_Class_Wide_Type (Opnd_Type)
+         and then (Is_Interface (Target_Type)
+                     or else Is_Interface (Opnd_Type))
+      then
+         return True;
+
+      --  Report errors
+
+      elsif Is_Class_Wide_Type (Target_Type)
+        and then Is_Interface (Target_Type)
+        and then not Is_Interface (Opnd_Type)
+        and then not Interface_Present_In_Ancestor
+                       (Typ   => Opnd_Type,
+                        Iface => Target_Type)
+      then
+         Error_Msg_Name_1 := Chars (Etype (Target_Type));
+         Error_Msg_Name_2 := Chars (Opnd_Type);
+         Report_Error_N
+           ("wrong interface conversion (% is not a progenitor "
+            & "of %)", N, Report_Errs);
+         return False;
+
+      elsif Is_Class_Wide_Type (Opnd_Type)
+        and then Is_Interface (Opnd_Type)
+        and then not Is_Interface (Target_Type)
+        and then not Interface_Present_In_Ancestor
+                       (Typ   => Target_Type,
+                        Iface => Opnd_Type)
+      then
+         Error_Msg_Name_1 := Chars (Etype (Opnd_Type));
+         Error_Msg_Name_2 := Chars (Target_Type);
+         Report_Error_N
+           ("wrong interface conversion (% is not a progenitor "
+            & "of %)", N, Report_Errs);
+
+         --  Search for interface types shared between the target type and
+         --  the operand interface type to complete the text of the error
+         --  since the source of this error is a missing type conversion
+         --  to such interface type.
+
+         if Has_Interfaces (Target_Type) then
+            declare
+               Operand_Ifaces_List : Elist_Id;
+               Operand_Iface_Elmt  : Elmt_Id;
+               Target_Ifaces_List  : Elist_Id;
+               Target_Iface_Elmt   : Elmt_Id;
+               First_Candidate     : Boolean := True;
+
+            begin
+               Collect_Interfaces (Base_Type (Target_Type),
+                 Target_Ifaces_List);
+               Collect_Interfaces (Root_Type (Base_Type (Opnd_Type)),
+                 Operand_Ifaces_List);
+
+               Operand_Iface_Elmt := First_Elmt (Operand_Ifaces_List);
+               while Present (Operand_Iface_Elmt) loop
+                  Target_Iface_Elmt := First_Elmt (Target_Ifaces_List);
+                  while Present (Target_Iface_Elmt) loop
+                     if Node (Operand_Iface_Elmt) = Node (Target_Iface_Elmt)
+                     then
+                        Error_Msg_Name_1 :=
+                          Chars (Node (Target_Iface_Elmt));
+
+                        if First_Candidate then
+                           First_Candidate := False;
+                           Report_Error_N
+                             ("\must convert to `%''Class` before downward "
+                              & "conversion", N, Report_Errs);
+                        else
+                           Report_Error_N
+                             ("\or must convert to `%''Class` before "
+                              & "downward conversion", N, Report_Errs);
+                        end if;
+                     end if;
+
+                     Next_Elmt (Target_Iface_Elmt);
+                  end loop;
+
+                  Next_Elmt (Operand_Iface_Elmt);
+               end loop;
+            end;
+         end if;
+
+         return False;
+
+      elsif not Is_Class_Wide_Type (Target_Type)
+        and then Is_Interface (Target_Type)
+      then
+         Report_Error_N
+           ("wrong use of interface type in tagged conversion",
+            N, Report_Errs);
+         Report_Error_N
+           ("\add ''Class to the target interface type",
+            N, Report_Errs);
+         return False;
+
+      elsif not Is_Class_Wide_Type (Opnd_Type)
+        and then Is_Interface (Opnd_Type)
+      then
+         Report_Error_N
+           ("must convert to class-wide interface type before downward "
+            & "conversion", N, Report_Errs);
+         return False;
+
+      else
+         Report_Error_NE
+           ("invalid tagged conversion, not compatible with}",
+            N, First_Subtype (Opnd_Type), Report_Errs);
+         return False;
+      end if;
+   end Valid_Tagged_Conversion;
 
 end Sem_Res;

@@ -154,6 +154,13 @@ package Sem_Res is
    --  whether the conversion is legal. Reports errors in the case of illegal
    --  conversions, unless Report_Errs is False.
 
+   function Valid_Tagged_Conversion
+     (N           : Node_Id;
+      Target_Type : Entity_Id;
+      Opnd_Type   : Entity_Id;
+      Report_Errs : Boolean := True) return Boolean;
+   --  Specific version of Valid_Conversion for when Target_Type is tagged
+
 private
    procedure Resolve_Implicit_Type (N : Node_Id) renames Resolve;
    pragma Inline (Resolve_Implicit_Type);

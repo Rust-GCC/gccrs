@@ -130,4 +130,11 @@ package Exp_Ch4 is
    --  routine is to find the real type by looking up the tree. We also
    --  determine if the operation must be rounded.
 
+   procedure Tagged_Membership
+     (N         : Node_Id;
+      SCIL_Node : out Node_Id;
+      Result    : out Node_Id);
+   --  Construct the expression corresponding to the tagged membership test.
+   --  Deals with a second operand being (or not) a class-wide type.
+
 end Exp_Ch4;

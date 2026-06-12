@@ -274,13 +274,6 @@ package body Exp_Ch4 is
    --  its expression. If N is neither comparison nor a type conversion, the
    --  call has no effect.
 
-   procedure Tagged_Membership
-     (N         : Node_Id;
-      SCIL_Node : out Node_Id;
-      Result    : out Node_Id);
-   --  Construct the expression corresponding to the tagged membership test.
-   --  Deals with a second operand being (or not) a class-wide type.
-
    function Safe_In_Place_Array_Op
      (Lhs : Node_Id;
       Op1 : Node_Id;
@@ -7218,20 +7211,11 @@ package body Exp_Ch4 is
               and then Ekind (Ltyp) = E_Anonymous_Access_Type
             then
                declare
-                  Expr_Entity : Entity_Id := Empty;
                   New_N       : Node_Id;
                   Param_Level : Node_Id;
                   Type_Level  : Node_Id;
 
                begin
-                  if Is_Entity_Name (Lop) then
-                     Expr_Entity := Param_Entity (Lop);
-
-                     if No (Expr_Entity) then
-                        Expr_Entity := Entity (Lop);
-                     end if;
-                  end if;
-
                   --  When restriction No_Dynamic_Accessibility_Checks is in
                   --  effect, expand the membership test to a static value
                   --  since we cannot rely on dynamic levels.
@@ -7262,8 +7246,7 @@ package body Exp_Ch4 is
                   --  objects of an anonymous access type.
 
                   else
-                     Param_Level := Accessibility_Level
-                                      (Expr_Entity, Dynamic_Level);
+                     Param_Level := Accessibility_Level (Lop, Dynamic_Level);
 
                      Type_Level :=
                        Make_Integer_Literal (Loc, Type_Access_Level (Rtyp));
@@ -15294,9 +15277,12 @@ package body Exp_Ch4 is
    -- Tagged_Membership --
    -----------------------
 
-   --  There are two different cases to consider depending on whether the right
-   --  operand is a class-wide type or not. If not we just compare the actual
-   --  tag of the left expr to the target type tag:
+   --  There are two main cases to consider depending on whether the right
+   --  operand is a class-wide type or not. If not, when the left operand
+   --  is also of a specific tagged type, we just return True in the direct
+   --  case because the left operand is statically known to be convertible
+   --  to the type of right operand; otherwise, we compare the actual tag
+   --  of the left operand to the target type tag:
    --
    --     Left_Expr.Tag = Right_Type'Tag;
    --
@@ -15326,6 +15312,7 @@ package body Exp_Ch4 is
       Orig_Right_Type : constant Entity_Id :=
         Base_Type (Available_View (Etype (Right)));
 
+      Full_L_Typ   : Entity_Id;
       Full_R_Typ   : Entity_Id;
       Left_Type    : Entity_Id := Base_Type (Available_View (Etype (Left)));
       Right_Type   : Entity_Id := Orig_Right_Type;
@@ -15334,19 +15321,8 @@ package body Exp_Ch4 is
    begin
       SCIL_Node := Empty;
 
-      --  We have to examine the corresponding record type when dealing with
-      --  protected types instead of the original, unexpanded, type.
-
-      if Ekind (Right_Type) = E_Protected_Type then
-         Right_Type := Corresponding_Record_Type (Right_Type);
-      end if;
-
-      if Ekind (Left_Type) = E_Protected_Type then
-         Left_Type := Corresponding_Record_Type (Left_Type);
-      end if;
-
       --  In the case where the type is an access type, the test is applied
-      --  using the designated types (needed in Ada 2012 for implicit anonymous
+      --  to the designated types (needed in Ada 2012 for implicit anonymous
       --  access conversions, for AI05-0149).
 
       if Is_Access_Type (Right_Type) then
@@ -15354,8 +15330,21 @@ package body Exp_Ch4 is
          Right_Type := Designated_Type (Right_Type);
       end if;
 
+      --  We have to examine the corresponding record type when dealing with
+      --  protected types instead of the original, unexpanded, type.
+
+      if Is_Protected_Type (Left_Type) then
+         Left_Type := Corresponding_Record_Type (Left_Type);
+      end if;
+
+      if Is_Protected_Type (Right_Type) then
+         Right_Type := Corresponding_Record_Type (Right_Type);
+      end if;
+
       if Is_Class_Wide_Type (Left_Type) then
-         Left_Type := Root_Type (Left_Type);
+         Full_L_Typ := Underlying_Type (Root_Type (Left_Type));
+      else
+         Full_L_Typ := Underlying_Type (Left_Type);
       end if;
 
       if Is_Class_Wide_Type (Right_Type) then
@@ -15368,7 +15357,7 @@ package body Exp_Ch4 is
         Make_Selected_Component (Loc,
           Prefix        => Relocate_Node (Left),
           Selector_Name =>
-            New_Occurrence_Of (First_Tag_Component (Left_Type), Loc));
+            New_Occurrence_Of (First_Tag_Component (Full_L_Typ), Loc));
 
       if Is_Class_Wide_Type (Right_Type) then
 
@@ -15475,6 +15464,17 @@ package body Exp_Ch4 is
 
          if Is_Abstract_Type (Right_Type) then
             Result := New_Occurrence_Of (Standard_False, Loc);
+
+         --  No need to check the tag of the object in the direct case if
+         --  Left_Type is of a specific tagged type.
+
+         elsif not Is_Access_Type (Orig_Right_Type)
+           and then not Is_Interface (Left_Type)
+           and then not Is_Class_Wide_Type (Left_Type)
+         then
+            Result := New_Occurrence_Of (Standard_True, Loc);
+
+         --  Otherwise generate the tag equality test
 
          else
             Result :=

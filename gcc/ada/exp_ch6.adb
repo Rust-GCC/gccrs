@@ -75,6 +75,7 @@ with Sinfo.Utils;    use Sinfo.Utils;
 with Sinput;         use Sinput;
 with Snames;         use Snames;
 with Stand;          use Stand;
+with SCIL_LL;        use SCIL_LL;
 with Tbuild;         use Tbuild;
 with Uintp;          use Uintp;
 with Validsw;        use Validsw;
@@ -7571,46 +7572,50 @@ package body Exp_Ch6 is
             end;
          end if;
 
-      --  Ada 2012 (AI05-0073): If the result subtype of the function is
+      --  Ada 2005 (AI05-0073): If the result subtype of the function is
       --  defined by an access_definition designating a specific tagged
       --  type T, a check is made that the result value is null or the tag
       --  of the object designated by the result value identifies T.
 
-      --  The return expression is referenced twice in the code below, so it
-      --  must be made free of side effects. Given that different compilers
-      --  may evaluate these parameters in different order, both occurrences
-      --  perform a copy.
-
       elsif Ekind (R_Type) = E_Anonymous_Access_Type
         and then Is_Tagged_Type (Designated_Type (R_Type))
         and then not Is_Class_Wide_Type (Designated_Type (R_Type))
-        and then Nkind (Original_Node (Exp)) /= N_Null
         and then not Tag_Checks_Suppressed (Designated_Type (R_Type))
+        and then Present (Underlying_Type (Designated_Type (R_Type)))
+        and then Nkind (Original_Node (Exp)) /= N_Null
       then
-         --  Generate:
-         --    [Constraint_Error
-         --       when Exp /= null
-         --         and then Exp.all not in Designated_Type]
+         declare
+            --  Generate:
+            --    [Constraint_Error when not (Exp in R_Type)]
 
-         Insert_Action (N,
-           Make_Raise_Constraint_Error (Loc,
-             Condition =>
-               Make_And_Then (Loc,
-                 Left_Opnd  =>
-                   Make_Op_Ne (Loc,
-                     Left_Opnd  => Duplicate_Subexpr (Exp),
-                     Right_Opnd => Make_Null (Loc)),
+            In_Test : constant Node_Id :=
+              Make_Not_In
+                (Loc,
+                 Duplicate_Subexpr (Exp),
+                 New_Occurrence_Of (R_Type, Loc));
 
-                 Right_Opnd =>
-                   Make_Not_In (Loc,
-                     Left_Opnd  =>
-                       Make_Explicit_Dereference (Loc,
-                         Prefix => Duplicate_Subexpr (Exp)),
-                     Right_Opnd =>
-                       New_Occurrence_Of (Designated_Type (R_Type), Loc))),
+            Result    : Node_Id;
+            SCIL_Node : Node_Id;
 
-             Reason    => CE_Tag_Check_Failed),
-             Suppress  => All_Checks);
+         begin
+            --  We need to invoke Tagged_Membership directly because it is
+            --  invoked only in Ada 2012 for anonymous access types.
+
+            Tagged_Membership (In_Test, SCIL_Node, Result);
+
+            Insert_Action (N,
+              Make_Raise_Constraint_Error (Loc,
+                Condition => Make_Op_Not (Loc, Right_Opnd => Result),
+                Reason    => CE_Tag_Check_Failed),
+                Suppress  => All_Checks);
+
+            --  Update decoration of relocated node referenced by the
+            --  SCIL node.
+
+            if Generate_SCIL and then Present (SCIL_Node) then
+               Set_SCIL_Node (Result, SCIL_Node);
+            end if;
+         end;
       end if;
 
       --  Generate a run-time accessibility check if needed

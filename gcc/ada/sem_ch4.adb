@@ -3501,6 +3501,18 @@ package body Sem_Ch4 is
          if Nkind (R) = N_Error then
             Found := False;
 
+         elsif Is_Entity_Name (R) and then Is_Type (Entity (R)) then
+            --  If the tested type is tagged, then the tested expression
+            --  shall resolve to be of a type that is convertible to the
+            --  tested type; if untagged, the expected type of the tested
+            --  expression is the tested type (RM 4.5.2(3.1)).
+
+            if Is_Tagged_Type (Entity (R)) then
+               Found := Valid_Tagged_Conversion (N, Entity (R), T, False);
+            else
+               Found := Covers (Entity (R), T);
+            end if;
+
          --  Loop through the interpretations of the right operand
 
          elsif not Is_Overloaded (R) then
@@ -3564,6 +3576,8 @@ package body Sem_Ch4 is
    begin
       Analyze_Expression (L);
 
+      --  If there is no right operand, then a set of alternatives is present
+
       if No (R) then
          pragma Assert (Ada_Version >= Ada_2012);
 
@@ -3589,22 +3603,22 @@ package body Sem_Ch4 is
             end loop;
          end;
 
-      elsif Nkind (R) = N_Range
-        or else (Nkind (R) = N_Attribute_Reference
-                  and then Attribute_Name (R) = Name_Range)
-      then
-         Analyze_Expression (R);
-
-         Dummy := Find_Interp;
-
-      --  If not a range, it can be a subtype mark, or else it is a degenerate
-      --  membership test with a singleton value, i.e. a test for equality,
-      --  if the types are compatible.
+      --  Either a range, or a subtype mark, or else a degenerate membership
+      --  test with a singleton value, i.e. a test for equality.
 
       else
          Analyze_Expression (R);
 
-         if Is_Entity_Name (R) and then Is_Type (Entity (R)) then
+         if Nkind (R) = N_Range
+           or else (Nkind (R) = N_Attribute_Reference
+                     and then Attribute_Name (R) = Name_Range)
+         then
+            --  The error will be given during resolution if no valid
+            --  interpretation of the operands is found.
+
+            Dummy := Find_Interp;
+
+         elsif Is_Entity_Name (R) and then Is_Type (Entity (R)) then
             Find_Type (R);
             Check_Fully_Declared (Entity (R), R);
 
@@ -3613,6 +3627,27 @@ package body Sem_Ch4 is
                  ("subtype& has ghost predicate, "
                   & "not allowed in membership test",
                   R, Entity (R));
+
+            --  If no valid interpretation of the left operand is found, then
+            --  give an error message when the type is tagged; when it is not,
+            --  the error will be given during resolution instead.
+
+            elsif not Find_Interp
+              and then Is_Tagged_Type (Entity (R))
+            then
+               if Is_Class_Wide_Type (Etype (R))
+                 and then Is_Interface (Etype (R))
+               then
+                  Error_Msg_NE ("(Ada 2005) does not implement interface }",
+                                L, Root_Type (Entity (R)));
+
+               elsif From_Limited_With (Entity (R)) then
+                  Error_Msg_NE ("limited view of& not compatible with context",
+                                R, Entity (R));
+
+               else
+                  Error_Msg_N ("incompatible types", N);
+               end if;
             end if;
 
          elsif Ada_Version >= Ada_2012 and then Find_Interp then
