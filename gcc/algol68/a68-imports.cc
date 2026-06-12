@@ -365,6 +365,35 @@ a68_try_suffixes (std::string *pfilename)
 
   const char* basename = lbasename (pfilename->c_str());
   size_t basename_pos = basename - pfilename->c_str ();
+
+#if TARGET_MACHO
+  /* Macos uses .dylib as extension for libraries.  */
+  filename = pfilename->substr (0, basename_pos) + "lib" + basename + ".dylib";
+  fd = open (filename.c_str (), O_RDONLY | O_BINARY);
+  if (fd >= 0)
+    {
+      *pfilename = filename;
+      return fd;
+    }
+#elif TARGET_PECOFF
+  /* Windows uses .dll.  Maybe prefixed with lib.  */
+  filename = pfilename->substr (0, basename_pos) + "lib" + basename + ".dll";
+  fd = open (filename.c_str (), O_RDONLY | O_BINARY);
+  if (fd >= 0)
+    {
+      *pfilename = filename;
+      return fd;
+    }
+  /* Maybe not prefixed with lib.  */
+  filename = pfilename->substr (0, basename_pos) + basename + ".dll";
+  fd = open (filename.c_str (), O_RDONLY | O_BINARY);
+  if (fd >= 0)
+    {
+      *pfilename = filename;
+      return fd;
+    }
+#else
+  /* Other supported systems use .so.  */
   filename = pfilename->substr (0, basename_pos) + "lib" + basename + ".so";
   fd = open (filename.c_str (), O_RDONLY | O_BINARY);
   if (fd >= 0)
@@ -372,6 +401,7 @@ a68_try_suffixes (std::string *pfilename)
       *pfilename = filename;
       return fd;
     }
+#endif
 
   filename = pfilename->substr (0, basename_pos) + "lib" + basename + ".a";
   fd = open (filename.c_str (), O_RDONLY | O_BINARY);
