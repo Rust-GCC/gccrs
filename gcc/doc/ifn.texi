@@ -1546,5 +1546,11 @@ The @code{IFN_FLOATTOBITINT} internal function is expanded by the
 The @code{IFN_BITINTTOFLOAT} internal function is expanded by the
 @code{expand_BITINTTOFLOAT} function.
 
+@cindex @code{IFN_VARYING} internal function
+@item @samp{IFN_VARYING}
+Use @code{IFN_VARYING} as a temporary placeholder for a value whose
+definition is still being built by the current pass.  The pass that creates
+it must replace it before finishing; the verifier rejects any remaining calls.
+
 @end table
 

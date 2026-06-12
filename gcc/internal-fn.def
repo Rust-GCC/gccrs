@@ -622,6 +622,10 @@ DEF_INTERNAL_FN (CO_FRAME, ECF_PURE | ECF_NOTHROW | ECF_LEAF, NULL)
 /* A NOP function with arbitrary arguments and return value.  */
 DEF_INTERNAL_FN (NOP, ECF_CONST | ECF_LEAF | ECF_NOTHROW, NULL)
 
+/* A GIMPLE value with no definition and not Virtual Opeands for temporary
+   assignment cases within a pass.  */
+DEF_INTERNAL_FN (VARYING , ECF_NOVOPS | ECF_LEAF | ECF_NOTHROW, NULL)
+
 /* Temporary vehicle for __builtin_shufflevector.  */
 DEF_INTERNAL_FN (SHUFFLEVECTOR, ECF_CONST | ECF_LEAF | ECF_NOTHROW, NULL)
 

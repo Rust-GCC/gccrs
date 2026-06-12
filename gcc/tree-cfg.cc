@@ -3419,6 +3419,14 @@ verify_gimple_call (gcall *stmt)
 	  }
     }
 
+  /* IFN_VARING is not allowed to be present after the completion of any pass
+     as it should have been replaced.  */
+  if (gimple_call_internal_p (stmt, IFN_VARYING))
+    {
+      error ("%<.VARYING%> calls should have been replaced and are not allowed "
+	     "outside of the pass that introduced them");
+      return true;
+    }
   /* ???  The C frontend passes unpromoted arguments in case it
      didn't see a function declaration before the call.  So for now
      leave the call arguments mostly unverified.  Once we gimplify

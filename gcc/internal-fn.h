@@ -275,6 +275,7 @@ extern void expand_SPACESHIP (internal_fn, gcall *);
 extern void expand_TRAP (internal_fn, gcall *);
 extern void expand_ASSUME (internal_fn, gcall *);
 extern void expand_MASK_CALL (internal_fn, gcall *);
+extern void expand_VARYING (internal_fn, gcall *);
 extern void expand_MULBITINT (internal_fn, gcall *);
 extern void expand_DIVMODBITINT (internal_fn, gcall *);
 extern void expand_FLOATTOBITINT (internal_fn, gcall *);

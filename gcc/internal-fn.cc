@@ -5687,6 +5687,13 @@ expand_MASK_CALL (internal_fn, gcall *)
 }
 
 void
+expand_VARYING (internal_fn, gcall *)
+{
+  /* This IFN should reach expand.  */
+  gcc_unreachable ();
+}
+
+void
 expand_MULBITINT (internal_fn, gcall *stmt)
 {
   rtx_mode_t args[6];
