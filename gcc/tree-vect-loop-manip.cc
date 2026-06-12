@@ -3841,6 +3841,10 @@ vect_do_peeling (loop_vec_info loop_vinfo, tree niters, tree nitersm1,
 	{
 	  tree tmp_niters_vf
 	    = make_ssa_name (LOOP_VINFO_EARLY_BRK_IV_TYPE (loop_vinfo));
+	  gcall *tmp_call = gimple_build_call_internal (IFN_VARYING, 0);
+	  gimple_call_set_lhs (tmp_call, tmp_niters_vf);
+	  auto header_gsi = gsi_after_labels (loop->header);
+	  gsi_insert_after (&header_gsi, tmp_call, GSI_SAME_STMT);
 
 	  if (!(LOOP_VINFO_NITERS_UNCOUNTED_P (loop_vinfo)
 		&& get_loop_exit_edges (loop).length () == 1)

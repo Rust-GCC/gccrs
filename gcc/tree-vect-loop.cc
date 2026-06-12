@@ -11079,6 +11079,11 @@ vect_update_ivs_after_vectorizer_for_early_breaks (loop_vec_info loop_vinfo)
   auto loop = LOOP_VINFO_LOOP (loop_vinfo);
   tree induc_var = niters_skip ? copy_ssa_name (phi_var) : phi_var;
 
+  /* Remove the existing dummy GIMPLE statement and just keep the def.  */
+  gimple *def = SSA_NAME_DEF_STMT (phi_var);
+  auto def_gsi = gsi_for_stmt (def);
+  gsi_remove (&def_gsi, true);
+
   auto induction_phi = create_phi_node (induc_var, loop->header);
   tree induc_def = PHI_RESULT (induction_phi);
 
@@ -11149,7 +11154,7 @@ vect_update_ivs_after_vectorizer_for_early_breaks (loop_vec_info loop_vinfo)
       gcc_assert (exit_bb);
       auto exit_gsi = gsi_after_labels (exit_bb);
       gsi_insert_seq_before (&exit_gsi, iv_stmts, GSI_SAME_STMT);
-  }
+    }
   /* Write the init_stmts in the loop-preheader block.  */
   auto psi = gsi_last_nondebug_bb (pe->src);
   gsi_insert_seq_after (&psi, init_stmts, GSI_LAST_NEW_STMT);
