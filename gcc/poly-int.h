@@ -2420,6 +2420,46 @@ inline typename if_nonpoly<Cq, bool>::type
 can_div_away_from_zero_p (const poly_int<N, Ca> &a, const poly_int<N, Cb> &b,
 			  Cq *quotient)
 {
+  /* If both a and b have fixed signs, test 0 < |a| <= |b|.  (2) is then
+     satisfied with |Q| == 1.  Choose Q as 1 or -1 such that a and b * Q
+     have the same sign.  Together, these two conditions guarantee that
+     |b * Q - a| = |b * Q| - |a|.  Then:
+
+	|r| = |a - b * Q|
+	    = |b * Q - a|
+	    = |b * Q| - |a|
+	    = |b| - |a|
+	    < |b| using 0 < |a| above
+
+     Only negate values that are known to be positive, to avoid signed
+     overflow.  */
+  if (known_lt (a, POLY_INT_TYPE (Ca) (0)))
+    {
+      if (known_le (b, a))
+	{
+	  *quotient = 1;
+	  return true;
+	}
+      if (known_gt (b, POLY_INT_TYPE (Cb) (0)) && known_le (-b, a))
+	{
+	  *quotient = -1;
+	  return true;
+	}
+    }
+  else if (known_gt (a, POLY_INT_TYPE (Ca) (0)))
+    {
+      if (known_ge (b, a))
+	{
+	  *quotient = 1;
+	  return true;
+	}
+      if (known_lt (b, POLY_INT_TYPE (Cb) (0)) && known_le (b, -a))
+	{
+	  *quotient = -1;
+	  return true;
+	}
+    }
+
   if (!can_div_trunc_p (a, b, quotient))
     return false;
   if (maybe_ne (*quotient * b, a))

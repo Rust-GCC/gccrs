@@ -2161,6 +2161,18 @@ test_can_div_away_from_zero_p ()
 					 ph::make (4, 5, 6),
 					 &const_quot));
   ASSERT_EQ (const_quot, C (0));
+  ASSERT_EQ (can_div_away_from_zero_p (ph::make (16, 0, 16),
+				       ph::make (16, 16, 15), &const_quot),
+	     N <= 2);
+  ASSERT_EQ (const_quot, N <= 2 ? C (1) : C (0));
+  ASSERT_TRUE (can_div_away_from_zero_p (ph::make (16, 0, 0),
+					 ph::make (16, 16, 16),
+					 &const_quot));
+  ASSERT_EQ (const_quot, C (1));
+  ASSERT_TRUE (can_div_away_from_zero_p (ph::make (8, 0, 0),
+					 ph::make (16, 16, 16),
+					 &const_quot));
+  ASSERT_EQ (const_quot, C (1));
 }
 
 /* Test known_size_p.  */
@@ -3388,6 +3400,38 @@ test_signed_can_div_away_from_zero_p ()
 					 ph::make (-8, -4, -5),
 					 &const_quot));
   ASSERT_EQ (const_quot, -3);
+  ASSERT_EQ (can_div_away_from_zero_p (ph::make (-16, 0, -16),
+				       ph::make (-16, -16, -15), &const_quot),
+	     N <= 2);
+  ASSERT_EQ (const_quot, N <= 2 ? C (1) : C (-3));
+  ASSERT_TRUE (can_div_away_from_zero_p (ph::make (-16, 0, 0),
+					 ph::make (-16, -16, -16),
+					 &const_quot));
+  ASSERT_EQ (const_quot, C (1));
+  ASSERT_TRUE (can_div_away_from_zero_p (ph::make (-8, 0, 0),
+					 ph::make (-16, -16, -16),
+					 &const_quot));
+  ASSERT_EQ (const_quot, C (1));
+  ASSERT_EQ (can_div_away_from_zero_p (ph::make (-16, 0, 16),
+				       ph::make (16, 16, 15), &const_quot),
+	     N <= 2);
+  ASSERT_EQ (const_quot, N <= 2 ? C (-1) : C (1));
+  ASSERT_TRUE (can_div_away_from_zero_p (ph::make (-16, 0, 0),
+					 ph::make (16, 16, 16),
+					 &const_quot));
+  ASSERT_EQ (const_quot, C (-1));
+  ASSERT_TRUE (can_div_away_from_zero_p (ph::make (-8, 0, 0),
+					 ph::make (16, 16, 16),
+					 &const_quot));
+  ASSERT_EQ (const_quot, C (-1));
+  ASSERT_TRUE (can_div_away_from_zero_p (ph::make (16, 0, 0),
+					 ph::make (-16, -16, -16),
+					 &const_quot));
+  ASSERT_EQ (const_quot, C (-1));
+  ASSERT_TRUE (can_div_away_from_zero_p (ph::make (8, 0, 0),
+					 ph::make (-16, -16, -16),
+					 &const_quot));
+  ASSERT_EQ (const_quot, C (-1));
 }
 
 /* Test maybe_in_range_p for signed C.  */
