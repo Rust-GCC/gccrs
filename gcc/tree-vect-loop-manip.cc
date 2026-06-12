@@ -1402,6 +1402,19 @@ vect_set_loop_condition (class loop *loop, edge loop_e, loop_vec_info loop_vinfo
   gcond *orig_cond = get_loop_exit_condition (loop_e);
   gimple_stmt_iterator loop_cond_gsi = gsi_for_stmt (orig_cond);
 
+  /* Check to see whether we will be replacing final_IV below.  Because of the
+     various replacement strategies (assign vs PHI) just remove it now and
+     leave the SSA name to be rebuild below.  */
+  if (final_iv && TREE_CODE (final_iv) == SSA_NAME)
+    {
+      gimple *def = SSA_NAME_DEF_STMT (final_iv);
+      if (gimple_call_internal_p (def, IFN_VARYING))
+	{
+	  gimple_stmt_iterator gsi = gsi_for_stmt (def);
+	  gsi_remove (&gsi, true);
+	}
+    }
+
   if (loop_vinfo && LOOP_VINFO_USING_PARTIAL_VECTORS_P (loop_vinfo))
     {
       if (LOOP_VINFO_PARTIAL_VECTORS_STYLE (loop_vinfo) == vect_partial_vectors_avx512)
@@ -3743,7 +3756,13 @@ vect_do_peeling (loop_vec_info loop_vinfo, tree niters, tree nitersm1,
 		 until then.  */
 	      niters_vector_mult_vf
 		= make_ssa_name (TREE_TYPE (*niters_vector));
-	      SSA_NAME_DEF_STMT (niters_vector_mult_vf) = gimple_build_nop ();
+	      edge exit_e = LOOP_VINFO_MAIN_EXIT (loop_vinfo);
+	      gimple_stmt_iterator loop_cond_gsi
+		= gsi_after_labels (exit_e->dest);
+
+	      gcall *tmp = gimple_build_call_internal (IFN_VARYING, 0);
+	      gimple_call_set_lhs (tmp, niters_vector_mult_vf);
+	      gsi_insert_before (&loop_cond_gsi, tmp, GSI_SAME_STMT);
 	      *niters_vector_mult_vf_var = niters_vector_mult_vf;
 	    }
 	  else
