@@ -416,6 +416,7 @@ static const struct aarch64_flag_desc aarch64_tuning_flags[] =
 #include "tuning_models/generic.h"
 #include "tuning_models/generic_armv8_a.h"
 #include "tuning_models/generic_armv9_a.h"
+#include "tuning_models/cortexa320.h"
 #include "tuning_models/cortexa35.h"
 #include "tuning_models/cortexa53.h"
 #include "tuning_models/cortexa57.h"
