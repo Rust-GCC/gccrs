@@ -3990,6 +3990,7 @@ combine_and_move_insns (void)
 	continue;
 
       rtx_insn *use_insn = 0;
+      bool multiple_insns = false;
       for (df_ref use = DF_REG_USE_CHAIN (regno);
 	   use;
 	   use = DF_REF_NEXT_REG (use))
@@ -3997,10 +3998,19 @@ combine_and_move_insns (void)
 	  {
 	    if (DEBUG_INSN_P (DF_REF_INSN (use)))
 	      continue;
-	    gcc_assert (!use_insn);
+	    if (use_insn && DF_REF_INSN (use) != use_insn)
+	      {
+		multiple_insns = true;
+		break;
+	      }
 	    use_insn = DF_REF_INSN (use);
 	  }
       gcc_assert (use_insn);
+
+      /* If a register is used by more than one insn, we cannot trivially move
+	 or delete the definition anymore.  */
+      if (multiple_insns)
+	continue;
 
       /* Don't substitute into jumps.  indirect_jump_optimize does
 	 this for anything we are prepared to handle.  */
