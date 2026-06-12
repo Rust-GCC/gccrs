@@ -23,19 +23,19 @@ DEF_VX_BINARY_CASE_3_WRAP(T, SAT_S_SUB_FUNC_WRAP(T), sat_sub, VX_BINARY_FUNC_BOD
 DEF_VX_BINARY_CASE_3_WRAP(T, AVG_FLOOR_FUNC_WRAP(T), avg_floor, VX_BINARY_FUNC_BODY_X8)
 DEF_VX_BINARY_CASE_3_WRAP(T, AVG_CEIL_FUNC_WRAP(T), avg_ceil, VX_BINARY_FUNC_BODY_X8)
 
-/* { dg-final { scan-assembler-not {vadd.vx} } } */
+/* { dg-final { scan-assembler {vadd.vx} } } */
 /* { dg-final { scan-assembler {vsub.vx} } } */
 /* { dg-final { scan-assembler {vrsub.vx} } } */
 /* { dg-final { scan-assembler {vand.vx} } } */
 /* { dg-final { scan-assembler {vor.vx} } } */
 /* { dg-final { scan-assembler {vxor.vx} } } */
-/* { dg-final { scan-assembler-not {vmul.vx} } } */
+/* { dg-final { scan-assembler {vmul.vx} } } */
 /* { dg-final { scan-assembler {vdiv.vx} } } */
 /* { dg-final { scan-assembler {vrem.vx} } } */
 /* { dg-final { scan-assembler {vmax.vx} } } */
 /* { dg-final { scan-assembler {vmin.vx} } } */
-/* { dg-final { scan-assembler-not {vsadd.vx} } } */
-/* { dg-final { scan-assembler-not {vssub.vx} } } */
+/* { dg-final { scan-assembler {vsadd.vx} } } */
+/* { dg-final { scan-assembler {vssub.vx} } } */
 /* { dg-final { scan-assembler {vaadd.vx} { target { any-opts {
      "-mrvv-vector-bits=zvl -mrvv-max-lmul=m1"
      "-mrvv-vector-bits=zvl -mrvv-max-lmul=m2"
