@@ -1,3 +1,23 @@
+2026-06-11  Georg-Johann Lay  <avr@gjlay.de>
+
+	* libf7.c (__floatdidf, __floatundidf): Minor tweak.
+
+2026-06-11  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR target/125752
+	* libf7-asm.sx (ufx64_to_d, d_to_fx64): New DEFUNs.
+	(__fractdadf, __fractudadf, __fracttadf, __fractutadf)
+	(__fractdqdf, __fractudqdf): New _DEFUNs.
+	* libf7-common.mk (F7_ASM_PARTS) Add: fx2D, D2fx,
+	dq2D, udq2D, da2D, uda2D, ta2D uta2D.
+	(F7F): Add d_to_fx64, ufx64_to_d, sfx64_to_d.
+	* libf7.c (d_to_ufx, d_to_sfx): New protos.
+	(__fractdfda, __fractdfuda, __fractdfta, __fractdfuta)
+	(__fractdfdq, __fractdfudq): New modules.
+	* t-libf7 (LIBF7_DF_CONV): Add fractdfda,
+	fractdfta, fractdfdq, fractdfuda, fractdfuta, fractdfudq.
+	* f7-renames.h: Rebuild.
+
 2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* libf7.c (f7_addsub): Likewise.

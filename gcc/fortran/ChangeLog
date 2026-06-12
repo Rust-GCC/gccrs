@@ -1,3 +1,61 @@
+2026-06-11  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/30438
+	PR fortran/28004
+	* dump-parse-tree.cc (gfc_debug_code_node): New function.
+	(show_attr): Add select_rank_temporary. Fix typo. Add referenced,
+	value_set, allocated and value_used.
+	* gfortran.h (enum value_set): New enum.
+	(enum value_used): New enum.
+	(gfc_symbol): Add value_set, value_used, allocated and
+	warning_emitted attributes.  Rename formal_at to other_loc.
+	Add extra_loc.
+	(gfc_value_set_at): Add prototype.
+	(gfc_lvalue_allocated_at): Likewise.
+	(gfc_mark_lhs_as_used): Likewise.
+	(gfc_value_used_expr): Likewise.
+	(gfc_value_set_and_used): Likewise.
+	(gfc_used_in_allocate_expr): Likewise.
+	* interface.cc (gfc_compare_actual_formal): Mark actual arguments
+	according to INTENT and VALUE on formal arguments.
+	(gfc_procedure_use): Add VALUE_ARG/VALUE_MAYBE_USED for
+	implicit arguments.
+	* intrinsic.cc (mark_args_as_used): New function.
+	(init_arglist): Adjust comment.
+	(gfc_intrinsic_sub_interface): Use mark_args_as_used.
+	* invoke.texi: Document -Wundefined-vars, -Wunused-intent-out and
+	-Wunused-read.
+	* io.cc (resolve_tag_format): Mark expressions as used.
+	(resolve_tag): Mark as used or set, depending on tag.
+	(gfc_resolve_dt): Mark internal unit as set.
+	(gfc_resolve_inquire): Mark value as set for INQUIRE_RESOLVE_TAG macro.
+	* lang.opt: Add -Wundefined-vars, -Wunused-intent-out and -Wunused-read.
+	* lang.opt.urls: Regenerated.
+	* resolve.cc (resolve_function): Replace formal_at by other_loc.
+	(resolve_call): Likewise.
+	(gfc_resolve_iterator): Mark iterator variable as set and used and
+	other expressions as used.
+	(resolve_forall_iterators): Likewise.
+	(resolve_allocate_expr): On success, call gfc_used_in_allocate_expr
+	and mark value as set if source is present.
+	(resolve_transfer): Mark set/read according to context.
+	(gfc_resolve_blocks): Mark expr1 and expr2 as used.
+	(mark_lhs_assignments_set): Prototype / new function.
+	(gfc_resolve_code): Mark expr2, expr3 and expr4 as used.
+	(var_value_is_used): New function.
+	(var_value_is_set): New function.
+	(find_unused_vs_set): New function.
+	(warn_unused_vs_set): New function.
+	(gfc_resolve): Call warn_unused_vs_set.
+	* symbol.cc (gfc_value_set_at): New function.
+	(mark_vars_as_used): New function.
+	(gfc_value_used_expr): New function.
+	(gfc_value_set_and_used): New function.
+	(gfc_used_in_allocate_expr): new function.
+	(gfc_lvalue_allocated_at): New function.
+	* trans-decl.cc (gfc_finish_var_decl): If we already emitted a warning,
+	suppress further middle-end warning o that variable.
+
 2026-06-10  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
 
 	Backported from master:

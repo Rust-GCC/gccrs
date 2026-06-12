@@ -1,3 +1,114 @@
+2026-06-11  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/30438
+	PR fortran/28004
+	* gfortran.dg/allocatable_length.f90: Add -Wno-undefined-vars.
+	* gfortran.dg/allocatable_scalar_6.f90: Likewise.
+	* gfortran.dg/allocatable_uninitialized_1.f90: Add -Wno-unused-but-set-variable
+	-Wno-undefined-vars.
+	* gfortran.dg/assignment_4.f90: Add -Wno-undefined-vars.
+	* gfortran.dg/attr_deprecated-2.f90: Likewise.
+	* gfortran.dg/c_by_val_5.f90: Add -Wno-unused-but-set-variable.
+	* gfortran.dg/char_component_initializer_2.f90: Shut up warning.
+	* gfortran.dg/char_length_1.f90: Add statement to shut up warning.
+	* gfortran.dg/constructor_9.f90: Add -Wno-unused-but-set-variable.
+	* gfortran.dg/gamma_2.f90: Add statement to shut up warning.
+	* gfortran.dg/gomp/allocate-10.f90: Add -Wno-unused-but-set-variable.
+	* gfortran.dg/io_constraints_8.f90: Likewise.
+	* gfortran.dg/label_5.f90: Likewise.
+	* gfortran.dg/len_trim.f90: Likewise.
+	* gfortran.dg/linefile.f90: Likewise.
+	* gfortran.dg/pointer_check_13.f90: Add dg-warning.
+	* gfortran.dg/pr102366.f90: Add -Wno-unused-but-set-variable.
+	* gfortran.dg/pr103475.f90: Likewise.
+	* gfortran.dg/pr91497.f90: Likewise.
+	* gfortran.dg/pr91497_2.f90: Likewise.
+	* gfortran.dg/pr96312.f90: Likewise.
+	* gfortran.dg/pr98411.f90: Likewise.
+	* gfortran.dg/transfer_check_4.f90: Likewise.
+	* gfortran.dg/warnings_are_errors_1.f90: Add print statement.
+	* gfortran.dg/warn_undefined_vars_1.f90: New test.
+	* gfortran.dg/warn_undefined_vars_2.f90: New test.
+	* gfortran.dg/warn_undefined_vars_3.f90: New test.
+	* gfortran.dg/warn_undefined_vars_4.f90: New test.
+	* gfortran.dg/warn_unused_intent_out_1.f90: New test.
+	* gfortran.dg/warn_unused_read_1.f90: New test.
+	* gfortran.dg/warn_unused_but_set_1.f90: New file.
+
+2026-06-11  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* c-c++-common/tls-attr-common.c: Add emulated TLS
+	matches.
+	* c-c++-common/tls-attr-le-pic.c: Likewise.
+	* c-c++-common/tls-attr-le-pie.c: Likewise.
+
+2026-06-11  Jonathan Yong  <10walls@gmail.com>
+
+	Revert:
+	2026-05-28  oltolm  <oleg.tolmatcev@gmail.com>
+
+	PR target/54412
+	* gcc.target/i386/pr54412-v4d-o0-aligned-locals.c: New test.
+	* gcc.target/i386/pr54412-o2-by-value-cases.c: New test.
+	* gcc.target/i386/pr54412-sret-no-args.c: New test.
+	* gcc.target/i386/pr54412-callee-byref-param.c: New test.
+	* gcc.target/i386/pr54412-avx512-aligned64.c: New test.
+
+2026-06-11  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* g++.dg/reflect/visibility1.C: Use scan-weak/scan-not-weak to
+	improve portability.
+
+2026-06-11  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR target/125752
+	* gcc.target/avr/torture/fx-to-double.c: New test.
+
+2026-06-11  Andrew MacLeod  <amacleod@redhat.com>
+
+	PR tree-optimization/125706
+	* gcc.dg/pr125706.c: New.
+
+2026-06-11  Naveen  <naveen.siddegowda@oss.qualcomm.com>
+
+	PR target/113926
+	* gcc.target/aarch64/pr113926.c: New test.
+	* gcc.target/aarch64/pr113926_1.c: New test.
+
+2026-06-11  Zhongyao Chen  <chenzhongyao.hit@gmail.com>
+
+	PR tree-optimization/123343
+	* gcc.dg/vect/slp-reduc-var.c: New testcase.
+
+2026-06-11  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	* lib/target-supports.exp (arm_mixed_fp): Simplify
+	implementation.
+
+2026-06-11  Robert Dubner  <rdubner@symas.com>
+
+	* cobol.dg/group2/MOVE_NumericDisplay_to_COMP-3.cob: New test.
+	* cobol.dg/group2/MOVE_NumericDisplay_to_COMP-3.out: New test.
+
+2026-06-11  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/93727
+	* gfortran.dg/EXformat_4.F90: New test covering EX format read
+	for kind=4 and 8 (always) and kind=10, 16 (when available):
+	hex-significand literals, lowercase prefix, negative binary
+	exponent, decimal fallback, d-field adjustment, INF/NAN, zero
+	field, and round-trips through write_ex.
+
+2026-06-11  Hongyu Wang  <hongyu.wang@intel.com>
+
+	* gcc.target/i386/mvc18.c: New test for target_clones with
+	avx10.2, apxf, and arch=diamondrapids/novalake.
+
+2026-06-11  Zhongyao Chen  <chen.zhongyao@zte.com.cn>
+
+	PR tree-optimization/125567
+	* gcc.dg/vect/pr125567.c: New test.
+
 2026-06-10  Iain Sandoe  <iain@sandoe.co.uk>
 
 	* gcc.dg/pr97172-2.c: Allow undefined symbols at link-time.

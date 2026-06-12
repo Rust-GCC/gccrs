@@ -1,3 +1,10 @@
+2026-06-11  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/30438
+	PR fortran/28004
+	* testsuite/libgomp.fortran/alloc-1.F90: Shut up -Wunused-but-set-variable.
+	* testsuite/libgomp.fortran/alloc-12.f90: Likewise.
+
 2026-06-10  Chung-Lin Tang  <cltang@baylibre.com>
 
 	PR fortran/122910

@@ -1,3 +1,19 @@
+2026-06-11  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/30438
+	PR fortran/28004
+	* mk-kinds-h.sh: Add print statement so test will compile with -Wall -Werror.
+	* mk-sik-inc.sh: Likewise.
+	* mk-srk-inc.sh: Likewise.
+
+2026-06-11  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/93727
+	* io/read.c (read_ex): New function implementing EX format read.
+	* io/io.h (read_ex): Declare.
+	* io/transfer.c (formatted_transfer_scalar_read): Add FMT_EX case
+	dispatching to read_ex.
+
 2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* caf/caf_error.h (caf_runtime_error): Fix typos.

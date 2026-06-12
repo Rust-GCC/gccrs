@@ -1,3 +1,11 @@
+2026-06-11  Robert Dubner  <rdubner@symas.com>
+
+	* move.cc (mh_packed_to_packed): Moved.
+	(mh_numdisp_to_packed): New function.
+	(move_helper): Use mh_numdisp_to_packed().
+	(hex_msg): New debugging function.
+	* parse.y: Enable __gg__char_national().
+
 2026-06-10  Robert Dubner  <rdubner@symas.com>
 
 	* move.cc (parser_move): Don't compile hex_of function.

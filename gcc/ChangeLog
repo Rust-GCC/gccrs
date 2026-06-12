@@ -1,3 +1,75 @@
+2026-06-11  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* common/config/aarch64/aarch64-common.cc: Make the asm
+	crc bug workaround configurable.
+
+2026-06-11  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR target/125751
+	* config/avr/avr.cc (avr_out_fract): Fix too small sequence
+	lengths in avr_asm_len calls.
+
+2026-06-11  Roman Beliaev  <r.beliaev@ispras.ru>
+
+	* gcov.cc (solve_flow_graph): Fix condition.
+
+2026-06-11  Karl Meakin  <karl.meakin@arm.com>
+
+	* doc/rtl.texi: Replace "fixed-point" with "integral" where
+	appropriate.
+
+2026-06-11  Andrew MacLeod  <amacleod@redhat.com>
+
+	PR tree-optimization/125706
+	* range-op.cc (operator_trunc_mod::wi_fold): Apply fixed
+	quotient refinement.
+
+2026-06-11  Andrew Stubbs  <ams@baylibre.com>
+
+	* config/gcn/gcn.h (REG_CLASS_NAMES): Add missing comma.
+
+2026-06-11  Naveen  <naveen.siddegowda@oss.qualcomm.com>
+
+	PR target/113926
+	* config/aarch64/aarch64.cc (struct simd_immediate_info): Add width
+	field to record AdvSIMD output vector width.
+	(simd_immediate_info::simd_immediate_info): Initialize width to zero
+	in all constructors.
+	(aarch64_simd_valid_imm): Allow 128-bit AdvSIMD MOV immediates with
+	zero high 64 bits to be materialized using 64-bit MOVI.
+	(aarch64_output_simd_imm): Use recorded immediate width when outputting
+	AdvSIMD immediates.
+
+2026-06-11  Zhongyao Chen  <chenzhongyao.hit@gmail.com>
+
+	PR tree-optimization/123343
+	* tree-vect-slp.cc (vect_analyze_slp_reduction_group): Return
+	false for group_size <= 1 at entry.
+	(vect_analyze_slp_reductions): Add loop exit check for
+	group_size <= 1.
+
+2026-06-11  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	PR testsuite/113276
+	* doc/sourcebuild.texi (arm_mixed_fp): Document.
+
+2026-06-11  Hongyu Wang  <hongyu.wang@intel.com>
+
+	* common/config/i386/i386-cpuinfo.h (enum feature_priority):
+	Add P_AVX10_2, P_APX_F, P_PROC_AVX10_2.
+	* common/config/i386/i386-isas.h: Set P_AVX10_2 for avx10.2
+	and P_APX_F for apxf.
+	* common/config/i386/i386-common.cc (processor_alias_table):
+	Use P_PROC_AVX10_2 for diamondrapids and novalake.
+
+2026-06-11  Zhongyao Chen  <chen.zhongyao@zte.com.cn>
+
+	PR tree-optimization/125567
+	* tree-vect-slp.cc (least_upthread_swappable_op_distance): New.
+	(vect_build_slp_tree_2): Compute swap checks before building operand
+	zero.  Skip external fallback while swap retry is possible.  Reuse the
+	swap checks in the retry path.
+
 2026-06-10  Andrew MacLeod  <amacleod@redhat.com>
 
 	* value-range-storage.cc (irange_storage::irange_storage):
