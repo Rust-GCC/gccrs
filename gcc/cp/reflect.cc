@@ -135,6 +135,7 @@ tree
 get_reflection (location_t loc, tree t, reflect_kind kind/*=REFLECT_UNDEF*/)
 {
   STRIP_ANY_LOCATION_WRAPPER (t);
+  t = STRIP_REFERENCE_REF (t);
 
   /* Constant template parameters and pack-index-expressions cannot
      appear as operands of the reflection operator.  */
