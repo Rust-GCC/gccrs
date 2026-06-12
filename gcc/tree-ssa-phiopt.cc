@@ -54,6 +54,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-ssa-dce.h"
 #include "tree-ssa-loop-niter.h"
 #include "gimple-predict.h"
+#include "alias.h"
 
 /* Return the singleton PHI in the SEQ of PHIs for edges E0 and E1. */
 
@@ -3651,6 +3652,162 @@ cond_if_else_store_replacement (basic_block then_bb, basic_block else_bb,
   return ok;
 }
 
+/* If PHI at MERGE is a "load PHI", PHI <*P, *Q> whose two arguments are
+   single-use, non-volatile scalar MEM_REF loads reading the same memory state
+   (same VUSE), factor the load out: introduce P' = PHI <P, Q> and a single
+   load *P' replacing the PHI.  No speculative load is introduced (the load uses
+   whichever pointer the taken edge selected).
+   E0/E1 are the middle bbs to MERGE edges.
+   EARLY_P is set when the first phiopt is run.
+   BEFORE_VECT is true if this is before vectorization, where some extra checks
+   are needed for profitability.
+   Returns true if a load was factored out.  */
+
+static bool
+factor_out_conditional_load (edge e0, edge e1, basic_block merge, gphi *phi,
+			     bool early_p, bool before_vect)
+{
+  /* Factoring out a load during the first phi means we can't
+     trust if this is inside a loop or not; due to before inlining.  */
+  if (early_p)
+    return false;
+
+  /* Before vectorization, we don't want to factor out loads unless not inside a loop.  */
+  if (before_vect && bb_loop_depth (merge) != 0)
+    return false;
+
+  /* Not a virtual operand. */
+  if (virtual_operand_p (gimple_phi_result (phi))
+      /* can only handle the merge bb having 2 predecessors.  */
+      || gimple_phi_num_args (phi) != 2
+      /* No calls nor stores in the middle bbs.
+	 FIXME: handle the case where there are stores before the load.  */
+      || get_virtual_phi (merge))
+    return false;
+
+  tree arg0 = gimple_phi_arg_def (phi, e0->dest_idx);
+  tree arg1 = gimple_phi_arg_def (phi, e1->dest_idx);
+  /* The load needs to be only used in the phi.  */
+  if (TREE_CODE (arg0) != SSA_NAME || TREE_CODE (arg1) != SSA_NAME
+      || !has_single_use (arg0) || !has_single_use (arg1))
+    return false;
+
+  /* Re-derive the loads and pointers validated by the predicate above.  */
+  gimple *load0 = SSA_NAME_DEF_STMT (arg0);
+  gimple *load1 = SSA_NAME_DEF_STMT (arg1);
+
+  /* Load have to need to be in the middle bbs.  */
+  if (gimple_bb (load0) != e0->src
+      || gimple_bb (load1) != e1->src)
+    return false;
+
+  /* The load needs to be a load with NO volatile ops.  */
+  if (!gimple_assign_load_p (load0) || !gimple_assign_load_p (load1)
+      || gimple_has_volatile_ops (load0) || gimple_has_volatile_ops (load1)
+      /* Assert that the vuse is the same, this will be true since there
+	 are no stores either bb.  */
+      || gimple_vuse (load0) != gimple_vuse (load1))
+    return false;
+
+  tree ref0 = gimple_assign_rhs1 (load0);
+  tree ref1 = gimple_assign_rhs1 (load1);
+
+  /* Both must be plain *P loads (zero offset) of a compatible value type.  The
+     TBAA alias-ptr type carried by MEM_REF operand 1 need not match; it is
+     merged the way get_alias_type_for_stmts does when the load is built.  */
+  if (TREE_CODE (ref0) != MEM_REF || TREE_CODE (ref1) != MEM_REF
+      || !integer_zerop (TREE_OPERAND (ref0, 1))
+      || !integer_zerop (TREE_OPERAND (ref1, 1))
+      || !types_compatible_p (TREE_TYPE (ref0), TREE_TYPE (ref1)))
+    return false;
+
+  /* The alignment of the two accesses need to be the same.  */
+  if (TYPE_ALIGN (TREE_TYPE (ref0)) != TYPE_ALIGN (TREE_TYPE (ref1)))
+    return false;
+
+  tree p0 = TREE_OPERAND (ref0, 0);
+  tree p1 = TREE_OPERAND (ref1, 0);
+
+  tree newptr;
+  if (p0 != p1)
+    {
+      /* We can't factor out a non-ssa named based load
+	 as it might cause a variable not taken an
+	 address to become needing the address taken.
+	 An example is in go.
+	 Were we produce:
+	 _24 = PHI <&crypto/tls.cipherSuitesPreferenceOrder(36), &crypto/tls.cipherSuitesPreferenceOrderNoAES(37)>
+	 And &crypto/tls.cipherSuitesPreferenceOrder address bit was not set.
+	 FIXME: Refine to check ADDRESSABLE bit.  */
+      if (TREE_CODE (p0) != SSA_NAME || TREE_CODE (p1) != SSA_NAME)
+	return false;
+      /* Build P' = PHI <P, Q> and the single load result = *P'.  */
+      newptr = make_ssa_name (TREE_TYPE (p0));
+      gphi *pphi = create_phi_node (newptr, merge);
+      add_phi_arg (pphi, p0, e0, gimple_phi_arg_location (phi, e0->dest_idx));
+      add_phi_arg (pphi, p1, e1, gimple_phi_arg_location (phi, e1->dest_idx));
+    }
+   else
+     newptr = p0;
+
+  /* Merge the two arms' TBAA info as get_alias_type_for_stmts does: keep the
+     common alias-ptr type and dependence clique/base when the arms agree,
+     otherwise fall back to ptr_type_node (alias-everything) and drop the
+     clique/base, so the combined load conservatively conflicts with any store
+     either original arm could.  */
+  unsigned short clique = MR_DEPENDENCE_CLIQUE (ref0);
+  unsigned short base = MR_DEPENDENCE_BASE (ref0);
+  if (clique != MR_DEPENDENCE_CLIQUE (ref1) || base != MR_DEPENDENCE_BASE (ref1))
+    clique = base = 0;
+  tree atype = TREE_TYPE (TREE_OPERAND (ref0, 1));
+  if (!alias_ptr_types_compatible_p (atype, TREE_TYPE (TREE_OPERAND (ref1, 1))))
+    {
+      atype = ptr_type_node;
+      clique = base = 0;
+    }
+
+  /* Build the combined load RES = *PTR, reusing the PHI result so any range
+     info on it is preserved (as factor_out_conditional_operation does).  */
+  tree nref = build2 (MEM_REF, TREE_TYPE (ref0), newptr, build_int_cst (atype, 0));
+  MR_DEPENDENCE_CLIQUE (nref) = clique;
+  MR_DEPENDENCE_BASE (nref) = base;
+  tree res = gimple_phi_result (phi);
+  gassign *load = gimple_build_assign (res, nref);
+  gimple_set_vuse (load, gimple_vuse (load0));
+  gimple_stmt_iterator gsi = gsi_after_labels (merge);
+  gsi_insert_before (&gsi, load, GSI_SAME_STMT);
+
+  /* RES is now defined by the load; drop the original PHI.  */
+  gsi = gsi_for_stmt (phi);
+  gsi_remove (&gsi, true);
+
+  /* The two arm loads are now dead.  */
+  gsi = gsi_for_stmt (load0);
+  gsi_remove (&gsi, true);
+  release_defs (load0);
+  gsi = gsi_for_stmt (load1);
+  gsi_remove (&gsi, true);
+  release_defs (load1);
+
+  if (dump_file && (dump_flags & TDF_DETAILS))
+    {
+      fprintf (dump_file, "PHI ");
+      print_generic_expr (dump_file, res);
+      fprintf (dump_file,
+	       " changed to factor out load from COND_EXPR.\n");
+      if (p0 != p1)
+	{
+	  fprintf (dump_file, "new PHI ");
+	  print_generic_expr (dump_file, newptr);
+	  fprintf (dump_file,
+		   " was created for the pointers.\n");
+	}
+    }
+
+  statistics_counter_event (cfun, "factored load out of COND_EXPR", 1);
+  return true;
+}
+
 /* Factor out operations and stores from the phi of the MERGE block coming
    in from the edges E1 and E2 if possible. COND_STMT is the conditional
    statement of the origin block. DIAMOND_P says that both E1 and E2 src
@@ -3681,13 +3838,20 @@ factor_out_all (edge e1, edge e2, basic_block merge,
 	break;
       gphi_iterator gsi;
       for (gsi = gsi_start_phis (merge); !gsi_end_p (gsi); gsi_next (&gsi))
-	if (factor_out_conditional_operation (e1, e2, merge, *gsi,
-					      cond_stmt, early_p))
-	  {
-	    changed = true;
-	    do_over = true;
-	    break;
-	  }
+	{
+	  gphi *phi = *gsi;
+	  /* Conditional load elimination can only be on a diamond.  */
+	  if ((diamond_p
+	       && factor_out_conditional_load (e1, e2, merge, phi, early_p,
+					       !fold_before_rtl_expansion_p ()))
+	      || factor_out_conditional_operation (e1, e2, merge, phi,
+						   cond_stmt, early_p))
+	    {
+	      changed = true;
+	      do_over = true;
+	      break;
+	    }
+	}
     } while (do_over);
   return changed;
 }
