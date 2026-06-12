@@ -22,7 +22,7 @@ subroutine f2
   end do
 end subroutine f2
 subroutine f3
-!$omp declare reduction (foo:blah:omp_out=omp_out + omp_in) ! { dg-error "Unclassifiable OpenMP directive" }
+!$omp declare reduction (foo:blah:omp_out=omp_out + omp_in) ! { dg-error "30: Syntax error in statement at .1." }
 end subroutine f3
 subroutine f4
 !$omp declare reduction (foo:integer:a => null()) ! { dg-error "Invalid character in name" }

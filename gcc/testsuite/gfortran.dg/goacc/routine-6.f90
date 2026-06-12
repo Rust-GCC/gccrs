@@ -63,7 +63,7 @@ end program main
 ! Ensure that we recover from incomplete function definitions.
 
 integer function f1 ! { dg-error "Expected formal argument list in function definition" }
-  !$acc routine ! { dg-error "Unclassifiable OpenACC directive" }
+  !$acc routine ! { dg-error "16: Syntax error in statement" }
 end function f1 ! { dg-error "Expecting END PROGRAM statement" }
 
 subroutine subr1 (x) 

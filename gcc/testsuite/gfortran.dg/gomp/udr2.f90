@@ -1,13 +1,13 @@
 ! { dg-do compile }
 
 subroutine f6
-!$omp declare reduction (foo:real:omp_out (omp_in)) ! { dg-error "Unclassifiable OpenMP directive" }
-!$omp declare reduction (bar:real:omp_out = omp_in * omp_out) & ! { dg-error "Unclassifiable OpenMP directive" }
+!$omp declare reduction (foo:real:omp_out (omp_in)) ! { dg-error "35: Syntax error in statement at .1." }
+!$omp declare reduction (bar:real:omp_out = omp_in * omp_out) & ! { dg-error "35: Syntax error in statement at .1." }
 !$omp & initializer (omp_priv (omp_orig))
 end subroutine f6
 subroutine f7
   integer :: a
-!$omp declare reduction (foo:integer:a (omp_out, omp_in)) ! { dg-error "Unclassifiable OpenMP directive" }
+!$omp declare reduction (foo:integer:a (omp_out, omp_in)) ! { dg-error "38: Syntax error in statement at .1." }
 !$omp declare reduction (bar:real:omp_out = omp_out.or.omp_in) ! { dg-error "Operands of logical operator" }
 !$omp declare reduction (baz:real:omp_out = omp_out + omp_in)
 !$omp & initializer (a (omp_priv, omp_orig)) ! { dg-error "Unclassifiable OpenMP directive" }

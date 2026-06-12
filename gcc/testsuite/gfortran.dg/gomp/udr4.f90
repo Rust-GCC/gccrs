@@ -1,10 +1,10 @@
 ! { dg-do compile }
 
 subroutine f3
-!$omp declare reduction ! { dg-error "Unclassifiable OpenMP directive" }
-!$omp declare reduction foo ! { dg-error "Unclassifiable OpenMP directive" }
-!$omp declare reduction (foo) ! { dg-error "Unclassifiable OpenMP directive" }
-!$omp declare reduction (foo:integer) ! { dg-error "Unclassifiable OpenMP directive" }
+!$omp declare reduction ! { dg-error "24: Syntax error in statement at .1." }
+!$omp declare reduction foo ! { dg-error "24: Syntax error in statement at .1." }
+!$omp declare reduction (foo) ! { dg-error "26: Syntax error in statement at .1." }
+!$omp declare reduction (foo:integer) ! { dg-error "37: Syntax error in statement at .1." }
 !$omp declare reduction (foo:integer:omp_out=omp_out+omp_in) &
 !$omp & initializer(omp_priv=0) initializer(omp_priv=0) ! { dg-error "Unexpected junk after" }
 end subroutine f3

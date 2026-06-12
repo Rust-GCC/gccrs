@@ -35,7 +35,7 @@ program asyncwait
 
   !$acc wait async 1 ! { dg-error "Failed to match clause" }
 
-  !$acc waitasync ! { dg-error "Failed to match clause" }
+  !$acc waitasync ! { dg-error "Unclassifiable OpenACC directive" }
 
   !$acc wait,async ! { dg-error "Failed to match clause" }
 end program asyncwait
