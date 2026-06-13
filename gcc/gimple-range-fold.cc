@@ -1570,7 +1570,7 @@ fold_using_range::relation_fold_and_or (irange& lhs_range, gimple *s,
     return;
 
   if (reverse_op2)
-    relation2 = relation_negate (relation2);
+    relation2 = relation_swap (relation2);
 
   // x && y is false if the relation intersection of the true cases is NULL.
   if (is_and && relation_intersect (relation1, relation2) == VREL_UNDEFINED)
