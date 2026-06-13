@@ -24,6 +24,8 @@
 #include "system.h"
 #include "coretypes.h"
 
+#include <string>
+
 #include "a68.h"
 #include "a68-pretty-print.h"
 
@@ -37,7 +39,8 @@
 /* Intelligible diagnostics for the bracket checker.  */
 
 static void
-bracket_check_error (char *txt, int n, const char *bra, const char *ket)
+bracket_check_error (char *txt, int n, const char *bra, const char *ket,
+		     char **item)
 {
   BUFFER buf;
 
@@ -48,10 +51,12 @@ bracket_check_error (char *txt, int n, const char *bra, const char *ket)
   const char *strop_bra = a68_strop_keyword (bra);
 
   BUFCLR (buf);
-  if (snprintf (buf, SNPRINTF_SIZE, "missing matching %%<%s%%>",
+  if (snprintf (buf, SNPRINTF_SIZE, "missing matching %<%s%>",
 		(n > 0 ? strop_ket : strop_bra)) < 0)
     gcc_unreachable ();
 
+  *item = (n > 0 ? xstrdup (strop_ket) : xstrdup (strop_bra));
+  
   if (strlen (txt) > 0)
     a68_bufcat (txt, " or ", BUFFER_SIZE);
   a68_bufcat (txt, buf, BUFFER_SIZE);
@@ -60,7 +65,7 @@ bracket_check_error (char *txt, int n, const char *bra, const char *ket)
 /* Diagnose brackets in local branch of the tree.  */
 
 static char *
-bracket_check_diagnose (NODE_T *p)
+bracket_check_diagnose (NODE_T *p, char **item)
 {
   int begins = 0, opens = 0, format_delims = 0, format_opens = 0;
   int subs = 0, ifs = 0, cases = 0, dos = 0;
@@ -123,14 +128,14 @@ bracket_check_diagnose (NODE_T *p)
     }
 
   A68 (edit_line)[0] = '\0';
-  bracket_check_error (A68 (edit_line), begins, "BEGIN", "END");
-  bracket_check_error (A68 (edit_line), opens, "(", ")");
-  bracket_check_error (A68 (edit_line), format_opens, "(", ")");
-  bracket_check_error (A68 (edit_line), format_delims, "$", "$");
-  bracket_check_error (A68 (edit_line), subs, "[", "]");
-  bracket_check_error (A68 (edit_line), ifs, "IF", "FI");
-  bracket_check_error (A68 (edit_line), cases, "CASE", "ESAC");
-  bracket_check_error (A68 (edit_line), dos, "DO", "OD");
+  bracket_check_error (A68 (edit_line), begins, "BEGIN", "END", item);
+  bracket_check_error (A68 (edit_line), opens, "(", ")", item);
+  bracket_check_error (A68 (edit_line), format_opens, "(", ")", item);
+  bracket_check_error (A68 (edit_line), format_delims, "$", "$", item);
+  bracket_check_error (A68 (edit_line), subs, "[", "]", item);
+  bracket_check_error (A68 (edit_line), ifs, "IF", "FI", item);
+  bracket_check_error (A68 (edit_line), cases, "CASE", "ESAC", item);
+  bracket_check_error (A68 (edit_line), dos, "DO", "OD", item);
   return A68 (edit_line);
 }
 
@@ -193,18 +198,35 @@ bracket_check_parse (NODE_T *top, NODE_T *p)
 	p = q;
       else if (q == NO_NODE)
 	{
-	  char *diag = bracket_check_diagnose (top);
-	  a68_error (p, "incorrect nesting, check for %s",
-		     (strlen (diag) > 0 ? diag : "missing or unmatched keyword"));
+	  char *item = NULL;
+	  char *diag = bracket_check_diagnose (top, &item);
+	  if (strlen (diag) == 0)
+	    a68_error (p, "incorrect nesting, check for missing or unmatched keyword");
+	  else
+	    {
+	      std::string fmt1 = diag;
+	      std::string fmt2 = "incorrect nesting, check for " + fmt1;
+	      a68_error (p, fmt2.c_str (), item);
+	      free (item);
+	    }
 	  longjmp (A68_PARSER (top_down_crash_exit), 1);
 	}
       else
 	{
-	  char *diag = bracket_check_diagnose (top);
+	  char *item = NULL;
+	  char *diag = bracket_check_diagnose (top, &item);
 	  a68_attr_format_token a (ATTRIBUTE (q));
 
-	  a68_error (q, "unexpected %e, check for %s", &a,
-		     (strlen (diag) > 0 ? diag : "missing or unmatched keyword"));
+	  if (strlen (diag) == 0)
+	    a68_error (q, "unexpected %e, check for missing or unmatched keyword",
+		       &a);
+	  else
+	    {
+	      std::string fmt1 = diag;
+	      std::string fmt2 = "unexpected %e, check for " + fmt1;
+	      a68_error (q, fmt2.c_str (), &a, item);
+	      free (item);
+	    }
 	  longjmp (A68_PARSER (top_down_crash_exit), 1);
 	}
     }
