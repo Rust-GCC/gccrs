@@ -1,3 +1,84 @@
+2026-06-12  Tobias Burnus  <tburnus@baylibre.com>
+
+	* gfortran.dg/gomp/declare-mapper-6.f90: New test.
+	* gfortran.dg/gomp/declare-mapper-7.f90: New test.
+	* gfortran.dg/gomp/declare-reduction-3.f90: New test.
+	* gfortran.dg/gomp/declare-reduction-4.f90: New test.
+
+2026-06-12  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/125674
+	* g++.dg/template/bitfield5.C: New test.
+	* g++.dg/template/bitfield6.C: New test.
+
+2026-06-12  Tobias Burnus  <tburnus@baylibre.com>
+
+	* gfortran.dg/goacc/asyncwait-4.f95: Update dg-error.
+	* gfortran.dg/goacc/routine-6.f90: Likewise.
+	* gfortran.dg/gomp/udr1.f90: Likewise.
+	* gfortran.dg/gomp/udr2.f90: Likewise.
+	* gfortran.dg/gomp/udr4.f90: Likewise.
+	* gfortran.dg/gomp/declare-reduction-2.f90: New test.
+
+2026-06-12  Julian Brown  <julian@codesourcery.com>
+	    Tobias Burnus  <tburnus@baylibre.com>
+
+	* gfortran.dg/gomp/declare-mapper-1.f90: Remove no longer
+	expect 'sorry, unimplemented'.
+	* gfortran.dg/gomp/declare-mapper-3.f90: New test.
+	* gfortran.dg/gomp/declare-mapper-31.f90: New test.
+	* gfortran.dg/gomp/declare-mapper-4.f90: New test.
+	* gfortran.dg/gomp/declare-mapper-5.f90: New test.
+
+2026-06-12  Stefan Schulze Frielinghaus  <stefansf@gcc.gnu.org>
+
+	* gcc.target/s390/section-anchors-4.c: New test.
+
+2026-06-12  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* g++.dg/modules/clone-4_b.C: Account for missing strong symbol
+	aliases.
+	* g++.dg/template/explicit-instantiation8.C: Likewise.
+
+2026-06-12  Tamar Christina  <tamar.christina@arm.com>
+
+	PR tree-optimization/125597
+	* gcc.target/aarch64/pr125597.c: New test.
+
+2026-06-12  Stefan Schulze Frielinghaus  <stefansf@gcc.gnu.org>
+
+	PR rtl-optimization/125173
+	* gcc.dg/pr125173-1.c: New test.
+
+2026-06-12  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+	    Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	PR tree-optimization/125557
+	PR tree-optimization/64700
+	PR tree-optimization/29144
+	PR tree-optimization/94274
+	* gcc.dg/tree-ssa/recip-3.c: Disable phiopt since it removes
+	one division and recip pass needs 3.
+	* gcc.dg/tree-ssa/recip-5.c: Likewise.
+	* gcc.dg/tree-ssa/recip-6.c: Likewise.
+	* gcc.dg/tree-ssa/recip-7.c: Likewise.
+	* gcc.dg/tree-ssa/slsr-12.c: xfail.
+	* gcc.dg/tree-ssa/slsr-34.c: Likewise.
+	* gcc.dg/tree-ssa/pr122629-1.c: Update to scan phiopt1.
+	* gcc.dg/vect/vect-reduc-cond-2.c: Likewise.
+	* gcc.dg/tree-ssa/phi-factor-binary-1.c: New test.
+	* gcc.dg/tree-ssa/phi-factor-binary-2.c: New test.
+	* gcc.target/aarch64/phi-factor-binary-1.c: New test.
+	* gcc.target/aarch64/cinc_common_1.c: xfail.
+	* gcc.target/aarch64/fuse_cmp_csel.c: xfail.
+	* gcc.target/aarch64/fuse_cmp_csel-1.c: New test.
+
+2026-06-12  Stefan Schulze Frielinghaus  <stefansf@gcc.gnu.org>
+
+	* gcc.target/s390/ira-pic-spill-1.c: New test.
+	* gcc.target/s390/ira-pic-spill-2.c: New test.
+	* gcc.target/s390/ira-pic-spill-3.c: New test.
+
 2026-06-11  Thomas Koenig  <tkoenig@gcc.gnu.org>
 
 	PR fortran/30438

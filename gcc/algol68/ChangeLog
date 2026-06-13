@@ -1,3 +1,8 @@
+2026-06-12  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	* a68-imports.cc (a68_try_suffixes): Use .dylib suffix on Darwin.
+	Use .dll suffix and optional lib prefix on Windows.
+
 2026-06-08  Jose E. Marchesi  <jemarch@gnu.org>
 
 	* a68-pretty-print.h (a68_attr_format_token): Get diagnostic

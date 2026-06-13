@@ -1,3 +1,82 @@
+2026-06-12  Claudio Bantaloukas  <claudio.bantaloukas@arm.com>
+
+	* config/aarch64/aarch64-cores.def (cortex-a320): Update core.
+	* config/aarch64/aarch64.cc: Add cortexa320.h.
+	* config/aarch64/tuning_models/cortexa320.h: New file.
+
+2026-06-12  Ramin Moussavi  <lordrasmus@gmail.com>
+
+	* config/microblaze/microblaze.h (DWARF_ALT_FRAME_RETURN_COLUMN):
+	Define.
+
+2026-06-12  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	PR target/101484
+	* config/gcn/gcn.cc (TARGET_ADDR_SPACE_ZERO_ADDRESS_VALID): Implement.
+
+2026-06-12  Stefan Schulze Frielinghaus  <stefansf@gcc.gnu.org>
+
+	* lra-constraints.cc (reload_section_anchor_p): New function.
+	(curr_insn_transform): For offsetable MEMs, try reloading the
+	section anchor only.
+
+2026-06-12  Tamar Christina  <tamar.christina@arm.com>
+
+	PR tree-optimization/125597
+	* tree-vect-loop-manip.cc (vect_do_peeling): Create IFN_VARYING for
+	early break scalar IV.
+	* tree-vect-loop.cc (vect_update_ivs_after_vectorizer_for_early_breaks):
+	Replace the IFN_VARYING with actual value.
+
+2026-06-12  Tamar Christina  <tamar.christina@arm.com>
+
+	PR tree-optimization/125597
+	(vect_do_peeling): Create IFN_VARYING for masks.
+	* tree-vect-loop-manip.cc (vect_set_loop_condition): Replace the
+	IFN_VARYING.
+
+2026-06-12  Tamar Christina  <tamar.christina@arm.com>
+
+	PR tree-optimization/125597
+	* internal-fn.def (VARYING): New.
+	* doc/ifn.texi: Document it.
+	* internal-fn.cc (expand_VARYING): New.
+	* internal-fn.h (expand_VARYING): New.
+	* tree-cfg.cc (verify_gimple_call): Check for leaked IFN_VARYING.
+
+2026-06-12  Stefan Schulze Frielinghaus  <stefansf@gcc.gnu.org>
+
+	PR rtl-optimization/125173
+	* ira.cc (combine_and_move_insns): Allow multiple uses within
+	an insn.
+
+2026-06-12  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+	    Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	PR tree-optimization/125557
+	PR tree-optimization/64700
+	PR tree-optimization/29144
+	PR tree-optimization/94274
+	* tree-if-conv.cc (find_different_opnum): Move to ...
+	* gimple-match-exports.cc (find_different_opnum): Here.
+	* gimple-match.h (find_different_opnum): New decl.
+	* tree-ssa-phiopt.cc (is_factor_profitable): Take
+	gimple_match_op instead of one operand.
+	Rearrange the code to check the lifetime of the operands last.
+	(factor_out_conditional_operation): Handle operands > 1,
+	including operands communitive operands. Add early_p argument
+	for costing. Update call of is_factor_profitable.
+	(pass_phiopt::execute): Pass early_p to
+	factor_out_conditional_operation.
+	* tree.h (int_divide_or_mod_p): New function.
+
+2026-06-12  Stefan Schulze Frielinghaus  <stefansf@gcc.gnu.org>
+
+	* ira-costs.cc (find_costs_and_classes): Do not honour equivs if
+	they get rejected by LRA anyway.
+	* ira-int.h (CONST_POOL_OK_P): Move CONST_POOL_OK_P here ...
+	* lra-constraints.cc (CONST_POOL_OK_P): from there.
+
 2026-06-11  Iain Sandoe  <iain@sandoe.co.uk>
 
 	* common/config/aarch64/aarch64-common.cc: Make the asm

@@ -1,3 +1,25 @@
+2026-06-12  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* config/linux/allocator.c: De-duplicate '#define _GNU_SOURCE'.
+
+2026-06-12  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* plugin/plugin-gcn.c: '#define _GNU_SOURCE'.
+	* plugin/Makefrag.am (libgomp_plugin_gcn_la_CPPFLAGS): Don't add
+	'-D_GNU_SOURCE'.
+	* Makefile.in: Regenerate.
+
+2026-06-12  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	PR target/101484
+	* configure.tgt [GCN] (XCFLAGS): Don't add '-Wno-error=array-bounds'.
+
+2026-06-12  Lipeng Zhu  <lipeng.zhu@intel.com>
+
+	PR testsuite/113005
+	* testsuite/libgomp.fortran/rwlock_1.f90: Enlarge buffer size of
+	'file_name' handling 5 instead of 3 digit I/O unit numbers.
+
 2026-06-11  Thomas Koenig  <tkoenig@gcc.gnu.org>
 
 	PR fortran/30438

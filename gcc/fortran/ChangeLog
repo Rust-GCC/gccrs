@@ -1,3 +1,43 @@
+2026-06-12  Tobias Burnus  <tburnus@baylibre.com>
+
+	* openmp.cc (gfc_omp_udm_find, gfc_omp_udr_find): Fix
+	to handle derived-type renaming via module use.
+
+2026-06-12  Tobias Burnus  <tburnus@baylibre.com>
+
+	* parse.cc (match_word): Add no_substring and
+	reject_stmt_on_error arguments, defaulting to false and true,
+	respectively.
+	(match_word_omp_simd): Do not reject_statement on error and
+	enable no-substring matching.
+	(matcha, matcho, matchdo): Call match_word with no_substring
+	set to true and reject_stmt_on_error set to false.
+	(decode_omp_directive): Distinguish unknown directive name from
+	errors found during matching.
+	(decode_oacc_directive): Likewise; use matcha not match.
+	(matcha, matcho, matchdo, matchs, matchds): #undef after use.
+
+2026-06-12  Julian Brown  <julian@codesourcery.com>
+	    Tobias Burnus  <tburnus@baylibre.com>
+
+	* gfortran.h (gfc_omp_namelist): Change udm member into
+	a pointer type.
+	(gfc_omp_namelist_udm): Add mapper_id member and move
+	down in the file below the related ..._udr struct.
+	(gfc_get_omp_namelist_udm): New convenience macro.
+	* match.cc (gfc_free_omp_namelist): Free udm.
+	* module.cc (MOD_VERSION_NUMERIC): Add.
+	(load_omp_udrs): Add diagnostic_group.
+	(omp_map_clause_ops, load_omp_udms, check_omp_declare_mappers,
+	write_omp_udm, write_omp_udms): New.
+	(read_module, write_module): Support 'declare mapper'.
+	* openmp.cc (gfc_find_omp_udm, gfc_match_omp_clauses,
+	resolve_omp_clauses): Handle mapper_id and do later
+	resolution.
+	* resolve.cc (resolve_types): Remove 'declare mapper' sorry.
+	* trans-openmp.cc (gfc_trans_omp_clauses): Add sorry for
+	map clauses with mapper.
+
 2026-06-11  Thomas Koenig  <tkoenig@gcc.gnu.org>
 
 	PR fortran/30438
