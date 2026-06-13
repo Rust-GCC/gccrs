@@ -207,7 +207,7 @@ a68_demangle_symbol (const char *mname, const char *symbol,
 	{
 	  switch (symbol[i])
 	    {
-	    case 'p': demangled[o++] = '+'; break;
+	    case 'p': demangled[o++] = '%'; break;
 	    case 'c': demangled[o++] = '^'; break;
 	    case 'a': demangled[o++] = '&'; break;
 	    case 'u': demangled[o++] = '+'; break;
