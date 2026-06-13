@@ -95,10 +95,10 @@
   "unzip\t%0,%1"
   [(set_attr "type" "crypto")])
 
-(define_insn "riscv_pack_<X:mode><HISI:mode>"
+(define_insn "riscv_pack_<X:mode><HX:mode>"
   [(set (match_operand:X 0 "register_operand" "=r")
-        (unspec:X [(match_operand:HISI 1 "register_operand" "r")
-                  (match_operand:HISI 2 "register_operand" "r")]
+        (unspec:X [(match_operand:HX 1 "register_operand" "r")
+                  (match_operand:HX 2 "register_operand" "r")]
                   UNSPEC_PACK))]
   "TARGET_ZBKB"
   "pack\t%0,%1,%2"
