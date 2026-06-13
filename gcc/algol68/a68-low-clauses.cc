@@ -1072,7 +1072,12 @@ a68_lower_collateral_clause (NODE_T *p ATTRIBUTE_UNUSED,
   /* Lower the constituent units into a statements list.  */
   a68_push_stmt_list (mode);
   if (!clause_is_empty)
-    (void) a68_lower_tree (NEXT (SUB (p)), ctx);
+    {
+      if (a68_lower_tree (NEXT (SUB (p)), ctx) != NULL_TREE)
+	/* unit lists always lower to NULL_TREE and, as a side-effect,
+	   append the units to the current statements list.  */
+	gcc_unreachable ();
+    }
   tree units = a68_pop_stmt_list ();
 
   /* The collateral clause lowers to different constructions depending on its
