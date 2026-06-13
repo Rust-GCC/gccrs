@@ -3481,10 +3481,52 @@ __gnat_cpu_set (int cpu, size_t count ATTRIBUTE_UNUSED, cpu_set_t *set)
 #include <link.h>
 #endif
 
+/* Even though Android is a variant of Linux, it doesn't expose
+   a _r_debug struct so handily as GLIBC.  Program headers from
+   dl_iterate_phdr show name/addr sequences of pairs such as
+
+   dpli_name                                       dpli_addr
+   /system/bin/linker64                            0x720f3d3000
+   /data/data/com.arachnoid.sshelper/home/testone  0x64f217f000 (exe)
+   [vdso]                                          0x720f3d2000
+   /apex/com.android.runtime/lib64/bionic/libc.so  0x720de25000
+   /apex/com.android.runtime/lib64/bionic/libdl.so 0x720ddd6000
+   /system/lib64/libnetd_client.so                 0x720dc83000
+   /system/lib64/libc++.so                         0x720d30b000
+   /apex/com.android.runtime/lib64/bionic/libm.so  0x720dcc3000
+
+   The name is not empty for the executable and there's no documentation
+   saying it would always come second or so, so this provides no obvious
+   reliable means to discriminate the exe load address.
+
+   As a variant of linux, the default link policy for Android authorizes
+   undefined refs when creating shared libs, with resolution deferred at least
+   until the lib is loaded. "main" will have to be available then, so resort
+   to dladdr(&main) to figure out the main module load address from here.
+
+   Achieve this through a local feature macro in case other platforms can use
+   such a facility.  */
+
+#if defined (__ANDROID__)
+#define _USE_DLADDR_MAIN
+#endif
+
 const void *
 __gnat_get_executable_load_address (void)
 {
-#if defined (__APPLE__)
+#if defined (_USE_DLADDR_MAIN)
+  /* We might be in a shared libgnat here, so a ref to "main"
+     cannot be assumed to work on all platforms.  */
+
+  #define _GNU_SOURCE
+  #include <dlfcn.h>
+
+  extern int main();
+  Dl_info info;
+
+  dladdr((void *)&main, &info);
+  return info.dli_fbase;
+#elif defined (__APPLE__)
   return _dyld_get_image_header (0);
 
 #elif defined (__linux__) && (defined (__GLIBC__) || defined (__UCLIBC__))
