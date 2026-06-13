@@ -1631,6 +1631,11 @@ static const char *machine_suffix = 0;
 
 static const char *just_machine_suffix = 0;
 
+/* Prefix to attach to *basename* of commands being searched.
+   This is just `MACHINE-'.  */
+
+static const char *just_machine_prefix = 0;
+
 /* Adjusted value of GCC_EXEC_PREFIX envvar.  */
 
 static const char *gcc_exec_prefix;
@@ -3128,34 +3133,52 @@ find_a_program (const char *name)
 
   const char *suffix = HOST_EXECUTABLE_SUFFIX;
   const int name_len = strlen (name);
+  const int prefix_len = strlen (just_machine_prefix);
   const int suffix_len = strlen (suffix);
 
   /* Callback appends the file name to the directory path.  If the
      resulting file exists in the right mode, return the full pathname
      to the file.  */
   return for_each_path (&exec_prefixes, false,
-			name_len + suffix_len,
-			[=](char *path, bool) -> char*
+			prefix_len + name_len + suffix_len,
+			[=](char *path, bool machine_specific) -> char*
     {
-      size_t len = strlen (path);
+      size_t path_len = strlen (path);
 
-      memcpy (path + len, name, name_len);
-      len += name_len;
-
-      /* Some systems have a suffix for executable files.
-	 So try appending that first.  */
-      if (suffix_len)
+      auto search = [=](size_t len) -> char*
 	{
-	  memcpy (path + len, suffix, suffix_len + 1);
+	  memcpy (path + len, name, name_len + 1);
+	  len += name_len;
+
+	  /* Some systems have a suffix for executable files.
+	     So try appending that first.  */
+	  if (suffix_len)
+	    {
+	      memcpy (path + len, suffix, suffix_len + 1);
+	      if (access_check (path, X_OK) == 0)
+		return path;
+	    }
+
+	  path[len] = '\0';
 	  if (access_check (path, X_OK) == 0)
 	    return path;
+
+	  return NULL;
+	};
+
+      /* Additionally search for $target-prog in machine-agnostic dirs,
+	 as an additional way to disambiguate targets. Do not do this in
+	 machine-specific dirs because so further disambiguation is
+	 needed. */
+      if (!machine_specific)
+	{
+	  memcpy (path + path_len, just_machine_prefix, prefix_len);
+	  auto ret = search(path_len + prefix_len);
+	  if (ret)
+	    return ret;
 	}
 
-      path[len] = '\0';
-      if (access_check (path, X_OK) == 0)
-	return path;
-
-      return NULL;
+      return search(path_len);
     });
 }
 
@@ -8589,6 +8612,7 @@ driver::set_up_specs () const
   machine_suffix = concat (spec_host_machine, dir_separator_str, spec_version,
 			   accel_dir_suffix, dir_separator_str, NULL);
   just_machine_suffix = concat (spec_machine, dir_separator_str, NULL);
+  just_machine_prefix = concat (spec_machine, "-", NULL);
 
   specs_file = find_a_file (&startfile_prefixes, "specs", true);
   /* Read the specs file unless it is a default one.  */
