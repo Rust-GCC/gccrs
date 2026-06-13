@@ -304,6 +304,8 @@ is_factor_profitable (gimple *def_stmt, basic_block merge, const gimple_match_op
       FOR_EACH_IMM_USE_FAST (use_p, iter, arg)
 	{
 	  gimple *use_stmt = USE_STMT (use_p);
+	  if (is_gimple_debug (use_stmt))
+	    continue;
 	  basic_block use_bb = gimple_bb (use_stmt);
 	  if (dominated_by_p (CDI_DOMINATORS, merge, use_bb))
 	    {
