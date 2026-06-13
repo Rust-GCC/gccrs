@@ -2830,7 +2830,7 @@ for_each_path (const struct path_prefix *paths,
   const char *multi_suffix;
   const char *just_multi_suffix;
   char *path = NULL;
-  decltype (callback (nullptr)) ret = nullptr;
+  decltype (callback (nullptr, false)) ret = nullptr;
   bool skip_multi_dir = false;
   bool skip_multi_os_dir = false;
 
@@ -2881,7 +2881,7 @@ for_each_path (const struct path_prefix *paths,
 	  if (!skip_multi_dir)
 	    {
 	      memcpy (path + len, multi_suffix, suffix_len + 1);
-	      ret = callback (path);
+	      ret = callback (path, true);
 	      if (ret)
 		break;
 	    }
@@ -2892,7 +2892,7 @@ for_each_path (const struct path_prefix *paths,
 	      && pl->require_machine_suffix == 2)
 	    {
 	      memcpy (path + len, just_multi_suffix, just_suffix_len + 1);
-	      ret = callback (path);
+	      ret = callback (path, true);
 	      if (ret)
 		break;
 	    }
@@ -2902,7 +2902,7 @@ for_each_path (const struct path_prefix *paths,
 	      && !pl->require_machine_suffix && multiarch_dir)
 	    {
 	      memcpy (path + len, multiarch_suffix, multiarch_len + 1);
-	      ret = callback (path);
+	      ret = callback (path, true);
 	      if (ret)
 		break;
 	    }
@@ -2930,7 +2930,7 @@ for_each_path (const struct path_prefix *paths,
 	      else
 		path[len] = '\0';
 
-	      ret = callback (path);
+	      ret = callback (path, false);
 	      if (ret)
 		break;
 	    }
@@ -3003,7 +3003,7 @@ build_search_list (const struct path_prefix *paths, const char *prefix,
   obstack_1grow (&collect_obstack, '=');
 
   /* Callback adds path to obstack being built.  */
-  for_each_path (paths, do_multi, 0, [&](char *path) -> void*
+  for_each_path (paths, do_multi, 0, [&](char *path, bool) -> void*
     {
       if (check_dir && !is_directory (path))
 	return NULL;
@@ -3077,7 +3077,7 @@ find_a_file (const struct path_prefix *pprefix, const char *name,
      to the file.  */
   return for_each_path (pprefix, do_multi,
 			name_len,
-			[=](char *path) -> char*
+			[=](char *path, bool) -> char*
     {
       memcpy (path + strlen (path), name, name_len + 1);
 
@@ -3135,7 +3135,7 @@ find_a_program (const char *name)
      to the file.  */
   return for_each_path (&exec_prefixes, false,
 			name_len + suffix_len,
-			[=](char *path) -> char*
+			[=](char *path, bool) -> char*
     {
       size_t len = strlen (path);
 
@@ -6113,11 +6113,11 @@ struct spec_path {
   bool separate_options;
   bool realpaths;
 
-  void *operator() (char *path);
+  void *operator() (char *path, bool);
 };
 
 void *
-spec_path::operator() (char *path)
+spec_path::operator() (char *path, bool)
 {
   size_t len = 0;
   char save = 0;
