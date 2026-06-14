@@ -5915,12 +5915,39 @@ gfc_used_in_allocate_expr (gfc_expr *expr, locus *loc)
     sym->extra_loc = *loc;
 }
 
+/* Mark a symbol to allocated.  */
 
-bool gfc_lvalue_allocated_at (gfc_symbol *sym, locus *loc)
+bool
+gfc_lvalue_allocated_at (gfc_symbol *sym, locus *loc)
 {
   if (sym->other_loc.nextc == 0)
     sym->other_loc = *loc;
 
   sym->attr.allocated = 1;
   return true;
+}
+
+/* Mark the variable of an expression in a vardef context as
+   set and mark everything in the references as used.  */
+
+void
+gfc_expr_set_at (gfc_expr *expr, locus *loc, enum value_set how_set)
+{
+  enum value_used prev_used;
+  gfc_symbol *sym;
+  locus prev_loc;
+
+  if (!expr)
+    return;
+
+  if (expr->expr_type != EXPR_VARIABLE)
+    return;
+
+  sym = expr->symtree->n.sym;
+  gfc_value_set_at (sym, loc, how_set);
+  prev_used = sym->attr.value_used;
+  prev_loc = sym->other_loc;
+  gfc_value_used_expr (expr, VALUE_USED);
+  sym->other_loc = prev_loc;
+  sym->attr.value_used = prev_used;
 }

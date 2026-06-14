@@ -9753,7 +9753,7 @@ success:
   gfc_used_in_allocate_expr (e, &e->where);
 
   if (code->expr3)
-    gfc_value_set_at (e->symtree->n.sym, &code->expr3->where);
+    gfc_value_set_at (e->symtree->n.sym, &code->expr3->where, VALUE_VARDEF);
 
   return true;
 
@@ -11784,7 +11784,7 @@ resolve_transfer (gfc_code *code)
 				     _("item in READ")))
 	return;
 
-      gfc_value_set_at (exp->symtree->n.sym, &exp->where, VALUE_READ);
+      gfc_expr_set_at (exp, &exp->where, VALUE_READ);
     }
 
   const gfc_typespec *ts = exp->expr_type == EXPR_STRUCTURE
@@ -20588,7 +20588,7 @@ mark_lhs_assignments_set (gfc_code *code)
 
 	  gcc_fallthrough();
 	case EXEC_POINTER_ASSIGN:
-	  gfc_value_set_at (lvalue->symtree->n.sym, &rvalue->where);
+	  gfc_expr_set_at (lvalue, &rvalue->where, VALUE_VARDEF);
 	default:
 	  break;
 	}

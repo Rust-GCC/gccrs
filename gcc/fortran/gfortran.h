@@ -4005,9 +4005,8 @@ void gfc_warn_intrinsic_shadow (const gfc_symbol*, bool, bool);
 bool gfc_check_intrinsic_standard (const gfc_intrinsic_sym*, const char**,
 				      bool, locus);
 
-bool gfc_value_set_at (gfc_symbol *, locus *loc = NULL,
-		       enum value_set = VALUE_VARDEF);
-
+bool gfc_value_set_at (gfc_symbol *, locus *loc,
+		       enum value_set);
 bool gfc_lvalue_allocated_at (gfc_symbol *, locus *);
 void gfc_mark_lhs_as_used (gfc_expr *, locus *);
 
@@ -4015,6 +4014,8 @@ void gfc_value_used_expr (gfc_expr *, enum value_used);
 void gfc_value_set_and_used (gfc_expr *, locus *loc,
 			     enum value_set, enum value_used);
 void gfc_used_in_allocate_expr (gfc_expr *, locus *loc);
+void gfc_expr_set_at (gfc_expr *, locus *loc, enum value_set);
+
 
 /* match.cc -- FIXME */
 void gfc_free_iterator (gfc_iterator *, int);

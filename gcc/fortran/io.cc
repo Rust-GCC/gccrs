@@ -1922,7 +1922,7 @@ resolve_tag (const io_tag *tag, gfc_expr *e)
       if (!gfc_check_vardef_context (e, false, false, false, context))
 	return false;
 
-      gfc_value_set_at (e->symtree->n.sym, &e->where, VALUE_VARDEF);
+      gfc_expr_set_at (e, &e->where, VALUE_VARDEF);
     }
   else
     gfc_value_used_expr (e, VALUE_USED);
@@ -3410,7 +3410,7 @@ gfc_resolve_dt (gfc_code *dt_code, gfc_dt *dt, locus *loc)
 					_("internal unit in WRITE")))
 	    return false;
 
-	  gfc_value_set_at (e->symtree->n.sym, &e->where);
+	  gfc_expr_set_at (e, &e->where, VALUE_VARDEF);
 	}
     }
 
@@ -3455,7 +3455,7 @@ gfc_resolve_dt (gfc_code *dt_code, gfc_dt *dt, locus *loc)
 			     dt->namelist->name, loc, n->sym->name);
 		  return false;
 		}
-	      gfc_value_set_at (n->sym, NULL);
+	      gfc_value_set_at (n->sym, NULL, VALUE_VARDEF);
 	    }
 
 	  t = dtio_procs_present (n->sym, k);
@@ -4793,7 +4793,7 @@ gfc_resolve_inquire (gfc_inquire *inquire)
       if (gfc_check_vardef_context ((expr), false, false, false, \
 				    context) == false) \
 	return false; \
-      gfc_value_set_at (expr->symtree->n.sym, &expr->where); \
+      gfc_expr_set_at (expr, &expr->where, VALUE_VARDEF);	\
     }
   INQUIRE_RESOLVE_TAG (&tag_iomsg, inquire->iomsg);
   INQUIRE_RESOLVE_TAG (&tag_iostat, inquire->iostat);

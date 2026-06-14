@@ -5031,7 +5031,7 @@ mark_args_as_used (gfc_intrinsic_arg *f, gfc_actual_arglist *a)
 	      if (a->expr->expr_type == EXPR_VARIABLE)
 		{
 		  gfc_symbol *s = a->expr->symtree->n.sym;
-		  gfc_value_set_at (s, &a->expr->where, VALUE_INTENT_OUT);
+		  gfc_expr_set_at (a->expr, &a->expr->where, VALUE_INTENT_OUT);
 		  if (s->attr.allocatable)
 		    s->attr.allocated = 1;
 		}
