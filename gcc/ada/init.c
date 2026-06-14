@@ -2943,12 +2943,21 @@ __gnat_install_handler (void)
   act.sa_flags = SA_NODEFER | SA_RESTART | SA_SIGINFO;
   sigemptyset (&act.sa_mask);
 
-  sigaction (SIGABRT, &act, NULL);
-  sigaction (SIGFPE,  &act, NULL);
-  sigaction (SIGILL,  &act, NULL);
-  sigaction (SIGBUS,  &act, NULL);
+  if (__gnat_get_interrupt_state (SIGABRT) != 's')
+    sigaction (SIGABRT, &act, NULL);
+
+  if (__gnat_get_interrupt_state (SIGFPE) != 's')
+    sigaction (SIGFPE,  &act, NULL);
+
+  if (__gnat_get_interrupt_state (SIGILL) != 's')
+    sigaction (SIGILL,  &act, NULL);
+
+  if (__gnat_get_interrupt_state (SIGBUS) != 's')
+    sigaction (SIGBUS,  &act, NULL);
+
   act.sa_flags |= SA_ONSTACK;
-  sigaction (SIGSEGV, &act, NULL);
+  if (__gnat_get_interrupt_state (SIGSEGV) != 's')
+    sigaction (SIGSEGV, &act, NULL);
 
   __gnat_handler_installed = 1;
 }
