@@ -2368,8 +2368,12 @@ trans_associate_var (gfc_symbol *sym, gfc_wrapped_block *block)
 	  gfc_add_modify (&se.pre, sym->ts.u.cl->backend_decl,
 			  fold_convert (TREE_TYPE (sym->ts.u.cl->backend_decl),
 					se.string_length));
-	  if (e->expr_type == EXPR_FUNCTION)
+	  if (e->expr_type == EXPR_FUNCTION && gfc_expr_attr (e).pointer)
 	    {
+	      /* For an allocatable function result, the result temporary
+		 is already freed by the procedure call's cleanup code;
+		 freeing it again here would be a double free.  A pointer
+		 result is not freed there, so do it here.  */
 	      tmp = gfc_call_free (sym->backend_decl);
 	      gfc_add_expr_to_block (&se.post, tmp);
 	    }
