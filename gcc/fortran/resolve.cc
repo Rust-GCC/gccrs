@@ -20812,7 +20812,8 @@ find_unused_vs_set (gfc_symbol *sym)
       || attr->omp_declare_target_indirect || attr->oacc_declare_create
       || attr->oacc_declare_copyin || attr->oacc_declare_deviceptr
       || attr->oacc_declare_device_resident || attr->oacc_declare_link
-      || attr->result || attr->warning_emitted || !attr->referenced)
+      || attr->result || attr->warning_emitted || attr->use_assoc
+      || attr->volatile_ || attr->asynchronous || !attr->referenced)
     return;
 
   if (warn_unused_intent_out && attr->value_set == VALUE_INTENT_OUT
