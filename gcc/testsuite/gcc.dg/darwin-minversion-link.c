@@ -21,6 +21,7 @@
 /* { dg-additional-options "-mmacosx-version-min=014.000.00 -DCHECK=140000" { target *-*-darwin23* } } */
 /* { dg-additional-options "-mmacosx-version-min=015.000.00 -DCHECK=150000" { target *-*-darwin24* } } */
 /* { dg-additional-options "-mmacosx-version-min=026.000.00 -DCHECK=260000" { target *-*-darwin25* } } */
+/* { dg-additional-options "-mmacosx-version-min=027.000.00 -DCHECK=270000" { target *-*-darwin27* } } */
 
 int
 main ()
