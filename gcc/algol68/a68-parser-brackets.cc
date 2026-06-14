@@ -51,7 +51,7 @@ bracket_check_error (char *txt, int n, const char *bra, const char *ket,
   const char *strop_bra = a68_strop_keyword (bra);
 
   BUFCLR (buf);
-  if (snprintf (buf, SNPRINTF_SIZE, "missing matching %<%s%>",
+  if (snprintf (buf, SNPRINTF_SIZE, "missing matching %%<%s%%>",
 		(n > 0 ? strop_ket : strop_bra)) < 0)
     gcc_unreachable ();
 
