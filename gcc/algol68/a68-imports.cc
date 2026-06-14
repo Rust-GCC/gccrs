@@ -650,7 +650,7 @@ struct encoded_mode
 
     struct
     {
-      uint8_t sub_offset;
+      uint64_t sub_offset;
     } flex;
 
     struct
