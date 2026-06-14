@@ -57,6 +57,28 @@
 #include "realmpfr.h"
 #include "compare.h"
 
+#if 0
+// This is a debugging function used from time-to-time
+static void
+hex_of(tree location, size_t bytes)
+  {
+  gg_printf("0x", NULL_TREE);
+  for(size_t i=0; i<bytes; i++)
+    {
+    gg_printf("%2.2X", gg_indirect_i(gg_cast(UCHAR_P, location), i), NULL_TREE);
+    }
+  }
+
+static void
+hex_msg(const char *msg, tree location, size_t bytes)
+  {
+  gg_printf("%s ", gg_string_literal(msg), NULL_TREE);
+  hex_of(location, bytes);
+  gg_printf("\n", NULL_TREE);
+  }
+
+#endif
+
 static cbl_figconst_t
 is_figconst_t(const cbl_field_t *field)
   {
@@ -1008,6 +1030,102 @@ picky_memcpy(tree &dest_p, const tree &source_p, size_t length, tree zero)
     }
   }
 
+static void
+clear_negative_zero(const cbl_refer_t &destref,
+                    const cbl_refer_t &sourceref,
+                          tree        dest_location)
+  {
+  // It is an idiosyncracy of numeric-edited and packed-decimal that a
+  // truncated value can end up zero, but with a negative flag.  This routine
+  // makes such values positive.
+  if(    !(sourceref.field->attr & signable_e)
+      || !(destref.field->attr   & signable_e) )
+    {
+    return;
+    }
+  // They are both signable.
+  // Was truncation involved?
+  if(    (sourceref.field->data.digits - sourceref.field->data.rdigits)
+      <= (destref.field->data.digits   - destref.field->data.rdigits  ) )
+    {
+    return;
+    }
+  // The source side was truncated.
+
+  charmap_t *charmap =
+                   __gg__get_charmap(destref.field->codeset.encoding);
+  tree goto_bugout;
+  tree label_bugout;
+  gg_create_goto_pair(&goto_bugout,
+                      &label_bugout);
+  tree p     = gg_define_variable(UCHAR_P);
+  tree p_end =  gg_define_variable(UCHAR_P);
+  gg_assign(p, dest_location);
+  gg_assign(p_end,
+            gg_add(p,
+                   build_int_cst_type(SIZE_T,
+                                      destref.field->data.capacity()-1)));
+  // All the bytes before last one have to be zero:
+  tree tzero = build_int_cst_type(UCHAR,
+               destref.field->type == FldPacked
+               ? 0
+               : charmap->mapped_character(ascii_zero));
+  WHILE( p, lt_op, p_end )
+    {
+    IF( gg_indirect(p), ne_op, tzero )
+      {
+      // This byte is non-zero, so beat it.
+      gg_append_statement(goto_bugout);
+      }
+    ELSE
+      {
+      }
+    ENDIF
+    gg_increment(p);
+    }
+  WEND
+  if( destref.field->type == FldPacked )
+    {
+    // If the final byte is 0x0D, then we have to make it 0x0C
+    IF( gg_indirect(p), eq_op, build_int_cst_type(UCHAR, 0x0D) )
+      {
+      gg_assign(gg_indirect(p), build_int_cst_type(UCHAR, 0x0C) );
+      }
+    ELSE
+      {
+      }
+    ENDIF
+    }
+  else
+    {
+    // This is numeric display.
+    IF( gg_bitwise_and(gg_indirect(p), build_int_cst_type(UCHAR, 0x0F)),
+        eq_op,
+        build_int_cst_type(UCHAR, 0x00) )
+      {
+      if( charmap->is_like_ebcdic() )
+        {
+        // We force it positive by making 0xDN into 0xFN
+        gg_assign(gg_indirect(p),
+                    gg_bitwise_or(gg_indirect(p),
+                                  build_int_cst_type(UCHAR, 0xF0)));
+        }
+      else
+        {
+        // We force it positive by making 0x7N into 0x3N
+          gg_assign(gg_indirect(p),
+                    gg_bitwise_and(gg_indirect(p),
+                                  build_int_cst_type(UCHAR, 0x3F)));
+        }
+      }
+    ELSE
+      {
+      }
+    ENDIF
+    }
+  gg_append_statement(label_bugout);
+  }
+
 static bool
 mh_numeric_display( const cbl_refer_t &destref,
                     const cbl_refer_t &sourceref,
@@ -1398,8 +1516,13 @@ mh_numeric_display( const cbl_refer_t &destref,
       }
     moved = true;
     }
+
+  clear_negative_zero(destref,
+                      sourceref,
+                      qualified_data_location(destref));
+
   return moved;
-  } //NUMERIC_DISPLAY_SIGN
+  }
 
 static bool
 mh_little_endian( const cbl_refer_t &destref,
@@ -1995,11 +2118,315 @@ mh_alpha_to_alpha(const cbl_refer_t &destref,
 
 static bool
 mh_numdisp_to_packed(const cbl_refer_t &destref,
-                    const cbl_refer_t &sourceref);
+                     const cbl_refer_t &sourceref,
+                           tree         size_error,
+                           bool         check_for_error)
+  {
+  const charmap_t *charmap =
+                   __gg__get_charmap(sourceref.field->codeset.encoding);
+  if(    (destref.field->type   != FldPacked         )
+      || (sourceref.field->type != FldNumericDisplay )
+      || (charmap->stride()     != 1                 )
+      || (destref.field->attr    & scaled_e          )
+      || (sourceref.field->attr  & scaled_e          )
+      || (destref.field->attr    & packed_no_sign_e  )
+      || (sourceref.field->attr  & leading_e         )
+      || (sourceref.field->attr  & separate_e        ) )
+    {
+    return false;
+    }
+  /* Source is NumericDisplay, dest is packed, neither are scaled, the
+     packed destination has a sign nybble, and the numeric source has an
+     ordinarysign bit encoded in the final digit.  */
+  tree uzero = build_int_cst_type(UCHAR,    0);
+  tree umask = build_int_cst_type(UCHAR, 0x0F);
+  tree ufour = build_int_cst_type(SIZE_T,   4);
+
+  tree source_location = gg_define_variable(UCHAR_P);
+  tree dest_location   = gg_define_variable(UCHAR_P);
+  tree dest_p          = gg_define_variable(UCHAR_P);
+  tree source_p        = gg_define_variable(UCHAR_P);
+
+  tree temp;
+
+  get_location(temp, destref);
+  gg_assign(dest_location, temp);
+  gg_assign(dest_p, dest_location);
+  get_location(temp, sourceref);
+  gg_assign(source_location, temp);
+
+  int source_digits   = sourceref.field->data.digits;
+  int source_rdigits  = sourceref.field->data.rdigits;
+  int source_ldigits  = source_digits - source_rdigits;
+  int dest_digits     = destref.field->data.digits;
+  int dest_rdigits    = destref.field->data.rdigits;
+  int dest_ldigits    = dest_digits - dest_rdigits;
+
+  int truncate_ldigits = std::max(0, source_ldigits-dest_ldigits);
+  int truncate_rdigits = std::max(0, source_rdigits-dest_rdigits);
+  int leading_zeroes   = std::max(0, dest_ldigits-source_ldigits);
+  int trailing_zeroes  = std::max(0, dest_rdigits-source_rdigits);
+
+  int zero_pairs;
+  int digit_pairs;
+  int source_remaining;
+
+  if( truncate_ldigits )
+    {
+    // We handle truncation of digits on the left by moving the starting line.
+    if( check_for_error )
+      {
+      // We need to flag as a truncation error any truncated places that are
+      // not zero.
+      gg_assign(source_p, source_location);
+      tree trunc_end = gg_define_variable(UCHAR_P);
+      gg_assign(trunc_end,
+                gg_add(source_p,
+                       build_int_cst_type(SIZE_T, truncate_ldigits)));
+      WHILE(source_p, lt_op, trunc_end)
+        {
+        gg_assign(size_error,
+                  gg_bitwise_or(size_error,
+                                gg_indirect(source_p)));
+        gg_increment(source_p);
+        }
+      WEND
+      // We care about only the bottom four bits.
+      gg_assign(size_error,
+                gg_bitwise_and(size_error, gg_cast(INT, umask)));
+      }
+    else
+      {
+      gg_assign(source_p,
+                gg_add(source_location,
+                       build_int_cst_type(SIZE_T, truncate_ldigits)));
+      }
+    source_digits  -= truncate_ldigits;
+    source_ldigits -= truncate_ldigits;
+    }
+  else
+    {
+    gg_assign(source_p, source_location);
+    }
+
+  if( truncate_rdigits )
+    {
+    // We handle truncation of digits on the right by moving the finish line.
+    source_digits  -= truncate_rdigits;
+    source_ldigits -= truncate_rdigits;
+    }
+
+  if( !source_digits )
+    {
+    // When source_digits is zero, it means that some pervert of a COBOL
+    // programmer told us to MOVE 999V TO V999.  The result has to be zero,
+    // and our life down below will be easier when we know that there is at
+    // least one digit that needs to be moved from the source to the
+    // destination.
+    gg_memset(dest_p,
+              integer_zero_node,
+              build_int_cst_type(SIZE_T, destref.field->data.capacity()));
+    goto adjust_sign;
+    }
+
+  source_remaining = source_digits;
+
+  // The first thing we need to do is adjust the first byte of the destination
+  // so that we know where we are in left-nybble/right-nybble space.  Let's
+  // call the digit at source_p "N".  (That digit might be a leading zero.)
+  // When dest_digits is an even number, it means the final result is something
+  // like 0N.23.4s.  So, when dest_digits is even, we have to start things off
+  // with "0N".
+
+  if( !(dest_digits & 0x01) )
+    {
+    // dest_digits is an even number.
+    if( leading_zeroes )
+      {
+      // The first byte is "0N", but N is zero:
+      gg_assign(gg_indirect(dest_p), uzero);
+      leading_zeroes -= 1;
+      }
+    else
+      {
+      // The first byte is "0N", where N is the value from the first character
+      // of the source.  We know that source_remaining is at least one at this
+      // point.
+      gg_assign(gg_indirect(dest_p),
+                gg_bitwise_and(gg_indirect(source_p), umask));
+      gg_increment(source_p);
+      source_remaining -= 1;
+      }
+    gg_increment(dest_p);
+    }
+
+  // At this point, we know that leading + source + trailing is an odd
+  // number.
+
+  // We know that dest_p is set up to accept a left/right pair next.  Let's
+  // see if we have enough leading_zeroes to warrant using memset:
+  zero_pairs = leading_zeroes/2;
+  if( zero_pairs )
+    {
+    // We can use memset to handle left-side zero-fill:
+    tree tpairs = build_int_cst_type(SIZE_T, zero_pairs);
+    gg_memset(dest_p, integer_zero_node, tpairs);
+    gg_assign(dest_p, gg_add(dest_p, tpairs));
+    leading_zeroes -= 2 * zero_pairs;
+    }
+
+  // dest-p is still set up for a left/right pair.
+  if( leading_zeroes )
+    {
+    // But we still have one leading zero left.  We know at this point that
+    // there is at least one source digit left, so build the byte using
+    // zero/*source_p
+    gg_assign(gg_indirect(dest_p),
+              gg_bitwise_and(gg_indirect(source_p), umask));
+    //leading_zeroes   -= 1;
+    source_remaining -= 1;
+    gg_increment(source_p);
+    gg_increment(dest_p);
+    }
+
+  // At this point, we know that leading_zeroes is zero.  We know that
+  // source_remaining + trailing_zeroes is an odd number.  We
+  // currently have dest_p lined up on a left-right boundary.
+
+  // We are going to transfer as many pairs of source_remaining digits as we
+  // can.
+
+  digit_pairs = source_remaining/2;
+  if( digit_pairs )
+    {
+    tree dest_end = gg_define_variable(UCHAR_P);
+    gg_assign(dest_end,
+              gg_add(dest_p,
+                     build_int_cst_type(SIZE_T, digit_pairs)));
+    WHILE( dest_p, lt_op, dest_end )
+      {
+      tree left_nybble  = gg_lshift(gg_indirect(source_p), ufour);
+      tree right_nybble = gg_bitwise_and(gg_indirect(source_p,
+                                                     integer_one_node),
+                                         umask);
+      gg_assign(gg_indirect(dest_p),
+                gg_bitwise_or(left_nybble, right_nybble));
+      gg_increment(dest_p);
+      gg_assign(source_p,
+                gg_add(source_p, build_int_cst_type(SIZE_T, 2)));
+      }
+    WEND
+    source_remaining -= 2 * digit_pairs;
+    }
+
+  // At this point, source_remaining is zero or one
+
+  if( source_remaining )
+    {
+    gg_assign(gg_indirect(dest_p),
+              gg_lshift(gg_indirect(source_p), ufour));
+    gg_increment(dest_p);
+    //source_remaining -= 1;
+    if( trailing_zeroes )
+      {
+      trailing_zeroes -= 1;
+      }
+    }
+  // At this point, we know trailing_zeroes has to be an even number, and we
+  // need to zero out that many nybbles:
+
+  if( trailing_zeroes >= 2 )
+    {
+    zero_pairs = trailing_zeroes/2;
+    // We can use memset to handle left-side zero-fill:
+    tree tpairs = build_int_cst_type(SIZE_T, zero_pairs);
+    gg_memset(dest_p, integer_zero_node, tpairs);
+    gg_assign(dest_p, gg_add(dest_p, tpairs));
+    trailing_zeroes -= 2 * zero_pairs;
+    }
+
+  if( trailing_zeroes )
+    {
+    // There is one trailing zero left
+    gg_assign(gg_indirect(dest_p), uzero);
+    gg_increment(dest_p);
+    //trailing_zeroes -= 1;
+    }
+
+  adjust_sign:
+  gg_assign(dest_p, gg_add(dest_location,
+                           build_int_cst_type(SIZE_T,
+                                           destref.field->data.capacity()-1)));
+
+  if( !(destref.field->attr & signable_e) )
+    {
+    // The destination is not signable
+    gg_assign(gg_indirect(dest_p),
+              gg_bitwise_or(gg_indirect(dest_p), umask));
+    }
+  else
+    {
+    if( sourceref.field->attr & signable_e )
+      {
+    // This is the location of the character with the sign flag.
+      gg_assign(source_p, gg_add(source_location,
+                               build_int_cst_type(SIZE_T,
+                                         sourceref.field->data.capacity()-1)));
+      if( charmap->is_like_ebcdic() )
+        {
+        // EBCDIC digits are 0xF0 through 0xF9; negative is flagged by
+        // 0xD0 through 0xD9
+        IF( gg_indirect(source_p), lt_op, build_int_cst_type(UCHAR, 0xF0) )
+          {
+          gg_assign(gg_indirect(dest_p),
+                    gg_bitwise_or(gg_indirect(dest_p),
+                                  build_int_cst_type(UCHAR, 0x0D)));
+          }
+        ELSE
+          {
+          gg_assign(gg_indirect(dest_p),
+                    gg_bitwise_or(gg_indirect(dest_p),
+                                  build_int_cst_type(UCHAR, 0x0C)));
+          }
+        ENDIF
+        }
+      else
+        {
+        // EBCDIC digits are 0x30 through 0x39; negative is flagged by
+        // 0x70 through 0x79
+        IF( gg_indirect(source_p), ge_op, build_int_cst_type(UCHAR, 0x70) )
+          {
+          gg_assign(gg_indirect(dest_p),
+                    gg_bitwise_or(gg_indirect(dest_p),
+                                  build_int_cst_type(UCHAR, 0x0D)));
+          }
+        ELSE
+          {
+          gg_assign(gg_indirect(dest_p),
+                    gg_bitwise_or(gg_indirect(dest_p),
+                                  build_int_cst_type(UCHAR, 0x0C)));
+          }
+        ENDIF
+        }
+      }
+    else
+      {
+      gg_assign(gg_indirect(dest_p),
+                gg_bitwise_or(gg_indirect(dest_p),
+                              build_int_cst_type(UCHAR, 0x0C)));
+      }
+    }
+  clear_negative_zero(destref,
+                      sourceref,
+                      dest_location);
+  return true;
+  }
 
 static bool
 mh_packed_to_packed(const cbl_refer_t &destref,
-                    const cbl_refer_t &sourceref)
+                    const cbl_refer_t &sourceref,
+                    tree               size_error,
+                    bool               check_for_error)
   {
   if(    (destref.field->type   != FldPacked        )
       || (sourceref.field->type != FldPacked        )
@@ -2038,6 +2465,52 @@ mh_packed_to_packed(const cbl_refer_t &destref,
   get_location(temp, sourceref);
   gg_assign(source_location, temp);
 
+  if( check_for_error )
+    {
+    int source_digits  = sourceref.field->data.digits;
+    if( !(source_digits & 1) )
+      {
+      // When source_digits is an even number, then the leftmost byte is
+      // 0x0n.
+      source_digits += 1;
+      }
+    int source_ldigits =   source_digits
+                         - sourceref.field->data.rdigits;
+    int dest_ldigits   =   destref.field->data.digits
+                         - destref.field->data.rdigits;
+    int truncate_ldigits = std::max(0, source_ldigits - dest_ldigits);
+    if( truncate_ldigits )
+      {
+      tree truncate_p = gg_define_variable(UCHAR_P);
+      gg_assign(truncate_p, source_location);
+      int truncate_pairs = truncate_ldigits / 2;
+      if( truncate_pairs )
+        {
+        tree truncate_e = gg_define_variable(UCHAR_P);
+        gg_assign(truncate_e,
+                  gg_add(truncate_p,
+                         build_int_cst_type(SIZE_T, truncate_pairs)));
+        WHILE( truncate_p, lt_op, truncate_e )
+          {
+          gg_assign(size_error,
+                    gg_bitwise_or(size_error,
+                                  gg_cast(INT, gg_indirect(truncate_p))));
+          gg_increment(truncate_p);
+          }
+        WEND
+        truncate_ldigits &= 1;
+        }
+      if( truncate_ldigits )
+        {
+        gg_assign(size_error,
+                  gg_bitwise_or(size_error,
+                        gg_cast(INT,
+                                gg_bitwise_and(gg_indirect(truncate_p),
+                                               build_int_cst_type(UCHAR,
+                                                                  0xF0)))));
+        }
+      }
+    }
   int      source_digits   = sourceref.field->data.digits;
   int      source_rdigits  = sourceref.field->data.rdigits;
   size_t   source_capacity = source_digits/2 + 1;
@@ -2292,6 +2765,253 @@ mh_packed_to_packed(const cbl_refer_t &destref,
         }
       }
     }
+  clear_negative_zero(destref,
+                      sourceref,
+                      dest_location);
+  return true;
+  }
+
+static bool
+mh_packed_to_numdisp(const cbl_refer_t &destref,
+                     const cbl_refer_t &sourceref,
+                           tree         size_error,
+                           bool         check_for_error)
+  {
+  charmap_t *charmap =
+                   __gg__get_charmap(destref.field->codeset.encoding);
+
+  if(    (sourceref.field->type != FldPacked         )
+      || (destref.field->type   != FldNumericDisplay )
+      || (charmap->stride()     != 1                 )
+      || (sourceref.field->attr  & scaled_e          )
+      || (destref.field->attr    & scaled_e          )
+      || (sourceref.field->attr  & packed_no_sign_e  )
+      || (destref.field->attr    & leading_e         )
+      || (destref.field->attr    & separate_e        ) )
+    {
+    return false;
+    }
+
+  /* Source is packed, dest is numeric-display, neither are scaled, the
+     packed source has a sign nybble, and the numeric-display dest has an
+     ordinary sign bit encoded in the final digit.  */
+  tree umask = build_int_cst_type(UCHAR, 0x0F);
+  tree ufour = build_int_cst_type(SIZE_T,   4);
+  tree uzero = build_int_cst_type(UCHAR,
+                                  charmap->mapped_character(ascii_zero));
+  tree source_location = gg_define_variable(UCHAR_P);
+  tree dest_location   = gg_define_variable(UCHAR_P);
+  tree dest_p          = gg_define_variable(UCHAR_P);
+  tree source_p        = gg_define_variable(UCHAR_P);
+
+  tree temp;
+  get_location(temp, destref);
+  gg_assign(dest_location, temp);
+  gg_assign(dest_p, dest_location);
+  get_location(temp, sourceref);
+  gg_assign(source_location, temp);
+
+  // source_digits will be the number of digits extracted from the source that
+  // find their way into the destination.
+  int source_digits   = sourceref.field->data.digits;
+
+  if( !(source_digits & 0x01) )
+    {
+    // Because this is an even number, the first byte of the packed value is
+    // 0x0N.  The following logic is a tad simpler when we just increment it,
+    // as if the zero in the left nybble is part of the packed-decimal value.
+    source_digits += 1;
+    }
+
+  int source_rdigits  = sourceref.field->data.rdigits;
+  int source_ldigits  = source_digits - source_rdigits;
+  int dest_digits     = destref.field->data.digits;
+  int dest_rdigits    = destref.field->data.rdigits;
+  int dest_ldigits    = dest_digits - dest_rdigits;
+
+  int truncate_ldigits = std::max(0, source_ldigits-dest_ldigits);
+  int truncate_rdigits = std::max(0, source_rdigits-dest_rdigits);
+  int leading_zeroes   = std::max(0, dest_ldigits-source_ldigits);
+  int trailing_zeroes  = std::max(0, dest_rdigits-source_rdigits);
+
+  int digit_pairs;
+  int source_remaining;
+
+  int truncate_pairs = truncate_ldigits/2 ;
+  if( truncate_pairs )
+    {
+    // We handle truncation of digits on the left by moving the starting line
+    // one byte to the right for each full pair of digits
+
+    if( check_for_error )
+      {
+      gg_assign(source_p, source_location);
+      tree truncate_end = gg_define_variable(UCHAR_P);
+      gg_assign(truncate_end,
+                gg_add(source_location,
+                       build_int_cst_type(SIZE_T, truncate_pairs)));
+      WHILE( source_p, lt_op, truncate_end )
+        {
+        gg_assign(size_error,
+                  gg_bitwise_or(size_error,
+                                gg_cast(INT, gg_indirect(source_p))));
+        gg_increment(source_p);
+        }
+      WEND
+      }
+    else
+      {
+      gg_assign(source_p,
+                gg_add(source_location,
+                       build_int_cst_type(SIZE_T, truncate_pairs)));
+      }
+    source_digits    -= 2*truncate_pairs;
+    //source_ldigits   -= 2*truncate_pairs;
+    truncate_ldigits &= 0x01;
+    }
+  else
+    {
+    gg_assign(source_p, source_location);
+    }
+
+  // At this point, truncate_ldigits might be one, meaning that when we
+  // get around to  moving digits, we will have to skip the first one.
+
+  if( truncate_rdigits )
+    {
+    // We handle truncation of digits on the right by moving the finish line
+    // to the left.
+    source_digits    -= truncate_rdigits;
+    //source_ldigits   -= truncate_rdigits;
+    }
+
+  source_remaining = source_digits;
+
+  // We are ready to start building our numeric-displace destination.
+
+  if( leading_zeroes )
+    {
+    tree tleading_zeroes = build_int_cst_type(SIZE_T, leading_zeroes);
+    gg_memset(dest_p,
+              uzero,
+              tleading_zeroes);
+    gg_assign(dest_p, gg_add(dest_p, tleading_zeroes));
+    }
+
+  // At this point, we are ready to start moving over source_remaining digits.
+
+  if( truncate_ldigits )
+    {
+    // When truncate_ldigits is one, the first byte comes from the right nybble
+    // of *source_p.  We therefore skip the digit in the left nybble.
+    if( check_for_error )
+      {
+      gg_assign(size_error,
+                gg_cast(INT,
+                        gg_bitwise_and(gg_indirect(source_p),
+                                       build_int_cst_type(UCHAR, 0xF0))));
+      }
+    gg_assign(gg_indirect(dest_p),
+                gg_bitwise_or(gg_bitwise_and(gg_indirect(source_p),
+                                             umask),
+                              uzero));
+    gg_increment(source_p);
+    gg_increment(dest_p);
+    source_remaining -= 2;
+    }
+
+  // We now pull pairs of digits from the packed source, and put them into the
+  // destination numeric-display.
+
+  digit_pairs = source_remaining/2;
+
+  if( digit_pairs )
+    {
+    tree source_end = gg_define_variable(UCHAR_P);
+    gg_assign(source_end,
+              gg_add(source_p,
+                     build_int_cst_type(SIZE_T, digit_pairs)));
+    WHILE( source_p, lt_op, source_end )
+      {
+      // Left digit
+      gg_assign(gg_indirect(dest_p),
+                gg_bitwise_or(gg_rshift(gg_indirect(source_p),
+                                        ufour),
+                              uzero));
+      gg_increment(dest_p);
+      // Right digit
+      gg_assign(gg_indirect(dest_p),
+                gg_bitwise_or(gg_bitwise_and(gg_indirect(source_p),
+                                             umask),
+                              uzero));
+      gg_increment(dest_p);
+      gg_increment(source_p);
+      }
+    WEND
+    source_remaining -= 2 * digit_pairs;
+    }
+
+  // At this point, source_remaining is zero or one
+
+  if( source_remaining )
+    {
+    // We have one remaining left digit;
+    gg_assign(gg_indirect(dest_p),
+              gg_bitwise_or(gg_rshift(gg_indirect(source_p),
+                                      ufour),
+                            uzero));
+    gg_increment(dest_p);
+    }
+
+  if( trailing_zeroes )
+    {
+    tree ttrailing_zeroes = build_int_cst_type(SIZE_T, trailing_zeroes);
+    gg_memset(dest_p,
+              uzero,
+              ttrailing_zeroes);
+    }
+
+  if(    (destref.field->attr   & signable_e)
+      && (sourceref.field->attr & signable_e) )
+    {
+    // The source and the destination are both signable.
+    gg_assign(source_p,
+              gg_add(source_location,
+                     build_int_cst_type(SIZE_T,
+                                       sourceref.field->data.capacity()-1)));
+    IF(gg_bitwise_and(gg_indirect(source_p),
+                      umask),
+       eq_op,
+       build_int_cst_type(UCHAR, 0x0D) )
+      {
+      // The source is negative
+      gg_assign(dest_p,
+                gg_add(dest_location,
+                       build_int_cst_type(SIZE_T,
+                                       destref.field->data.capacity()-1)));
+      if( charmap->is_like_ebcdic() )
+        {
+        // Turn the 0xFZ EBCDIC digit into 0xDZ to flag it as negative.
+        gg_assign(gg_indirect(dest_p),
+                  gg_bitwise_and(gg_indirect(dest_p),
+                                 build_int_cst_type(UCHAR, 0xDF)));
+        }
+      else
+        {
+        // Turn the 0x3Z ASCII digit into 07Z to flag it as negative.
+        gg_assign(gg_indirect(dest_p),
+                  gg_bitwise_or(gg_indirect(dest_p),
+                                 build_int_cst_type(UCHAR, 0x70)));
+        }
+      }
+    ELSE
+      {
+      }
+    ENDIF
+    }
+  clear_negative_zero(destref,
+                      sourceref,
+                      dest_location);
   return true;
   }
 
@@ -2354,13 +3074,25 @@ move_helper(tree size_error,        // This is an INT
   if( !moved )
     {
     moved = mh_packed_to_packed(destref,
-                                sourceref);
+                                sourceref,
+                                size_error,
+                                check_for_error);
     }
 
   if( !moved )
     {
     moved = mh_numdisp_to_packed(destref,
-                                sourceref);
+                                sourceref,
+                                size_error,
+                                check_for_error);
+    }
+
+  if( !moved )
+    {
+    moved = mh_packed_to_numdisp(destref,
+                                sourceref,
+                                size_error,
+                                check_for_error);
     }
 
   if( !moved )
@@ -2723,302 +3455,3 @@ parser_move(size_t ntgt, cbl_refer_t *tgts, cbl_refer_t src, cbl_round_t rounded
     }
   }
 
-#if 0
-// This is a debugging function used from time-to-time
-static void
-hex_of(tree location, size_t bytes)
-  {
-  gg_printf("0x", NULL_TREE);
-  for(size_t i=0; i<bytes; i++)
-    {
-    gg_printf("%2.2X", gg_indirect_i(gg_cast(UCHAR_P, location), i), NULL_TREE);
-    }
-  }
-
-static void
-hex_msg(const char *msg, tree location, size_t bytes)
-  {
-  gg_printf("%s ", gg_string_literal(msg), NULL_TREE);
-  hex_of(location, bytes);
-  gg_printf("\n", NULL_TREE);
-  }
-
-#endif
-
-static bool
-mh_numdisp_to_packed(const cbl_refer_t &destref,
-                    const cbl_refer_t &sourceref)
-  {
-  const charmap_t *charmap =
-                   __gg__get_charmap(sourceref.field->codeset.encoding);
-  if(    (destref.field->type   != FldPacked         )
-      || (sourceref.field->type != FldNumericDisplay )
-      || (charmap->stride()     != 1                 )
-      || (destref.field->attr    & scaled_e          )
-      || (sourceref.field->attr  & scaled_e          )
-      || (destref.field->attr    & packed_no_sign_e  )
-      || (sourceref.field->attr  & leading_e         )
-      || (sourceref.field->attr  & separate_e        ) )
-    {
-    return false;
-    }
-  /* Source is NumericDisplay, dest is packed, neither are scaled, the
-     packed destination has a sign nybble, and the numeric source has an
-     ordinarysign bit encoded in the final digit.  */
-  tree uzero = build_int_cst_type(UCHAR,    0);
-  tree umask = build_int_cst_type(UCHAR, 0x0F);
-  tree ufour = build_int_cst_type(SIZE_T,   4);
-
-  tree source_location = gg_define_variable(UCHAR_P);
-  tree dest_location   = gg_define_variable(UCHAR_P);
-  tree dest_p          = gg_define_variable(UCHAR_P);
-  tree source_p        = gg_define_variable(UCHAR_P);
-
-  tree temp;
-
-  get_location(temp, destref);
-  gg_assign(dest_location, temp);
-  gg_assign(dest_p, dest_location);
-  get_location(temp, sourceref);
-  gg_assign(source_location, temp);
-
-  int source_digits   = sourceref.field->data.digits;
-  int source_rdigits  = sourceref.field->data.rdigits;
-  int source_ldigits  = source_digits - source_rdigits;
-  int dest_digits     = destref.field->data.digits;
-  int dest_rdigits    = destref.field->data.rdigits;
-  int dest_ldigits    = dest_digits - dest_rdigits;
-
-  int truncate_ldigits = std::max(0, source_ldigits-dest_ldigits);
-  int truncate_rdigits = std::max(0, source_rdigits-dest_rdigits);
-  int leading_zeroes   = std::max(0, dest_ldigits-source_ldigits);
-  int trailing_zeroes  = std::max(0, dest_rdigits-source_rdigits);
-
-  int zero_pairs;
-  int digit_pairs;
-  int source_remaining;
-
-  if( truncate_ldigits )
-    {
-    // We handle truncation of digits on the left by moving the starting line.
-    gg_assign(source_p,
-              gg_add(source_location,
-                     build_int_cst_type(SIZE_T, truncate_ldigits)));
-    source_digits  -= truncate_ldigits;
-    source_ldigits -= truncate_ldigits;
-    }
-  else
-    {
-    gg_assign(source_p, source_location);
-    }
-
-  if( truncate_rdigits )
-    {
-    // We handle truncation of digits on the right by moving the finish line.
-    source_digits  -= truncate_rdigits;
-    source_ldigits -= truncate_rdigits;
-    }
-
-  if( !source_digits )
-    {
-    // When source_digits is zero, it means that some pervert of a COBOL
-    // programmer told us to MOVE 999V TO V999.  The result has to be zero,
-    // and our life down below will be easier when we know that there is at
-    // least one digit that needs to be moved from the source to the
-    // destination.
-    gg_memset(dest_p,
-              integer_zero_node,
-              build_int_cst_type(SIZE_T, destref.field->data.capacity()));
-    goto adjust_sign;
-    }
-
-  source_remaining = source_digits;
-
-  // The first thing we need to do is adjust the first byte of the destination
-  // so that we know where we are in left-nybble/right-nybble space.  Let's
-  // call the digit at source_p "N".  (That digit might be a leading zero.)
-  // When dest_digits is an even number, it means the final result is something
-  // like 0N.23.4s.  So, when dest_digits is even, we have to start things off
-  // with "0N".
-
-  if( !(dest_digits & 0x01) )
-    {
-    // dest_digits is an even number.
-    if( leading_zeroes )
-      {
-      // The first byte is "0N", but N is zero:
-      gg_assign(gg_indirect(dest_p), uzero);
-      leading_zeroes -= 1;
-      }
-    else
-      {
-      // The first byte is "0N", where N is the value from the first character
-      // of the source.  We know that source_remaining is at least one at this
-      // point.
-      gg_assign(gg_indirect(dest_p),
-                gg_bitwise_and(gg_indirect(source_p), umask));
-      gg_increment(source_p);
-      source_remaining -= 1;
-      }
-    gg_increment(dest_p);
-    }
-
-  // At this point, we know that leading + source + trailing is an odd
-  // number.
-
-  // We know that dest_p is set up to accept a left/right pair next.  Let's
-  // see if we have enough leading_zeroes to warrant using memset:
-  zero_pairs = leading_zeroes/2;
-  if( zero_pairs )
-    {
-    // We can use memset to handle left-side zero-fill:
-    tree tpairs = build_int_cst_type(SIZE_T, zero_pairs);
-    gg_memset(dest_p, integer_zero_node, tpairs);
-    gg_assign(dest_p, gg_add(dest_p, tpairs));
-    leading_zeroes -= 2 * zero_pairs;
-    }
-
-  // dest-p is still set up for a left/right pair.
-  if( leading_zeroes )
-    {
-    // But we still have one leading zero left.  We know at this point that
-    // there is at least one source digit left, so build the byte using
-    // zero/*source_p
-    gg_assign(gg_indirect(dest_p),
-              gg_bitwise_and(gg_indirect(source_p), umask));
-    //leading_zeroes   -= 1;
-    source_remaining -= 1;
-    gg_increment(source_p);
-    gg_increment(dest_p);
-    }
-
-  // At this point, we know that leading_zeroes is zero.  We know that
-  // source_remaining + trailing_zeroes is an odd number.  We
-  // currently have dest_p lined up on a left-right boundary.
-
-  // We are going to transfer as many pairs of source_remaining digits as we
-  // can.
-
-  digit_pairs = source_remaining/2;
-  if( digit_pairs )
-    {
-    tree dest_end = gg_define_variable(UCHAR_P);
-    gg_assign(dest_end,
-              gg_add(dest_p,
-                     build_int_cst_type(SIZE_T, digit_pairs)));
-    WHILE( dest_p, lt_op, dest_end )
-      {
-      tree left_nybble  = gg_lshift(gg_indirect(source_p), ufour);
-      tree right_nybble = gg_bitwise_and(gg_indirect(source_p,
-                                                     integer_one_node),
-                                         umask);
-      gg_assign(gg_indirect(dest_p),
-                gg_bitwise_or(left_nybble, right_nybble));
-      gg_increment(dest_p);
-      gg_assign(source_p,
-                gg_add(source_p, build_int_cst_type(SIZE_T, 2)));
-      }
-    WEND
-    source_remaining -= 2 * digit_pairs;
-    }
-
-  // At this point, source_remaining is zero or one
-
-  if( source_remaining )
-    {
-    gg_assign(gg_indirect(dest_p),
-              gg_lshift(gg_indirect(source_p), ufour));
-    gg_increment(dest_p);
-    //source_remaining -= 1;
-    if( trailing_zeroes )
-      {
-      trailing_zeroes -= 1;
-      }
-    }
-  // At this point, we know trailing_zeroes has to be an even number, and we
-  // need to zero out that many nybbles:
-
-  if( trailing_zeroes >= 2 )
-    {
-    zero_pairs = trailing_zeroes/2;
-    // We can use memset to handle left-side zero-fill:
-    tree tpairs = build_int_cst_type(SIZE_T, zero_pairs);
-    gg_memset(dest_p, integer_zero_node, tpairs);
-    gg_assign(dest_p, gg_add(dest_p, tpairs));
-    trailing_zeroes -= 2 * zero_pairs;
-    }
-
-  if( trailing_zeroes )
-    {
-    // There is one trailing zero left
-    gg_assign(gg_indirect(dest_p), uzero);
-    gg_increment(dest_p);
-    //trailing_zeroes -= 1;
-    }
-
-  adjust_sign:
-  gg_assign(dest_p, gg_add(dest_location,
-                           build_int_cst_type(SIZE_T,
-                                           destref.field->data.capacity()-1)));
-
-  if( !(destref.field->attr & signable_e) )
-    {
-    // The destination is not signable
-    gg_assign(gg_indirect(dest_p),
-              gg_bitwise_or(gg_indirect(dest_p), umask));
-    }
-  else
-    {
-    if( sourceref.field->attr & signable_e )
-      {
-    // This is the location of the character with the sign flag.
-      gg_assign(source_p, gg_add(source_location,
-                               build_int_cst_type(SIZE_T,
-                                         sourceref.field->data.capacity()-1)));
-      if( charmap->is_like_ebcdic() )
-        {
-        // EBCDIC digits are 0xF0 through 0xF9; negative is flagged by
-        // 0xD0 through 0xD9
-        IF( gg_indirect(source_p), lt_op, build_int_cst_type(UCHAR, 0xF0) )
-          {
-          gg_assign(gg_indirect(dest_p),
-                    gg_bitwise_or(gg_indirect(dest_p),
-                                  build_int_cst_type(UCHAR, 0x0D)));
-          }
-        ELSE
-          {
-          gg_assign(gg_indirect(dest_p),
-                    gg_bitwise_or(gg_indirect(dest_p),
-                                  build_int_cst_type(UCHAR, 0x0C)));
-          }
-        ENDIF
-        }
-      else
-        {
-        // EBCDIC digits are 0x30 through 0x39; negative is flagged by
-        // 0x70 through 0x79
-        IF( gg_indirect(source_p), ge_op, build_int_cst_type(UCHAR, 0x70) )
-          {
-          gg_assign(gg_indirect(dest_p),
-                    gg_bitwise_or(gg_indirect(dest_p),
-                                  build_int_cst_type(UCHAR, 0x0D)));
-          }
-        ELSE
-          {
-          gg_assign(gg_indirect(dest_p),
-                    gg_bitwise_or(gg_indirect(dest_p),
-                                  build_int_cst_type(UCHAR, 0x0C)));
-          }
-        ENDIF
-        }
-      }
-    else
-      {
-      gg_assign(gg_indirect(dest_p),
-                gg_bitwise_or(gg_indirect(dest_p),
-                              build_int_cst_type(UCHAR, 0x0C)));
-      }
-    }
-
-  return true;
-  }

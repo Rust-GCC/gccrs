@@ -2052,6 +2052,11 @@ int128_to_field(cblc_field_t   *var,
             // We are now set up to do the conversion:
             __gg__binary_to_packed(location, digits, value);
 
+            if( value == 0 && sign_nybble == 0x0D )
+              {
+              sign_nybble = 0x0C;
+              }
+
             // We can put the sign nybble into place at this point.  Note that
             // for COMP-6 numbers the sign_nybble value is zero, so the next
             // operation is harmless.

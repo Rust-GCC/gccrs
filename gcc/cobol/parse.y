@@ -5001,7 +5001,7 @@ usage_clause1:  usage BIT
 		  if( field->has_attr(separate_e) ) {
                     error_msg(@$, "SIGN clause conflicts with NO SIGN");
                   }
-		  field->clear_attr(separate_e);
+		  field->set_attr(separate_e);
 		  field->clear_attr(signable_e);
 		  $$ = field->type = FldPacked;
 		}
