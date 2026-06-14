@@ -73,7 +73,9 @@
             xl, xh, yl, yh, zl, zh,   \
             Xl, Xh, Yl, Yh, Zl, Zh,   \
             xL, xH, yL, yH, zL, zH,   \
-            XL, XH, YL, YH, ZL, ZH
+            XL, XH, YL, YH, ZL, ZH,   \
+            x,  xh, y,  yh, z,  zh,   \
+            X,  XH, Y,  YH, Z,  ZH
         .ifc  \name,\reg
             \sym = 26 + ..regno % 6
             ..regno.done = 1
@@ -102,9 +104,11 @@
 #if defined (__AVR_HAVE_EIJMP_EICALL__)
 #define XICALL eicall
 #define XIJMP  eijmp
+#define PC_SIZE 3
 #else
 #define XICALL icall
 #define XIJMP  ijmp
+#define PC_SIZE 2
 #endif
 
 
@@ -229,7 +233,10 @@
 
 #ifndef __AVR_TINY__
 
-;;; Prologue stuff
+;;; Convenience macro for easy use of __prologue_saves__.
+;;; Push the N_PUSHED callee-saved registers  Y, R17, R16, R15, ...
+;;; with 0 <= N_PUSHED <= 18.  The frame pointer (Y) is set up according
+;;; to a frame size of N_FRAME.  Clobbers TMP_REG.  Does not clobber T.
 .macro do_prologue_saves n_pushed n_frame=0
     ldi     r26, lo8 (\n_frame)
     ldi     r27, hi8 (\n_frame)
@@ -239,8 +246,8 @@
 .L_prologue_saves.\@:
 .endm
 
-
-;; Epilogue stuff
+;;; Convenience macro for easy use of __epilogue_restores__.
+;;; Undo the effect of __prologue_saves__.  Clobbers TMP_REG.
 .macro do_epilogue_restores n_pushed n_frame=0
     in      r28, __SP_L__
 #ifdef __AVR_HAVE_SPH__

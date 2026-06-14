@@ -273,16 +273,15 @@ ENDF __mulhisi3
 #if defined (L_mulsi3)
 DEFUN __mulsi3
 #if defined (__AVR_TINY__)
-    in     r26, __SP_L__ ; safe to use X, as it is CC0/CC1
-    in     r27, __SP_H__
-    subi   r26, lo8(-3)   ; Add 3 to point past return address
-    sbci   r27, hi8(-3)
-    push   B0    ; save callee saved regs
-    push   B1
-    ld     B0, X+   ; load from caller stack
-    ld     B1, X+
-    ld     B2, X+
-    ld     B3, X
+    in       r26, __SP_L__      ; Safe to use X, as it is CC0/CC1.
+    in       r27, __SP_H__
+    waddi    r26, 1 + PC_SIZE   ; Add 3 to point past return address.
+    push     B0                 ; Save callee saved regs.
+    push     B1
+    ld       B0, X+             ; Load from arg pointer.
+    ld       B1, X+
+    ld       B2, X+
+    ld       B3, X
 #endif
     ;; Clear result
     clr     CC2
@@ -569,15 +568,14 @@ ENDF __mulpsi3
 
 DEFUN __mulpsi3
 #if defined (__AVR_TINY__)
-    in r26,__SP_L__
-    in r27,__SP_H__
-    subi r26, lo8(-3)   ; Add 3 to point past return address
-    sbci r27, hi8(-3)
-    push B0    ; save callee saved regs
-    push B1
-    ld B0,X+   ; load from caller stack
-    ld B1,X+
-    ld B2,X+
+    in      r26, __SP_L__
+    in      r27, __SP_H__
+    waddi   r26, 1 + PC_SIZE    ; Add 3 to point past return address.
+    push    B0                  ; Save callee saved regs.
+    push    B1
+    ld      B0, X+              ; Load from arg pointer.
+    ld      B1, X+
+    ld      B2, X+
 #endif /* defined (__AVR_TINY__) */
 
     ;; C[] = 0
