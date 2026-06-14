@@ -1,3 +1,46 @@
+2026-06-13  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* algol68/execute/modules/program-1.a68: Fix test.
+
+2026-06-13  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* algol68/execute/modules/module1.a68: Add an operator %.
+	* algol68/execute/modules/program-1.a68: Use operator %.
+
+2026-06-13  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/125776
+	* gcc.dg/torture/pr125776-1.c: New test.
+	* gcc.dg/torture/pr125776-2.c: New test.
+
+2026-06-13  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* algol68/execute/gen-in-constructor-1.a68: New test.
+	* algol68/execute/gen-in-constructor-2.a68: Likewise.
+
+2026-06-13  Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	PR tree-optimization/125750
+	* g++.dg/tree-ssa/mult-negate-zeroone-1.C: New test.
+	* g++.dg/tree-ssa/mult-negate-zeroone-2.C: New test.
+
+2026-06-13  Kael Andrew Alonzo Franco  <kaelfandrew@gmail.com>
+
+	PR tree-optimization/125707
+	PR tree-optimization/125707
+	* gcc.dg/pr125707.c: New test.
+
+2026-06-13  Sunil Dora  <sunilkumar.dora@windriver.com>
+
+	PR driver/111527
+	* gcc.misc-tests/pr111527.exp: New test.
+
+2026-06-13  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* algol68/execute/formula-3.a68: New test.
+	* algol68/execute/formula-4.a68: Likewise.
+	* algol68/execute/formula-5.a68: Likewise.
+
 2026-06-12  Tobias Burnus  <tburnus@baylibre.com>
 
 	* gfortran.dg/gomp/declare-mapper-6.f90: New test.

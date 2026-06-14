@@ -1,3 +1,70 @@
+2026-06-13  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/125776
+	* tree-ssa-phiopt.cc (is_factor_profitable): An
+	usage in a debug stmt should be ignored.
+
+2026-06-13  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	* gcc.cc (find_a_program): Implement the new behavior described
+	above.
+	(driver::set_up_specs): Initilize variable. It would be nice to
+	have less spooky-action-at-a-distince using C++ features, but I
+	just matched how the corresponding suffix variable worked for
+	now for uniformity.
+
+2026-06-13  John Ericson  <git@JohnEricson.me>
+
+	* gcc.cc (for_each_path): Pass an additional boolean argument to
+	the callback specifying whether the current directly being
+	searched is machine-specific, as described above.
+	(build_search_list): Add unused parameter to lambda match new
+	callback type.
+	(find_a_file): Add unused parameter to lambda match new callback
+	type.
+	(find_a_program): Add unused parameter to lambda match new
+	callback type.
+	(spec_path::operator()): Add unused parameter to match new
+	callback type.
+
+2026-06-13  panciyan@eswincomputing.com  <panciyan@eswincomputing.com>
+
+	* config/riscv/crypto.md (riscv_pack): Change HISI iterator to
+	HX as we must match half a target word for pack.
+
+2026-06-13  Gerald Pfeifer  <gerald@pfeifer.com>
+
+	* doc/install.texi (Configuration): Use AE spelling for "behavior".
+
+2026-06-13  Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	PR tree-optimization/125750
+	* match.pd (mult of a 0/1 value by a negated 0/1 value): New
+	simplification.
+
+2026-06-13  Kael Andrew Alonzo Franco  <kaelfandrew@gmail.com>
+
+	PR tree-optimization/125707
+	PR tree-optimization/125707
+	* match.pd: Add (~a) >> a to -1 for signed a.
+
+2026-06-13  Sunil Dora  <sunilkumar.dora@windriver.com>
+
+	PR driver/111527
+	* defaults.h (COLLECT2_OPTIONS_MAX_LENGTH): New macro.
+	* collect-utils.cc (read_collect_gcc_options): New function.
+	* collect-utils.h (read_collect_gcc_options): Declare.
+	* collect2.cc (main): Use read_collect_gcc_options instead
+	of getenv.
+	* doc/hostconfig.texi (Host Misc): Document
+	COLLECT2_OPTIONS_MAX_LENGTH.
+	* doc/invoke.texi (Environment Variables): Document the
+	@file form of COLLECT_GCC_OPTIONS.
+	* gcc.cc (xsetenv_collect_gcc_options): New function.
+	(set_collect_gcc_options): Use xsetenv_collect_gcc_options.
+	* lto-wrapper.cc (run_gcc): Use read_collect_gcc_options
+	instead of getenv.
+
 2026-06-12  Claudio Bantaloukas  <claudio.bantaloukas@arm.com>
 
 	* config/aarch64/aarch64-cores.def (cortex-a320): Update core.

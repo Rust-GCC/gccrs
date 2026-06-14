@@ -1,3 +1,20 @@
+2026-06-13  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/version.def (constant_wrapper): Bump to 202606L.
+	* include/bits/version.h: Regenerate.
+	* include/bits/funcref_impl.h (function_ref::function_ref): Rename
+	template parameter from __cwfn to __fn and use it direclty.
+	* include/bits/funcwrap.h (function_ref): Rename template parameter
+	to __fn.
+	(std::constant_wrapper): Use auto as non-type template parameter,
+	and refeference it as value.
+	* include/bits/utility.h (__CwFixedValue): Remove.
+	* testsuite/20_util/constant_wrapper/generic.cc: Remove arrays
+	and string literal tests. Add test for address of value.
+	* testsuite/20_util/constant_wrapper/other_wrappers.cc:
+	Remove test_array.
+	* testsuite/20_util/constant_wrapper/type_param_neg.cc: New file.
+
 2026-06-08  Gerald Pfeifer  <gerald@pfeifer.com>
 
 	* doc/xml/manual/abi.xml: Spell command-line option with a dash.

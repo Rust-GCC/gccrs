@@ -1,3 +1,9 @@
+2026-06-13  Georg-Johann Lay  <avr@gjlay.de>
+
+	* asm-defs.h (REGNO): New .macro.
+	(wmov): Use it.
+	(do_epilogue_restores) <\n_frame>: Put in () where needed.
+
 2026-06-11  Georg-Johann Lay  <avr@gjlay.de>
 
 	* libf7.c (__floatdidf, __floatundidf): Minor tweak.

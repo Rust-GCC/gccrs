@@ -1,3 +1,8 @@
+2026-06-13  Sunil Dora  <sunilkumar.dora@windriver.com>
+
+	PR driver/111527
+	* argv.c (expandargstr): New function.
+
 2026-06-10  Pietro Monteiro  <pietro@sociotechnical.xyz>
 
 	* simple-object-mach-o.c (MACH_O_MH_DYLIB): New definition.

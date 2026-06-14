@@ -1,3 +1,31 @@
+2026-06-13  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-parser-brackets.cc: Include <string>.
+	(bracket_check_error): Get additional argument `item'.
+	(bracket_check_diagnose): Likewise.
+	(bracket_check_parse): Fix call to a68_error passing the `item'.
+
+2026-06-13  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-low.cc (a68_demangle_symbol): Fix typo, 'p' is the mangling
+	of '%', not of '+'.
+
+2026-06-13  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-low-generator.cc (a68_low_generator): Wrap the resulting
+	stmt_list into a nop_expr.
+
+2026-06-13  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-low-clauses.cc (a68_lower_collateral_clause): Check that
+	a68_lower_tree on the units list return NULL_TREE.
+
+2026-06-13  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-low-units.cc (a68_lower_formula): Consolidate operands of
+	formula before call.
+	(a68_lower_monadic_formula): Likewise.
+
 2026-06-12  Pietro Monteiro  <pietro@sociotechnical.xyz>
 
 	* a68-imports.cc (a68_try_suffixes): Use .dylib suffix on Darwin.

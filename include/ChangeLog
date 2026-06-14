@@ -1,3 +1,8 @@
+2026-06-13  Sunil Dora  <sunilkumar.dora@windriver.com>
+
+	PR driver/111527
+	* libiberty.h (expandargstr): Declare.
+
 2026-06-01  Arsen Arsenović  <aarsenovic@baylibre.com>
 
 	* gomp-constants.h (GOMP_VERSION): Bump.  Signature of
