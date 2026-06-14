@@ -95,12 +95,11 @@
      - reduce a sub-phrase starting at a branch, implemented by 'reduce_branch'.
 */
 
+#define INCLUDE_STRING
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
 #include "options.h"
-
-#include <string>
 
 #include "a68.h"
 #include "a68-pretty-print.h"

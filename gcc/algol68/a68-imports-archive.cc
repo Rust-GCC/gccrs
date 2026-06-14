@@ -19,13 +19,12 @@
    <http://www.gnu.org/licenses/>.  */
 
 #define INCLUDE_MEMORY
+#define INCLUDE_MAP
+#define INCLUDE_STRING
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
 #include "vec.h"
-
-#include <map>
-#include <string>
 
 #include "a68.h"
 

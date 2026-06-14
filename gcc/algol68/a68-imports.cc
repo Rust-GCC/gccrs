@@ -28,6 +28,7 @@
    <http://www.gnu.org/licenses/>.  */
 
 #define INCLUDE_MEMORY
+#define INCLUDE_STRING
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
@@ -40,8 +41,6 @@
 #include "intl.h"
 #include "common/common-target.h"
 #include "dwarf2asm.h"
-
-#include <string>
 
 #include "a68.h"
 
