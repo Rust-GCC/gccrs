@@ -616,7 +616,8 @@
 	    [(match_operand:SI 1 "reg_or_0_operand" "")
 	     (match_operand:SI 2 "reg_or_s16_operand" "")])
 	  (label_ref (match_operand 3 "" ""))
-	  (pc)))]
+	  (pc)))
+   (clobber (reg:BI SR_F_REGNUM))]
   ""
   "#"
   "&& 1"
