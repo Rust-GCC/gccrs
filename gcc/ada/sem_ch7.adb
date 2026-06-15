@@ -1337,10 +1337,17 @@ package body Sem_Ch7 is
       --  primitive equality operator and, if so, make it so that it will be
       --  used as the predefined operator of the private view of the record.
 
-      procedure Inspect_Abstract_Constructors_Completion (Id : Entity_Id);
+      procedure Inspect_Abstract_Constructors_Completion (Pkg_Id : Entity_Id);
       --  For each abstract constructor in the visible part of package Id,
       --  verify that a non-abstract counterpart exists in the private part
       --  of the package, and emit an error for each that lacks one.
+
+      procedure Inspect_Components_Needing_Construction (Pkg_Id : Entity_Id);
+      --  For each record type declared in package Id that does not require
+      --  a constructor, report an error on components that have a type that
+      --  requires explicit constructor initialization (that is, a type that
+      --  needs construction which has no default parameterless constructor
+      --  and no default initialization expression).
 
       procedure Install_Parent_Private_Declarations (Inst_Id : Entity_Id);
       --  Given the package entity of a generic package instantiation or
@@ -1458,9 +1465,10 @@ package body Sem_Ch7 is
       -- Inspect_Abstract_Constructors_Completion --
       ----------------------------------------------
 
-      procedure Inspect_Abstract_Constructors_Completion (Id : Entity_Id) is
-         First_Priv : constant Entity_Id := First_Private_Entity (Id);
-         Vis_E      : Entity_Id          := First_Entity (Id);
+      procedure Inspect_Abstract_Constructors_Completion (Pkg_Id : Entity_Id)
+      is
+         First_Priv : constant Entity_Id := First_Private_Entity (Pkg_Id);
+         Vis_E      : Entity_Id          := First_Entity (Pkg_Id);
 
       begin
          while Present (Vis_E) and then Vis_E /= First_Priv loop
@@ -1497,6 +1505,51 @@ package body Sem_Ch7 is
             Next_Entity (Vis_E);
          end loop;
       end Inspect_Abstract_Constructors_Completion;
+
+      ---------------------------------------------
+      -- Inspect_Components_Needing_Construction --
+      ---------------------------------------------
+
+      procedure Inspect_Components_Needing_Construction (Pkg_Id : Entity_Id) is
+         Comp_Decl : Node_Id;
+         Comp_Id   : Entity_Id;
+         Comp_Typ  : Entity_Id;
+         E         : Entity_Id;
+
+      begin
+         E := First_Entity (Pkg_Id);
+
+         while Present (E) loop
+            if Is_Record_Type (E)
+              and then not Needs_Construction (E)
+              and then Comes_From_Source (E)
+              and then not Is_Class_Wide_Type (E)
+              and then Nkind (Parent (E)) = N_Full_Type_Declaration
+            then
+               Comp_Decl := First_Component_Declaration (E);
+
+               while Present (Comp_Decl) loop
+                  if Nkind (Comp_Decl) = N_Component_Declaration then
+                     Comp_Id  := Defining_Identifier (Comp_Decl);
+                     Comp_Typ := Etype (Comp_Id);
+
+                     if Needs_Construction (Comp_Typ)
+                       and then not Has_Parameterless_Constructor (Comp_Typ)
+                       and then No (Expression (Comp_Decl))
+                     then
+                        Error_Msg_NE
+                          ("& needs explicit constructor call",
+                           Comp_Id, Comp_Id);
+                     end if;
+                  end if;
+
+                  Next_Non_Pragma (Comp_Decl);
+               end loop;
+            end if;
+
+            Next_Entity (E);
+         end loop;
+      end Inspect_Components_Needing_Construction;
 
       ----------------------------------------
       -- Inspect_Unchecked_Union_Completion --
@@ -1945,6 +1998,7 @@ package body Sem_Ch7 is
 
       if Core_Extensions_Allowed then
          Inspect_Abstract_Constructors_Completion (Id);
+         Inspect_Components_Needing_Construction (Id);
       end if;
 
       E := First_Entity (Id);

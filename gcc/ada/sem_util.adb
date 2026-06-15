@@ -14215,6 +14215,42 @@ package body Sem_Util is
       return Name_Find;
    end Add_Suffix;
 
+   ---------------------------------
+   -- First_Component_Declaration --
+   ---------------------------------
+
+   function First_Component_Declaration (Typ : Entity_Id) return Node_Id is
+      Type_Def  : Node_Id;
+      Comp_List : Node_Id := Empty;
+
+   begin
+      pragma Assert (Is_Record_Type (Typ)
+        and then Nkind (Parent (Typ)) = N_Full_Type_Declaration);
+
+      Type_Def := Type_Definition (Parent (Typ));
+
+      --  Locate the non-inherited component list: the record extension part
+      --  for a derived type, the type definition for a non-derived one.
+
+      if Is_Derived_Type (Typ) then
+         if Nkind (Type_Def) = N_Derived_Type_Definition
+           and then Present (Record_Extension_Part (Type_Def))
+         then
+            Comp_List := Component_List (Record_Extension_Part (Type_Def));
+         end if;
+
+      else
+         pragma Assert (Nkind (Type_Def) = N_Record_Definition);
+         Comp_List := Component_List (Type_Def);
+      end if;
+
+      if Present (Comp_List) then
+         return First_Non_Pragma (Component_Items (Comp_List));
+      else
+         return Empty;
+      end if;
+   end First_Component_Declaration;
+
    -------------------
    -- Remove_Suffix --
    -------------------

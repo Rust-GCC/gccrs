@@ -6145,13 +6145,14 @@ package body Exp_Ch6 is
          Component        : Entity_Id;
 
          Comp_List        : constant List_Id := New_List;
-         Initialize_List  : constant List_Id := New_List;
          Tag_List         : constant List_Id := New_List;
          Parent_List      : constant List_Id := New_List;
-         --  Comp_List contains the list of default initializations, init
-         --  procedure calls, or constructor calls for components;
-         --  Initialize_List contains the list of component initializations
-         --  coming from the Initialize aspect;
+         --  Comp_List contains component initializations (from the Initialize
+         --  aspect or component default expressions), in record declaration
+         --  order; when a component is named in the Initialize aspect, that
+         --  expression takes priority over the component's default expression,
+         --  which is used only when the component is not mentioned in the
+         --  Initialize aspect;
          --  Tag_List contains the initialization for the tag;
          --  Parent_List contains the parent constructor call.
 
@@ -6200,10 +6201,13 @@ package body Exp_Ch6 is
             end if;
 
             if Chars (Component) = Name_uTag then
-               Append_To (Tag_List,
-                 Make_Tag_Assignment_From_Type (Loc,
-                   Target => New_Occurrence_Of (First_Formal (Spec_Id), Loc),
-                   Typ    => First_Param_Type));
+               if Tagged_Type_Expansion then
+                  Append_To (Tag_List,
+                    Make_Tag_Assignment_From_Type (Loc,
+                      Target =>
+                        New_Occurrence_Of (First_Formal (Spec_Id), Loc),
+                      Typ    => First_Param_Type));
+               end if;
 
             elsif Chars (Component) = Name_uParent
               and then Needs_Construction (Etype (Component))
@@ -6214,6 +6218,21 @@ package body Exp_Ch6 is
                Append_To (Parent_List,
                  Make_Parent_Constructor_Call
                    (Parent_Type => Etype (Component)));
+
+            --  Inherited components are handled by the parent constructor
+
+            elsif Original_Record_Component (Component) /= Component then
+               null;
+
+            --  A derived type with a parent that needs construction has a
+            --  Super aspect that initializes its parent components; otherwise
+            --  it had been rejected during semantic analysis (see subprogram
+            --  Sem_Ch6.Analyze_Direct_Attribute_Definition).
+
+            elsif Chars (Component) = Name_uParent
+              and then Needs_Construction (Etype (Component))
+            then
+               null;
 
             else
                declare
@@ -6238,18 +6257,15 @@ package body Exp_Ch6 is
                   then
                      declare
                         Init : Node_Id;
-                        List : List_Id;
 
                      begin
                         if Present (Maybe_Initialize) then
                            Init := Maybe_Initialize;
-                           List := Initialize_List;
                         else
                            Init := Maybe_Default_Or_Constructor;
-                           List := Comp_List;
                         end if;
 
-                        Append_List_To (List,
+                        Append_List_To (Comp_List,
                           Build_Component_Assignment (Loc,
                             Prefix       =>
                               New_Occurrence_Of (First_Formal (Spec_Id), Loc),
@@ -6289,14 +6305,12 @@ package body Exp_Ch6 is
             Next_Entity (Component);
          end loop;
 
-         --  First, use default value initializations and init procedures,
-         --  then call the parent constructor (if any), then initialize all
-         --  other components through the Initialize aspect, last the tag.
+         --  First call the parent constructor (if any), then initialize all
+         --  components in record declaration order, then set the tag.
 
-         Append_List (Tag_List, Initialize_List);
-         Append_List (Initialize_List, Parent_List);
-         Append_List (Parent_List, Comp_List);
-         Insert_List_Before_And_Analyze (First (L), Comp_List);
+         Append_List (Comp_List, Parent_List);
+         Append_List (Tag_List, Parent_List);
+         Insert_List_Before_And_Analyze (First (L), Parent_List);
 
          End_Scope;
       end Prepend_Constructor_Procedure_Prologue;

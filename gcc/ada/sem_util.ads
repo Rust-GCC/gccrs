@@ -3185,6 +3185,16 @@ package Sem_Util is
    --  Inherit predicate functions and Has_Predicates flag from type From_Typ.
    --  Typ is the destination type.
 
+   function First_Component_Declaration (Typ : Entity_Id) return Node_Id;
+   --  Return the first non-pragma component declaration among the
+   --  non-inherited (own) components of record type Typ, or Empty when Typ
+   --  has no own component list or that list is empty. For a derived record
+   --  type the own components are those of the record extension part; for a
+   --  non-derived record type they are those of its type definition. Iterate
+   --  over the remaining own component declarations with Next_Non_Pragma. The
+   --  caller must ensure that Typ is a record type and Parent (Typ) is an
+   --  N_Full_Type_Declaration.
+
    procedure Record_Possible_Part_Of_Reference
      (Var_Id : Entity_Id;
       Ref    : Node_Id);

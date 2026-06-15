@@ -5244,6 +5244,15 @@ package body Sem_Ch6 is
          --  already explicitly specifies the aspect or inherits the aspect
          --  from a type that explicitly specifies it.
 
+         function Constructor_Components_OK
+           (Typ : Entity_Id; Subp : Node_Id) return Boolean;
+         --  Called when processing the body of a constructor for record type
+         --  Typ. Checks non-inherited components of Typ and reports an error
+         --  on each component whose type is a record type with no default
+         --  parameterless constructor, no default initialization, and no
+         --  explicit default expression. Returns True if no such component
+         --  is found, and False if at least one error was emitted.
+
          -----------------------------------
          -- Add_Default_Initialize_Aspect --
          -----------------------------------
@@ -5362,12 +5371,50 @@ package body Sem_Ch6 is
             end if;
          end Create_And_Append_Aspect;
 
+         -------------------------------
+         -- Constructor_Components_OK --
+         -------------------------------
+
+         function Constructor_Components_OK
+           (Typ : Entity_Id; Subp : Node_Id) return Boolean
+         is
+            Comp_Decl : Node_Id;
+            Comp_Id   : Entity_Id;
+            Comp_Typ  : Entity_Id;
+            OK        : Boolean := True;
+
+         begin
+            Comp_Decl := First_Component_Declaration (Typ);
+            while Present (Comp_Decl) loop
+               if Nkind (Comp_Decl) = N_Component_Declaration then
+                  Comp_Id  := Defining_Identifier (Comp_Decl);
+                  Comp_Typ := Etype (Comp_Id);
+
+                  if Chars (Comp_Id) /= Name_uParent
+                    and then Is_Record_Type (Comp_Typ)
+                    and then not Has_Parameterless_Constructor (Comp_Typ)
+                    and then not Is_Fully_Initialized_Type (Comp_Typ)
+                    and then No (Expression (Comp_Decl))
+                  then
+                     Error_Msg_NE
+                       ("explicit initialization required for component &",
+                        Subp, Comp_Id);
+                     OK := False;
+                  end if;
+               end if;
+
+               Next_Non_Pragma (Comp_Decl);
+            end loop;
+
+            return OK;
+         end Constructor_Components_OK;
+
          --  Local variables
 
-         Att_N      : constant Node_Id := Original_Node (N);
-         Att_Prefix : constant Node_Id := Prefix (Defining_Unit_Name (Att_N));
-         Att_Name   : constant Name_Id :=
-           Attribute_Name (Defining_Unit_Name (Att_N));
+         Att_N      : constant Node_Id   := Original_Node (N);
+         Def_Name   : constant Entity_Id := Defining_Unit_Name (Att_N);
+         Att_Name   : constant Name_Id   := Attribute_Name (Def_Name);
+         Att_Prefix : constant Node_Id   := Prefix (Def_Name);
 
          Is_Class_Wide_Attr : constant Boolean :=
            Nkind (Att_Prefix) = N_Attribute_Reference
@@ -5384,6 +5431,9 @@ package body Sem_Ch6 is
       --  Start of processing for Analyze_Direct_Attribute_Definition
 
       begin
+         --  This node has been rewritten by the parser subprogram
+         --  Rewrite_Entity_If_Direct_Attribute_Def (par-ch6.adb)
+
          pragma Assert (N /= Att_N);
 
          Error_Msg_Name_1 := Att_Name;
@@ -5437,13 +5487,36 @@ package body Sem_Ch6 is
          case Att_Name is
 
             when Name_Constructor =>
-               --  If missing, add a default initialization aspect for this
-               --  constructor's body stub: Initialize => (others => <>).
 
-               if Parent_Kind (N) not in N_Subprogram_Declaration
-                                       | N_Abstract_Subprogram_Declaration
-               then
-                  if not Has_Aspect (Designator, Aspect_Initialize) then
+               if Parent_Kind (N) = N_Subprogram_Body then
+
+                  --  A constructor body for a derived type whose parent type
+                  --  needs construction and has no parameterless constructor
+                  --  must call its parent constructor through a Super aspect
+                  --  to initialize its parent components.
+
+                  if Present (Prefix_E)
+                    and then Is_Tagged_Type (Prefix_E)
+                    and then Is_Derived_Type (Prefix_E)
+                    and then Needs_Construction (Etype (Prefix_E))
+                    and then
+                      not Has_Parameterless_Constructor (Etype (Prefix_E))
+                    and then No (Find_Aspect (Designator, Aspect_Super))
+                  then
+                     Error_Msg_Name_1 := Name_Super;
+                     Error_Msg_NE
+                       ("missing % aspect to initialize components of parent"
+                        & " type &", Designator, Etype (Prefix_E));
+                  end if;
+
+                  --  If missing, add a default initialization aspect for this
+                  --  constructor's body: Initialize => (others => <>).
+
+                  if not Has_Aspect (Designator, Aspect_Initialize)
+                    and then Present (Prefix_E)
+                    and then Ekind (Prefix_E) = E_Record_Type
+                    and then Constructor_Components_OK (Prefix_E, Designator)
+                  then
                      Add_Default_Initialize_Aspect;
                   end if;
 
@@ -5453,7 +5526,7 @@ package body Sem_Ch6 is
                elsif No (Prefix_E) or else not Is_Type (Prefix_E) then
                   Error_Msg_N
                     ("prefix& of attribute% must be a type",
-                     Prefix (Defining_Unit_Name (Att_N)));
+                     Prefix (Def_Name));
 
                elsif Ekind (Designator) /= E_Procedure then
                   Error_Msg_N
@@ -5470,7 +5543,7 @@ package body Sem_Ch6 is
                         then Sloc (N)
                         else Sloc (First_Formal (Designator)));
                   begin
-                     Error_Msg_Node_1 := Defining_Unit_Name (Att_N);
+                     Error_Msg_Node_1 := Def_Name;
                      Error_Msg_Node_2 := Prefix_E;
                      Error_Msg
                        ("& must have a first IN OUT formal of type&", Problem);
