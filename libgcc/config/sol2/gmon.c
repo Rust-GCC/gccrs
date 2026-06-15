@@ -225,9 +225,12 @@ asm(".globl _mcount\n"
     "	pushl	%eax\n"
     "	pushl	%ecx\n"
     "	pushl	%edx\n"
-    "	movl	12(%esp), %edx\n"
-    "	movl	4(%ebp), %eax\n"
+    /* Get SELFPC (pushed by the call to this function) and
+       FROMPCINDEX (via the frame pointer).  */
+    "	pushl	4(%ebp)\n"
+    "	pushl	16(%esp)\n"
     "	call	internal_mcount\n"
+    "	addl	$8, %esp\n"
     "	popl	%edx\n"
     "	popl	%ecx\n"
     "	popl	%eax\n"
@@ -311,10 +314,6 @@ internal_mcount (char *selfpc, unsigned short *frompcindex)
   struct tostruct *top;
   struct tostruct *prevtop;
   long toindex;
-  static char already_setup;
-
-/* Only necessary without the Solaris CRTs or a proper gcrt1.o, otherwise
-   crtpg.o or gcrt1.o take care of that.
 
   /* Check that we are profiling and that we aren't recursively invoked.  */
   if (profiling) {
@@ -397,6 +396,9 @@ internal_mcount (char *selfpc, unsigned short *frompcindex)
   write (STDERR_FILENO, TOLIMIT, sizeof (TOLIMIT) - 1);
   goto out;
 }
+
+/* Disable profil(2) deprecation warning.  */
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
 /* Control profiling.  Profiling is what mcount checks to see if all the
    data structures are ready.  */
