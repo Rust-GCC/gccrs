@@ -170,7 +170,7 @@
    ashlsi, ashrsi, lshrsi,
    ashlpsi, ashrpsi, lshrpsi,
    add_lt0, add_ge0,
-   insert_bits, insv_notbit, insv, set_some,
+   insert_bits, insv_notbit, insv, set_some, delay_loop,
    add_set_ZN, add_set_N, cmp_uext, cmp_sext, cmp_lsr,
    no"
   (const_string "no"))
@@ -8312,39 +8312,39 @@
    (clobber (match_scratch:QI 2 "=&d"))
    (clobber (reg:CC REG_CC))]
   "reload_completed"
-  "ldi %2,lo8(%0)
-1:	dec %2
-	brne 1b"
-  [(set_attr "length" "3")])
+  {
+    return avr_out_delay_loop (insn, operands, nullptr);
+  }
+  [(set_attr "adjust_len" "delay_loop")])
 
 (define_insn_and_split "delay_cycles_2"
-  [(unspec_volatile [(match_operand:HI 0 "const_int_operand" "n,n")
+  [(unspec_volatile [(match_operand:HI 0 "const_int_operand" "n")
                      (const_int 2)]
                     UNSPECV_DELAY_CYCLES)
    (set (match_operand:BLK 1 "" "")
         (unspec_volatile:BLK [(match_dup 1)] UNSPECV_MEMORY_BARRIER))
-   (clobber (match_scratch:HI 2 "=&w,&d"))]
+   (clobber (match_scratch:QI 2 "=&d"))
+   (clobber (match_scratch:QI 3 "=&d"))]
   ""
   "#"
   "&& reload_completed"
   [(scratch)]
-  { DONE_ADD_CCC }
-  [(set_attr "isa" "adiw,no_adiw")])
+  { DONE_ADD_CCC })
 
 (define_insn "*delay_cycles_2"
-  [(unspec_volatile [(match_operand:HI 0 "const_int_operand" "n,n")
+  [(unspec_volatile [(match_operand:HI 0 "const_int_operand" "n")
                      (const_int 2)]
                     UNSPECV_DELAY_CYCLES)
    (set (match_operand:BLK 1 "" "")
         (unspec_volatile:BLK [(match_dup 1)] UNSPECV_MEMORY_BARRIER))
-   (clobber (match_scratch:HI 2 "=&w,&d"))
+   (clobber (match_scratch:QI 2 "=&d"))
+   (clobber (match_scratch:QI 3 "=&d"))
    (clobber (reg:CC REG_CC))]
   "reload_completed"
-  "@
-	ldi %A2,lo8(%0)\;ldi %B2,hi8(%0)\n1:	sbiw %A2,1\;brne 1b
-	ldi %A2,lo8(%0)\;ldi %B2,hi8(%0)\n1:	subi %A2,1\;sbci %B2,0\;brne 1b"
-  [(set_attr "length" "4,5")
-   (set_attr "isa" "adiw,no_adiw")])
+  {
+    return avr_out_delay_loop (insn, operands, nullptr);
+  }
+  [(set_attr "adjust_len" "delay_loop")])
 
 (define_insn_and_split "delay_cycles_3"
   [(unspec_volatile [(match_operand:SI 0 "const_int_operand" "n")
@@ -8372,14 +8372,10 @@
    (clobber (match_scratch:QI 4 "=&d"))
    (clobber (reg:CC REG_CC))]
   "reload_completed"
-  "ldi %2,lo8(%0)
-	ldi %3,hi8(%0)
-	ldi %4,hlo8(%0)
-1:	subi %2,1
-	sbci %3,0
-	sbci %4,0
-	brne 1b"
-  [(set_attr "length" "7")])
+  {
+    return avr_out_delay_loop (insn, operands, nullptr);
+  }
+  [(set_attr "adjust_len" "delay_loop")])
 
 (define_insn_and_split "delay_cycles_4"
   [(unspec_volatile [(match_operand:SI 0 "const_int_operand" "n")
@@ -8409,16 +8405,10 @@
    (clobber (match_scratch:QI 5 "=&d"))
    (clobber (reg:CC REG_CC))]
   "reload_completed"
-  "ldi %2,lo8(%0)
-	ldi %3,hi8(%0)
-	ldi %4,hlo8(%0)
-	ldi %5,hhi8(%0)
-1:	subi %2,1
-	sbci %3,0
-	sbci %4,0
-	sbci %5,0
-	brne 1b"
-  [(set_attr "length" "9")])
+  {
+    return avr_out_delay_loop (insn, operands, nullptr);
+  }
+  [(set_attr "adjust_len" "delay_loop")])
 
 
 ;; __builtin_avr_insert_bits

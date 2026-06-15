@@ -119,6 +119,7 @@ extern const char* avr_out_xload (rtx_insn *, rtx*, int*);
 extern const char* avr_out_fload (rtx_insn *, rtx*, int*);
 extern const char* avr_out_cpymem (rtx_insn *, rtx*, int*);
 extern const char* avr_out_insert_bits (rtx*, int*);
+extern const char* avr_out_delay_loop (rtx_insn*, rtx*, int*);
 extern bool avr_popcount_each_byte (rtx, int, int);
 extern bool avr_xor_noclobber_dconst (rtx, int);
 extern bool avr_has_nibble_0xf (rtx);
