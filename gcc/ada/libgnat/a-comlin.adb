@@ -31,7 +31,9 @@
 
 with System; use System;
 
-package body Ada.Command_Line is
+package body Ada.Command_Line with
+   Refined_State => (Program_Exit_Status => null)
+is
 
    function Arg_Count return Natural;
    pragma Import (C, Arg_Count, "__gnat_arg_count");

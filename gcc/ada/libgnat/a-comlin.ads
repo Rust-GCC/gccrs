@@ -37,10 +37,14 @@
 --  command line arguments and to set the exit status of the program as defined
 --  by ARM A.15.
 
-package Ada.Command_Line is
+package Ada.Command_Line with
+   Abstract_State => (Program_Exit_Status),
+   Initializes    => (Program_Exit_Status)
+is
    pragma Preelaborate;
 
-   function Argument_Count return Natural;
+   function Argument_Count return Natural with
+      Global => null;
    --  If the external execution environment supports passing arguments to a
    --  program, then Argument_Count returns the number of arguments passed to
    --  the program invoking the function. Otherwise it return 0.
@@ -54,7 +58,8 @@ package Ada.Command_Line is
    --  SPARK does not yet support raise expressions.
 
    function Argument (Number : Positive) return String with
-      Pre => Number <= Argument_Count;
+      Pre    => Number <= Argument_Count,
+      Global => null;
    --  If the external execution environment supports passing arguments to
    --  a program, then Argument returns an implementation-defined value
    --  corresponding to the argument at relative position Number. If Number
@@ -63,7 +68,8 @@ package Ada.Command_Line is
    --
    --  in GNAT: Corresponds to argv [n] (for n > 0) in C.
 
-   function Command_Name return String;
+   function Command_Name return String with
+      Global => null;
    --  If the external execution environment supports passing arguments to
    --  a program, then Command_Name returns an implementation-defined value
    --  corresponding to the name of the command invoking the program.
@@ -76,7 +82,8 @@ package Ada.Command_Line is
    Success : constant Exit_Status;
    Failure : constant Exit_Status;
 
-   procedure Set_Exit_Status (Code : Exit_Status);
+   procedure Set_Exit_Status (Code : Exit_Status) with
+      Global => (Output => Program_Exit_Status);
 
    ------------------------------------
    -- Note on Interface Requirements --
