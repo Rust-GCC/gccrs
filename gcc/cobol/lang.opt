@@ -390,19 +390,7 @@ preprocess
 Cobol Joined Separate Var(cobol_preprocess)
 Preprocess <source_filter> before compiling.
 
-iprefix
-Cobol Joined Separate
-; Documented in C
-
 include
-Cobol Joined Separate
-; Documented in C
-
-isysroot
-Cobol Joined Separate
-; Documented in C
-
-isystem
 Cobol Joined Separate
 ; Documented in C
 

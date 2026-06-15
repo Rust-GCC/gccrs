@@ -11,6 +11,7 @@
 .Nm
 .Op Fl D Ns Ar name Ns Oo Li = Ns Ar value Oc
 .Op Fl E
+.Op Fl B
 .Op Fl fdefaultbyte Ns Li = Ns Ar value
 .Op Fl fsyntax-only
 .Op Fl I Ns Ar copybook-path
@@ -144,6 +145,38 @@ See below for examples showing the use of
 .Fl main
 and
 .Fl nomain.
+.It Fl B Ar prefix
+Add a search location for the system copybooks, so they can be found with the
+.Sy COPY
+statement. For each location, the
+.Sy cobol1
+compiler shall search for copybooks inside the following subdirectories,
+relative to
+.Ar prefix :
+.Pp
+.Bl -tag -compact
+.It Sy compat/gnu/lib/
+.It Sy compat/gnu/cpy/
+.It Sy compat/gnu/udf/
+.It Sy posix/cpy/
+.It Sy posix/udf/
+.It Sy cobol/compat/gnu/lib/
+.It Sy cobol/compat/gnu/cpy/
+.It Sy cobol/compat/gnu/udf/
+.It Sy cobol/posix/cpy/
+.It Sy cobol/posix/udf/
+.El
+.Pp
+Additionally,
+.Sy cobol1
+shall append the configured
+.Sy LIBSUBDIR
+as an additional search location, where
+.Sy LIBSUBDIR
+is typically configured to
+.Ar machine/version/ ,
+relative to the configured
+.Ar libdir .
 .It Fl D Ar name Ns Op Li = Ns Ar expr
 Define a CDF name (for use with
 .Sy >>IF )
