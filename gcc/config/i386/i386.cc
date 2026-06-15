@@ -22462,7 +22462,22 @@ ix86_insn_cost (rtx_insn *insn, bool speed)
       == AVX_PARTIAL_XMM_UPDATE_TRUE)
     insn_cost += COSTS_N_INSNS (3);
 
-  return insn_cost + pattern_cost (PATTERN (insn), speed);
+  rtx pat = PATTERN (insn);
+  /* A USE of a memory is more expensive than a use of a REG.
+     For example *<absneg>mode2_1's use of a signbit mask.  */
+  if (GET_CODE (pat) == PARALLEL)
+    {
+      for (int i = 0; i < XVECLEN (pat, 0); i++)
+	{
+	  rtx x = XVECEXP (pat, 0, i);
+	  if (GET_CODE (x) == USE && MEM_P (XEXP (x, 0)))
+	    insn_cost += !speed ? COSTS_N_BYTES (4)
+				: TARGET_64BIT ? COSTS_N_INSNS (1) + 1
+					       : COSTS_N_INSNS (3) + 1;
+	}
+    }
+
+  return insn_cost + pattern_cost (pat, speed);
 }
 
 /* Return cost of SSE/AVX FP->FP conversion (extensions and truncates).  */
