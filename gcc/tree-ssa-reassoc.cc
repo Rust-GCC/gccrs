@@ -4207,7 +4207,7 @@ ovce_extract_ops (tree var, gassign **rets, bool *reti, tree *type,
     }
   else
     return ERROR_MARK;
-  if (!integer_zerop (f))
+  if (!integer_zerop (inv ? t : f))
     return ERROR_MARK;
 
   /* Success!  */
