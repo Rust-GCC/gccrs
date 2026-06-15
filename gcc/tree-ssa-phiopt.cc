@@ -222,11 +222,11 @@ replace_phi_edge_with_variable (basic_block cond_block,
 	      bb->index);
 }
 
-/* Returns true if the operands of arg_op defined from DEF_STMT is profitable to move
+/* Returns true if the OPERANDS (OPCOUNTED) defined from DEF_STMT is profitable to move
    to the usage into the basic block MERGE where the new statement
    will be located.  */
 static bool
-is_factor_profitable (gimple *def_stmt, basic_block merge, const gimple_match_op &arg_op)
+is_factor_profitable (gimple *def_stmt, basic_block merge, tree *operands, unsigned opcount)
 {
   /* The defining statement should be conditional.  */
   if (dominated_by_p (CDI_DOMINATORS, merge,
@@ -284,9 +284,9 @@ is_factor_profitable (gimple *def_stmt, basic_block merge, const gimple_match_op
     return true;
 
   /* Loop over all of the operands to see if all are used after anyways.  */
-  for (unsigned i = 0; i < arg_op.num_ops; i++)
+  for (unsigned i = 0; i < opcount; i++)
     {
-      tree arg = arg_op.ops[i];
+      tree arg = operands[i];
       /* If the arg is invariant, then there is
 	 no extending of the live range. */
       if (is_gimple_min_invariant (arg))
@@ -422,9 +422,11 @@ factor_out_conditional_operation (edge e0, edge e1, basic_block merge,
 	return false;
 
       /* Check to make sure extending the lifetimes of all operands is ok.  */
-      if (!is_factor_profitable (arg0_def_stmt, merge, arg0_op))
+      if (!is_factor_profitable (arg0_def_stmt, merge,
+				 arg0_op.ops, arg0_op.num_ops))
 	return false;
-      if (!is_factor_profitable (arg1_def_stmt, merge, arg1_op))
+      if (!is_factor_profitable (arg1_def_stmt, merge,
+				 arg1_op.ops, arg1_op.num_ops))
 	return false;
 
       /* If this was a division and the operand is the divisor
@@ -493,7 +495,7 @@ factor_out_conditional_operation (edge e0, edge e1, basic_block merge,
       /* TODO: handle more than just casts here. */
       if (!gimple_assign_cast_p (arg0_def_stmt))
 	return false;
-      if (!is_factor_profitable (arg0_def_stmt, merge, arg0_op))
+      if (!is_factor_profitable (arg0_def_stmt, merge, arg0_op.ops, arg0_op.num_ops))
 	return false;
 
       /* If arg1 is an INTEGER_CST, fold it to new type if it fits, or else
@@ -3679,10 +3681,7 @@ factor_out_conditional_load (edge e0, edge e1, basic_block merge, gphi *phi,
   /* Not a virtual operand. */
   if (virtual_operand_p (gimple_phi_result (phi))
       /* can only handle the merge bb having 2 predecessors.  */
-      || gimple_phi_num_args (phi) != 2
-      /* No calls nor stores in the middle bbs.
-	 FIXME: handle the case where there are stores before the load.  */
-      || get_virtual_phi (merge))
+      || gimple_phi_num_args (phi) != 2)
     return false;
 
   tree arg0 = gimple_phi_arg_def (phi, e0->dest_idx);
@@ -3703,11 +3702,18 @@ factor_out_conditional_load (edge e0, edge e1, basic_block merge, gphi *phi,
 
   /* The load needs to be a load with NO volatile ops.  */
   if (!gimple_assign_load_p (load0) || !gimple_assign_load_p (load1)
-      || gimple_has_volatile_ops (load0) || gimple_has_volatile_ops (load1)
-      /* Assert that the vuse is the same, this will be true since there
-	 are no stores either bb.  */
-      || gimple_vuse (load0) != gimple_vuse (load1))
+      || gimple_has_volatile_ops (load0) || gimple_has_volatile_ops (load1))
     return false;
+
+  /* Allow for stores/calls before the load.  */
+  if (gphi *vphi = get_virtual_phi (merge))
+    {
+      if (gimple_vuse (load0) != gimple_phi_arg_def (vphi, e0->dest_idx)
+	  || gimple_vuse (load1) != gimple_phi_arg_def (vphi, e1->dest_idx))
+	return false;
+    }
+  else
+    gcc_assert (gimple_vuse (load0) == gimple_vuse (load1));
 
   tree ref0 = gimple_assign_rhs1 (load0);
   tree ref1 = gimple_assign_rhs1 (load1);
@@ -3727,6 +3733,10 @@ factor_out_conditional_load (edge e0, edge e1, basic_block merge, gphi *phi,
 
   tree p0 = TREE_OPERAND (ref0, 0);
   tree p1 = TREE_OPERAND (ref1, 0);
+  if (!is_factor_profitable (load0, merge, &p0, 1))
+    return false;
+  if (!is_factor_profitable (load1, merge, &p1, 1))
+    return false;
 
   tree newptr;
   if (p0 != p1)
@@ -3773,7 +3783,10 @@ factor_out_conditional_load (edge e0, edge e1, basic_block merge, gphi *phi,
   MR_DEPENDENCE_BASE (nref) = base;
   tree res = gimple_phi_result (phi);
   gassign *load = gimple_build_assign (res, nref);
-  gimple_set_vuse (load, gimple_vuse (load0));
+  if (gphi *vphi = get_virtual_phi (merge))
+    gimple_set_vuse (load, gimple_phi_result (vphi));
+  else
+    gimple_set_vuse (load, gimple_vuse (load0));
   gimple_stmt_iterator gsi = gsi_after_labels (merge);
   gsi_insert_before (&gsi, load, GSI_SAME_STMT);
 
