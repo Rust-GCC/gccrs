@@ -3038,7 +3038,13 @@ early_ra::allocate_colors ()
       if (dump_file && (dump_flags & TDF_DETAILS))
 	fprintf (dump_file, "  Allocating [v%d:v%d] to color %d\n",
 		 best, best + color->group->size - 1, color->id);
-      m_allocated_fprs |= ((1U << color->group->size) - 1) << best;
+      // Mark the COLOR's FPRs as allocated.  A full-width color can have
+      // size == 32, so shift a wide enough value: "1U << 32" is undefined,
+      // as is "1UL << 32" on hosts with 32-bit long.  unsigned long long is
+      // at least 64 bits everywhere.  best + size <= 32 (from the candidate
+      // search) keeps the result within the 32-bit mask.
+      gcc_assert (best + color->group->size <= 32);
+      m_allocated_fprs |= ((1ULL << color->group->size) - 1) << best;
     }
 }
 
