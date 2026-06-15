@@ -7275,28 +7275,28 @@ fold_plusminus_mult_expr (location_t loc, enum tree_code code, tree type,
   /* No identical multiplicands; see if we can find a common
      power-of-two factor in non-power-of-two multiplies.  This
      can help in multi-dimensional array access.  */
-  else if (tree_fits_shwi_p (arg01) && tree_fits_shwi_p (arg11))
+  else if (TREE_CODE (arg01) == INTEGER_CST
+	   && TREE_CODE (arg11) == INTEGER_CST)
     {
-      HOST_WIDE_INT int01 = tree_to_shwi (arg01);
-      HOST_WIDE_INT int11 = tree_to_shwi (arg11);
-      HOST_WIDE_INT tmp;
+      wide_int int01 = wi::to_wide (arg01);
+      wide_int int11 = wi::to_wide (arg11);
       bool swap = false;
       tree maybe_same;
 
       /* Move min of absolute values to int11.  */
-      if (absu_hwi (int01) < absu_hwi (int11))
+      if (wi::ltu_p (wi::abs (int01), wi::abs (int11)))
         {
-	  tmp = int01, int01 = int11, int11 = tmp;
-	  alt0 = arg00, arg00 = arg10, arg10 = alt0;
+	  std::swap (int01, int11);
+	  std::swap (arg00, arg10);
 	  maybe_same = arg01;
 	  swap = true;
 	}
       else
 	maybe_same = arg11;
 
-      const unsigned HOST_WIDE_INT factor = absu_hwi (int11);
-      if (factor > 1
-	  && pow2p_hwi (factor)
+      wide_int factor = wi::abs (int11);
+      if (wi::gtu_p (factor, 1u)
+	  && wi::exact_log2 (factor) != -1
 	  && (int01 & (factor - 1)) == 0
 	  /* The remainder should not be a constant, otherwise we
 	     end up folding i * 4 + 2 to (i * 2 + 1) * 2 which has
@@ -7304,12 +7304,13 @@ fold_plusminus_mult_expr (location_t loc, enum tree_code code, tree type,
 	  && TREE_CODE (arg10) != INTEGER_CST)
         {
 	  alt0 = fold_build2_loc (loc, MULT_EXPR, TREE_TYPE (arg00), arg00,
-			      build_int_cst (TREE_TYPE (arg00),
-					     int01 / int11));
+				  wide_int_to_tree (TREE_TYPE (arg00),
+						    wi::sdiv_trunc (int01,
+								    int11)));
 	  alt1 = arg10;
 	  same = maybe_same;
 	  if (swap)
-	    maybe_same = alt0, alt0 = alt1, alt1 = maybe_same;
+	    std::swap (alt0, alt1);
 	}
     }
 

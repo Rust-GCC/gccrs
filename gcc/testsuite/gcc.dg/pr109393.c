@@ -20,5 +20,4 @@ int bar(int *a, int j)
   return (&a[j + 1] - 2) == &a[k];
 }
 
-/* The pattern is not applied on ilp32 targets (PR116845).  */
-/* { dg-final { scan-tree-dump-times "return 1;" 3 "optimized" { xfail { ilp32 } } } } */
+/* { dg-final { scan-tree-dump-times "return 1;" 3 "optimized" } } */

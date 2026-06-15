@@ -105,5 +105,9 @@ g5 (int stepx, int n)
     }
 }
 
-/* { dg-final { scan-tree-dump-times {want to version containing loop} 10 "lversion" } } */
-/* { dg-final { scan-tree-dump-times {versioned this loop} 10 "lversion" } } */
+/* { dg-final { scan-tree-dump-times {want to version containing loop} 10 "lversion" { target lp64 } } } */
+/* { dg-final { scan-tree-dump-times {want to version containing loop} 10 "lversion" { xfail { ilp32 } } } } */
+/* { dg-final { scan-tree-dump-times {want to version containing loop} 9 "lversion" { target ilp32 } } } */
+/* { dg-final { scan-tree-dump-times {versioned this loop} 10 "lversion" { target lp64 } } } */
+/* { dg-final { scan-tree-dump-times {versioned this loop} 10 "lversion" { xfail ilp32 } } } */
+/* { dg-final { scan-tree-dump-times {versioned this loop} 9 "lversion" { target ilp32 } } } */
