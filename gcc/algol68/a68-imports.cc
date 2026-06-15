@@ -29,6 +29,7 @@
 
 #define INCLUDE_MEMORY
 #define INCLUDE_STRING
+#define INCLUDE_VECTOR
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
@@ -1470,15 +1471,32 @@ a68_open_packet (const char *module, const char *basename)
     }
 
   /* If we got a moif, we need to make sure that it doesn't introduce new modes
-     that are equivalent to any mode in the compiler's mode list.  If it does,
-     we replace the mode everywhere in the moif.  */
+     that are equivalent to any mode in the compiler's mode list, nor modes
+     that are equivalent to other modes introduced in this same moif.  If it
+     does, we replace the mode everywhere in the moif. */
 
   if (moif != NO_MOIF)
     {
+      std::vector<MOID_T *> known_moids;
+
       for (MOID_T *m : MODES (moif))
 	{
 	  MOID_T *r = a68_search_equivalent_mode (m);
-	  if (r != NO_MOID)
+	  if (r == NO_MOID)
+	    {
+	      for (size_t i = 0; i < known_moids.size (); ++i)
+		{
+		  if (a68_prove_moid_equivalence (m, known_moids[i]))
+		    {
+		      r =  m;
+		      break;
+		    }
+		}
+	    }
+
+	  if (r == NO_MOID)
+	    known_moids.push_back (m);
+	  else
 	    {
 	      a68_replace_equivalent_mode (MODES (moif), m, r);
 
