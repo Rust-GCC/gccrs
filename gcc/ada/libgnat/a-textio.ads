@@ -414,14 +414,16 @@ is
    procedure Get (File : File_Type; Item : out Character) with
      Pre               => Is_Open (File) and then Mode (File) = In_File,
      Global            => (In_Out => File_System),
-     Exceptional_Cases => (End_Error => Standard.True);
+     Exceptional_Cases => (End_Error  => Standard.True,
+                           Data_Error => Standard.True);
 
    procedure Get (Item : out Character) with
      Post              =>
        Line_Length'Old = Line_Length
        and Page_Length'Old = Page_Length,
      Global            => (In_Out => File_System),
-     Exceptional_Cases => (End_Error => Standard.True);
+     Exceptional_Cases => (End_Error  => Standard.True,
+                           Data_Error => Standard.True);
 
    procedure Put (File : File_Type; Item : Character) with
      Pre    => Is_Open (File) and then Mode (File) /= In_File,
@@ -441,17 +443,19 @@ is
       Item        : out Character;
       End_Of_Line : out Boolean)
    with
-     Pre    => Is_Open (File) and then Mode (File) = In_File,
-     Global => (Input => File_System);
+     Pre               => Is_Open (File) and then Mode (File) = In_File,
+     Global            => (Input => File_System),
+     Exceptional_Cases => (Data_Error => Standard.True);
 
    procedure Look_Ahead
      (Item        : out Character;
       End_Of_Line : out Boolean)
    with
-     Post   =>
+     Post              =>
        Line_Length'Old = Line_Length
        and Page_Length'Old = Page_Length,
-     Global => (Input => File_System);
+     Global            => (Input => File_System),
+     Exceptional_Cases => (Data_Error => Standard.True);
 
    procedure Get_Immediate
      (File : File_Type;
@@ -459,7 +463,8 @@ is
    with
      Pre               => Is_Open (File) and then Mode (File) = In_File,
      Global            => (In_Out => File_System),
-     Exceptional_Cases => (End_Error => Standard.True);
+     Exceptional_Cases => (End_Error  => Standard.True,
+                           Data_Error => Standard.True);
 
    procedure Get_Immediate
      (Item : out Character)
@@ -468,7 +473,8 @@ is
        Line_Length'Old = Line_Length
        and Page_Length'Old = Page_Length,
      Global            => (In_Out => File_System),
-     Exceptional_Cases => (End_Error => Standard.True);
+     Exceptional_Cases => (End_Error  => Standard.True,
+                           Data_Error => Standard.True);
 
    procedure Get_Immediate
      (File      : File_Type;
@@ -477,7 +483,8 @@ is
    with
      Pre               => Is_Open (File) and then Mode (File) = In_File,
      Global            => (In_Out => File_System),
-     Exceptional_Cases => (End_Error => Standard.True);
+     Exceptional_Cases => (End_Error  => Standard.True,
+                           Data_Error => Standard.True);
 
    procedure Get_Immediate
      (Item      : out Character;
@@ -487,7 +494,8 @@ is
        Line_Length'Old = Line_Length
        and Page_Length'Old = Page_Length,
      Global            => (In_Out => File_System),
-     Exceptional_Cases => (End_Error => Standard.True);
+     Exceptional_Cases => (End_Error  => Standard.True,
+                           Data_Error => Standard.True);
 
    -------------------------
    -- String Input-Output --
@@ -496,14 +504,16 @@ is
    procedure Get (File : File_Type; Item : out String) with
      Pre               => Is_Open (File) and then Mode (File) = In_File,
      Global            => (In_Out => File_System),
-     Exceptional_Cases => (End_Error => Item'Length'Old > 0);
+     Exceptional_Cases => (End_Error  => Item'Length'Old > 0,
+                           Data_Error => Item'Length'Old > 0);
 
    procedure Get (Item : out String) with
      Post              =>
        Line_Length'Old = Line_Length
        and Page_Length'Old = Page_Length,
      Global            => (In_Out => File_System),
-     Exceptional_Cases => (End_Error => Item'Length'Old > 0);
+     Exceptional_Cases => (End_Error  => Item'Length'Old > 0,
+                           Data_Error => Item'Length'Old > 0);
 
    procedure Put (File : File_Type; Item : String) with
      Pre    => Is_Open (File) and then Mode (File) /= In_File,
@@ -530,7 +540,8 @@ is
         else Last = Item'First - 1)
        and (for all I in Item'First .. Last => Item (I)'Initialized),
      Global                 => (In_Out => File_System),
-     Exceptional_Cases      => (End_Error => Item'Length'Old > 0);
+     Exceptional_Cases      => (End_Error  => Item'Length'Old > 0,
+                                Data_Error => Item'Length'Old > 0);
 
    procedure Get_Line
      (Item : out String;
@@ -544,7 +555,8 @@ is
             else Last = Item'First - 1)
        and (for all I in Item'First .. Last => Item (I)'Initialized),
      Global                => (In_Out => File_System),
-     Exceptional_Cases     => (End_Error => Item'Length'Old > 0);
+     Exceptional_Cases     => (End_Error  => Item'Length'Old > 0,
+                               Data_Error => Item'Length'Old > 0);
 
    function Get_Line (File : File_Type) return String with SPARK_Mode => Off;
    pragma Ada_05 (Get_Line);
