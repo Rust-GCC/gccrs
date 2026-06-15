@@ -3806,7 +3806,7 @@ replace_vector_const (machine_mode vector_mode, rtx vector_const,
       SET_SRC (set) = replace;
       if (CONST_INT_P (replace))
 	{
-	  dest = gen_rtx_SUBREG (scalar_mode, dest, 0);
+	  dest = gen_lowpart (scalar_mode, dest);
 	  SET_DEST (set) = dest;
 	}
       /* Drop possible dead definitions.  */
