@@ -6535,12 +6535,15 @@ gnat_to_gnu (Node_Id gnat_node)
   if (type_annotate_only && statement_node_p (gnat_node))
     return alloc_stmt_list ();
 
-  /* If we are only annotating types and this node is a subexpression, return
-     a NULL_EXPR, but filter out nodes appearing in the expressions attached
-     to packed array implementation types.  */
+  /* If we are only annotating types and this node is a dynamic expression,
+     return a NULL_EXPR, but filter out nodes appearing in the expressions
+     attached to packed array implementation types.  */
   if (type_annotate_only
       && IN (kind, N_Subexpr)
-      && !(((IN (kind, N_Op) && kind != N_Op_Expon)
+      && kind != N_Expanded_Name
+      && !IN (kind, N_Direct_Name)
+      && !IN (kind, N_Numeric_Or_String_Literal)
+      && !(((IN (kind, N_Op) && !Is_Intrinsic_Subprogram (Entity (gnat_node)))
 	    || kind == N_Type_Conversion)
 	   && Is_Integer_Type (Etype (gnat_node)))
       && !(kind == N_Attribute_Reference
@@ -6548,8 +6551,6 @@ gnat_to_gnu (Node_Id gnat_node)
 	       || Get_Attribute_Id (Attribute_Name (gnat_node)) == Attr_Size)
 	   && Is_Constrained (Etype (Prefix (gnat_node)))
 	   && !Is_Constr_Subt_For_U_Nominal (Etype (Prefix (gnat_node))))
-      && kind != N_Expanded_Name
-      && kind != N_Identifier
       && !Compile_Time_Known_Value (gnat_node))
     return build1 (NULL_EXPR, get_unpadded_type (Etype (gnat_node)),
 		   build_call_raise (CE_Range_Check_Failed, gnat_node,
