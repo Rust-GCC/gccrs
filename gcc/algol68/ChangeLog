@@ -1,3 +1,27 @@
+2026-06-14  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-parser-brackets.cc (INCLUDE_STRING): Define.
+	Do not include <string.
+	* a68-parser-bottom-up.cc (INCLUDE_STRING): Define.
+	Do not include <string>.
+	* a68-moids-diagnostics.cc (INCLUDE_STRING): Define.
+	Do not include <string>.
+	* a68-imports.cc (INCLUDE_STRING): Define.
+	Do not include <string>.
+	* a68-imports-archive.cc (INCLUDE_MAP): Define.
+	(INCLUDE_STRING): Likewise.
+	Do not include <string> nor <map>.
+
+2026-06-14  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-imports.cc (struct encoded_mode): Type of flex.sub_offset
+	shall be uint64_t.
+
+2026-06-14  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-parser-brackets.cc (bracket_check_error): Escape %< and
+	%> in call to printf.
+
 2026-06-13  Jose E. Marchesi  <jemarch@gnu.org>
 
 	* a68-parser-brackets.cc: Include <string>.

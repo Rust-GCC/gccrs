@@ -1,3 +1,38 @@
+2026-06-14  Robert Dubner  <rdubner@symas.com>
+
+	* cobol.dg/group2/COMP-3_to_COMP-3_size_error.cob: New test.
+	* cobol.dg/group2/COMP-3_to_COMP-3_size_error.out: New test.
+	* cobol.dg/group2/COMP-3_to_numeric-display_size_error.cob: New test.
+	* cobol.dg/group2/COMP-3_to_numeric-display_size_error.out: New test.
+	* cobol.dg/group2/Clear_negative_zero_after_truncated_MOVE.cob: New test.
+	* cobol.dg/group2/Clear_negative_zero_after_truncated_MOVE.out: New test.
+	* cobol.dg/group2/numeric-display_to_COMP-3_size_error.cob: New test.
+	* cobol.dg/group2/numeric-display_to_COMP-3_size_error.out: New test.
+
+2026-06-14  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/125782
+	* gfortran.dg/associate_82.f90: New test.
+
+2026-06-14  François-Xavier Coudert  <fxcoudert@gcc.gnu.org>
+
+	* gcc.dg/darwin-minversion-link.c: Account for macOS 27.
+
+2026-06-14  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/30438
+	* gfortran.dg/warn_unused_but_set_variable_3.f90: New test.
+
+2026-06-14  Souradipto Das  <souradiptodas6@gmail.com>
+
+	* gcc.dg/int-bwise-opt-3.c: New test.
+	* gcc.dg/int-bwise-opt-4.c: New test.
+
+2026-06-14  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/125774
+	* gcc.dg/torture/pr125774-1.c: New test.
+
 2026-06-13  Jose E. Marchesi  <jemarch@gnu.org>
 
 	* algol68/execute/modules/program-1.a68: Fix test.

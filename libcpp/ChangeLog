@@ -1,3 +1,11 @@
+2026-06-14  Ben Boeckel  <ben.boeckel@kitware.com>
+
+	* init.cc (cpp_finish): Remove unnecessary `struct` keyword.
+
+2026-06-14  Ben Boeckel  <ben.boeckel@kitware.com>
+
+	* mkdeps.cc (fdeps_add_target): Fix indentation.
+
 2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* files.cc (_cpp_stack_translated_file): Fix typos.

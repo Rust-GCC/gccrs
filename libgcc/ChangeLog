@@ -1,3 +1,9 @@
+2026-06-14  Georg-Johann Lay  <avr@gjlay.de>
+
+	* config/avr/asm-defs.h (REGNO): Recognize: x, y, z, X, Y, Z.
+	(PC_SIZE): New define.
+	* config/avr/lib1funcs.S (__mulpsi3, __mulsi3): Use it.
+
 2026-06-12  Ramin Moussavi  <lordrasmus@gmail.com>
 
 	* config.host (microblaze*-linux*): Set md_unwind_header.

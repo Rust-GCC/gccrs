@@ -1,3 +1,19 @@
+2026-06-14  Robert Dubner  <rdubner@symas.com>
+
+	* move.cc (hex_of): Move the routine.
+	(hex_msg): Likewise.
+	(clear_negative_zero): New routine for clearing "negative zero"
+	after certain MOVEs.
+	(mh_numeric_display): Use clear_negative_zero().
+	(mh_packed_to_packed): Check for SIZE-ERROR; use
+	clear_negative_zero().
+	(mh_packed_to_numdisp): New routine.
+	(move_helper): Use mh_packed_to_numdisp().
+	(parser_move): Move the parser_move routine.
+	(parser_move_multi): Likewise.
+	(mh_numdisp_to_packed): Move routine; use clear_negative_zero;
+	* parse.y: Set separate_e for COMP-6 variables.
+
 2026-06-11  Robert Dubner  <rdubner@symas.com>
 
 	* move.cc (mh_packed_to_packed): Moved.

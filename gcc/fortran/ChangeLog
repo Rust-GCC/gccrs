@@ -1,3 +1,18 @@
+2026-06-14  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/125782
+	* trans-stmt.cc (trans_associate_var): Only free the associate
+	name's backend decl for a deferred-length character function
+	result when the result is a POINTER, not when it is
+	ALLOCATABLE, since the latter is already freed by the
+	procedure call's cleanup.
+
+2026-06-14  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/30438
+	* resolve.cc (find_unused_vs_set): Exclude variables from
+	cwarnings if use_assoc, volatile_ or asynchronous are set.
+
 2026-06-12  Tobias Burnus  <tburnus@baylibre.com>
 
 	* openmp.cc (gfc_omp_udm_find, gfc_omp_udr_find): Fix

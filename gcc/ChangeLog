@@ -1,3 +1,34 @@
+2026-06-14  Stafford Horne  <shorne@gmail.com>
+
+	* config/or1k/or1k.md (cbranchsi4): Add clobber clause.
+
+2026-06-14  Stafford Horne  <shorne@gmail.com>
+
+	* config/or1k/or1k.h (SHIFT_COUNT_TRUNCATED): Define.
+	* config/or1k/or1k.md (rotrsi3): Rename reg_or_u6_operand to
+	reg_or_u5_operand.
+	(<shift_op>si3): Ditto.
+	* config/or1k/predicates.md (reg_or_u6_operand): Remove.
+	(reg_or_u5_operand): New predicate.
+
+2026-06-14  François-Xavier Coudert  <fxcoudert@gcc.gnu.org>
+
+	PR target/120645
+	* config/darwin-driver.cc: Account for latest macOS numbering
+	scheme.
+
+2026-06-14  Souradipto Das  <souradiptodas6@gmail.com>
+
+	* match.pd: Add simplification rules for
+	(a == 0) | ((a | b) == 0) -> (a == 0) and
+	(a != 0) & ((a | b) != 0) -> (a != 0).
+
+2026-06-14  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/125774
+	* gimple-range-fold.cc (fold_using_range::relation_fold_and_or): Use
+	relation_swap rather than relation_negate when the operands are exchanged.
+
 2026-06-13  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
 
 	PR tree-optimization/125776
