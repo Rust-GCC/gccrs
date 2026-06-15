@@ -8517,7 +8517,11 @@ driver::global_initializations ()
 
   /* Parsing and gimplification sometimes need quite large stack.
      Increase stack size limits if possible.  */
+#ifdef __SANITIZE_ADDRESS__
+  stack_limit_increase (128 * 1024 * 1024);
+#else
   stack_limit_increase (64 * 1024 * 1024);
+#endif
 
   /* Allocate the argument vector.  */
   alloc_args ();
