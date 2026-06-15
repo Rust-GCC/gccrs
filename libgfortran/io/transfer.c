@@ -2162,7 +2162,7 @@ formatted_transfer_scalar_write (st_parameter_dt *dtp, bt type, void *p, int kin
 	}
 
       if (is_stream_io(dtp))
-	bytes_used = dtp->u.p.current_unit->fbuf->act;
+	bytes_used = dtp->u.p.current_unit->fbuf->pos;
       else
 	bytes_used = dtp->u.p.current_unit->recl
 		    - dtp->u.p.current_unit->bytes_left;
@@ -2420,6 +2420,27 @@ formatted_transfer_scalar_write (st_parameter_dt *dtp, bt type, void *p, int kin
 	  dtp->u.p.skips += f->u.n;
 	  tab_pos = bytes_used + dtp->u.p.skips - 1;
 	  dtp->u.p.pending_spaces = tab_pos - dtp->u.p.max_pos + 1;
+	  if (dtp->u.p.pending_spaces < 0 && dtp->u.p.skips > 0)
+	    {
+	      /* The advance falls within already-written content (e.g. after
+		 a backward tab).  Advance the position without overwriting
+		 the existing characters.  */
+	      gfc_offset new_max;
+	      write_x (dtp, dtp->u.p.skips, 0);
+
+	      /* Adjust the max position depending on the type of write.  */
+	      if (is_stream_io (dtp))
+		new_max = dtp->u.p.current_unit->fbuf->act;
+	      else
+		new_max = dtp->u.p.current_unit->recl
+			  - dtp->u.p.current_unit->bytes_left;
+
+	      dtp->u.p.max_pos = dtp->u.p.max_pos > new_max
+				  ? dtp->u.p.max_pos : new_max;
+
+	      dtp->u.p.skips = dtp->u.p.pending_spaces = 0;
+	      break;
+	    }
 	  dtp->u.p.pending_spaces = dtp->u.p.pending_spaces < 0
 				    ? f->u.n : dtp->u.p.pending_spaces;
 

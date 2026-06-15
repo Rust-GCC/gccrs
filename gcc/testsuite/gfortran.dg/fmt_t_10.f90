@@ -1,7 +1,7 @@
 ! { dg-do run }
 ! PR114618 Format produces incorrect output when contains 1x, ok when uses " " 
 ! aside: Before patch output1 is garbage.
-program pr114618
+program fmt_t_10
    implicit none
    integer, parameter :: wp = kind(0d0)
    real(kind=wp) :: pi  = 3.14159265358979323846264338_wp
@@ -12,4 +12,4 @@ program pr114618
    write (output2, fmt2) 'RADIX', radix(pi)
    if (output1 /= 'RADIX.............. 2') stop 1
    if (output2 /= 'RADIX ............. 2') stop 2
-end program pr114618
+end program fmt_t_10
