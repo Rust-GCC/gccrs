@@ -19,5 +19,5 @@ void bar()
   z = __builtin_fabsf(z);
 }
 
-/* { dg-final { scan-assembler-times "LC0\[,(\]" 1 } } */
-/* { dg-final { scan-assembler-times "LC1\[,(\]" 1 } } */
+/* { dg-final { scan-assembler-times "\[lL\]C0\[,(\]" 1 } } */
+/* { dg-final { scan-assembler-times "\[lL\]C1\[,(\]" 1 } } */
