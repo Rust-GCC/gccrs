@@ -1,3 +1,12 @@
+2026-06-15  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR target/38239
+	* config/sol2/gmon.c [__i386__] (_mcount): Pass selfpc, frompc to
+	internal_mcount.
+	(internal_mcount): Remove already_setup.
+	Remove obsolete comment.
+	(moncontrol): Disable profil(2) deprecation warning.
+
 2026-06-14  Georg-Johann Lay  <avr@gjlay.de>
 
 	* config/avr/asm-defs.h (REGNO): Recognize: x, y, z, X, Y, Z.

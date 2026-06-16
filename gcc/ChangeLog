@@ -1,3 +1,113 @@
+2026-06-15  Roger Sayle  <roger@nextmovesoftware.com>
+
+	* config/i386/i386.cc (ix86_insn_cost): Add a suitable penalty
+	for USE of a MEM in a PARALLEL (for *<absneg>[sd]f2_1 splitter).
+
+2026-06-15  Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	PR target/125795
+	* config/aarch64/aarch64-early-ra.cc (early_ra::allocate_colors):
+	Compute the allocated-FPR mask as
+	((1ULL << color->group->size) - 1) << best.
+
+2026-06-15  Kael Andrew Franco  <kaelfandrew@gmail.com>
+
+	PR tree-optimization/125737
+	PR tree-optimization/125737
+	* match.pd: Use tree_expr_nonnegative_p for X % Y < Y to true.
+
+2026-06-15  Kael Andrew Franco  <kaelfandrew@gmail.com>
+
+	PR tree-optimization/125756
+	* match.pd: Use tree_expr_nonnegative_p for X < (typeof X)(X != 0) to false.
+
+2026-06-15  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* tree-ssa-phiopt.cc (factor_out_all): New function.
+	(pass_phiopt::execute): Call factor_out_all isntead
+	of factor_out_conditional_operation and
+	cond_if_else_store_replacement_limited.
+
+2026-06-15  Konstantinos Eleftheriou  <konstantinos.eleftheriou@vrull.eu>
+
+	PR rtl-optimization/123754
+	* expmed.cc (store_integral_bit_field): When the SUBREG
+	narrowing fails, defer to store_split_bit_field instead of
+	asserting.
+
+2026-06-15  Jim Tsung-Chun Lin  <jim@andestech.com>
+
+	* common/config/riscv/riscv-common.cc (riscv_select_multilib):
+	Don't set riscv_no_matched_multi_lib here; let the caller own
+	the flag.
+	(riscv_compute_multilib): Drop the early return that accepted
+	the generic-matched multilib_dir; always run the smart matcher
+	and set riscv_no_matched_multi_lib when it finds no candidate.
+
+2026-06-15  Filip Kastl  <fkastl@suse.cz>
+
+	PR sanitizer/124206
+	* gcc.cc (driver::global_initializations): Ask for 128MB stack
+	instead of just 64MB when __SANITIZE_ADDRESS__ is defined.
+	* toplev.cc (toplev::main): Ditto.
+
+2026-06-15  Richard Biener  <rguenther@suse.de>
+
+	* tree-ssa-reassoc.cc (ovce_extract_ops): Fixup
+	false value matching for the inverted comparison case.
+
+2026-06-15  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125786
+	* tree-ssa-reassoc.cc (optimize_vec_cond_expr): Create a new
+	stmt instead of rewriting an existing possibly multi-use one.
+
+2026-06-15  Georg-Johann Lay  <avr@gjlay.de>
+
+	* config/avr/avr-protos.h (avr_out_delay_loop): New proto.
+	* config/avr/avr.cc (avr_out_delay_loop): New function.
+	(avr_adjust_insn_length) [ADJUST_LEN_DELAY_LOOP]: Handle case.
+	(avr_expand_delay_cycles): Overhaul.  Allow loop counts of
+	zero; they represent a power of 2.
+	* config/avr/avr.md (adjust_len) [delay_loop]: Add.
+	(*delay_cycles_1): Use avr_out_delay_loop for asm out.
+	(*delay_cycles_4): Same.
+	(*delay_cycles_3): Same.
+	(*delay_cycles_2): Same.  Relax constraints to "d".
+	Use two QImode scratch regs instead of one HImode one.
+
+2026-06-15  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/125790
+	* match.pd (`(~x)>>x`): Reject truncation of shifter.
+
+2026-06-15  Monk Chiang  <62004175+monkchiang@users.noreply.github.com>
+
+	* config/riscv/riscv-zicfilp.cc (rest_of_insert_landing_pad):
+	Remove gen_lpad_align before non-local goto labels; LABEL_ALIGN
+	now handles their alignment.  Simplify gpr_save handling: the
+	pattern now outputs the full CFI sequence itself.
+	* config/riscv/riscv.cc (riscv_output_mi_thunk): Add
+	gen_lpad_align before entry lpad.
+	* config/riscv/riscv.h (LABEL_ALIGN): New macro; ensures 4-byte
+	alignment for Zicfilp non-local goto target labels.
+	* config/riscv/riscv.md (gpr_save): When is_zicfilp_p, output
+	.p2align 2, .option push/norelax/norvc, call, .option pop, lpad 0.
+
+2026-06-15  Monk Chiang  <monk.chiang@sifive.com>
+
+	* config/riscv/riscv-protos.h (riscv_call_needs_lpad_p): Declare.
+	* config/riscv/riscv.cc (riscv_gnu_attributes): Register new
+	indirect_return attribute for function declarations.
+	(riscv_call_needs_lpad_p): New function.
+	* config/riscv/riscv.md (call_internal_cfi): New insn pattern with
+	length attribute.
+	(call_value_internal_cfi): Likewise for call-with-return-value,
+	with comment and length attribute.
+	(define_expand "call"): Emit call_internal_cfi when
+	riscv_call_needs_lpad_p returns true.
+	(define_expand "call_value"): Likewise.
+
 2026-06-14  Stafford Horne  <shorne@gmail.com>
 
 	* config/or1k/or1k.md (cbranchsi4): Add clobber clause.

@@ -1,3 +1,20 @@
+2026-06-15  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-parser-taxes.cc (attr_descr): New function.
+	(already_declared): Use attr_descr for diagnostic.
+	(already_declared_hidden): Likewise.
+
+2026-06-15  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-imports.cc (INCLUDE_VECTOR): Define.
+	(a68_open_packet): Deduplicate within-moif modes while importing.
+
+2026-06-15  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-parser-extract.cc (a68_extract_indicants): Set PUBLICIZED in
+	the new tags for mode indicants.
+	* a68-parser.cc (a68_new_tag): Initialize PUBLICIZED to false.
+
 2026-06-14  Jose E. Marchesi  <jemarch@gnu.org>
 
 	* a68-parser-brackets.cc (INCLUDE_STRING): Define.

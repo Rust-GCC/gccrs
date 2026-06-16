@@ -1,3 +1,85 @@
+2026-06-15  Roger Sayle  <roger@nextmovesoftware.com>
+
+	* gcc.target/i386/fabsneg-2.c: New test case.
+
+2026-06-15  Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	PR target/125795
+	* gcc.target/aarch64/pr125795.c: New test.
+
+2026-06-15  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* algol68/execute/modules/module26.a68: New file.
+	* algol68/execute/modules/program-26.a68: New test.
+
+2026-06-15  Kael Andrew Franco  <kaelfandrew@gmail.com>
+
+	PR tree-optimization/125737
+	PR tree-optimization/125737
+	* gcc.dg/pr125737.c: New test.
+
+2026-06-15  Kael Andrew Franco  <kaelfandrew@gmail.com>
+
+	PR tree-optimization/125756
+	* gcc.dg/pr125756.c: New test.
+
+2026-06-15  Konstantinos Eleftheriou  <konstantinos.eleftheriou@vrull.eu>
+
+	PR rtl-optimization/123754
+	* gcc.target/aarch64/pr123754.c: New test.
+	* gcc.target/aarch64/avoid-store-forwarding-be-2.c: New test.
+
+2026-06-15  Pan Li  <pan2.li@intel.com>
+
+	* gcc.target/riscv/sat/sat_arith.h: Add test helper macros.
+	* gcc.target/riscv/sat/sat_u_mul-13-u16.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-13-u32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-13-u64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-13-u8.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-13-u16.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-13-u32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-13-u64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-13-u8.c: New test.
+
+2026-06-15  Jim Tsung-Chun Lin  <jim@andestech.com>
+
+	* gcc.target/riscv/multilib.exp: New test.
+
+2026-06-15  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* gcc.dg/lto/toplevel-extended-asm-1_0.c: Skip on 64-bit
+	Solaris/SPARC.
+	* gcc.dg/lto/toplevel-simple-asm-1_0.c: Likewise.
+
+2026-06-15  Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	PR tree-optimization/125750
+	* g++.dg/tree-ssa/mult-negate-zeroone-1.C: Fix escaping.
+
+2026-06-15  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125786
+	* gcc.dg/torture/pr125786.c: New testcase.
+
+2026-06-15  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/125790
+	* gcc.dg/pr125707.c: Move the long over to pr125707-1.c.
+	* gcc.dg/pr125707-1.c: New test; xfailed.
+	* gcc.dg/pr125790-1.c: New test.
+
+2026-06-15  Monk Chiang  <62004175+monkchiang@users.noreply.github.com>
+
+	* g++.target/riscv/zicfilp-thunk.C: New test.
+	* gcc.target/riscv/zicfilp-func-entry.c: New test.
+	* gcc.target/riscv/zicfilp-gpr-save.c: New test.
+	* gcc.target/riscv/zicfilp-nonlocal-goto.c: New test.
+
+2026-06-15  Monk Chiang  <monk.chiang@sifive.com>
+
+	* gcc.target/riscv/zicfilp-indirect-return.c: New test.
+	* gcc.target/riscv/zicfilp-setjmp.c: New test.
+
 2026-06-14  Robert Dubner  <rdubner@symas.com>
 
 	* cobol.dg/group2/COMP-3_to_COMP-3_size_error.cob: New test.

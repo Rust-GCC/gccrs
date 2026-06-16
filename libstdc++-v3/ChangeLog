@@ -1,3 +1,9 @@
+2026-06-15  Gerald Pfeifer  <gerald@pfeifer.com>
+
+	* doc/xml/manual/using_exceptions.xml: Switch link to
+	www.opengroup.org to https.
+	* doc/html/manual/using_exceptions.html: Regenerate.
+
 2026-06-13  Tomasz Kamiński  <tkaminsk@redhat.com>
 
 	* include/bits/version.def (constant_wrapper): Bump to 202606L.
