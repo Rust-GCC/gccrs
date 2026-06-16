@@ -82,6 +82,11 @@ if { [getenv GFORTRAN_NUM_IMAGES] == "" } {
   setenv GFORTRAN_NUM_IMAGES 8
 }
 
+if { [getenv GCC_TEST_RUN_EXPENSIVE] == "" } {
+  # Lower caf_shmem shared memory block size to avoid excessive VM consumption.
+  setenv GFORTRAN_SHARED_MEMORY_SIZE 2M
+}
+
 # Main loop.
 foreach test [lsort [glob -nocomplain $srcdir/$subdir/*.\[fF\]{,90,95,03,08} ]] {
     # If we're only testing specific files and this isn't one of them, skip it.
