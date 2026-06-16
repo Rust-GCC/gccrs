@@ -18013,6 +18013,7 @@ package body Sem_Ch13 is
             while Present (It.Typ) loop
                if Is_Finalizable_Primitive (It.Nam) then
                   Set_Entity (N, It.Nam);
+                  Set_Is_Overloaded (N, False);
                   return True;
                end if;
 

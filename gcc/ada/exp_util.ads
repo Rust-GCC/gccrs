@@ -672,7 +672,13 @@ package Exp_Util is
    --  although they are not master constructs in the language.
 
    function Find_Optional_Prim_Op
-     (T : Entity_Id; Name : Name_Id) return Entity_Id;
+     (T             : Entity_Id;
+      Name          : Name_Id;
+      Controlled_Op : Boolean := False) return Entity_Id;
+   --  Same as Find_Prim_Op but, if Controlled_Op is True, returns a primitive
+   --  only if it has the signature of the three primitives of controlled types
+   --  Initialize/Adjust/Finalize, and returns Empty if not found.
+
    function Find_Optional_Prim_Op
      (T    : Entity_Id;
       Name : TSS_Name_Type) return Entity_Id;

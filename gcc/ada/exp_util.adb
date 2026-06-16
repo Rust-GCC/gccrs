@@ -6393,7 +6393,7 @@ package body Exp_Util is
          return Empty;
       end if;
 
-      return Find_Optional_Prim_Op (T, Op_Name);
+      return Find_Optional_Prim_Op (T, Op_Name, Controlled_Op => True);
    end Find_Controlled_Prim_Op;
 
    ------------------------
@@ -7047,11 +7047,13 @@ package body Exp_Util is
    ---------------------------
 
    function Find_Optional_Prim_Op
-     (T : Entity_Id; Name : Name_Id) return Entity_Id
+     (T             : Entity_Id;
+      Name          : Name_Id;
+      Controlled_Op : Boolean := False) return Entity_Id
    is
+      Op   : Entity_Id;
       Prim : Elmt_Id;
       Typ  : Entity_Id := T;
-      Op   : Entity_Id;
 
    begin
       if Is_Class_Wide_Type (Typ) then
@@ -7073,14 +7075,23 @@ package body Exp_Util is
          Op := Node (Prim);
 
          --  We can retrieve primitive operations by name if it is an internal
-         --  name. For equality we must check that both of its operands have
-         --  the same type, to avoid confusion with user-defined equalities
-         --  than may have a asymmetric signature.
+         --  name. For equality, we must check that both of its operands have
+         --  the same type, to avoid confusion with user-defined equalities,
+         --  which may have an asymmetric signature. For controlled operations,
+         --  we check that the primitive is a procedure with a single In Out
+         --  parameter of a non-access type.
 
          exit when Chars (Op) = Name
            and then
              (Name /= Name_Op_Eq
-               or else Etype (First_Formal (Op)) = Etype (Last_Formal (Op)));
+               or else Etype (First_Formal (Op)) = Etype (Last_Formal (Op)))
+           and then
+             (not Controlled_Op
+               or else
+                 (Ekind (Op) = E_Procedure
+                   and then Ekind (First_Formal (Op)) = E_In_Out_Parameter
+                   and then not Is_Access_Type (Etype (First_Formal (Op)))
+                   and then No (Next_Formal (First_Formal (Op)))));
 
          Next_Elmt (Prim);
       end loop;
