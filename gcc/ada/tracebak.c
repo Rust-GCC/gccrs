@@ -655,6 +655,10 @@ trace_callback (struct _Unwind_Context * uw_context, uw_data_t * uw_data)
   pc = (char *) _Unwind_GetIP (uw_context);
 #endif
 
+  /* Common case of top-of-call-chain reached.  */
+  if (pc == (char *)0)
+    return _URC_NORMAL_STOP;
+
   if (uw_data->n_frames_skipped < uw_data->n_frames_to_skip)
     {
       uw_data->n_frames_skipped ++;
