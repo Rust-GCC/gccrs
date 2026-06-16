@@ -85,7 +85,7 @@ CompileBlock::visit (HIR::BlockExpr &expr)
 					 expr.get_locus ());
       ctx->add_statement (assignment);
     }
-  CompileDrop::emit_current_scope_drop_calls (ctx);
+  CompileDrop (ctx).emit_current_scope_drop_calls ();
 
   ctx->pop_block ();
   translated = new_block;
