@@ -1101,26 +1101,8 @@ numeric_alpha_compare(tree        &left,
 
     // The type of the variable should be straightforward.  It is not.  There
     // are various considerations in determining the type.
-    tree type;
-    size_t digits = left_side.field->data.digits;
     tree value;
-    if( digits == 0 )
-      {
-      // This is a pure binary type.
-      type = tree_type_from_size(left_side.field->data.capacity(),
-                                 left_side.field->attr & signable_e);
-      }
-    else
-      {
-      // There is some specified number of digits in the variable:
-      // But if the variable is scaled, we have to multiply by 10^N, where
-      // N is the number of zeroed P digits:
-      if( left_side.field->data.rdigits < 0 )
-        {
-        digits += -left_side.field->data.rdigits;
-        }
-      type = tree_type_from_digits(digits, left_side.field->attr&signable_e);
-      }
+    tree type = tree_type_from_refer(left_side);
 
     // We have what we need to get the value:
     get_binary_value(value, left_side, type);
@@ -1197,7 +1179,7 @@ numeric_alpha_compare(tree        &left,
                 "__gg__compare_numeric_all",
                 gg_get_address_of(left),
                 gg_cast(UINT128, value),
-                build_int_cst_type(SIZE_T, digits),
+                build_int_cst_type(SIZE_T, left_side.field->data.digits),
                 build_string_literal(nbytes, converted),
                 build_int_cst_type(SIZE_T, nbytes),
                 build_int_cst_type(INT, left_side.field->codeset.encoding),
@@ -1214,7 +1196,7 @@ numeric_alpha_compare(tree        &left,
                 "__gg__compare_binary_to_string",
                 gg_get_address_of(left),
                 gg_cast(UINT128, value),
-                build_int_cst_type(SIZE_T, digits),
+                build_int_cst_type(SIZE_T, left_side.field->data.digits),
                 location_right,
                 length_right,
                 build_int_cst_type(INT, right_side.field->codeset.encoding),

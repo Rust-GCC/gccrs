@@ -410,6 +410,10 @@ idirafter
 Cobol Joined Separate
 ; Documented in c.opt
 
+imultilib
+Cobol Joined Separate
+; Documented in c.opt
+
 main
 Cobol
 -main	The first program-id in the next source file is called by a generated main() entry point.

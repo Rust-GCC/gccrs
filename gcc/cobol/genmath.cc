@@ -357,12 +357,9 @@ all_refers_integer(size_t nC, const cbl_refer_t *C)
   }
 
 static tree
-largest_binary_term(size_t nA, cbl_refer_t *A)
+largest_binary_term(size_t nA, const cbl_refer_t *A)
   {
   tree retval = NULL_TREE;
-  uint32_t max_capacity = 0;
-  int      is_negative  = 0;
-
   for(size_t i=0; i<nA; i++)
     {
     if( !is_pure_integer(A[i].field) || A[i].field->type == FldFloat )
@@ -381,9 +378,7 @@ largest_binary_term(size_t nA, cbl_refer_t *A)
         )
       {
       // This is an integer type that can be worked with quickly
-      is_negative |= ( A[i].field->attr & signable_e );
-      max_capacity = std::max(max_capacity, A[i].field->data.capacity());
-      retval = tree_type_from_size(max_capacity, is_negative);
+      retval = tree_type_from_refer(A[i]);
       }
     else
       {
@@ -418,8 +413,7 @@ fast_add( size_t nC, cbl_num_result_t *C,
     tree term_type = largest_binary_term(nA, A);
     if( term_type )
       {
-      tree dest_type = tree_type_from_size(C[0].refer.field->data.capacity(),
-                                           0);
+      tree dest_type = tree_type_from_refer(C[0].refer);
       // All the numbers are integers without rdigits
       if(    nC == 1
           && nA == 1
@@ -637,9 +631,7 @@ fast_subtract(size_t nC, cbl_num_result_t *C,
           )
         {
         // This is the simplest case of all.  Just subtract A from C.
-        tree dest_type = tree_type_from_size(
-                                          C[0].refer.field->data.capacity(),
-                                          0);
+        tree dest_type = tree_type_from_refer(C[0].refer);
         tree A_value;
         if( refer_is_clean(A[0]) )
           {
@@ -743,7 +735,7 @@ fast_subtract(size_t nC, cbl_num_result_t *C,
         // We now either accumulate into C[n] or assign to C[n]:
         for(size_t i=0; i<nC; i++ )
           {
-          tree dest_type = tree_type_from_size(C[i].refer.field->data.capacity(), 0);
+          tree dest_type = tree_type_from_refer(C[i].refer);
           tree dest_addr = gg_add(member(C[i].refer.field->var_decl_node, "data"),
                                   refer_offset(C[i].refer));
           tree ptr = gg_cast(build_pointer_type(dest_type), dest_addr);
@@ -816,7 +808,7 @@ fast_multiply(size_t nC, cbl_num_result_t *C,
       // We now either multiply into C[n] or assign A * B to C[n]:
       for(size_t i=0; i<nC; i++ )
         {
-        tree dest_type = tree_type_from_size(C[i].refer.field->data.capacity(), 0);
+        tree dest_type = tree_type_from_refer(C[i].refer);
         tree dest_addr = gg_add(member(C[i].refer.field->var_decl_node, "data"),
                                 refer_offset(C[i].refer));
         tree ptr = gg_cast(build_pointer_type(dest_type), dest_addr);
@@ -895,8 +887,7 @@ fast_divide(size_t nC, cbl_num_result_t *C,
       // We now either divide into C[n] or assign dividend/divisor to C[n]:
       for(size_t i=0; i<nC; i++ )
         {
-        tree dest_type =
-                       tree_type_from_size(C[i].refer.field->data.capacity(), 0);
+        tree dest_type = tree_type_from_refer(C[i].refer);
         tree dest_addr = gg_add(member( C[i].refer.field->var_decl_node,
                                         "data"),
                                 refer_offset(C[i].refer));
@@ -923,7 +914,7 @@ fast_divide(size_t nC, cbl_num_result_t *C,
           {
           dest_addr = gg_add( member(remainder.field->var_decl_node, "data"),
                               refer_offset(remainder));
-          dest_type = tree_type_from_size(remainder.field->data.capacity(), 0);
+          dest_type = tree_type_from_refer(remainder);
           ptr = gg_cast(build_pointer_type(dest_type), dest_addr);
 
           gg_assign(gg_indirect(ptr),
@@ -2329,7 +2320,7 @@ parser_divide(  size_t nC, cbl_num_result_t *C,  // C = A / B
                                           nB, B,
                                           remainder) )
     {
-
+    // We were able to do a fast divide operation.
     }
   else
     {

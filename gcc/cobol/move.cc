@@ -92,33 +92,6 @@ is_figconst(const cbl_refer_t &sourceref)
   return is_figconst_t(sourceref.field);
   }
 
-static int
-digits_to_bytes(int digits)
-  {
-  int retval;
-  if( digits <= 2 )
-    {
-    retval = 1;
-    }
-  else if( digits <= 4 )
-    {
-    retval = 2;
-    }
-  else if( digits <= 9 )
-    {
-    retval = 4;
-    }
-  else if( digits <= 18 )
-    {
-    retval = 8;
-    }
-  else
-    {
-    retval = 16;
-    }
-  return retval;
-  }
-
 static tree
 get_reference_to_data(cbl_field_t *field)
   {
@@ -259,90 +232,8 @@ get_literalN_value(cbl_field_t *var)
   {
   // Get the literal N value from the integer var_decl
   tree retval = NULL_TREE;
-  tree var_type = tree_type_from_size(var->data.capacity(),
-                                      var->attr & signable_e);
+  tree var_type = tree_type_from_field(var);
   retval = gg_cast(var_type, var->data_decl_node);
-  return retval;
-  }
-
-static size_t
-get_bytes_needed(cbl_field_t *field)
-  {
-  size_t retval = 0;
-  switch(field->type)
-    {
-    case FldIndex:
-    case FldPointer:
-    case FldFloat:
-    case FldLiteralN:
-      retval = field->data.capacity();
-      break;
-
-    case FldNumericDisplay:
-      {
-      int digits;
-      if( field->attr & scaled_e && field->data.rdigits<0)
-        {
-        digits = field->data.digits + -field->data.rdigits;
-        }
-      else
-        {
-        digits = field->data.digits;
-        }
-      retval = digits_to_bytes(digits);
-      break;
-      }
-
-    case FldPacked:
-      {
-      int digits;
-      if( field->attr & scaled_e && field->data.rdigits<0)
-        {
-        digits = field->data.digits + -field->data.rdigits;
-        }
-      else
-        {
-        digits = field->data.digits;
-        }
-      if( !(field->attr & separate_e) )
-        {
-        // This is COMP-3, so there is a sign nybble.
-        digits += 1;
-        }
-      retval = (digits+1)/2;
-      break;
-      }
-
-    case FldNumericBinary:
-    case FldNumericBin5:
-      {
-      if( field->data.digits )
-        {
-        int digits;
-        if( field->attr & scaled_e && field->data.rdigits<0)
-          {
-          digits = field->data.digits + -field->data.rdigits;
-          }
-        else
-          {
-          digits = field->data.digits;
-          }
-        retval = digits_to_bytes(digits);
-        }
-      else
-        {
-        retval = field->data.capacity();
-        }
-      break;
-      }
-
-    default:
-      cbl_internal_error("%s: Knows not the variable type %s for %s",
-              __func__,
-              cbl_field_type_str(field->type),
-              field->name );
-      break;
-    }
   return retval;
   }
 
@@ -517,7 +408,7 @@ mh_source_is_literalN(cbl_refer_t &destref,
           // There are too few bytes in sourceref
           if( sourceref.field->attr & signable_e )
             {
-            static tree highbyte = gg_define_variable(UCHAR, "..mh_litN_highbyte", vs_file_static);
+            tree highbyte = gg_define_variable(UCHAR);
             // Pick up the source byte that has the sign bit.
             gg_assign(highbyte,
                       gg_get_indirect_reference(gg_add(member(sourceref.field->var_decl_node,
@@ -576,48 +467,47 @@ mh_source_is_literalN(cbl_refer_t &destref,
 
         // For now, we are ignoring intermediates:
         assert( !(destref.field->attr & intermediate_e) );
-
-        int bytes_needed = std::max(destref.field->data.capacity(),
-                                    sourceref.field->data.capacity());
-        tree calc_type = tree_type_from_size(bytes_needed,
-                                            sourceref.field->attr & signable_e);
-        tree dest_type = tree_type_from_size( destref.field->data.capacity(),
-                                              destref.field->attr & signable_e);
+        tree calc_type = tree_type_from_refer(sourceref);
+        tree dest_type = tree_type_from_refer(destref);
 
         // Pick up the source data.
         tree source = gg_define_variable(calc_type);
+        tree dest   = gg_define_variable(dest_type);
         gg_assign(source, gg_cast(calc_type, sourceref.field->data_decl_node));
 
         // Take the absolute value, if the destination is not signable
         conditional_abs(source, destref.field);
 
+        // Cast our source to the target:
+        gg_assign(dest, gg_cast(dest_type, source));
+
         // See if it needs to be scaled:
         scale_by_power_of_ten_N(
-                     source,
-                     destref.field->data.rdigits-sourceref.field->data.rdigits);
+                    dest,
+                    destref.field->data.rdigits-sourceref.field->data.rdigits);
 
         if( check_for_error && size_error )
           {
           Analyzer.Message("Check to see if result fits");
           if( destref.field->data.digits )
             {
-            FIXED_WIDE_INT(128) power_of_ten = get_power_of_ten(destref.field->data.digits);
-            IF( gg_abs(source), ge_op, wide_int_to_tree(calc_type,
-                                                        power_of_ten) )
+            FIXED_WIDE_INT(128) power_of_ten =
+                                 get_power_of_ten(destref.field->data.digits);
+            IF( dest, ge_op, wide_int_to_tree(calc_type, power_of_ten) )
               {
-              gg_assign(size_error, gg_bitwise_or(size_error, integer_one_node));
+              gg_assign(size_error,
+                        gg_bitwise_or(size_error, integer_one_node));
               }
             ELSE
               ENDIF
             }
           }
 
-        Analyzer.Message("Move to destination location");
-        tree dest_location = gg_indirect(
-                    gg_cast(build_pointer_type(dest_type),
-                            gg_add(member(destref.field->var_decl_node, "data"),
-                                   refer_offset(destref))));
-        gg_assign(dest_location, gg_cast(dest_type, source));
+        tree dest_location;
+        get_location(dest_location, destref);
+        gg_memcpy(dest_location,
+                  gg_get_address_of(dest),
+                  build_int_cst_type(SIZE_T, gg_sizeof(dest)));
         moved = true;
         break;
         }
@@ -627,7 +517,7 @@ mh_source_is_literalN(cbl_refer_t &destref,
       case FldNumericEdited:
       case FldPacked:
         {
-        static tree berror = gg_define_variable(INT, "..mh_litN_berror", vs_file_static);
+        tree berror = gg_define_variable(INT);
         gg_assign(berror, integer_zero_node);
         SHOW_PARSE1
           {
@@ -1175,27 +1065,15 @@ mh_numeric_display( const cbl_refer_t &destref,
     charmap_t *charmap_dest   =
                        __gg__get_charmap(  destref.field->codeset.encoding);
 
-    static tree source_sign_loc  = gg_define_variable(UCHAR_P,
-                                                      "..mhnd_sign_loc",
-                                                      vs_file_static);
-    static tree dest_sign_loc = gg_define_variable(UCHAR_P,
-                                                      "..mhnd_dest_sign_loc",
-                                                      vs_file_static);
-    static tree source_sign      = gg_define_variable(INT,
-                                                      "..mhnd_sign",
-                                                      vs_file_static);
+    tree source_sign_loc  = gg_define_variable(UCHAR_P);
+    tree dest_sign_loc = gg_define_variable(UCHAR_P);
+    tree source_sign      = gg_define_variable(INT);
     // The destination data pointer
-    static tree dest_p    = gg_define_variable( UCHAR_P,
-                                                "..mhnd_dest",
-                                                vs_file_static);
+    tree dest_p    = gg_define_variable( UCHAR_P);
     // The source data pointer
-    static tree source_p  = gg_define_variable( UCHAR_P,
-                                                "..mhnd_source",
-                                                vs_file_static);
+    tree source_p  = gg_define_variable( UCHAR_P);
     // When we need an end pointer
-    static tree source_ep = gg_define_variable( UCHAR_P,
-                                                "..mhnd_source_e",
-                                                vs_file_static);
+    tree source_ep = gg_define_variable(UCHAR_P);
 
     bool source_is_signable = sourceref.field->attr & signable_e;
     bool source_is_leading  = sourceref.field->attr & leading_e;
@@ -1537,7 +1415,6 @@ mh_little_endian( const cbl_refer_t &destref,
 
   if(     !figconst
       &&  !(destref.field->attr    & scaled_e)
-      &&  !(destref.field->attr    & (intermediate_e  ))
       &&  !(sourceref.field->attr  & (intermediate_e  ))
       &&  sourceref.field->type     != FldGroup
       &&  sourceref.field->type     != FldLiteralA
@@ -1556,14 +1433,22 @@ mh_little_endian( const cbl_refer_t &destref,
       SHOW_PARSE_END
       }
 
-    int bytes_needed = get_bytes_needed(sourceref.field);
-    tree source_type = tree_type_from_size(bytes_needed,
-                                           sourceref.field->attr
-                                                                & signable_e) ;
-    tree source = gg_define_variable(source_type);
-
     if( sourceref.field->type == FldFloat )
       {
+      tree source = NULL_TREE;
+      switch( sourceref.field->data.capacity() )
+        {
+        case 4:
+          source = gg_define_variable(SHORT);
+          break;
+        case 8:
+          source = gg_define_variable(LONG);
+          break;
+        case 16:
+          source = gg_define_variable(INT128);
+          break;
+        }
+
       get_binary_value_from_float(source,
                                   destref,
                                   sourceref.field,
@@ -1581,6 +1466,8 @@ mh_little_endian( const cbl_refer_t &destref,
       }
     else
       {
+      tree source_type = tree_type_from_refer(sourceref);
+      tree source = gg_define_variable(source_type);
       get_binary_value( source,
                         NULL,
                         sourceref.field,
@@ -2142,18 +2029,14 @@ mh_numdisp_to_packed(const cbl_refer_t &destref,
   tree umask = build_int_cst_type(UCHAR, 0x0F);
   tree ufour = build_int_cst_type(SIZE_T,   4);
 
-  tree source_location = gg_define_variable(UCHAR_P);
-  tree dest_location   = gg_define_variable(UCHAR_P);
+  tree source_location;
+  tree dest_location;
   tree dest_p          = gg_define_variable(UCHAR_P);
   tree source_p        = gg_define_variable(UCHAR_P);
 
-  tree temp;
-
-  get_location(temp, destref);
-  gg_assign(dest_location, temp);
+  get_location(dest_location, destref);
   gg_assign(dest_p, dest_location);
-  get_location(temp, sourceref);
-  gg_assign(source_location, temp);
+  get_location(source_location, sourceref);
 
   int source_digits   = sourceref.field->data.digits;
   int source_rdigits  = sourceref.field->data.rdigits;
@@ -2453,17 +2336,13 @@ mh_packed_to_packed(const cbl_refer_t &destref,
   // in the dest.  We fiddle with the leading digits, the trailing digits, and
   // the sign nybble as necessary.
 
-  tree source_location = gg_define_variable(UCHAR_P);
-  tree dest_location   = gg_define_variable(UCHAR_P);
+  tree source_location;
+  tree dest_location;
   tree source_sign     = gg_define_variable(UCHAR_P);
   tree dest_sign       = gg_define_variable(UCHAR_P);
-  tree temp;
 
-  get_location(temp, destref);
-  gg_assign(dest_location, temp);
-
-  get_location(temp, sourceref);
-  gg_assign(source_location, temp);
+  get_location(dest_location, destref);
+  get_location(source_location, sourceref);
 
   if( check_for_error )
     {
@@ -2799,17 +2678,14 @@ mh_packed_to_numdisp(const cbl_refer_t &destref,
   tree ufour = build_int_cst_type(SIZE_T,   4);
   tree uzero = build_int_cst_type(UCHAR,
                                   charmap->mapped_character(ascii_zero));
-  tree source_location = gg_define_variable(UCHAR_P);
-  tree dest_location   = gg_define_variable(UCHAR_P);
+  tree source_location;
+  tree dest_location;
   tree dest_p          = gg_define_variable(UCHAR_P);
   tree source_p        = gg_define_variable(UCHAR_P);
 
-  tree temp;
-  get_location(temp, destref);
-  gg_assign(dest_location, temp);
+  get_location(dest_location, destref);
   gg_assign(dest_p, dest_location);
-  get_location(temp, sourceref);
-  gg_assign(source_location, temp);
+  get_location(source_location, sourceref);
 
   // source_digits will be the number of digits extracted from the source that
   // find their way into the destination.
@@ -3037,7 +2913,7 @@ move_helper(tree size_error,        // This is an INT
     gg_assign(size_error, integer_zero_node);
     }
 
-  static tree stash = gg_define_variable(UCHAR_P, "..mh_stash", vs_file_static);
+  static tree stash = gg_define_variable(UCHAR_P);
 
   tree st_data = NULL_TREE;
   tree st_size = NULL_TREE;

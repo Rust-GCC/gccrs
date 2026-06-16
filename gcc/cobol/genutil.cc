@@ -175,60 +175,6 @@ get_scaled_digits(cbl_field_t *field)
   return retval;
   }
 
-tree
-tree_type_from_digits(size_t digits, uint64_t signable)
-  {
-  tree retval = NULL_TREE;
-
-  if( signable )
-    {
-    if(digits <= 2 )
-      {
-      retval = CHAR;
-      }
-    else if (digits <= 4 )
-      {
-      retval = SHORT;
-      }
-    else if (digits <= 9 )
-      {
-      retval = INT;
-      }
-    else if (digits <= 18 )
-      {
-      retval = LONGLONG;
-      }
-    else
-      {
-      retval = INT128;
-      }
-    }
-  else
-    {
-    if(digits <= 2 )
-      {
-      retval = UCHAR;
-      }
-    else if (digits <= 4 )
-      {
-      retval = USHORT;
-      }
-    else if (digits <= 9 )
-      {
-      retval = UINT;
-      }
-    else if (digits <= 18 )
-      {
-      retval = ULONGLONG;
-      }
-    else
-      {
-      retval = UINT128;
-      }
-    }
-  return retval;
-  }
-
 void
 get_integer_value(tree value, // We know this is a LONG
                   cbl_field_t *field,
@@ -249,8 +195,8 @@ get_integer_value(tree value, // We know this is a LONG
   // If the field_i has rdigits, and if any of those rdigits are non-zero, we
   // return a 1 so that our caller can decide what to do.
 
-  static tree temp    = gg_define_variable(INT128, "..giv_temp",    vs_file_static);
-  static tree rdigits = gg_define_variable(INT,    "..giv_rdigits", vs_file_static);
+  tree temp    = gg_define_variable(INT128);
+  tree rdigits = gg_define_variable(INT);
 
   if( field->attr & intermediate_e )
     {
@@ -780,9 +726,7 @@ get_data_offset(const cbl_refer_t &refer, int *pflags = NULL)
         {
         if( parent->occurs.depending_on )
           {
-          static tree value64 = gg_define_variable( LONG,
-                                                    ".._gdos_value64",
-                                                    vs_file_static);
+          tree value64 = gg_define_variable(LONG);
           cbl_field_t *odo = symbol_find_odo(parent);
           get_depending_on_value_from_odo(value64, odo);
           }
@@ -804,8 +748,8 @@ get_data_offset(const cbl_refer_t &refer, int *pflags = NULL)
     {
     REFER("refmod refstart");
     // We have a refmod to deal with
-    static tree refstart = gg_define_variable(LONG, "..gdo_refstart", vs_file_static);
-    static tree reflen   = gg_define_variable(LONG, "..gdo_reflen", vs_file_static);
+    tree refstart = gg_define_variable(LONG);
+    tree reflen   = gg_define_variable(LONG);
     get_and_check_refstart_and_reflen(refstart, reflen, refer);
 
     gg_assign(retval, gg_add(retval, gg_cast(SIZE_T, refstart)));
@@ -917,13 +861,9 @@ get_binary_value_tree(tree return_type,
                                          get_scaled_rdigits(field)));
             }
           // This will be the 128-bit value of the character sequence
-          static tree val128 = gg_define_variable(INT128,
-                                                  "..gbv_val128",
-                                                  vs_file_static);
+          tree val128 = gg_define_variable(INT128);
           // This is a pointer to the sign byte
-          static tree signp = gg_define_variable(UCHAR_P,
-                                                  "..gbv_signp",
-                                                  vs_file_static);
+          tree signp = gg_define_variable(UCHAR_P);
           // We need to figure out where the sign information, if any is to be
           // found:
           if( field->attr & signable_e )
@@ -1029,9 +969,7 @@ get_binary_value_tree(tree return_type,
         {
         // Destination is too big.  We'll need to fill the high-order bytes with
         // either 0x00 for positive numbers, or 0xFF for negative
-        static tree extension = gg_define_variable( UCHAR,
-                                                    "..gbv_extension",
-                                                    vs_file_static);
+        tree extension = gg_define_variable(UCHAR);
         if( field->attr & signable_e )
           {
           IF( gg_array_value(gg_cast(build_pointer_type(SCHAR), source)),
@@ -1103,8 +1041,7 @@ get_binary_value_tree(tree return_type,
           }
         }
       tree source_address = get_data_address(field, field_offset);
-      tree source_type = tree_type_from_size( field->data.capacity(),
-                                              field->attr & signable_e);
+      tree source_type = tree_type_from_field(field);
       if( debugging && rdigits)
         {
         gg_printf("get_binary_value bin5 rdigits: %d\n", rdigits, NULL_TREE);
@@ -1233,10 +1170,7 @@ get_binary_value( tree value,
 tree
 tree_type_from_field(const cbl_field_t *field)
   {
-  /*  This routine is used to determine what action is taken with type of a
-      CALL ... USING <var> and the matching PROCEDURE DIVISION USING <var> of
-      a PROGRAM-ID or FUNCTION-ID
-      */
+  //  This routine comes up with a variable type compatible with the field.
   tree retval;
 
   switch(field->type)
@@ -1254,21 +1188,30 @@ tree_type_from_field(const cbl_field_t *field)
     case FldNumericDisplay:
     case FldPacked:
       {
+      int digits = field->data.digits;
+      if(    (field->attr & scaled_e)
+          && field->data.rdigits < 0 )
+        {
+        // This is something like PIC 9999PPP, which means that we need a
+        // variable type that can hold those additional digits:
+        digits += -field->data.rdigits;
+        }
+
       if( field->attr & signable_e )
         {
-        if( field->data.digits > 18 )
+        if( digits > 18 )
           {
           retval = INT128;
           }
-        else if( field->data.digits > 9)
+        else if( digits > 9)
           {
           retval = LONG;
           }
-        else if( field->data.digits > 4)
+        else if( digits > 4)
           {
           retval = INT;
           }
-        else if( field->data.digits > 2)
+        else if( digits > 2)
           {
           retval = SHORT;
           }
@@ -1279,19 +1222,19 @@ tree_type_from_field(const cbl_field_t *field)
         }
       else
         {
-        if( field->data.digits > 18 )
+        if( digits > 18 )
           {
           retval = UINT128;
           }
-        else if( field->data.digits > 9)
+        else if( digits > 9)
           {
           retval = ULONG;
           }
-        else if( field->data.digits > 4)
+        else if( digits > 4)
           {
           retval = UINT;
           }
-        else if( field->data.digits > 2)
+        else if( digits > 2)
           {
           retval = USHORT;
           }
@@ -1392,6 +1335,12 @@ tree_type_from_field(const cbl_field_t *field)
       }
     }
   return retval;
+  }
+
+tree
+tree_type_from_refer(const cbl_refer_t &refer)
+  {
+  return tree_type_from_field(refer.field);
   }
 
 tree
@@ -1513,7 +1462,7 @@ scale_by_power_of_ten(tree value,
                       bool check_for_fractional)
   {
   Analyze();
-  static tree retval = gg_define_variable(INT, "..sbpot2_retval", vs_file_static);
+  tree retval = gg_define_variable(INT);
 
   if( check_for_fractional )
     {
@@ -1621,62 +1570,6 @@ hex_dump(tree data, size_t bytes)
                                       i)),
               NULL_TREE);
     }
-  }
-
-tree
-tree_type_from_size(size_t bytes, uint64_t signable)
-  {
-  tree retval = NULL_TREE;
-
-  if( signable )
-    {
-    switch( bytes )
-      {
-      case 1:
-        retval = SCHAR;
-        break;
-      case 2:
-        retval = SHORT;
-        break;
-      case 4:
-        retval = INT;
-        break;
-      case 8:
-        retval = LONG;
-        break;
-      case 16:
-        retval = INT128;
-        break;
-      default:
-        gcc_unreachable();
-        break;
-      }
-    }
-  else
-    {
-    switch( bytes )
-      {
-      case 1:
-        retval = UCHAR;
-        break;
-      case 2:
-        retval = USHORT;
-        break;
-      case 4:
-        retval = UINT;
-        break;
-      case 8:
-        retval = ULONG;
-        break;
-      case 16:
-        retval = UINT128;
-        break;
-      default:
-        gcc_unreachable();
-        break;
-      }
-    }
-  return retval;
   }
 
 static
@@ -1839,18 +1732,8 @@ copy_little_endian_into_place(cbl_field_t *dest,
     // 10^(5 - 3 + 2) is 10^4, which is 10000.  Because 12345 is >= 10000, the
     // source can't fit into the destination.
 
-    // Note:  I am not trying to avoid the use of stack variables, because I am
-    // not sure how to declare a file-static variable of unknown type.
     tree abs_value = gg_define_variable(TREE_TYPE(value));
-    IF( value, lt_op, build_int_cst_type(TREE_TYPE(value), 0) )
-      {
-      gg_assign(abs_value, gg_negate(value));
-      }
-    ELSE
-      {
-      gg_assign(abs_value, value);
-      }
-    ENDIF
+    gg_assign(abs_value, gg_abs(value));
 
     FIXED_WIDE_INT(128) power_of_ten = get_power_of_ten(  dest->data.digits
                                                         - dest->data.rdigits
@@ -1867,12 +1750,17 @@ copy_little_endian_into_place(cbl_field_t *dest,
     }
   scale_by_power_of_ten_N(value, dest->data.rdigits - rhs_rdigits);
 
-  tree dest_type = tree_type_from_size( dest->data.capacity(),
-                                        dest->attr & signable_e);
+  // Create a variable of our target type.
+  tree dest_type = tree_type_from_field(dest);
+  tree target = gg_define_variable(dest_type);
+  // Cast the source to the target
+  gg_assign(target, gg_cast(dest_type, value));
   tree dest_pointer = gg_add(member(dest->var_decl_node, "data"),
                              dest_offset);
-  gg_assign(gg_indirect(gg_cast(build_pointer_type(dest_type), dest_pointer)),
-            gg_cast(dest_type, value));
+  // Copy the target to the destination.
+  gg_memcpy(dest_pointer,
+            gg_get_address_of(target),
+            build_int_cst_type(SIZE_T, gg_sizeof(dest_type)));
   }
 
 tree
@@ -1948,7 +1836,7 @@ build_array_of_size_t( size_t  N,
   // This only works because it is used in but one spot.  If this routine is
   // called twice, be careful about how the first one is used.  It's a static
   // variable, you see.
-  static tree values_p = gg_define_variable(SIZE_T_P, "..baost_values_p", vs_file_static);
+  tree values_p = gg_define_variable(SIZE_T_P);
   if( N )
     {
     gg_assign(  values_p,
@@ -2067,8 +1955,8 @@ refer_refmod_length(const cbl_refer_t &refer)
   {
   Analyze();
   REFER("refstart and reflen");
-  static tree refstart = gg_define_variable(LONG, "..rrl_refstart", vs_file_static);
-  static tree reflen   = gg_define_variable(LONG, "..rrl_reflen", vs_file_static);
+  tree refstart = gg_define_variable(LONG);
+  tree reflen   = gg_define_variable(LONG);
 
   get_and_check_refstart_and_reflen( refstart, reflen, refer);
 
@@ -2087,7 +1975,7 @@ refer_fill_depends(const cbl_refer_t &refer)
   Analyze();
   cbl_field_t *odo = symbol_find_odo(refer.field);
 
-  static tree value64 = gg_define_variable(LONG, "..rfd_value64", vs_file_static);
+  tree value64 = gg_define_variable(LONG);
 
   get_depending_on_value(value64, refer);
 
@@ -2145,7 +2033,7 @@ refer_size(const cbl_refer_t &refer, refer_type_t refer_type)
     }
   else
     {
-    static tree retval = gg_define_variable(SIZE_T, "..rs_retval", vs_file_static);
+    tree retval = gg_define_variable(SIZE_T);
 
     if( !refer.field )
       {
@@ -2232,7 +2120,8 @@ refer_size_source(const cbl_refer_t &refer)
 
   // This assignment has to be here. Simply returning refer_size() results
   // in regression testing errors.
-  static tree retval = gg_define_variable(SIZE_T, "..rss_retval", vs_file_static);
+  ////static tree retval = gg_define_variable(SIZE_T, "..rss_retval", vs_file_stactic);
+  tree retval = gg_define_variable(SIZE_T);
   gg_assign(retval, refer_size(refer, refer_source));
   return retval;
   }

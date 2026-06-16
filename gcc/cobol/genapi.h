@@ -617,8 +617,6 @@ void parser_init_list_size(int count_of_variables);
 void parser_init_list_element(cbl_field_t *field);
 void parser_init_list();
 
-tree file_static_variable(tree type, const char *name);
-
 void parser_statement_begin( const cbl_name_t name, tree ecs, tree dcls );
 void parser_statement_end( const std::list<cbl_field_t*>& );
 

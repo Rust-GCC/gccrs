@@ -363,11 +363,12 @@ typedef struct int128
     };
   }int128;
 
+
 static int
 multiply_int256_by_int64(int256 &product, const uint64_t multiplier)
   {
   // Typical use of this routine is multiplying a temporary value by
-  // a factor of ten.  This is effectively left-shifting by decimal
+  // a power of ten.  This is effectively left-shifting by decimal
   // digits.  See scale_int256_by_digits
   uint64_t overflows[5] = {};
   int128 temp;
@@ -1531,6 +1532,21 @@ int256_as_decimal(int256 val)
   memset(ach, 0, sizeof(ach));
   strcpy(ach, "0");
   int index = 0;
+  bool is_negative = false;
+
+  if( val.data[31] & 0x80 )
+    {
+    // One's complement:
+    val.i128[0] = ~val.i128[0];
+    val.i128[1] = ~val.i128[1];
+    // Two's complement:
+    if( ++val.i128[0] == 0 )
+      {
+      ++val.i128[1];
+      }
+    is_negative = true;
+    }
+
   while(val.i128[0] || val.i128[1])
     {
     int256 before;
@@ -1542,6 +1558,10 @@ int256_as_decimal(int256 val)
     uint64_t digit = before.i64[0] - after.i64[0];
     ach[index++] = digit + '0';
     divide_int256_by_int64(val, 10);
+    }
+  if( is_negative )
+    {
+    ach[index++] = '-';
     }
   if( !index )
     {
@@ -2081,6 +2101,7 @@ __gg__dividef45(cbl_arith_format_t ,
                             compute_error);
 
     *compute_error |= squeeze_int256(quotient, quotient_rdigits);
+
     if( !*compute_error )
       {
       // We are going to need the unrounded quotient to calculate the remainder
@@ -2154,6 +2175,11 @@ __gg__dividef45(cbl_arith_format_t ,
         temp_rdigits = unrounded_quotient_digits + divisor_rdigits;
 
         int256 odividend = {};
+        if( dividend < 0 )
+          {
+          memset(&odividend, 0xFF, sizeof(odividend));
+          }
+
         memcpy(&odividend, &dividend, sizeof(dividend));
 
         // We need to line up the rdigits so that we can subtract temp from

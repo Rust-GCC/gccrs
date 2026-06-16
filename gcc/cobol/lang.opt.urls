@@ -43,3 +43,6 @@ UrlSuffix(gcc/Directory-Options.html#index-isystem) LangUrlSuffix_Fortran(gfortr
 idirafter
 UrlSuffix(gcc/Directory-Options.html#index-idirafter) LangUrlSuffix_Fortran(gfortran/Preprocessing-Options.html#index-idirafter)
 
+imultilib
+UrlSuffix(gcc/Directory-Options.html#index-imultilib) LangUrlSuffix_D(gdc/Directory-Options.html#index-imultilib) LangUrlSuffix_Fortran(gfortran/Preprocessing-Options.html#index-imultilib)
+

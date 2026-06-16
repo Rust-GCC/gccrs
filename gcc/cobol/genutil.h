@@ -64,8 +64,6 @@ extern tree var_decl_dialects;    // void* __gg__dialects
 
 int       get_scaled_rdigits(cbl_field_t *field);
 int       get_scaled_digits(cbl_field_t *field);
-tree      tree_type_from_digits(size_t digits, uint64_t signable);
-tree      tree_type_from_size(size_t bytes, uint64_t signable);
 
 void      get_binary_value( tree value,
                             tree rdigits,
@@ -142,6 +140,7 @@ uint64_t  get_time_nanoseconds();
 bool      is_pure_integer(const cbl_field_t *field);
 
 tree      tree_type_from_field(const cbl_field_t *field);
+tree      tree_type_from_refer(const cbl_refer_t &refer);
 
 bool      get_binary_value(tree &value, 
                      const cbl_refer_t &refer,

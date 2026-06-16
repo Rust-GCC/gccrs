@@ -115,14 +115,6 @@ line_tick()
 #define line_tick()
 #endif
 
-tree
-file_static_variable(tree type, const char *v)
-  {
-  // This routine returns a reference to an already-defined file_static
-  // variable. You need to know the type that was used for the definition.
-  return gg_declare_variable(type, v, NULL, vs_file_static);
-  }
-
 // set using -f-trace-debug, defined in lang.opt
 int f_trace_debug;
 
@@ -3720,8 +3712,7 @@ psa_FldLiteralN(struct cbl_field_t *field )
 
   // The value is 1, 2, 4, 8 or 16 bytes, so an ordinary constructor can be
   // used.
-  var_type = tree_type_from_size( field->data.capacity(),
-                                  field->attr & signable_e);
+  var_type = tree_type_from_field(field);
   tree new_var_decl = gg_define_variable( var_type,
                                           base_name,
                                           vs_static);
@@ -3997,7 +3988,7 @@ parser_accept_command_line( const cbl_refer_t &tgt,
     SHOW_PARSE_END
     }
 
-  static tree erf = gg_define_variable(INT, "..pac_erf", vs_file_static);
+  tree erf = gg_define_variable(INT);
 
   if( !source.field )
     {
@@ -4168,7 +4159,7 @@ parser_accept_envar(const struct cbl_refer_t &tgt,
     TRACE1_END
     }
 
-  static tree erf = gg_define_variable(INT, "..pae_erf", vs_file_static);
+  tree erf = gg_define_variable(INT);
 
   gg_assign(erf,
             gg_call_expr( INT,
@@ -5227,10 +5218,7 @@ parser_assign( size_t nC, cbl_num_result_t *C,
     CHECK_FIELD(destref.field);
     CHECK_FIELD(sourceref.field);
 
-    // gg_printf("parser_assign: The compute_error_code is %d\n",
-    //            gg_cast(INT, compute_error->structs.compute_error->compute_error_code), NULL_TREE);
-
-    static tree erf = gg_define_variable(INT, "..pa_erf", vs_file_static);
+    tree erf = gg_define_variable(INT);
     if( on_error )
       {
       // There is an ON ERROR clause.  When there is an ON ERROR clause, and
@@ -5477,12 +5465,9 @@ parser_initialize_table(size_t nelem,
     }
   typedef size_t span_t[2];
   static_assert(sizeof(spans[0]) == sizeof(span_t), "pair size wrong");
-  static tree tspans = gg_define_variable(SIZE_T_P,
-                                          "..pit_v1",
-                                          vs_file_static);
-  static tree ttbls  = gg_define_variable(SIZE_T_P,
-                                          "..pit_v2",
-vs_file_static);
+  tree tspans = gg_define_variable(SIZE_T_P);
+  tree ttbls  = gg_define_variable(SIZE_T_P);
+
   gg_assign(tspans,
             build_array_of_size_t(2*nspan,
                                   reinterpret_cast<const size_t *>(spans)));
@@ -7341,7 +7326,7 @@ parser_see_stop_run(struct cbl_refer_t exit_status,
     }
 
   // It's a stop run.  Return return-code to the operating system:
-  static tree returned_value = gg_define_variable(INT, "..pssr_retval", vs_file_static);
+  tree returned_value = gg_define_variable(INT);
 
   if( exit_status.field )
     {
@@ -9441,10 +9426,10 @@ parser_file_write( cbl_file_t *file,
                         file->name);
     }
 
-  static tree t_advance = gg_define_variable(INT, "..pfw_advance", vs_file_static);
+  tree t_advance = gg_define_variable(INT);
   if(advance.field)
     {
-    static tree value = gg_define_variable(INT, "..pfw_value", vs_file_static);
+    tree value = gg_define_variable(INT);
     get_binary_value( value,
                       NULL,
                       advance.field,
@@ -9811,7 +9796,7 @@ parser_file_start(struct cbl_file_t *file,
     flk = -1;
     }
 
-  static tree length = gg_define_variable(SIZE_T, "..pfs_length", vs_file_static);
+  tree length = gg_define_variable(SIZE_T);
   gg_assign(length, size_t_zero_node);
 
   if( flk > 0 && !length_ref.field )
@@ -9958,8 +9943,8 @@ inspect_tally(bool backward,
   // all the integers and cbl_inspect_bound_t values, in a strict sequence so
   // that the library routine can peel them off.
 
-  static tree int_size = gg_define_variable(INT,      "..pit_size", vs_file_static, 0);
-  static tree integers = gg_define_variable(SIZE_T_P, "..pit", vs_file_static, null_pointer_node);
+  tree int_size = gg_define_variable(INT, integer_zero_node);
+  tree integers = gg_define_variable(SIZE_T_P, null_pointer_node);
 
   size_t n_integers = int_index;
 
@@ -10131,10 +10116,10 @@ inspect_replacing(int backward,
 
   size_t n_integers =   1                     // Room for operations[0].nbound()
                         + operations[0].nbound()  // Room for all the cbl_inspect_bound_t values
-                        + n_all_leading_first;  // Room for all of the n_identifier_3 counts
+                        + n_all_leading_first;  // Room for all of the  n_identifier_3  counts
 
-  static tree int_size = gg_define_variable(INT,      "..pir_size", vs_file_static, 0);
-  static tree integers = gg_define_variable(SIZE_T_P, "..pir", vs_file_static, null_pointer_node);
+  tree int_size = gg_define_variable(INT, integer_zero_node);
+  tree integers = gg_define_variable(SIZE_T_P, null_pointer_node);
 
   IF( build_int_cst_type(INT, n_integers), gt_op, int_size )
     {
@@ -11081,10 +11066,11 @@ parser_intrinsic_call_4( cbl_field_t *tgt,
   }
 
 static void
-field_increment(cbl_field_t *fld)
+field_increment(cbl_field_t *fld )
   {
-  static tree value   = gg_define_variable(INT128, "..fi_value",   vs_file_static);
-  static tree rdigits = gg_define_variable(INT,    "..fi_rdigits", vs_file_static);
+  static tree value   = gg_define_variable(INT128);
+  static tree rdigits = gg_define_variable(INT);
+
   get_binary_value(value, rdigits, fld, size_t_zero_node);
   gg_assign(  value,
               gg_add(value, gg_cast(SIZE_T, integer_one_node)));
@@ -13956,7 +13942,7 @@ parser_match_exception(cbl_field_t *index)
 
   TRACE1
     {
-    static tree index_val = gg_define_variable(INT, "..pme_index", vs_file_static);
+    tree index_val = gg_define_variable(INT);
     get_binary_value(index_val, NULL, index, size_t_zero_node);
     TRACE1_INDENT
     gg_printf("returned value is 0x%x (%d)", index_val, index_val, NULL_TREE);
