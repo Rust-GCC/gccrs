@@ -973,12 +973,13 @@ vect_analyze_data_ref_dependences (loop_vec_info loop_vinfo,
 
 /* Function vect_slp_analyze_data_ref_dependence.
 
-   Return TRUE if there (might) exist a dependence between a memory-reference
-   DRA and a memory-reference DRB for VINFO.  When versioning for alias
-   may check a dependence at run-time, return FALSE.  Adjust *MAX_VF
-   according to the data dependence.  */
+   Classify the dependence between the memory-references DRA and DRB of DDR
+   for VINFO using the classical (affine) data-dependence test.  Return
+   chrec_known if they are provably independent, chrec_dont_know if the test
+   cannot analyze them (in which case the caller can still try to disambiguate
+   them with the alias oracle), and the dependence (NULL_TREE) otherwise.  */
 
-static bool
+static tree
 vect_slp_analyze_data_ref_dependence (vec_info *vinfo,
 				      struct data_dependence_relation *ddr)
 {
@@ -992,21 +993,21 @@ vect_slp_analyze_data_ref_dependence (vec_info *vinfo,
 
   /* Independent data accesses.  */
   if (DDR_ARE_DEPENDENT (ddr) == chrec_known)
-    return false;
+    return chrec_known;
 
   if (dra == drb)
-    return false;
+    return chrec_known;
 
   /* Read-read is OK.  */
   if (DR_IS_READ (dra) && DR_IS_READ (drb))
-    return false;
+    return chrec_known;
 
   /* If dra and drb are part of the same interleaving chain consider
      them independent.  */
   if (STMT_VINFO_GROUPED_ACCESS (dr_info_a->stmt)
       && (DR_GROUP_FIRST_ELEMENT (dr_info_a->stmt)
 	  == DR_GROUP_FIRST_ELEMENT (dr_info_b->stmt)))
-    return false;
+    return chrec_known;
 
   /* Unknown data dependence.  */
   if (DDR_ARE_DEPENDENT (ddr) == chrec_dont_know)
@@ -1021,7 +1022,7 @@ vect_slp_analyze_data_ref_dependence (vec_info *vinfo,
 		     "determined dependence between %T and %T\n",
 		     DR_REF (dra), DR_REF (drb));
 
-  return true;
+  return DDR_ARE_DEPENDENT (ddr);
 }
 
 
@@ -1052,29 +1053,35 @@ vect_slp_analyze_store_dependences (vec_info *vinfo, slp_tree node)
 	  if (! gimple_vuse (stmt))
 	    continue;
 
-	  /* If we couldn't record a (single) data reference for this
-	     stmt we have to resort to the alias oracle.  */
+	  /* If we couldn't record a (single) data reference for this stmt,
+	     or the classical dependence test cannot analyze it, we have to
+	     resort to the alias oracle.  */
 	  stmt_vec_info stmt_info = vinfo->lookup_stmt (stmt);
 	  data_reference *dr_b = STMT_VINFO_DATA_REF (stmt_info);
-	  if (!dr_b)
+	  if (dr_b)
 	    {
-	      /* We are moving a store - this means
-		 we cannot use TBAA for disambiguation.  */
-	      if (!ref_initialized_p)
-		ao_ref_init (&ref, DR_REF (dr_a));
-	      if (stmt_may_clobber_ref_p_1 (stmt, &ref, false)
-		  || ref_maybe_used_by_stmt_p (stmt, &ref, false))
+	      gcc_assert (!gimple_visited_p (stmt));
+
+	      ddr_p ddr = initialize_data_dependence_relation (dr_a,
+							       dr_b, vNULL);
+	      tree dep = vect_slp_analyze_data_ref_dependence (vinfo, ddr);
+	      free_dependence_relation (ddr);
+	      if (dep == chrec_known)
+		continue;
+	      if (dep != chrec_dont_know)
 		return false;
-	      continue;
+	      /* Unknown dependence - fall through to the alias oracle.  */
 	    }
 
-	  gcc_assert (!gimple_visited_p (stmt));
-
-	  ddr_p ddr = initialize_data_dependence_relation (dr_a,
-							   dr_b, vNULL);
-	  bool dependent = vect_slp_analyze_data_ref_dependence (vinfo, ddr);
-	  free_dependence_relation (ddr);
-	  if (dependent)
+	  /* We are moving a store - this means we cannot use TBAA for
+	     disambiguation.  */
+	  if (!ref_initialized_p)
+	    {
+	      ao_ref_init (&ref, DR_REF (dr_a));
+	      ref_initialized_p = true;
+	    }
+	  if (stmt_may_clobber_ref_p_1 (stmt, &ref, false)
+	      || ref_maybe_used_by_stmt_p (stmt, &ref, false))
 	    return false;
 	}
     }
@@ -1131,10 +1138,22 @@ vect_slp_analyze_load_dependences (vec_info *vinfo, slp_tree node,
 		  data_reference *store_dr = STMT_VINFO_DATA_REF (store_info);
 		  ddr_p ddr = initialize_data_dependence_relation
 				(dr_a, store_dr, vNULL);
-		  bool dependent
+		  tree dep
 		    = vect_slp_analyze_data_ref_dependence (vinfo, ddr);
 		  free_dependence_relation (ddr);
-		  if (dependent)
+		  if (dep == chrec_known)
+		    continue;
+		  if (dep != chrec_dont_know)
+		    return false;
+		  /* The classical dependence test cannot analyze this;
+		     resort to the alias oracle.  We are hoisting a load
+		     so TBAA may be used for disambiguation.  */
+		  if (!ref_initialized_p)
+		    {
+		      ao_ref_init (&ref, DR_REF (dr_a));
+		      ref_initialized_p = true;
+		    }
+		  if (stmt_may_clobber_ref_p_1 (store_info->stmt, &ref, true))
 		    return false;
 		}
 	      continue;
@@ -1145,7 +1164,10 @@ vect_slp_analyze_load_dependences (vec_info *vinfo, slp_tree node,
 	      /* We are hoisting a load - this means we can use TBAA for
 		 disambiguation.  */
 	      if (!ref_initialized_p)
-		ao_ref_init (&ref, DR_REF (dr_a));
+		{
+		  ao_ref_init (&ref, DR_REF (dr_a));
+		  ref_initialized_p = true;
+		}
 	      if (stmt_may_clobber_ref_p_1 (stmt_info->stmt, &ref, true))
 		{
 		  /* If we couldn't record a (single) data reference for this
@@ -1155,10 +1177,13 @@ vect_slp_analyze_load_dependences (vec_info *vinfo, slp_tree node,
 		    return false;
 		  ddr_p ddr = initialize_data_dependence_relation (dr_a,
 								   dr_b, vNULL);
-		  bool dependent
+		  tree dep
 		    = vect_slp_analyze_data_ref_dependence (vinfo, ddr);
 		  free_dependence_relation (ddr);
-		  if (dependent)
+		  /* The alias oracle above could not rule out a conflict;
+		     only a proven-independent (chrec_known) result lets us
+		     hoist the load past this store.  */
+		  if (dep != chrec_known)
 		    return false;
 		}
 	      /* No dependence.  */
