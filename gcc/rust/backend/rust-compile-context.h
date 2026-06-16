@@ -51,6 +51,8 @@ struct CustomDeriveInfo
   std::vector<std::string> attributes;
 };
 
+class DropBuilder;
+
 class Context
 {
 public:
@@ -135,18 +137,6 @@ public:
   }
 
   void add_statement (tree stmt) { statements.back ().push_back (stmt); }
-
-  std::vector<DropCandidate> &peek_block_drop_candidates ()
-  {
-    rust_assert (!block_drop_candidates.empty ());
-    return block_drop_candidates.back ();
-  }
-
-  void note_simple_drop_candidate (HirId hirid, location_t locus)
-  {
-    rust_assert (!block_drop_candidates.empty ());
-    block_drop_candidates.back ().emplace_back (hirid, locus);
-  }
 
   void insert_var_decl (HirId id, ::Bvariable *decl)
   {
@@ -436,6 +426,7 @@ public:
   }
 
 private:
+  friend class DropBuilder;
   Context ();
 
   Resolver::TypeCheckContext *tyctx;

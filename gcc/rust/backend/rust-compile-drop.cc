@@ -17,6 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-compile-drop.h"
+#include "rust-compile-drop-builder.h"
 #include "rust-compile-base.h"
 #include "rust-compile-context.h"
 #include "rust-compile-implitem.h"
@@ -29,8 +30,10 @@
 namespace Rust {
 namespace Compile {
 
+CompileDrop::CompileDrop (Context *ctx) : ctx (ctx) {}
+
 bool
-CompileDrop::type_has_drop_impl (Context *ctx, TyTy::BaseType *ty)
+CompileDrop::type_has_drop_impl (TyTy::BaseType *ty)
 {
   auto drop_lang_item
     = ctx->get_mappings ().lookup_lang_item (LangItem::Kind::DROP);
@@ -53,8 +56,8 @@ CompileDrop::type_has_drop_impl (Context *ctx, TyTy::BaseType *ty)
 
 // Find the Drop trait, look for the drop method, and build the function call.
 tree
-CompileDrop::compile_drop_call (Context *ctx, Bvariable *var,
-				TyTy::BaseType *ty, location_t locus)
+CompileDrop::compile_drop_call (Bvariable *var, TyTy::BaseType *ty,
+				location_t locus)
 {
   auto drop_lang = ctx->get_mappings ().lookup_lang_item (LangItem::Kind::DROP);
   if (!drop_lang.has_value ())
@@ -88,9 +91,10 @@ CompileDrop::compile_drop_call (Context *ctx, Bvariable *var,
 }
 
 void
-CompileDrop::emit_current_scope_drop_calls (Context *ctx)
+CompileDrop::emit_current_scope_drop_calls ()
 {
-  auto &drop_candidates = ctx->peek_block_drop_candidates ();
+  DropBuilder drop_builder (*ctx);
+  auto &drop_candidates = drop_builder.peek_block_drop_candidates ();
 
   for (auto it = drop_candidates.rbegin (); it != drop_candidates.rend (); ++it)
     {
@@ -103,7 +107,7 @@ CompileDrop::emit_current_scope_drop_calls (Context *ctx)
       ok = ctx->lookup_var_decl (it->hirid, &var);
       rust_assert (ok);
 
-      tree drop_call = CompileDrop::compile_drop_call (ctx, var, ty, it->locus);
+      tree drop_call = compile_drop_call (var, ty, it->locus);
       if (drop_call != NULL_TREE)
 	ctx->add_statement (convert_to_void (drop_call, ICV_STATEMENT));
     }
