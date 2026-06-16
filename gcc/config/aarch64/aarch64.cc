@@ -24733,6 +24733,12 @@ aarch64_simd_valid_imm (rtx op, simd_immediate_info *info,
       return true;
     }
 
+  /* A constant with zero high 64 bits (output_width == 64) must be formed
+     by a 64-bit Advanced SIMD MOVI/FMOV; it must not fall through to the
+     SVE forms below, which replicate it across the whole vector.  */
+  if (output_width != 0)
+    return false;
+
   if (TARGET_SVE)
     return aarch64_sve_valid_immediate (ival, imode, info, which);
   return false;
