@@ -2344,8 +2344,8 @@ package Einfo is
 --       call wrapper if available.
 
 --    Initialization_Statements
---       Defined in constants and variables. For a composite object coming from
---       source and initialized with an aggregate or a call expanded in place,
+--       Defined in constants and variables. For composite objects coming from
+--       source and (default-)initialized with an aggregate or a function call,
 --       points to a compound statement containing the assignment(s). This is
 --       used for a couple of purposes: 1) to defer the initialization to the
 --       freeze point if an address clause or a delayed aspect is present for
