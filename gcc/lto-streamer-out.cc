@@ -2220,6 +2220,7 @@ output_cfg (struct output_block *ob, struct function *fn)
       streamer_write_hwi (ob, loop->dont_vectorize);
       streamer_write_hwi (ob, loop->force_vectorize);
       streamer_write_hwi (ob, loop->finite_p);
+      streamer_write_hwi (ob, loop->can_be_parallel);
       stream_write_tree (ob, loop->simduid, true);
     }
 
