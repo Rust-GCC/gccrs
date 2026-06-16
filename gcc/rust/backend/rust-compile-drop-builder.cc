@@ -16,30 +16,27 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-#ifndef RUST_COMPILE_DROP_H
-#define RUST_COMPILE_DROP_H
-
+#include "rust-compile-drop-builder.h"
 #include "rust-compile-context.h"
 
 namespace Rust {
 namespace Compile {
 
-class CompileDrop
+DropBuilder::DropBuilder (Context &ctx) : ctx (ctx) {}
+
+void
+DropBuilder::note_simple_drop_candidate (HirId hirid, location_t locus)
 {
-public:
-  CompileDrop (Context *ctx);
+  rust_assert (!ctx.block_drop_candidates.empty ());
+  ctx.block_drop_candidates.back ().emplace_back (hirid, locus);
+}
 
-  bool type_has_drop_impl (TyTy::BaseType *ty);
-
-  void emit_current_scope_drop_calls ();
-
-private:
-  tree compile_drop_call (Bvariable *var, TyTy::BaseType *ty, location_t locus);
-
-  Context *ctx;
-};
+std::vector<DropCandidate> &
+DropBuilder::peek_block_drop_candidates ()
+{
+  rust_assert (!ctx.block_drop_candidates.empty ());
+  return ctx.block_drop_candidates.back ();
+}
 
 } // namespace Compile
 } // namespace Rust
-
-#endif // RUST_COMPILE_DROP_H

@@ -17,6 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-compile-pattern.h"
+#include "rust-compile-drop-builder.h"
 #include "print-tree.h"
 #include "rust-compile-drop.h"
 #include "rust-compile-expr.h"
@@ -1356,12 +1357,15 @@ CompilePatternLet::visit (HIR::IdentifierPattern &pattern)
       drop_ty = ref_ty->get_base ();
     }
 
-  if (!CompileDrop::type_has_drop_impl (ctx, drop_ty))
+  if (!CompileDrop (ctx).type_has_drop_impl (drop_ty))
     return;
 
   if (!pattern.has_subpattern () && !pattern.get_is_ref ())
-    ctx->note_simple_drop_candidate (pattern.get_mappings ().get_hirid (),
-				     pattern.get_locus ());
+    {
+      DropBuilder drop_builder (*ctx);
+      drop_builder.note_simple_drop_candidate (
+	pattern.get_mappings ().get_hirid (), pattern.get_locus ());
+    }
   else
     rust_sorry_at (pattern.get_locus (),
 		   "drop trait not supported for subpatterns and ref patterns");
