@@ -197,7 +197,7 @@ namespace std _GLIBCXX_VISIBILITY(default)
 #ifdef USE_LCG
     // TODO: use this to seed std::mt19937 engine too.
     unsigned
-    bad_seed(void* p) noexcept
+    bad_seed(const void* p) noexcept
     {
       // Poor quality seed based on hash of the current time and the address
       // of the object being seeded. Better than using the same default seed
@@ -253,7 +253,7 @@ namespace std _GLIBCXX_VISIBILITY(default)
 
     inline Which
     which_source(random_device::result_type (*func [[maybe_unused]])(void*),
-		 void* file [[maybe_unused]])
+		 const void* file [[maybe_unused]])
     {
 #ifdef _GLIBCXX_USE_CRT_RAND_S
       if (func == &__winxp_rand_s)
