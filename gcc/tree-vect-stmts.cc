@@ -8981,7 +8981,9 @@ vectorizable_store (vec_info *vinfo,
 	    {
 	      if (costing_p)
 		{
-		  if (ls.supported_offset_vectype)
+		  if (ls.supported_offset_vectype
+		      && !tree_nop_conversion_p (ls.supported_offset_vectype,
+						 vec_offset))
 		    inside_cost
 		      += record_stmt_cost (cost_vec, 1, vector_stmt,
 					   slp_node, 0, vect_body);
@@ -10953,7 +10955,9 @@ vectorizable_load (vec_info *vinfo,
 	    {
 	      if (costing_p)
 		{
-		  if (ls.supported_offset_vectype)
+		  if (ls.supported_offset_vectype
+		      && !tree_nop_conversion_p (ls.supported_offset_vectype,
+						 vec_offset))
 		    inside_cost
 		      += record_stmt_cost (cost_vec, 1, vector_stmt,
 					   slp_node, 0, vect_body);

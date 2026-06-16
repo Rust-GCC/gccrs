@@ -4752,6 +4752,11 @@ vect_gather_scatter_fn_p (vec_info *vinfo, bool read_p, bool masked_p,
 	  *ifn_out = configs[i].ifn;
 	  *offset_vectype_out = configs[i].offset_vectype;
 	  *supported_scale = configs[i].scale;
+	  /* Only set SUPPORTED_OFFSET_VECTYPE if this is a real
+	     conversion.  */
+	  if (!useless_type_conversion_p (offset_vectype,
+					  configs[i].offset_vectype))
+	    *supported_offset_vectype = configs[i].offset_vectype;
 	  if (elsvals)
 	    *elsvals = configs[i].elsvals;
 	  return true;
