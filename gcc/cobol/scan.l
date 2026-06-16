@@ -210,7 +210,7 @@ LINE_DIRECTIVE ^[#]line{SPC}[[:alnum:]]+{SPC}[""''].+\n
   [''""]/[01]
   [01]+/[''""]		{ if( copy_state == YY_START ) {
 			    ydflval.boolean = ((*yytext == 1) ^ is_not);
-			    return YDF_BOOL;
+			    return cdf::parser::token::YDF_BOOL;
 			  }
 			  yylval.numstr.radix = boolean_e;
 			  yylval.numstr.string = xstrdup(yytext);
@@ -230,7 +230,7 @@ LINE_DIRECTIVE ^[#]line{SPC}[[:alnum:]]+{SPC}[""''].+\n
   [''""]/{hdseq}
   {hdseq}/[''""]	{ if( copy_state == YY_START ) {
 			    ydflval.number = integer_of(yytext, true);
-			    return YDF_NUMBER;
+			    return cdf::parser::token::YDF_NUMBER;
 			  }
 			  if( 0 == yyleng % 2 ) {
                             yylval.literal.set_data( yyleng/2, hex_decode(yytext) );
@@ -1431,7 +1431,7 @@ USE({SPC}FOR)?		{ return USE; }
   [+-]?{INTEGERZ}       { int value;
 			  if( is_integer_token(&value) ) {
 			    ydflval.number = value;
-			    return YDF_NUMBER;
+			    return cdf::parser::token::YDF_NUMBER;
 			  }
 			  dbgmsg("%s not an integer = %d",
 				   yytext, value);

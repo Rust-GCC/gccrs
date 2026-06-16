@@ -31,12 +31,6 @@
 #ifndef _UTIL_H_
 #define _UTIL_H_
 
-[[noreturn]] void cbl_internal_error(const char *format_string, ...)
-  ATTRIBUTE_GCOBOL_DIAG(1, 2);
-
-void cbl_err(const char *format_string, ...) ATTRIBUTE_GCOBOL_DIAG(1, 2);
-void cbl_errx(const char *format_string, ...) ATTRIBUTE_GCOBOL_DIAG(1, 2);
-
 bool fisdigit(int c);
 bool fisspace(int c);
 int  ftolower(int c);
@@ -111,18 +105,19 @@ public:
 }; 
 
 
-void cdf_push();
-void cdf_push_call_convention();
-void cdf_push_current_tokens();
-void cdf_push_dictionary();
-void cdf_push_enabled_exceptions();
-void cdf_push_source_format();
+/*
+ * Functions that validate every PERFORM calls a unique reference.
+ */
+namespace match_proc {
+  typedef char cbl_name_t[64];
 
-void cdf_pop();
-void cdf_pop_call_convention();
-void cdf_pop_current_tokens();
-void cdf_pop_dictionary();
-void cdf_pop_source_format();
-void cdf_pop_enabled_exceptions();
+  // Supply each target as it's mentioned.
+  void statement_compose( int iline, size_t isection,
+                          const cbl_name_t para, const cbl_name_t qual );
+  // Add PERFORM to statement list.
+  void statement_add();
+  // Verify all statements and report problems. 
+  bool statements_verify();
+}
 
 #endif

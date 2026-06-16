@@ -7379,7 +7379,7 @@ parser_see_stop_run(struct cbl_refer_t exit_status,
 void
 parser_label_label(struct cbl_label_t *label)
   {
-  label->lain = yylineno;
+  label->lain = cobol_location().first_line;
   Analyze();
   SHOW_PARSE
     {

@@ -152,6 +152,7 @@ gcobol-cross$(exeext): gcobol$(exeext)
 # First, files needed for parsing:
 
 cobol/parse.cc: cobol/parse.y
+	$(BISON) --version | grep ^bison
 	$(BISON) -o $@ $(YFLAGS)				\
 		--defines=cobol/parse.h			\
 		--report-file=cobol/parser.out $<

@@ -33,6 +33,11 @@
 #else
 #define _COPYBOOK_H
 
+#if defined(CDF_Y)
+#define gcc_assert(x) assert(x)
+void gcc_unreachable(void);
+#endif
+
 FILE * copy_mode_start();
 
 const char * cobol_filename();
@@ -60,7 +65,7 @@ class copybook_t;
 class copybook_elem_t {
   friend copybook_t;
   struct copybook_loc_t {
-    YYLTYPE loc;
+    cbl_loc_t loc;
     const char *name;
     copybook_loc_t() : loc(), name(NULL) {}
   } source, library;
@@ -126,6 +131,11 @@ private:
   char *regex_text;
 };
 
+#ifndef TOUPPER
+#define CTOUPPER(S) ::toupper(S)
+#define TOUPPER(S) CTOUPPER(S)
+#endif
+
 class uppername_t {
   std::string upper;
  public:
@@ -135,6 +145,11 @@ class uppername_t {
   }
   const char *data() const { return upper.data(); }
 };
+
+#ifdef  CTOUPPER
+#undef  CTOUPPER
+#undef   TOUPPER
+#endif
 
 class copybook_t {
   std::list<const char *> directories;
@@ -156,13 +171,13 @@ class copybook_t {
 
   void suppress( bool tf = true  ) { book.suppress = tf; }
   bool suppressed()                { return book.suppress; }
-  void source( const YYLTYPE& loc, const char name[] ) {
+  void source( const cbl_loc_t& loc, const char name[] ) {
     book.source.loc = loc;
     book.literally.source = copybook_elem_t::quoted(name);
     book.source.name = book.literally.source?
       copybook_elem_t::dequote(name) : transform_name(name);
   }
-  void library( const YYLTYPE& loc, const char name[] ) {
+  void library( const cbl_loc_t& loc, const char name[] ) {
     book.library.loc = loc;
     book.literally.library = copybook_elem_t::quoted(name);
     book.library.name = book.literally.library?
@@ -177,7 +192,7 @@ class copybook_t {
   const char *source() const { return book.source.name; }
   const char *library() const { return book.library.name; }
 
-  int open(YYLTYPE loc, const char name[]) {
+  int open(cbl_loc_t loc, const char name[]) {
     int fd = -1;
     book.clear();
     this->source(loc, name);

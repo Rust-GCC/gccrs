@@ -95,14 +95,7 @@ bool cbl_diagnostic_kind( cbl_diag_id_t id, diagnostics::kind kind );
 bool cbl_dialect_kind( cbl_dialect_t dialect, diagnostics::kind kind );
 #endif
 
-enum cbl_gcobol_feature_t {
-  feature_gcc_e = 0x00,
-  feature_internal_ebcdic_e = 0x01,
-  feature_embiggen_e        = 0x02, // widen numeric that redefine POINTER
-};
-
 extern size_t cbl_gcobol_features;
-bool cobol_gcobol_feature_set( cbl_gcobol_feature_t gcobol_feature, bool on = true );
 
 static inline bool gcobol_feature_internal_ebcdic() {
   return feature_internal_ebcdic_e ==
@@ -926,7 +919,7 @@ struct cbl_field_t {
     return *this;
   }
 
-  bool report_invalid_initial_value(const YYLTYPE& loc) const;
+  bool report_invalid_initial_value(const cbl_loc_t& loc) const;
 
   bool is_ascii() const;
   bool is_integer() const { return is_numeric(type) && data.rdigits == 0; }
@@ -976,8 +969,7 @@ struct cbl_field_t {
   void set_initial( size_t nchar, const cbl_loc_t& loc = cbl_loc_t() );
   size_t source_code_check(const void *initial, size_t length);
   const char * encode( size_t, cbl_loc_t loc = cbl_loc_t());
-  void encode_numeric( const char input[], cbl_loc_t loc,
-                       const REAL_VALUE_TYPE& rvt = {});
+  void encode_numeric( const char input[], cbl_loc_t loc );
   const char *value_str() const;
 
   bool is_key_name() const { return has_attr(record_key_e); }
@@ -1025,7 +1017,7 @@ struct cbl_span_t {
 
 
 struct cbl_refer_t {
-  YYLTYPE loc;
+  cbl_loc_t loc;
   cbl_field_t *field;
   cbl_label_t *prog_func;
   bool all, addr_of;
@@ -1043,7 +1035,7 @@ struct cbl_refer_t {
     , all(all), addr_of(false)
     , refmod(NULL)
   {}
-  cbl_refer_t( const YYLTYPE& loc, cbl_field_t *field, bool all = false )
+  cbl_refer_t( const cbl_loc_t& loc, cbl_field_t *field, bool all = false )
     : loc(loc), field(field), prog_func(NULL)
     , all(all), addr_of(false)
     , refmod(NULL)
@@ -1894,7 +1886,7 @@ char * hex_decode( const char text[] );
  * If the encoding is EBCDIC CP1140, then 'A' is 193 and collation_sequence[193] == 1.
  */
 struct cbl_alphabet_t {
-  YYLTYPE loc;
+  cbl_loc_t loc;
   cbl_name_t name;
   cbl_encoding_t encoding;
   size_t locale;  // index to cbl_locale_t symbol
@@ -1915,7 +1907,7 @@ struct cbl_alphabet_t {
     memset(collation_sequence, 0xFF, sizeof(collation_sequence));
   }
 
-  cbl_alphabet_t(const YYLTYPE& loc, cbl_encoding_t enc)
+  cbl_alphabet_t(const cbl_loc_t& loc, cbl_encoding_t enc)
     : loc(loc)
     , encoding(enc)
     , locale(0)
@@ -1929,9 +1921,9 @@ struct cbl_alphabet_t {
     memset(collation_sequence, 0xFF, sizeof(collation_sequence));
   }
 
-  cbl_alphabet_t(const YYLTYPE& loc, size_t locale, cbl_name_t name );
+  cbl_alphabet_t(const cbl_loc_t& loc, size_t locale, cbl_name_t name );
 
-  cbl_alphabet_t( const YYLTYPE& loc, const cbl_name_t name,
+  cbl_alphabet_t( const cbl_loc_t& loc, const cbl_name_t name,
                   unsigned char low_index, unsigned char high_index,
                   unsigned char collation_sequence[] )
     : loc(loc)
@@ -1957,7 +1949,7 @@ struct cbl_alphabet_t {
   }
 
   void
-  add_sequence( const YYLTYPE& loc, const unsigned char seq[] ) {
+  add_sequence( const cbl_loc_t& loc, const unsigned char seq[] ) {
     if( low_index == 0 ) low_index = seq[0];
 
     unsigned char last = last_index > 0? collation_sequence[last_index] + 1 : 0;
@@ -1968,7 +1960,7 @@ struct cbl_alphabet_t {
   }
 
   void
-  add_interval( const YYLTYPE& loc, unsigned char low, unsigned char high ) {
+  add_interval( const cbl_loc_t& loc, unsigned char low, unsigned char high ) {
     if( low_index == 0 ) low_index = low;
 
     unsigned char last = collation_sequence[last_index];
@@ -1978,8 +1970,8 @@ struct cbl_alphabet_t {
     }
   }
 
-  void also( const YYLTYPE& loc, size_t ch );
-  bool assign( const YYLTYPE& loc, unsigned char ch, unsigned char value );
+  void also( const cbl_loc_t& loc, size_t ch );
+  bool assign( const cbl_loc_t& loc, unsigned char ch, unsigned char value );
   bool reencode( const cbl_loc_t& loc );
 
   static const char *
@@ -2675,7 +2667,8 @@ struct cbl_perform_tgt_t {
 
   cbl_perform_tgt_t() : addresses(), ifrom(0), ito(0) {}
   explicit cbl_perform_tgt_t( cbl_label_t * from, cbl_label_t *to = NULL )
-    : addresses(), ifrom( from? symbol_index(symbol_elem_of(from)) : 0 )
+    : addresses()
+    , ifrom( from? symbol_index(symbol_elem_of(from)) : 0 )
     , ito( to? symbol_index(symbol_elem_of(to)) : 0 )
   {}
 
@@ -2791,11 +2784,11 @@ size_t current_program_index();
 const char * current_declarative_section_name();
 
 struct cbl_nameloc_t {
-  YYLTYPE loc;
+  cbl_loc_t loc;
   const char *name;
 
   cbl_nameloc_t() : loc{ 1,1, 1,1 }, name(NULL) {}
-  cbl_nameloc_t( const YYLTYPE& loc, const char *name )
+  cbl_nameloc_t( const cbl_loc_t& loc, const char *name )
     : loc(loc), name(name)
   {}
 };
@@ -2828,13 +2821,13 @@ class name_queue_t : private std::queue<cbl_namelocs_t>
                     } );
     return names;
   }
-  size_t push( const YYLTYPE& loc, const char name[] ) {
+  size_t push( const cbl_loc_t& loc, const char name[] ) {
     assert( !empty() );
     back().push_front( cbl_nameloc_t(loc, name) );
     dump(__func__);
     return size();
   }
-  void qualify( const YYLTYPE& loc, const char name[] ) {
+  void qualify( const cbl_loc_t& loc, const char name[] ) {
     if( empty() ) {
       allocate();
       push(loc, name);
@@ -2868,7 +2861,7 @@ const std::string& keyword_alias_add( const std::string& keyword,
 int binary_integer_usage_of( const char name[] );
   
 void tee_up_empty();
-void tee_up_name( const YYLTYPE& loc, const char name[] );
+void tee_up_name( const cbl_loc_t& loc, const char name[] );
 cbl_namelist_t teed_up_names();
 
 size_t end_of_group( size_t igroup );
@@ -2948,8 +2941,8 @@ symbol_elem_t * symbol_section_add( size_t program,
 
 void symbol_registers_add();
 
-void symbol_field_location( size_t ifield, const YYLTYPE& loc );
-YYLTYPE symbol_field_location( size_t ifield );
+void symbol_field_location( size_t ifield, const cbl_loc_t& loc );
+cbl_loc_t symbol_field_location( size_t ifield );
 
 bool symbol_label_section_exists( size_t program );
 
@@ -2967,11 +2960,6 @@ static inline size_t upsi_register() {
 
 void wsclear( uint32_t ch);
 const uint32_t *wsclear();
-
-enum cbl_call_convention_t {
-  cbl_call_verbatim_e = 'V',
-  cbl_call_cobol_e = 'N', // native
-};
 
 int keyword_tok( const char * text, bool include_intrinsics = false );
 int redefined_token( const cbl_name_t name );
@@ -3000,7 +2988,7 @@ class current_tokens_t {
     tokenset_t();
     int find( const cbl_name_t name, bool include_intrinsics );
 
-    bool equate( const YYLTYPE& loc, int token,
+    bool equate( const cbl_loc_t& loc, int token,
                  const cbl_name_t name, const cbl_name_t verb = "EQUATE") {
       auto lname( lowercase(name) );
       auto cw = cobol_words.insert(lname);
@@ -3018,7 +3006,7 @@ class current_tokens_t {
       }
       return fOK;
     }
-    bool undefine( const YYLTYPE& loc,
+    bool undefine( const cbl_loc_t& loc,
                    const cbl_name_t name, const cbl_name_t verb = "UNDEFINE" ) {
       auto lname( lowercase(name) );
       auto cw = cobol_words.insert(lname);
@@ -3044,14 +3032,14 @@ class current_tokens_t {
       return fOK;
     }
   
-    bool substitute( const YYLTYPE& loc,
+    bool substitute( const cbl_loc_t& loc,
                      const cbl_name_t extant, int token, const cbl_name_t name ) {
       return
         equate( loc, token, name, "SUBSTITUTE" )
         &&
         undefine( loc, extant, "SUBSTITUTE" );
     }
-    bool reserve( const YYLTYPE& loc, const cbl_name_t name ) {
+    bool reserve( const cbl_loc_t& loc, const cbl_name_t name ) {
       auto lname( lowercase(name) );
       auto cw = cobol_words.insert(lname);
       if( ! cw.second ) {
@@ -3084,7 +3072,7 @@ class current_tokens_t {
   int find( const cbl_name_t name, bool include_intrinsics ) {
     return tokens.find(name, include_intrinsics);
   }
-  bool equate( const YYLTYPE& loc, const cbl_name_t keyword, const cbl_name_t alias ) {
+  bool equate( const cbl_loc_t& loc, const cbl_name_t keyword, const cbl_name_t alias ) {
     int token; 
     if( 0 == (token = binary_integer_usage_of(keyword)) ) {
       if( 0 == (token = keyword_tok(keyword)) ) {
@@ -3100,10 +3088,10 @@ class current_tokens_t {
     } 
     return tokens.equate(loc, token, alias);
   }
-  bool undefine( const YYLTYPE& loc, cbl_name_t keyword ) {
+  bool undefine( const cbl_loc_t& loc, cbl_name_t keyword ) {
     return tokens.undefine(loc, keyword);
   }
-  bool substitute( const YYLTYPE& loc, const cbl_name_t keyword, const cbl_name_t alias ) {
+  bool substitute( const cbl_loc_t& loc, const cbl_name_t keyword, const cbl_name_t alias ) {
     int token; 
     if( 0 == (token = binary_integer_usage_of(keyword)) ) {
       if( 0 == (token = keyword_tok(keyword)) ) {
@@ -3121,7 +3109,7 @@ class current_tokens_t {
     dbgmsg("%s:%d: %s (%d) will have alias %s", __func__, __LINE__, keyword, token, alias);
     return tokens.substitute(loc, keyword, token, alias);
   }
-  bool reserve( const YYLTYPE& loc, const cbl_name_t name ) {
+  bool reserve( const cbl_loc_t& loc, const cbl_name_t name ) {
     return tokens.reserve(loc, name);
   }
   int redefined_as( const cbl_name_t name ) {
@@ -3132,11 +3120,7 @@ class current_tokens_t {
   }
 };
 
-cbl_call_convention_t current_call_convention();
 current_tokens_t& cdf_current_tokens();
-
-void
-current_call_convention( cbl_call_convention_t convention);
 
 class procref_base_t {
 private:
@@ -3177,6 +3161,9 @@ public:
   }
 
   int line_number() const { return line; }
+  const char *called_from() const {
+    return context? cbl_label_of(symbol_at(context))->name : "";
+  }
 };
 
 void procedure_definition_add( size_t program, const cbl_label_t *procedure );
@@ -3217,8 +3204,7 @@ int rdigits_of_picture(const char *picture);
 int  digits_of_picture(const char *picture, bool for_rdigits);
 bool is_picture_scaled(const char *picture);
 
-template <typename LOC>
-void gcc_location_set( const LOC& loc );
+void gcc_location_set( const cbl_loc_t& loc );
 
 // This is slightly oddball.  This is an entry point in the charutf8.cc module.
 // It's the only entry point in the module, and so it seemed to me wasteful to

@@ -181,8 +181,8 @@ struct filespan_t : public bytespan_t {
     return p == eol;
   }
 
-  YYLTYPE as_location() const {
-    YYLTYPE loc;
+  cbl_loc_t as_location() const {
+    cbl_loc_t loc;
 
     loc.first_line = loc.last_line = 1 + iline;
     loc.first_column = loc.last_column = 1 + icol;

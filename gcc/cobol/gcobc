@@ -200,8 +200,6 @@ do
         continue
     fi
 
-    #cho "next arg: $opt" >&2
-
     case $opt in
 
         # pass next parameter to GCC
@@ -233,7 +231,7 @@ do
         -echo) echo="echo"
                ;;
 
-        -fec=*)
+        -fec=* | -fno-ec=*)
             opt="$(echo "$opt" | sed -E 's/-f(no-)?ec=/-f\1cobol-exceptions=EC-/g')"
              opts="$opts $opt"
              ;;

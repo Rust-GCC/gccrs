@@ -520,7 +520,7 @@ struct replacing_term_t {
     {}
 };
 
-extern YYLTYPE yylloc;
+extern cbl_loc_t yylloc;
 
 static const char *
 last_newline (const char *p, const char *pend ) {
@@ -934,9 +934,9 @@ struct copy_descr_t {
     : parsed(false), fd(-1), nreplace(0), partial_line(line, eol) {}
 };
 
-static YYLTYPE
+static cbl_loc_t
 location_in( const filespan_t& mfile, const csub_match& cm ) {
-  YYLTYPE loc {
+  cbl_loc_t loc {
     int(mfile.lineno() + 1), int(mfile.colno() + 1),
     int(mfile.lineno() + 1), int(mfile.colno() + 1)
   };
@@ -1024,10 +1024,10 @@ parse_copy_directive( filespan_t& mfile ) {
     bool replacing = !cm[20].matched;
 
     if( library_name.matched ) {
-      YYLTYPE loc = location_in( mfile, library_name );
+      cbl_loc_t loc = location_in( mfile, library_name );
       copybook.library( loc, xstrndup(library_name.first, library_name.length()) );
     }
-    YYLTYPE loc = location_in( mfile, copybook_name );
+    cbl_loc_t loc = location_in( mfile, copybook_name );
     outcome.fd = copybook.open( loc, xstrndup(copybook_name.first,
                                               copybook_name.length()) );
     if( outcome.fd == -1 ) { // let parser report missing copybook

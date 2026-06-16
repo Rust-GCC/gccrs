@@ -46,12 +46,14 @@ bool scanner_parsing();
  * We use the derived type cdfval_t, which can be properly constructed and
  * operated on, but tell Bison only about its POD base class.
  */
-struct YDFLTYPE;
+
+struct cbl_loc_t;
+
 struct cdfval_base_t {
   bool off;
   const char *string;
   int64_t number;
-  const cdfval_base_t& operator()( const YDFLTYPE& loc );
+  const cdfval_base_t& operator()( const cbl_loc_t& loc );
 };
 
 struct cdf_arg_t {
@@ -101,6 +103,7 @@ struct cdfval_t : public cdfval_base_t {
     cdfval_base_t::string = NULL;
     cdfval_base_t::number = value;
   }
+#if GCC_TYPES
   explicit cdfval_t( const REAL_VALUE_TYPE& r )
     : lineno(yylineno), filename(cobol_filename())
   {
@@ -109,6 +112,7 @@ struct cdfval_t : public cdfval_base_t {
     HOST_WIDE_INT value = real_to_integer(&r);
     cdfval_base_t::number = value;
   }
+#endif
   cdfval_t( const cdfval_base_t& value ) // cppcheck-suppress noExplicitConstructor
     : lineno(yylineno), filename(cobol_filename())
   {

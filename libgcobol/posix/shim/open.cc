@@ -35,19 +35,37 @@ posix_open(const char *pathname, int cbl_flags, int cbl_mode) {
     { cbl::PSX_O_APPEND, O_APPEND },
     { cbl::PSX_O_NONBLOCK, O_NONBLOCK },
     { cbl::PSX_O_DSYNC, O_DSYNC },
-    { cbl::PSX_O_DIRECT, O_DIRECT },
-    { cbl::PSX_O_DIRECTORY, O_DIRECTORY },
-    { cbl::PSX_O_NOFOLLOW, O_NOFOLLOW },
-    { cbl::PSX_O_CLOEXEC, O_CLOEXEC },
-    { cbl::PSX_O_SYNC, O_SYNC },
-    { cbl::PSX_O_PATH, O_PATH },
-#if 0
-    // Linux, not POSIX
-    { cbl::PSX_O_LARGEFILE, O_LARGEFILE },
-    { cbl::PSX_O_NOATIME, O_NOATIME },
-    { cbl::PSX_O_TMPFILE, O_TMPFILE },
+    { cbl::PSX_O_LARGEFILE, O_LARGEFILE }, 
+    { cbl::PSX_O_SYNC, O_SYNC }, 
+    /*
+     * The O_CLOEXEC, O_DIRECTORY, and O_NOFOLLOW flags are not specified in
+     * POSIX.1-2001, but are specified in POSIX.1-2008.  See open(2). 
+     */
+#if defined(_POSIX_C_SOURCE) && 200809L <= (_POSIX_C_SOURCE - 0)
+    { cbl::PSX_O_CLOEXEC, O_CLOEXEC }, 
+    { cbl::PSX_O_DIRECTORY, O_DIRECTORY }, 
+    { cbl::PSX_O_NOFOLLOW, O_NOFOLLOW }, 
+#else
+    { cbl::PSX_O_CLOEXEC, 0 }, 
+    { cbl::PSX_O_DIRECTORY, 0 }, 
+    { cbl::PSX_O_NOFOLLOW, 0 },     
 #endif
-  };
+    /*
+     * The O_DIRECT, O_NOATIME, O_PATH, and O_TMPFILE flags are Linux-
+     * specific.  One must define _GNU_SOURCE to obtain their definitions.
+     */
+#if defined(_GNU_SOURCE)
+    { cbl::PSX_O_DIRECT, O_DIRECT }, 
+    { cbl::PSX_O_NOATIME, O_NOATIME }, 
+    { cbl::PSX_O_PATH, O_PATH }, 
+    { cbl::PSX_O_TMPFILE, O_TMPFILE }, 
+#else
+    { cbl::PSX_O_DIRECT, 0 }, 
+    { cbl::PSX_O_NOATIME, 0 }, 
+    { cbl::PSX_O_PATH, 0 }, 
+    { cbl::PSX_O_TMPFILE, 0 }, 
+#endif    
+  };    
 
   static const std::map<int, int> mode_bits {
     { cbl::PSX_S_IXOTH, S_IXOTH },

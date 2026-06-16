@@ -36,6 +36,8 @@
 extern const char * ec_type_str( ec_type_t type );
 extern ec_disposition_t ec_type_disposition( ec_type_t type );
 
+struct cbl_label_t;
+
 extern void declarative_runtime_match( const std::list<cbl_declarative_t>& declaratives,
 				       cbl_label_t *lave );
 

@@ -74,13 +74,13 @@ public:
   }
 };
 
-static std::map<size_t, YYLTYPE> field_locs;
+static std::map<size_t, cbl_loc_t> field_locs;
 
 void
-symbol_field_location( size_t ifield, const YYLTYPE& loc ) {
+symbol_field_location( size_t ifield, const cbl_loc_t& loc ) {
   field_locs[ifield] = loc;
 }
-YYLTYPE
+cbl_loc_t
 symbol_field_location( size_t ifield ) {
   auto p = field_locs.find(ifield);
   gcc_assert(p != field_locs.end());
@@ -730,7 +730,7 @@ symbol_locale( size_t program, const char name[] )
 struct symbol_elem_t *
 symbol_alphabet( size_t program, const char name[] )
 {
-  cbl_alphabet_t alphabet(YYLTYPE(), custom_encoding_e); // cppcheck-suppress syntaxError
+  cbl_alphabet_t alphabet(cbl_loc_t(), custom_encoding_e); // cppcheck-suppress syntaxError
   assert(strlen(name) < sizeof alphabet.name);
   strcpy(alphabet.name, name);
 
@@ -3411,7 +3411,7 @@ cbl_locale_t::cbl_locale_t( const cbl_name_t name, const char iconv_name[] ) {
   }
 }
 
-cbl_alphabet_t::cbl_alphabet_t(const YYLTYPE& loc, size_t locale, cbl_name_t name )
+cbl_alphabet_t::cbl_alphabet_t(const cbl_loc_t& loc, size_t locale, cbl_name_t name )
   : loc(loc)
   , locale(locale)
   , low_index(0)
@@ -3528,7 +3528,7 @@ cbl_alphabet_t::reencode( const cbl_loc_t& loc )  {
 }
 
 bool
-cbl_alphabet_t::assign( const YYLTYPE& loc, unsigned char ch, unsigned char high_value ) {
+cbl_alphabet_t::assign( const cbl_loc_t& loc, unsigned char ch, unsigned char high_value ) {
   if( collation_sequence[ch] == 0xFF || collation_sequence[ch] == high_value) {
     collation_sequence[ch] = high_value;
     last_index = ch;
@@ -3545,7 +3545,7 @@ cbl_alphabet_t::assign( const YYLTYPE& loc, unsigned char ch, unsigned char high
 }
 
 void
-cbl_alphabet_t::also( const YYLTYPE& loc, size_t ch ) {
+cbl_alphabet_t::also( const cbl_loc_t& loc, size_t ch ) {
   if( ch < 256 ) {
     collation_sequence[ch] = collation_sequence[last_index];
     if( ch == high_index ) high_index--;
@@ -3770,7 +3770,7 @@ symbol_temporary_location( const cbl_field_t *field, const cbl_loc_t& loc ) {
 
 cbl_loc_t
 symbol_temporary_location( const cbl_field_t *field ) {
-  extern YYLTYPE yylloc;
+  extern cbl_loc_t yylloc;
   auto p = temporaries.locs.find(field);
   return p == temporaries.locs.end()? cbl_loc_t(yylloc) : p->second;
 }
@@ -4209,10 +4209,11 @@ cbl_field_t::encode( size_t srclen, cbl_loc_t loc ) {
     return data.original();
     }
 
-  extern YYLTYPE yylloc;
+  extern cbl_loc_t yylloc;
+  
   const char *bad_boy = data.original();
   if( 0 == loc.first_line )
-    loc = level == 0 ? yylloc : symbol_field_location(field_index(this));
+    loc = level == 0 ? cbl_loc_t(yylloc) : symbol_field_location(field_index(this));
 
   /*
    * Hex-encoded means we don't convert.  data.initial should be long enough to
@@ -4319,7 +4320,7 @@ cbl_field_t::encode( size_t srclen, cbl_loc_t loc ) {
     // else try again
   }
   if( 0 == loc.first_line )
-    loc = level == 0 ? yylloc : symbol_field_location(field_index(this));
+    loc = level == 0 ? cbl_loc_t(yylloc) : symbol_field_location(field_index(this));
   error_msg( loc, "%<%c%> of %qs could not be converted from %s to %s: %s",
              *bad_boy, data.original(),
              cbl_encoding_str(

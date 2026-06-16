@@ -285,7 +285,7 @@ cbl_diagnostic_option( cbl_diag_id_t id ) {
  * the framework.
  */
 extern int yychar;
-extern YYLTYPE yylloc;
+extern cbl_loc_t yylloc;
 
 static const diagnostics::option_id option_zero;
 
@@ -326,10 +326,7 @@ bool cbl_message( cbl_loc_t loc, cbl_diag_id_t id, const char gmsgid[], ... ) {
 
       gcc_location_set(yylloc); // use lookahead location
     }
-    explicit temp_loc_t( const YYLTYPE& loc) : orig(current_token_location()) {
-      gcc_location_set(loc);
-    }
-    explicit temp_loc_t( const YDFLTYPE& loc) : orig(current_token_location()) {
+    explicit temp_loc_t( const cbl_loc_t& loc) : orig(current_token_location()) {
       gcc_location_set(loc);
     }
     ~temp_loc_t() {

@@ -160,7 +160,7 @@ class cdf_directives_t
     }
     void pop() {
       if( empty() ) {
-        error_msg(YYLTYPE(), "CDF stack empty"); // cppcheck-suppress syntaxError
+        error_msg(cbl_loc_t(), "CDF stack empty"); // cppcheck-suppress syntaxError
         return;
       }
       current_value = top();
@@ -314,13 +314,15 @@ void cdf_pop_source_format() {
          cdf_directives.source_format.value().description());
 }
 
+void cdf_unreachable() { gcc_unreachable(); }
+
 /*
  * Construct a cbl_field_t from a CDF literal, to be installed in the symbol table.
  */
-cbl_field_t
+static cbl_field_t
 cdf_literalize( const cbl_loc_t& loc,
                 const std::string& name, const cdfval_t& value,
-                bool set_initial ) {
+                bool set_initial = true ) {
     cbl_field_t field;
 
     if( value.is_numeric() ) {
@@ -343,6 +345,34 @@ cdf_literalize( const cbl_loc_t& loc,
     }
 
     return field;
+}
+
+cbl_file_t *
+cdf_file( size_t program, const cbl_name_t name ) {
+  symbol_elem_t *e = symbol_file(program, name);
+  if( e && e->type == SymFile ) {
+    return cbl_file_of(e);
+  }
+  return nullptr;
+} 
+
+size_t
+cdf_file_index( const cbl_file_t *file ) {
+  return symbol_index(symbol_elem_of(file));
+}
+
+const char *
+cdf_file_name( const cbl_file_t *file ) {
+  return file->name;
+}
+
+
+void
+cdf_field_add( const cbl_loc_t& loc, const std::string& name, const cdfval_t& value ) {
+  if( symbols_begin() < symbols_end() ) {
+    cbl_field_t field = cdf_literalize(loc, name, value);
+    symbol_field_add(current_program_index(), &field);                    
+  }
 }
 
 const std::list<cbl_field_t>
@@ -1436,8 +1466,7 @@ binary_initial( char *retval,
  */
 
 void
-cbl_field_t::encode_numeric( const char input[], cbl_loc_t loc,
-                             const REAL_VALUE_TYPE& /*rvt*/ ) {
+cbl_field_t::encode_numeric( const char input[], cbl_loc_t loc ) {
   gcc_assert(input);
   gcc_assert(is_numeric(this) || type == FldNumericEdited);
 
@@ -1892,7 +1921,7 @@ size_t parse_error_inc();
 size_t parse_error_count();
 
 bool // true if error reported
-cbl_field_t::report_invalid_initial_value(const YYLTYPE& loc) const {
+cbl_field_t::report_invalid_initial_value(const cbl_loc_t& loc) const {
 
   if( ! data.original() ) return false;
 
@@ -2532,6 +2561,320 @@ public:
 };
 
 /*
+ * Use a namespace to define sets of names.  Use relational algebra to
+ * determine uniqueness or ambiguity of each PERFORM reference.
+ */
+namespace match_proc {
+  std::string
+  lcase( std::string name ) {
+    std::transform(name.begin(), name.end(), name.begin(), ftolower);
+    return name;
+  }
+
+  // PERFORM targets are captured by parser
+  struct stmt_t {
+    int line;
+    size_t curr;  // current section of the PERFORM statement, else 0
+    struct tgt_t {
+      std::string name, qual;
+      bool empty() const { return name.empty(); }
+      bool operator==(const tgt_t& that) const {
+        return name == that.name && qual == that.qual;
+      }
+      tgt_t lcase() const {
+        tgt_t output{ match_proc::lcase(name), match_proc::lcase(qual) };
+        return output;
+      }
+    };
+    std::pair<tgt_t, tgt_t> tgts;
+
+    stmt_t() : line(0), curr(0) {}
+    stmt_t( int line, size_t isym,
+            std::string name,
+            const char qual[] )
+      : line(line), curr(isym)
+    {
+      tgts.first = tgt_t{name, qual? std::string(qual) : std::string() };
+    }
+    stmt_t& thru( std::string name, const char qual[] ) {
+      tgts.second = tgt_t{name, qual? std::string(qual) : std::string() };
+      return *this;
+    }
+    struct found_t {
+      size_t n, isym;
+      found_t() : n(0), isym(0) {}
+      found_t(size_t n, size_t isym) : n(n), isym(isym) {}
+    };
+    void error(const cbl_name_t program_name,
+               const tgt_t&tgt,
+               const found_t& found) const 
+    {
+      const char *clause = tgt == tgts.first? "" : "THRU ";
+          
+      switch( found.n ) {
+      case 1:
+        gcc_unreachable();
+        break;
+      case 0:
+        // error: not found
+        dbgmsg("%s:%d PERFORM %s%s not resolved",
+               program_name, line, clause, tgt.name.c_str());
+        break;
+      default:        
+        assert( 1 < found.n );
+        // error: ambiguous
+        dbgmsg("%s:%d PERFORM %s%s ambiguous",
+               program_name, line, clause, tgt.name.c_str());
+        break;
+      }
+    }
+  };
+
+  struct sect_t {
+    size_t isym;
+    std::string name;
+    sect_t( size_t isym ) : isym(isym) {
+      auto L = cbl_label_of(symbol_at(isym));
+      name = lcase(L->name);
+    }
+    bool operator<( const sect_t& that ) const {
+      return name < that.name;
+    }
+  };
+  struct para_t {
+    size_t isym, parent;
+    std::string name;
+    para_t( size_t isym ) : isym(isym) {
+      auto L = cbl_label_of(symbol_at(isym));
+      parent = L->parent;
+      name = lcase(L->name);
+    }
+    bool operator<( const para_t& that ) const {
+      if( name == that.name ) {
+        return parent < that.parent;
+      }
+      return name < that.name;
+    }
+    std::string parent_name() const {
+      if( ! parent ) return std::string();
+      const auto f = cbl_label_of(symbol_at(parent));
+      return lcase(f->name);
+    }
+  };
+  struct proc_t {
+    size_t n, isym; // index of first of n matching pairs
+    std::string para, sect;
+    proc_t( size_t n, size_t isym,
+            const std::string& para,
+            const std::string& sect )
+      : n(n), isym(isym), para(para), sect(sect)
+    {}
+    bool operator<( const proc_t& that ) const {
+      if( para == that.para ) {
+        return sect < that.sect;
+      }
+      return para < that.para;
+    }
+  };
+
+  class procedures_t {
+    std::set<sect_t> sects;
+    std::set<para_t> paras;
+    std::set<proc_t> procs;
+    friend bool statements_verify();
+  public:
+    procedures_t( size_t program ) {
+      // find sections and paragraphs
+      for( symbol_elem_t *e = symbols_begin(program+1); e->program == program; e++ ) {
+        if( e->type == SymLabel ) {
+          const auto& L = *cbl_label_of(e);
+          auto isym = e - symbols_begin();
+          switch(L.type) {
+          case LblSection: 
+            sects.insert(isym);
+            break;
+          case LblParagraph:
+            paras.insert(isym);
+            break;
+          default:
+            continue;
+          }
+        }
+      }
+      // join sections and paragraphs, unreduced
+      std::list<proc_t> all;
+      for( const auto& para : paras ) {
+        std::set<sect_t> parents;
+        std::copy_if( sects.begin(), sects.end(), std::inserter(parents, parents.begin()),
+                      [para]( const auto& sect ) {
+                        return para.parent_name() == sect.name;
+                      } );
+        std::transform( parents.begin(), parents.end(), std::back_inserter(all), 
+                        [para]( const auto& sect ) {
+                          proc_t proc(1, para.isym, para.name, sect.name);
+                          return proc;
+                        } );
+      }
+      // insert paragraph procedures
+      struct stat_t {
+        size_t n, isym;
+        stat_t() : n(0), isym(0) {}
+        stat_t update( size_t isym ) {
+          this->isym = this->isym == 0 ? isym : std::min(this->isym, isym);
+          n++;
+          return *this;
+        }
+      };
+      std::map<proc_t, stat_t> nprocs;
+      for( const auto& proc : all ) {
+        auto& stat = nprocs[proc];
+        stat.update( proc.isym );
+      }
+      std::transform(nprocs.begin(), nprocs.end(), std::inserter(procs, procs.begin()),
+                     []( const auto& elem ) {
+                       proc_t proc ( elem.second.n, elem.second.isym,
+                                     elem.first.para, elem.first.sect );
+                       return proc;
+                     } );
+      // insert section procedures
+      std::map<sect_t, stat_t> nsects;
+      for( const auto& sect : sects ) {
+        auto& stat = nsects[sect];
+        stat.update( sect.isym );
+      }
+      std::transform(nsects.begin(), nsects.end(), std::inserter(procs, procs.begin()),
+                     []( const auto& elem ) {
+                       proc_t proc ( elem.second.n, elem.second.isym,
+                                     std::string(), elem.first.name );
+                       return proc;
+                     } );
+    }
+
+    stmt_t::found_t
+    find( const stmt_t& stmt, const stmt_t::tgt_t& tgt ) {
+      if( tgt.empty() ) return stmt_t::found_t();
+      std::string curr ( lcase( cbl_label_of(symbol_at(stmt.curr))->name ) );
+
+      auto p = std::find_if(procs.cbegin(), procs.cend(),
+                            [curr, tgt](auto proc) {
+                              return match(proc, tgt, curr);
+                            });
+      size_t n = std::count_if(p, procs.end(),
+                               [curr, tgt](const auto& proc) {
+                                 return match(proc, tgt, curr);
+                               });
+      stmt_t::found_t found = {n, 0};
+      if( n ) {
+        assert(p != procs.end());
+        found.isym = p->isym;
+      }
+      return found;
+    }
+  protected:
+    static bool match( const proc_t& proc, const stmt_t::tgt_t& tgt, const std::string& curr ) {
+      return ( proc.para == tgt.name && tgt.qual.empty() )
+        ||   ( proc.sect == tgt.name && tgt.qual.empty() )
+        ||   ( proc.para == tgt.name && proc.sect == tgt.qual )
+        ||   ( proc.para == tgt.name && proc.sect == curr );
+    }    
+
+    void dump(const stmt_t& stmt) {
+      std::string target( stmt.tgts.first.name );
+      if( ! stmt.tgts.first.qual.empty() ) {
+        target += " of " + stmt.tgts.first.qual;
+      }
+      if( ! stmt.tgts.second.name.empty() ) {
+        target += " THRU " + stmt.tgts.second.name;
+      }
+      if( ! stmt.tgts.second.qual.empty() ) {
+        target += " of " + stmt.tgts.second.qual;
+      }
+
+      fprintf(stderr, "line %d in section #%lu: PERFORM %s\n",
+              stmt.line, (unsigned long)stmt.curr, target.c_str());
+      fprintf(stderr, "%lu Sections:\n", (unsigned long)sects.size());
+      for( auto sect : sects ) {
+        fprintf(stderr, "\t" "#%lu %s\n", (unsigned long)sect.isym, sect.name.c_str());
+      }
+      fprintf(stderr, "%lu Paragraphs:\n", (unsigned long)paras.size());
+      for( auto para : paras ) {
+        fprintf(stderr, "\t" "#%lu %s of #%lu\n",
+                (unsigned long)para.isym, para.name.c_str(), (unsigned long)para.parent);
+      }
+      fprintf(stderr, "%lu Procedures:\n", (unsigned long)procs.size());
+      for( auto proc : procs ) {
+        std::string section("");
+        if( ! proc.sect.empty() ) section += "of " + proc.sect;
+        fprintf(stderr, "\t" "n=%lu %s %s\n",
+                (unsigned long)proc.isym, proc.para.c_str(), section.c_str());
+      }
+      return;
+    }
+  }; // procedures
+
+
+  static stmt_t prototype;
+  static std::list<stmt_t> stmts;
+
+  bool
+  statements_verify() {
+    size_t nerr = 0;
+    size_t iprog = current_program_index();
+    const char *program_name = cbl_label_of(symbol_at(iprog))->name;
+    // instantiate procedure targets for current program from the symbol table
+    procedures_t procedures(iprog);
+
+    // Verify each PERFORM statement target is a unique reference
+    for( const auto& stmt : stmts ) {
+      stmt_t::found_t found = procedures.find(stmt, stmt.tgts.first.lcase());
+      stmt_t::found_t thru  = procedures.find(stmt, stmt.tgts.second.lcase());
+
+      if( found.n == 1 && (thru.n == 1 || stmt.tgts.second.empty()) ) {
+        // update proc call list
+        if( stmt.tgts.first.qual.empty() ) {
+          dbgmsg("%s:%d PERFORM %s is ok", program_name, stmt.line,
+                 stmt.tgts.first.name.c_str());
+        } else {
+          dbgmsg("%s:%d PERFORM %s of %s is ok", program_name, stmt.line,
+                 stmt.tgts.first.name.c_str(),
+                 stmt.tgts.first.qual.c_str());
+        }
+        continue;
+      }
+      nerr++;
+      
+      if( found.n != 1 ) {
+        stmt.error(program_name, stmt.tgts.first, found);
+        if( nerr == 1 && yydebug ) {
+          procedures.dump(stmt);
+        }
+      }
+      if( thru.n != 1 && ! stmt.tgts.second.empty() ) {
+        stmt.error(program_name, stmt.tgts.second, thru);
+      }
+    }
+    return nerr == 0;
+  }
+  
+  void statement_add() {
+    stmts.push_back(prototype);
+    prototype = stmt_t();
+  }
+  void
+  statement_compose( int line, size_t isection, // isection is where the PERFORM is
+                       const cbl_name_t para,
+                       const cbl_name_t qual ) {
+    std::string qual_name;
+    if( qual ) qual_name = qual;
+    if( prototype.tgts.first.name.empty() ) {
+      prototype = stmt_t( line, isection, para, qual );
+    } else {
+      prototype.thru( para, qual );
+    }
+  }
+} // end match_proc namespace
+
+/*
  * Every reference occurs in a {program,section,paragraph} context,
  * even if they're implicit.
  */
@@ -2635,20 +2978,54 @@ public:
   }
 };
 
+#define DUMP_PROCEDURE_CALLS 0
+#if DUMP_PROCEDURE_CALLS
+static void procedure_calls_dump( size_t program ) {
+  procedures_t& procedures = programs[program];
+  for( const auto& proc : procedures ) {
+    const procdef_t& def(proc.first);
+    const auto& refs(proc.second);
+    auto L = def.label_of();
+    if( L ) {
+      fprintf(stderr, "call to %s", L->name);
+      if( L->parent ) {
+        auto S = cbl_label_of(symbol_at(L->parent));
+        fprintf(stderr, " of %s", S->name);
+      }
+      fprintf(stderr, ":\n");
+      for( const procref_t& ref : refs ) {
+        fprintf(stderr, "\t" "from %s ", ref.paragraph());
+        if( ref.section()[0] ) fprintf(stderr, "of %s", ref.section());
+        fprintf(stderr, "on line %d\n", ref.line_number());
+      }
+    }
+  }
+}
+#endif
+
 procref_t *
 ambiguous_reference( size_t program ) {
   procedures_t& procedures = programs[program];
 
+#if DUMP_PROCEDURE_CALLS
+  procedure_calls_dump(program);
+#endif
   for( const auto& proc : procedures ) {
     procedures_t::mapped_type::const_iterator
       ambiguous = find_if_not( proc.second.begin(), proc.second.end(),
                                is_unique(program, proc.first) );
     if( proc.second.end() != ambiguous ) {
       if( yydebug ) {
-        dbgmsg("%s: %s of '%s' has " HOST_SIZE_T_PRINT_UNSIGNED
-               "potential matches", __func__,
+        dbgmsg("%s: %s of '%s' has " HOST_SIZE_T_PRINT_UNSIGNED " "
+               "potential matches among references", __func__,
                ambiguous->paragraph(), ambiguous->section(),
                (fmt_size_t)procedures.count(procdef_t(*ambiguous)));
+        for( const auto& ref : proc.second ) {
+          fprintf(stderr, "\tline %d from {%s}: %s",
+                  ref.line_number(), ref.called_from(), ref.paragraph());
+          if( ref.section()[0] ) fprintf(stderr, "of %s", ref.section());
+          fprintf(stderr, "\n");
+        }
       }
       return new procref_t(*ambiguous);
     }
@@ -3104,9 +3481,8 @@ void current_location_minus_one_clear()
  * with start and caret at the first line/column of LOC, and finishing at the
  * last line/column of LOC.
  */
-template <typename LOC>
 static void
-gcc_location_set_impl( const LOC& loc ) {
+gcc_location_set_impl( const cbl_loc_t& loc ) {
   // Set the position to the first line & column in the location.
  static location_t loc_m_1 = 0;
  const location_t
@@ -3132,13 +3508,15 @@ gcc_location_set_impl( const LOC& loc ) {
   location_dump(__func__, __LINE__, "parser", loc);
 }
 
-void gcc_location_set( const YYLTYPE& loc ) {
+void gcc_location_set( const cbl_loc_t& loc ) {
   gcc_location_set_impl(loc);
 }
 
+#if 0
 void gcc_location_set( const YDFLTYPE& loc ) {
   gcc_location_set_impl(loc);
 }
+#endif
 
 #ifdef NDEBUG
 # define verify_format(M)
@@ -3193,7 +3571,7 @@ ydferror( const char gmsgid[], ... ) {
 }
 
 extern int yychar;
-extern YYLTYPE yylloc;
+extern cbl_loc_t yylloc;
 
 /*
  * temp_loc_t is a hack in lieu of "%define parse.error custom".  When
@@ -3209,10 +3587,7 @@ class temp_loc_t {
 
     gcc_location_set(yylloc); // use lookahead location
   }
-  explicit temp_loc_t( const YYLTYPE& loc) : orig(token_location) {
-    gcc_location_set(loc);
-  }
-  explicit temp_loc_t( const YDFLTYPE& loc) : orig(token_location) {
+  explicit temp_loc_t( const cbl_loc_t& loc) : orig(token_location) {
     gcc_location_set(loc);
   }
   ~temp_loc_t() {
@@ -3249,19 +3624,16 @@ class temp_loc_t {
   global_dc->end_group();
 
 
-void error_msg( const YYLTYPE& loc, const char gmsgid[], ... ) {
-  ERROR_MSG_BODY
-}
-
-void error_msg( const YDFLTYPE& loc, const char gmsgid[], ... )
-  ATTRIBUTE_GCOBOL_DIAG(2, 3);
-
-void error_msg( const YDFLTYPE& loc, const char gmsgid[], ... ) {
+void error_msg( const cbl_loc_t& loc, const char gmsgid[], ... ) {
   ERROR_MSG_BODY
 }
 
 bool
-warn_msg( const YYLTYPE& loc, const char gmsgid[], ... ) {
+warn_msg( const cbl_loc_t& loc, const char gmsgid[], ... )
+  ATTRIBUTE_GCOBOL_DIAG(2, 3);
+
+bool
+warn_msg( const cbl_loc_t& loc, const char gmsgid[], ... ) {
   temp_loc_t looker(loc);
   verify_format(gmsgid);
   auto_diagnostic_group d;
@@ -3441,16 +3813,18 @@ parse_file( const char filename[] )
 
 #pragma GCC diagnostic pop
 
-extern int yy_flex_debug, yydebug, ydfdebug;
+extern int yy_flex_debug, yydebug;
 extern int f_trace_debug;
 
 void cobol_set_indicator_column( int column );
+void ydfdebug( bool yn );
 
 void
 cobol_set_debugging( bool flex, bool yacc, bool parser )
 {
   yy_flex_debug = flex? 1 : 0;
-  ydfdebug = yydebug = yacc? 1 : 0;
+  yydebug = yacc? 1 : 0;
+  ydfdebug( yacc );
   f_trace_debug = parser? 1 : 0;
 }
 
@@ -3531,7 +3905,7 @@ cbl_unimplemented(const char *gmsgid, ...) {
 }
 
 void
-cbl_unimplemented_at( const YYLTYPE& loc, const char *gmsgid, ... ) {
+cbl_unimplemented_at( const cbl_loc_t& loc, const char *gmsgid, ... ) {
   temp_loc_t looker(loc);
   verify_format(gmsgid);
   auto_diagnostic_group d;

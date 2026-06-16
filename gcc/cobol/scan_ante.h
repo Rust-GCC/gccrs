@@ -64,7 +64,7 @@ int repeat_count( const char picture[] );
 
 size_t program_level();
 
-int ydfparse(void);
+static int ydfparse(void);
 
 FILE * copy_mode_start();
 
@@ -117,6 +117,13 @@ static const char * start_condition_str( int sc );
 static const char * start_condition_is();
 
 static bool nonspace( char ch ) { return !ISSPACE(ch); }
+
+cdf::parser cdf_parser;
+cdf::parser::symbol_type cdf_symbol_type;
+cdf::parser::context cdf_context(cdf_parser, cdf_symbol_type);
+
+cdf::parser::value_type ydflval;
+cdf::parser::location_type ydflloc;
 
 static int
 numstr_of( const char string[], radix_t radix = decimal_e ) {
@@ -206,8 +213,6 @@ null_trim( char name[] ) {
 /*
  * CDF management
  */
-static int final_token;
-
 static inline const char *
 boolalpha( bool tf ) { return tf? "True" : "False"; }
 
@@ -439,32 +444,12 @@ static input_file_status_t input_file_status;
 void input_file_status_notify() { input_file_status.notify(); }
 
 /*
- * parse.y and cdf.y each define a 4-integer struct to hold a token's location. 
- * parse.y uses   YYLTYPE  yylloc;
- * cdf.y   uses YDFLLTYPE ydflloc;
- * 
- * The structs have identical definitions with different types and of course
- * names.  We define "conversion" between them for convenience. 
- * 
- * Each parser expects its location value to be updated whenever it calls
- * yylex().  Therefore, here in the lexer we set both locations as each token
- * is scanned, so that both parsers see the same location.
- */
-static YDFLTYPE
-ydfltype_of( const YYLTYPE& loc ) {
-  YDFLTYPE output { 
-    loc.first_line,   loc.first_column,
-    loc.last_line,    loc.last_column };
-  return output;
-}
-
-/*
  * After the input filename and yylineno are set, update the location of the
  * scanned token.
  */
 static void
-update_location( const YYLTYPE *ploc = nullptr ) {
-  YYLTYPE loc = {
+update_location( const cbl_loc_t *ploc = nullptr ) {
+  cbl_loc_t loc = {
     yylloc.last_line, yylloc.last_column,
     yylineno,         yylloc.last_column + yyleng
   };
@@ -475,8 +460,7 @@ update_location( const YYLTYPE *ploc = nullptr ) {
     loc.last_column = (yytext + yyleng) - p;
   }
 
-  yylloc = loc;
-  ydflloc = ydfltype_of(yylloc);
+  ydflloc = yylloc = loc;
 
   dbgmsg("  SC: %s location (%d,%d) to (%d,%d)",
          start_condition_is(),
@@ -486,7 +470,7 @@ update_location( const YYLTYPE *ploc = nullptr ) {
 
 static void
 reset_location() {
-  static const YYLTYPE loc { yylineno, 1, yylineno, 1 };
+  static const cbl_loc_t loc { yylineno, 1, yylineno, 1 };
   update_location(&loc);
 }
 
@@ -536,9 +520,8 @@ update_location_col( const char str[], int correction = 0) {
 #define not_implemented(...) cbl_unimplemented_at(yylloc, __VA_ARGS__)
 
 #define YY_USER_INIT do {			\
-    static YYLTYPE ones = {1,1, 1,1};		\
-    yylloc = ones;                              \
-    ydflloc = ydfltype_of(yylloc);              \
+    static cbl_loc_t ones = {1,1, 1,1};		\
+    ydflloc = yylloc = ones;                    \
   } while(0)
 
 /*
@@ -808,7 +791,7 @@ class picture_t {
       : crdb(0), currency(0), dot(0), pluses(0), minuses(0), stars(0)
     {}
   } exclusions;
-  YYLTYPE loc;
+  cbl_loc_t loc;
   
   bool is_crdb() const { // input must be uppercase for CR/DB
     if( p[0] == 'C' || p[0] == 'D' ) {
@@ -856,7 +839,7 @@ class picture_t {
     if( !ch ) ch = *p;   // use current character unless overridden
     auto valid = followers.find(TOUPPER(ch));
     if( valid == followers.end() ) {
-      YYLTYPE loc(yylloc);
+      cbl_loc_t loc(yylloc);
       loc.first_column += int(p - begin);
       error_msg( loc, "PICTURE: strange character %qc, giving up", ch );
       return nullptr;

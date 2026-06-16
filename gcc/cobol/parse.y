@@ -329,7 +329,13 @@ class locale_tgt_t {
 #include "inspect.h"
 }
 
+%define api.location.type {cbl_loc_t}
+
 %{
+// yyssa never freed: 
+// https://lists.nongnu.org/archive/html/help-bison/2021-01/msg00021.html
+#pragma GCC diagnostic ignored "-Wfree-nonheap-object"
+
 #include "config.h"
 #include <fstream>  // Before cobol-system because it uses poisoned functions
 #include "cobol-system.h"
@@ -934,7 +940,7 @@ class locale_tgt_t {
            declarative_list_t* dcl_list_t;
            isym_list_t* isym_list;
     struct { bool is_float; radix_t radix; char *string; } numstr;
-    struct { YYLTYPE loc; int token; literal_t name; } prog_end;
+    struct { cbl_loc_base_t loc; int token; literal_t name; } prog_end;
     struct { int token; special_name_t id; } special_type;
     struct { char locale_type; const char * name; } locale_phrase;
              coll_alphanat_t char_class_locales;
@@ -1005,13 +1011,13 @@ class locale_tgt_t {
 
     struct cbl_ffi_arg_t *ffi_arg;
     struct ffi_args_t *ffi_args;
-    struct { YYLTYPE loc; cbl_refer_t *ffi_name, *ffi_returning;
+    struct { cbl_loc_base_t loc; cbl_refer_t *ffi_name, *ffi_returning;
              ffi_args_t *using_params; } ffi_impl;
 
     struct { bool common, initial, recursive; } comminit;
     struct { enum select_clause_t clause; cbl_file_t *file; } select_clause;
     struct { size_t clauses; cbl_file_t *file; } select_clauses;
-    struct { YYLTYPE loc; char *on, *off; } switches;
+    struct { cbl_loc_base_t loc; char *on, *off; } switches;
     struct { cbl_encoding_t encoding; cbl_domain_t *domain; } false_domain;
     struct { size_t also; unsigned char *low, *high; } colseq;
     struct { cbl_field_attr_t attr; int nbyte; } pic_part;
@@ -1543,7 +1549,7 @@ class locale_tgt_t {
   cbl_field_t *
   new_literal( const cbl_loc_t loc, const literal_t& lit, enum cbl_field_attr_t attr );
 
-  static YYLTYPE first_line_of( YYLTYPE loc );
+  static cbl_loc_t first_line_of( cbl_loc_t loc );
 %}
 
 %locations
@@ -3308,8 +3314,7 @@ file_descrs:    file_descr
         |       file_descrs file_descr
                 ;
 file_descr:     fd_name            '.' { field_done(); } fields
-        |       fd_name fd_clauses '.' { field_done(); }
-                fields
+        |       fd_name fd_clauses '.' { field_done(); } fields
                 ;
 
 fd_name:        FD NAME { $$ = file_section_fd_set(fd_e, $2, @2); }
@@ -4383,8 +4388,7 @@ data_descr1:    level_name
                           $field->blank_initial($field->char_capacity());
                         }
                         $field->encode_numeric($field->data.original(), 
-                                               data_clause_locations[value_clause_e],
-                                               $field->data.original_numeric());
+                                               data_clause_locations[value_clause_e]);
                       }
                     }
                   } else { // no VALUE clause
@@ -5526,7 +5530,9 @@ declaratives:   %empty
                   parser_label_label($label);
                   enabled_exceptions = current.enabled_exception_cache;
                   current.enabled_exception_cache.clear();
-		  ast_enter_section(implicit_section());
+                  cbl_loc_t loc(@4); // the dot
+                  loc.first_line++;
+		  ast_enter_section(loc, implicit_section());
                 }
                 ;
 
@@ -5542,7 +5548,7 @@ sentences:      sentence {
                   if( !label ) {
                     YYERROR;
                   }
-                  ast_enter_paragraph(label);
+                  ast_enter_paragraph(@para, label);
                   current.new_paragraph(label);
                   apply_declaratives();
                 }
@@ -5559,7 +5565,7 @@ sentences:      sentence {
                   if( !label ) {
                     YYERROR;
                   }
-                  ast_enter_paragraph(label);
+                  ast_enter_paragraph(@para, label);
                   current.new_paragraph(label);
                   apply_declaratives();
                 }
@@ -7905,14 +7911,14 @@ section_name:	NAME section_kw '.'
                 {
                   statement_begin(@1, SECTION);
 		  $$ = label_add(@1, LblSection, $1);
-                  ast_enter_section($$);
+                  ast_enter_section(@1, $$);
                   apply_declaratives();
                 }
 	|	NAME section_kw // lexer swallows '.' before USE
                 <label>{
                   statement_begin(@1, SECTION);
 		  $$ = label_add(@1, LblSection, $1);
-                  ast_enter_section($$);
+                  ast_enter_section(@1, $$);
                   apply_declaratives();
                 } [label]
                 cdf_use dot
@@ -8345,7 +8351,7 @@ perform_when1:	WHEN perform_ec {
 				  []( const cbl_declarative_t *p ) {
 				    return *p;
 				  } );
-		  ast_enter_paragraph(when);
+		  ast_enter_paragraph(@WHEN, when);
 		}
 		statements {
 		  parser_exit_paragraph();
@@ -8433,12 +8439,12 @@ except_files:	except_name[ec] FILE_KW filenames {
 perform_ec_other:
 		%empty %prec WHEN {
                   const auto& ec_labels( perform_current()->ec_labels );
-		  ast_enter_paragraph(ec_labels.other);
+		  ast_enter_paragraph(@$, ec_labels.other);
 		  parser_exit_paragraph();
 		}
 	|	WHEN OTHER {
                   const auto& ec_labels( perform_current()->ec_labels );
-		  ast_enter_paragraph(ec_labels.other);
+		  ast_enter_paragraph(@$, ec_labels.other);
 		}
 		exception statements %prec WHEN {
 		  parser_exit_paragraph();
@@ -8447,12 +8453,12 @@ perform_ec_other:
 perform_ec_common:
 		%empty {
 		  const auto& ec_labels( perform_current()->ec_labels );
-		  ast_enter_paragraph(ec_labels.common);
+		  ast_enter_paragraph(@$, ec_labels.common);
 		  parser_exit_paragraph();
 		}
 	|	WHEN COMMON {
 		  const auto& ec_labels( perform_current()->ec_labels );
-		  ast_enter_paragraph(ec_labels.common);
+		  ast_enter_paragraph(@$, ec_labels.common);
 		}
 		exception statements {
 		  parser_exit_paragraph();
@@ -8461,13 +8467,13 @@ perform_ec_common:
 perform_ec_finally:
 		%empty {
 		  const auto& ec_labels( perform_current()->ec_labels );
-		  ast_enter_paragraph(ec_labels.finally);
+		  ast_enter_paragraph(@$, ec_labels.finally);
 		  parser_exit_paragraph();
 		  parser_label_goto(ec_labels.fini);
 		}
 	|	FINALLY {
 		  const auto& ec_labels( perform_current()->ec_labels );
-		  ast_enter_paragraph(ec_labels.finally);
+		  ast_enter_paragraph(@$, ec_labels.finally);
 		}
 		exception statements {
 		  parser_exit_paragraph();
@@ -10744,7 +10750,7 @@ label_1:        qname
                     isect = symbol_index(symbol_elem_of(sect));
                   }
 
-                  $$ = paragraph_reference(para, isect);
+                  $$ = paragraph_reference(@1, para, isect);
                   assert($$);
                   dbgmsg( "using procedure %s of line %d", $$->name, $$->line );
                 }
@@ -11037,7 +11043,7 @@ function_call:  function intrinsic { // "intrinsic" includes UDFs.
 
                 ;
 function:       %empty   %prec FUNCTION
-                { // typed_name in scan_ante.h allows FUNCTION keywod to be ommitted.
+                { // typed_name in scan_ante.h allows FUNCTION keyword to be ommitted.
                   statement_begin(@$, FUNCTION);
                 }
         |       FUNCTION
@@ -12546,8 +12552,8 @@ end_xml:        %empty     %prec XMLPARSE
                 ;
 %%
 
-static YYLTYPE
-first_line_of( YYLTYPE loc ) {
+static cbl_loc_t
+first_line_of( cbl_loc_t loc ) {
     if( loc.first_line < loc.last_line ) loc.last_line = loc.first_line;
     if( loc.last_column < loc.first_column ) loc.last_column = loc.first_column;
     return loc;
@@ -12712,7 +12718,8 @@ verify_args( const YYLTYPE& loc,
   }
 }
 
-void ast_call( const YYLTYPE& loc, cbl_refer_t name, const cbl_refer_t& returning,
+static void
+ast_call( const cbl_loc_t& loc, cbl_refer_t name, const cbl_refer_t& returning,
                size_t narg, cbl_ffi_arg_t args[],
                cbl_label_t *except,
                cbl_label_t *not_except,
@@ -12789,7 +12796,7 @@ statement_prolog( int token ) {
  * parsed.
  */
 static void
-statement_begin( const YYLTYPE& loc, int token ) {
+statement_begin( const cbl_loc_t& loc, int token ) {
   static int prior_token = 0;
 
   if( statement_cleanup )  {
@@ -13062,7 +13069,7 @@ typedef label_named<LblSection> section_named;
 typedef label_named<LblParagraph> paragraph_named;
 
 static struct cbl_label_t *
-label_add( const YYLTYPE& loc,
+label_add( const cbl_loc_t& loc,
 	   enum cbl_label_type_t type, const char name[] ) {
   size_t parent = 0;
 
@@ -13108,7 +13115,7 @@ label_add( const YYLTYPE& loc,
  */
 static struct cbl_label_t *
 label_add( enum cbl_label_type_t type, const char name[], int line ) {
-  YYLTYPE loc { line, 1, line, 1 };
+  cbl_loc_t loc { line, 1, line, 1 };
   return label_add(loc, type, name);
 }
 
@@ -13149,7 +13156,7 @@ perform_t::ec_labels_t::new_label( cbl_label_type_t type,
  * detects and corrects its misstep.
  */
 static struct cbl_label_t *
-paragraph_reference( const char name[], size_t section )
+paragraph_reference( const cbl_loc_t& loc, const char name[], size_t section )
 {
   // A reference has line == 0.  It is LblParagraph if the section is
   // explicitly named, else LblNone (because we don't know).
@@ -13160,8 +13167,13 @@ paragraph_reference( const char name[], size_t section )
 
   p = symbol_label_add(PROGRAM, &label);
   assert(p);
-
+  const char *para_name = p->name;
   const char *sect_name = section? cbl_label_of(symbol_at(section))->name : NULL;
+  
+  match_proc::statement_compose( loc.first_line,
+                                 current.program_section(),
+                                 para_name, sect_name );
+                   
   procedure_reference_add(sect_name, p->name, yylineno, current.program_section());
 
   return p;
@@ -13308,7 +13320,7 @@ function_descr_t::init( int isym, bool prototype ) {
   function_descr_t descr = { FUNCTION_UDF_0 };
   descr.ret_type = FldInvalid;
   const auto L = cbl_label_of(symbol_at(isym));
-  bool ok = namcpy(YYLTYPE(), descr.name, L->name);
+  bool ok = namcpy(cbl_loc_t(), descr.name, L->name);
   descr.prototype = prototype;
   gcc_assert(ok);
   return descr;
@@ -13389,7 +13401,7 @@ cbl_key_t::operator=( const sort_key_t& that ) {
 }
 
 static cbl_refer_t *
-ast_op( YYLTYPE loc, cbl_refer_t *lhs, char op, cbl_refer_t *rhs ) {
+ast_op( const cbl_loc_t& loc, cbl_refer_t *lhs, char op, cbl_refer_t *rhs ) {
   assert(lhs);
   assert(rhs);
   if( ! (is_numeric(lhs->field) && is_numeric(rhs->field)) ) {
@@ -13580,7 +13592,7 @@ data_section_str( data_section_t section ) {
 }
 
 static bool
-current_data_section_set(const YYLTYPE& loc,  data_section_t data_section ) {
+current_data_section_set(const cbl_loc_t& loc,  data_section_t data_section ) {
   // order is mandatory
   if( data_section < current_data_section ) {
     error_msg(loc, "%s SECTION must precede %s SECTION",
@@ -13648,8 +13660,8 @@ lang_check_failed (const char* file, int line, const char* function) {}
 
 #pragma GCC diagnostic pop
 
-void
-ast_inspect( YYLTYPE loc, cbl_refer_t& input, bool backward,
+static void
+ast_inspect( cbl_loc_t loc, cbl_refer_t& input, bool backward,
              cbl_inspect_opers_t& inspects )
 {
   if( yydebug ) {
@@ -13959,9 +13971,7 @@ initialize_one( cbl_num_result_t target, bool with_filler,
 {
   cbl_refer_t& tgt( target.refer );
   if( ! valid_target(tgt) ) return false;
-#if 0
-  if( field_index(target.refer.field) == return_code_register() ) return true;
-#endif
+
   // Rule 1 c: is valid for VALUE, REPLACING, or DEFAULT
   // If no VALUE (category none), set to blank/zero.
   if( value_category == data_category_none && replacements.empty() ) {
@@ -14548,7 +14558,7 @@ cobol_dialect_set( cbl_dialect_t dialect ) {
     break;
   case dialect_gnu_e:
     if( 0 == (cbl_dialects & dialect) ) { // first time
-      cdf_tokens.equate(YYLTYPE(), "BINARY-DOUBLE", "BINARY-C-LONG");
+      cdf_tokens.equate(cbl_loc_t(), "BINARY-DOUBLE", "BINARY-C-LONG");
     }
     break;
   }    
@@ -14575,7 +14585,9 @@ cobol_gcobol_feature_set( cbl_gcobol_feature_t gcobol_feature, bool on ) {
 }
 
 static bool
-literal_refmod_valid( YYLTYPE loc, const cbl_refer_t& r ) {
+literal_refmod_valid( cbl_loc_t loc, const cbl_refer_t& r ) {
+  if( r.field->has_attr(any_length_e) ) return true;
+
   unsigned int nchar = r.field->char_capacity();
   const cbl_span_t& refmod(r.refmod);
 
@@ -14646,7 +14658,7 @@ const cbl_field_t *
 literal_subscript_oob( const cbl_refer_t& r, size_t& isub );
 
 static bool
-literal_subscripts_valid( YYLTYPE loc, const cbl_refer_t& name ) {
+literal_subscripts_valid( cbl_loc_t loc, const cbl_refer_t& name ) {
   size_t isub;
 
   // Report any out-of-bound subscript. 
@@ -14683,7 +14695,7 @@ literal_subscripts_valid( YYLTYPE loc, const cbl_refer_t& name ) {
 }
 
 static void
-subscript_dimension_error( YYLTYPE loc, size_t nsub, const cbl_refer_t *scalar ) {
+subscript_dimension_error( cbl_loc_t loc, size_t nsub, const cbl_refer_t *scalar ) {
   if( 0 == dimensions(scalar->field) ) {
     error_msg(loc, "%zu subscripts provided for %s, "
               "which has no dimensions",
@@ -14696,14 +14708,14 @@ subscript_dimension_error( YYLTYPE loc, size_t nsub, const cbl_refer_t *scalar )
 }
 
 static void
-reject_refmod( YYLTYPE loc, const cbl_refer_t& scalar ) {
+reject_refmod( cbl_loc_t loc, const cbl_refer_t& scalar ) {
   if( scalar.is_refmod_reference() ) {
     error_msg(loc, "%s cannot be reference-modified here", scalar.name());
   }
 }
 
 static bool
-require_pointer( YYLTYPE loc, const cbl_refer_t& scalar ) {
+require_pointer( cbl_loc_t loc, const cbl_refer_t& scalar ) {
   if( scalar.field->type != FldPointer ) {
     error_msg(loc, "%s must have USAGE POINTER", scalar.name());
     return false;
@@ -14712,7 +14724,7 @@ require_pointer( YYLTYPE loc, const cbl_refer_t& scalar ) {
 }
 
 static bool
-require_numeric( YYLTYPE loc, const cbl_refer_t& scalar ) {
+require_numeric( cbl_loc_t loc, const cbl_refer_t& scalar ) {
   if( ! is_numeric(scalar.field) ) {
     error_msg(loc, "%s must have numeric USAGE", scalar.name());
     return false;
@@ -14721,7 +14733,7 @@ require_numeric( YYLTYPE loc, const cbl_refer_t& scalar ) {
 }
 
 static bool
-require_integer( YYLTYPE loc, const cbl_refer_t& scalar ) {
+require_integer( cbl_loc_t loc, const cbl_refer_t& scalar ) {
   if( is_literal(scalar.field) ) {
     if( ! is_integer_literal(scalar.field) ) {
       error_msg(loc, "numeric literal '%s' must be an integer",
@@ -14865,7 +14877,7 @@ eval_subject_t::compare( const cbl_refer_t& object,
  * Do not set initial value; that is up to PICTURE and VALUE.
  */
 static cbl_field_type_t
-field_binary_usage( YYLTYPE loc, cbl_field_t *field,
+field_binary_usage( cbl_loc_t loc, cbl_field_t *field,
                     cbl_field_type_t type, uint32_t capacity,
                     bool signable )
 {
