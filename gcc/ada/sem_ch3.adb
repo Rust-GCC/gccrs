@@ -8421,13 +8421,15 @@ package body Sem_Ch3 is
                and then not Is_Generic_Type (Root_Type (Full_Parent)))
          then
             --  Copy and adjust declaration to provide a completion for what
-            --  is originally a private declaration. Indicate that full view
-            --  is internally generated.
+            --  is originally a private declaration. Indicate that the full
+            --  view is internally generated, and set Is_Implicit_Full_View
+            --  now for the sake of Build_Derived_Record_Type.
 
             Set_Comes_From_Source (Full_N, False);
             Set_Comes_From_Source (Full_Der, False);
             Set_Parent (Full_Der, Full_N);
             Set_Defining_Identifier (Full_N, Full_Der);
+            Set_Is_Implicit_Full_View (Full_Der);
 
             --  If there are no constraints, adjust the subtype mark
 
@@ -10188,10 +10190,12 @@ package body Sem_Ch3 is
       --  Set fields for tagged types
 
       if Is_Tagged then
-         --  Minor optimization: there is no need to generate the class-wide
-         --  entity associated with an underlying record view.
+         --  Small optimization: there is no need to generate the class-wide
+         --  entity for either an implicit full or an underlying record view.
 
-         if not Is_Underlying_Record_View (Derived_Type) then
+         if not Is_Implicit_Full_View (Derived_Type)
+           and then not Is_Underlying_Record_View (Derived_Type)
+         then
             Make_Class_Wide_Type (Derived_Type);
          end if;
 
@@ -10423,10 +10427,11 @@ package body Sem_Ch3 is
       end if;
 
       --  Update the class-wide type, which shares the now-completed entity
-      --  list with its specific type. In case of underlying record views,
-      --  we do not generate the corresponding class wide entity.
+      --  list with its specific type. But in the cases of implicit full or
+      --  underlying record views, we do not generate the class-wide type.
 
       if Is_Tagged
+        and then not Is_Implicit_Full_View (Derived_Type)
         and then not Is_Underlying_Record_View (Derived_Type)
       then
          Set_First_Entity

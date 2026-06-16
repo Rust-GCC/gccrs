@@ -6548,21 +6548,18 @@ package body Exp_Ch3 is
 
             Set_Is_Frozen (Typ);
 
-            if not Is_Derived_Type (Typ)
-              or else Is_Tagged_Type (Etype (Typ))
-            then
-               Set_All_DT_Position (Typ);
-
-            --  If this is a type derived from an untagged private type whose
+            --  If the type is derived from an untagged private type whose
             --  full view is tagged, the type is marked tagged for layout
             --  reasons, but it has no dispatch table.
 
-            elsif Is_Derived_Type (Typ)
-              and then Is_Private_Type (Etype (Typ))
+            if Is_Derived_Type (Typ)
               and then not Is_Tagged_Type (Etype (Typ))
             then
+               pragma Assert (Is_Private_Type (Etype (Typ)));
                return;
             end if;
+
+            Set_All_DT_Position (Typ);
 
             --  Create and decorate the tags. Suppress their creation when
             --  not Tagged_Type_Expansion because the dispatching mechanism is
