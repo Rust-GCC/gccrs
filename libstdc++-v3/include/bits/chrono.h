@@ -1356,7 +1356,7 @@ _GLIBCXX_END_INLINE_ABI_NAMESPACE(_V2)
    * for example `1.5e2ms` might be equivalent to
    * `chrono::duration<long double, chrono::milli>(1.5e2)`.
    *
-   * @since C+14
+   * @since C++14
    * @ingroup chrono
    */
   inline namespace chrono_literals
