@@ -2637,15 +2637,27 @@ Support is experimental, and could change in incompatible ways in
 future releases.
 The name @samp{gnu++2b} is deprecated.
 
-@item c++2c
-@itemx c++26
+@item c++26
+@itemx c++2c
 The next revision of the ISO C++ standard, planned for
 2026.  Support is highly experimental, and will almost certainly
 change in incompatible ways in future releases.
 
-@item gnu++2c
-@itemx gnu++26
-GNU dialect of @option{-std=c++2c}.  Support is highly experimental,
+@item gnu++26
+@itemx gnu++2c
+GNU dialect of @option{-std=c++26}.  Support is highly experimental,
+and will almost certainly change in incompatible ways in future
+releases.
+
+@item c++29
+@itemx c++2d
+The upcoming revision of the ISO C++ standard, planned for
+2029.  Support is highly experimental, and will almost certainly
+change in incompatible ways in future releases.
+
+@item gnu++29
+@itemx gnu++2d
+GNU dialect of @option{-std=c++29}.  Support is highly experimental,
 and will almost certainly change in incompatible ways in future
 releases.
 @end table

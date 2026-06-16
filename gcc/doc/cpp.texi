@@ -1912,9 +1912,10 @@ selected, the value of the macro is
 @code{201703L} for the 2017 C++ standard,
 @code{202002L} for the 2020 C++ standard,
 @code{202302L} for the 2023 C++ standard,
-or an unspecified value strictly larger than @code{202302L} for the
-experimental languages enabled by @option{-std=c++26} and
-@option{-std=gnu++26}.
+@code{202603L} for the 2026 C++ standard,
+or an unspecified value strictly larger than @code{202603L} for the
+experimental languages enabled by @option{-std=c++29} and
+@option{-std=gnu++29}.
 
 @item __OBJC__
 This macro is defined, with value 1, when the Objective-C compiler is in

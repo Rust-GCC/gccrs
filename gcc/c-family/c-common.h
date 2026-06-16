@@ -751,7 +751,9 @@ enum cxx_dialect {
   /* C++23 */
   cxx23,
   /* C++26 */
-  cxx26
+  cxx26,
+  /* C++29 */
+  cxx29
 };
 
 /* The C++ dialect being used.  C++20 is the default.  */

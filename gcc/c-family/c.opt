@@ -2669,12 +2669,20 @@ C++ ObjC++
 Conform to the ISO 2023 C++ standard (published in 2024; experimental and incomplete support).
 
 std=c++2c
-C++ ObjC++ Alias(std=c++26)
-Conform to the ISO 2026 C++ draft standard (experimental and incomplete support).
+C++ ObjC++ Alias(std=c++26) Undocumented
+Deprecated in favor of -std=c++26.
 
 std=c++26
-C++ ObjC++ Undocumented
+C++ ObjC++
 Conform to the ISO 2026 C++ draft standard (experimental and incomplete support).
+
+std=c++2d
+C++ ObjC++ Alias(std=c++29) Undocumented
+Deprecated in favor of -std=c++29.
+
+std=c++29
+C++ ObjC++
+Conform to the ISO 2029 C++ draft standard (experimental and incomplete support).
 
 std=c11
 C ObjC
@@ -2771,12 +2779,20 @@ C++ ObjC++
 Conform to the ISO 2023 C++ standard with GNU extensions (published in 2024; experimental and incomplete support).
 
 std=gnu++2c
-C++ ObjC++ Alias(std=gnu++26)
-Conform to the ISO 2026 C++ draft standard with GNU extensions (experimental and incomplete support).
+C++ ObjC++ Alias(std=gnu++26) Undocumented
+Deprecated in favor of -std=gnu++26.
 
 std=gnu++26
-C++ ObjC++ Undocumented
+C++ ObjC++
 Conform to the ISO 2026 C++ draft standard with GNU extensions (experimental and incomplete support).
+
+std=gnu++2d
+C++ ObjC++ Alias(std=gnu++29) Undocumented
+Deprecated in favor of -std=gnu++29.
+
+std=gnu++29
+C++ ObjC++
+Conform to the ISO 2029 C++ draft standard with GNU extensions (experimental and incomplete support).
 
 std=gnu11
 C ObjC
