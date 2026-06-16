@@ -332,8 +332,9 @@ end:
   mpz_clear (offc1);
 }
 
-/* Stores estimate on the minimum/maximum value of the expression VAR + OFF
-   in TYPE to MIN and MAX.  */
+/* Stores estimates of the minimum and maximum values of the expression
+   VAR + OFF in TYPE to MIN and MAX.  The estimates are valid on entry
+   to LOOP, i.e. on the loop preheader edge.  */
 
 static void
 determine_value_range (class loop *loop, tree type, tree var, mpz_t off,
@@ -356,7 +357,7 @@ determine_value_range (class loop *loop, tree type, tree var, mpz_t off,
   get_type_static_bounds (type, min, max);
 
   /* See if we have some range info from VRP.  */
-  if (TREE_CODE (var) == SSA_NAME && INTEGRAL_TYPE_P (type))
+  if (INTEGRAL_TYPE_P (type))
     {
       edge e = loop_preheader_edge (loop);
       signop sgn = TYPE_SIGN (type);
@@ -364,7 +365,7 @@ determine_value_range (class loop *loop, tree type, tree var, mpz_t off,
 
       /* Either for VAR itself...  */
       int_range_max var_range (TREE_TYPE (var));
-      get_range_query (cfun)->range_of_expr (var_range, var);
+      get_range_query (cfun)->range_on_edge (var_range, e, var);
       if (var_range.varying_p () || var_range.undefined_p ())
 	rtype = VR_VARYING;
       else
@@ -382,8 +383,8 @@ determine_value_range (class loop *loop, tree type, tree var, mpz_t off,
 	{
 	  gphi *phi = gsi.phi ();
 	  if (PHI_ARG_DEF_FROM_EDGE (phi, e) == var
-	      && get_range_query (cfun)->range_of_expr (phi_range,
-						    gimple_phi_result (phi))
+	      && get_range_query (cfun)->range_on_edge (phi_range,
+						    e, gimple_phi_result (phi))
 	      && !phi_range.varying_p ()
 	      && !phi_range.undefined_p ())
 	    {
@@ -404,7 +405,7 @@ determine_value_range (class loop *loop, tree type, tree var, mpz_t off,
 		  if (wi::gt_p (minv, maxv, sgn))
 		    {
 		      int_range_max vr (TREE_TYPE (var));
-		      get_range_query (cfun)->range_of_expr (vr, var);
+		      get_range_query (cfun)->range_on_edge (vr, e, var);
 		      if (vr.varying_p () || vr.undefined_p ())
 			rtype = VR_VARYING;
 		      else
