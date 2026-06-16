@@ -53,7 +53,7 @@
   {
     emit_insn (gen_pred_mov (<MODE>mode, operands[0], CONST1_RTX (<MODE>mode),
 			     RVV_VUNDEF (<MODE>mode), operands[3],
-			     operands[4], operands[5]));
+			     operands[4], operands[6]));
     DONE;
   }
 )
