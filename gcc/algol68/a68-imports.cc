@@ -986,15 +986,36 @@ a68_replace_submode (MOID_T *t, MOID_T *m, MOID_T *r)
    The entry for M in MODES_LIST is set to NO_MOID.  */
 
 static void
-a68_replace_equivalent_mode (vec<MOID_T*,va_gc> *mode_list,
+a68_replace_equivalent_mode (MOIF_T *moif,
 			     MOID_T *m, MOID_T *r)
 {
+  /* Handle the mode to be replaced.  */
+  vec<MOID_T*,va_gc> *mode_list = MODES (moif);
   for (size_t i = 0; i < mode_list->length (); ++i)
     {
       if ((*mode_list)[i] == m)
 	(*mode_list)[i] = NO_MOID;
       else if ((*mode_list)[i] != NO_MOID)
 	a68_replace_submode ((*mode_list)[i], m, r);
+    }
+
+  /* Update extracts to reflect the replacement.  */
+  for (EXTRACT_T *e : INDICANTS (moif))
+    {
+      if (EXTRACT_MODE (e) == m)
+	EXTRACT_MODE (e) = r;
+    }
+
+  for (EXTRACT_T *e : IDENTIFIERS (moif))
+    {
+      if (EXTRACT_MODE (e) == m)
+	EXTRACT_MODE (e) = r;
+    }
+
+  for (EXTRACT_T *e : OPERATORS (moif))
+    {
+      if (EXTRACT_MODE (e) == m)
+	EXTRACT_MODE (e) = r;
     }
 }
 
@@ -1488,7 +1509,7 @@ a68_open_packet (const char *module, const char *basename)
 		{
 		  if (a68_prove_moid_equivalence (m, known_moids[i]))
 		    {
-		      r =  m;
+		      r = known_moids[i];
 		      break;
 		    }
 		}
@@ -1496,29 +1517,8 @@ a68_open_packet (const char *module, const char *basename)
 
 	  if (r == NO_MOID)
 	    known_moids.push_back (m);
-	  else
-	    {
-	      a68_replace_equivalent_mode (MODES (moif), m, r);
-
-	      /* Update extracts to reflect the replacement.  */
-	      for (EXTRACT_T *e : INDICANTS (moif))
-		{
-		  if (EXTRACT_MODE (e) == m)
-		    EXTRACT_MODE (e) = r;
-		}
-
-	      for (EXTRACT_T *e : IDENTIFIERS (moif))
-		{
-		  if (EXTRACT_MODE (e) == m)
-		    EXTRACT_MODE (e) = r;
-		}
-
-	      for (EXTRACT_T *e : OPERATORS (moif))
-		{
-		  if (EXTRACT_MODE (e) == m)
-		    EXTRACT_MODE (e) = r;
-		}
-	    }
+	  else if (r != m)
+	    a68_replace_equivalent_mode (moif, m, r);
 	}
     }
 

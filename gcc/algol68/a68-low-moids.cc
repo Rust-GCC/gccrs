@@ -723,6 +723,7 @@ a68_lower_moids (MOID_T *mode)
   /* Sanity check.  */
   for (MOID_T *m = mode; m != NO_MOID; FORWARD (m))
     {
+      gcc_assert (CTYPE (m) != NULL_TREE);
       gcc_assert (COMPLETE_TYPE_P (CTYPE (m)));
       if (IS_UNION (m))
 	{
