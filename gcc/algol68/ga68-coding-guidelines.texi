@@ -99,7 +99,7 @@ Jargon File provides definitions for many of the terms used in the
 context of the Algol 68 programming language and associated
 technologies.  If you find yourself wondering about "frobyts" or
 "enclosed clauses", please look them up in the jargon
-file@footnote{@url{https://jemarch.net/a68-jargon}}.  The file is
+file@footnote{@url{https://jemarch.net/a68-jargon/}}.  The file is
 available online in the www and, in Gentoo, as manpages once you
 install the app-doc/a68-jargon package. Just type @command{man 7algol
 frobyt} in the terminal, for example.
