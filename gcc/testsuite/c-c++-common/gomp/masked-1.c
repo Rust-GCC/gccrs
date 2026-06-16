@@ -1,3 +1,6 @@
+/* { dg-do compile } */
+/* { dg-additional-options "-fdump-tree-omplower" } */
+
 void bar (void);
 
 void
@@ -21,3 +24,6 @@ foo (int x, int *a)
   #pragma omp masked filter (x)
   ;
 }
+
+/* { dg-final { scan-tree-dump "GOMP_has_masked_thread_num" "omplower" } } */
+/* { dg-final { scan-tree-dump-not "omp_get_thread_num" "omplower" } } */

@@ -9068,9 +9068,8 @@ lower_omp_master (gimple_stmt_iterator *gsi_p, omp_context *ctx)
   gsi_replace (gsi_p, bind, true);
   gimple_bind_add_stmt (bind, stmt);
 
-  bfn_decl = builtin_decl_explicit (BUILT_IN_OMP_GET_THREAD_NUM);
-  x = build_call_expr_loc (loc, bfn_decl, 0);
-  x = build2 (EQ_EXPR, boolean_type_node, x, filter);
+  bfn_decl = builtin_decl_explicit (BUILT_IN_GOMP_HAS_MASKED_THREAD_NUM);
+  x = build_call_expr_loc (loc, bfn_decl, 1, filter);
   x = build3 (COND_EXPR, void_type_node, x, NULL, build_and_jump (&lab));
   tseq = NULL;
   gimplify_and_add (x, &tseq);

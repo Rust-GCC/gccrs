@@ -270,6 +270,15 @@ GOMP_cancel (int which, bool do_cancel)
   gomp_team_barrier_cancel (team);
   return true;
 }
+
+/* Return true if the current thread number equals TID.
+   Used to implement the masked construct's filter clause.  */
+
+bool
+GOMP_has_masked_thread_num (int tid)
+{
+  return tid == gomp_thread ()->ts.team_id;
+}
 
 /* The public OpenMP API for thread and team related inquiries.  */
 

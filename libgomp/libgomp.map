@@ -482,6 +482,11 @@ GOMP_6.0.1 {
 	omp_target_memset_async;
 } GOMP_6.0;
 
+GOMP_6.0.2 {
+  global:
+	GOMP_has_masked_thread_num;
+} GOMP_6.0.1;
+
 OACC_2.0 {
   global:
 	acc_get_num_devices;

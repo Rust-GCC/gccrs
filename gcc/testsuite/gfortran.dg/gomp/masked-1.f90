@@ -1,4 +1,6 @@
-! { dg-additional-options "-ffree-line-length-none" }
+! { dg-do compile }
+! { dg-additional-options "-ffree-line-length-none -fdump-tree-omplower" }
+
 subroutine foo (x, a)
   implicit none
   integer, value :: x
@@ -92,3 +94,5 @@ subroutine foobar (d, f, fi, p, s, g, i1, i2, l, ll, nth, ntm, pp, q, r, r2)
     end do
   !$omp end parallel masked taskloop simd
 end subroutine
+
+! { dg-final { scan-tree-dump "GOMP_has_masked_thread_num" "omplower" } }
