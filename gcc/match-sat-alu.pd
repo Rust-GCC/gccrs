@@ -527,6 +527,31 @@ along with GCC; see the file COPYING3.  If not see
   (match (unsigned_integer_sat_mul @0 @1)
    /* SAT_U_MUL (X, Y) = {
 	WT x = (WT)a * (WT)b;
+	if ((x >> sizeof(a) * 8) != 0)
+	  return (T)-1;
+	else
+	  return (T)x;
+      }
+      while WT is uint128_t, T is uint8_t, uint16_t, uint32_t or uint64_t.  */
+   (convert (cond^ (ne (rshift (mult:c@3 (convert @0) (convert @1))
+			       INTEGER_CST@2)
+		       integer_zerop)
+		   INTEGER_CST@4 @3))
+   (if (types_match (type, @0, @1) && tree_fits_uhwi_p (@2))
+    (with
+     {
+      unsigned prec = TYPE_PRECISION (type);
+      unsigned widen_prec = TYPE_PRECISION (TREE_TYPE (@3));
+      wide_int c4 = wi::to_wide (@4);
+      wide_int max = wi::mask (prec, false, widen_prec);
+      bool c4_is_max_p = wi::eq_p (c4, max);
+      unsigned c2 = tree_to_uhwi (@2);
+      bool c2_is_type_precision_p = c2 == prec;
+     }
+     (if (widen_prec > prec && c2_is_type_precision_p && c4_is_max_p)))))
+  (match (unsigned_integer_sat_mul @0 @1)
+   /* SAT_U_MUL (X, Y) = {
+	WT x = (WT)a * (WT)b;
 	NT hi = x >> (sizeof(NT) * 8);
 	NT lo = (NT)x;
 	return lo | -!!hi;
