@@ -6138,6 +6138,9 @@ failure:
   return MATCH_ERROR;
 }
 
+/* For 'declare reduction', matches either the combiner or initializer
+   expression, either can be an assignment of 'omp_sym1 = ...'
+   or a subroutine call, i.e. 'subroutine-name(argument-list)'.  */
 
 static bool
 match_udr_expr (gfc_symtree *omp_sym1, gfc_symtree *omp_sym2)
@@ -6172,20 +6175,20 @@ match_udr_expr (gfc_symtree *omp_sym1, gfc_symtree *omp_sym2)
 
   m = gfc_match (" %n", sname);
   if (m != MATCH_YES)
-    return false;
+    goto syntax;
 
   if (strcmp (sname, omp_sym1->name) == 0
       || strcmp (sname, omp_sym2->name) == 0)
-    return false;
+    goto syntax;
 
   gfc_current_ns = ns->parent;
   if (gfc_get_ha_sym_tree (sname, &st))
-    return false;
+    goto syntax;
 
   sym = st->n.sym;
   if (sym->attr.flavor != FL_PROCEDURE
       && sym->attr.flavor != FL_UNKNOWN)
-    return false;
+    goto syntax;
 
   if (!sym->attr.generic
       && !sym->attr.subroutine
@@ -6196,7 +6199,7 @@ match_udr_expr (gfc_symtree *omp_sym1, gfc_symtree *omp_sym2)
 	  /* ...create a symbol in this scope...  */
 	  if (sym->ns != gfc_current_ns
 	      && gfc_get_sym_tree (sname, NULL, &st, false) == 1)
-	    return false;
+	    goto syntax;
 
 	  if (sym != st->n.sym)
 	    sym = st->n.sym;
@@ -6204,27 +6207,33 @@ match_udr_expr (gfc_symtree *omp_sym1, gfc_symtree *omp_sym2)
 
       /* ...and then to try to make the symbol into a subroutine.  */
       if (!gfc_add_subroutine (&sym->attr, sym->name, NULL))
-	return false;
+	goto syntax;
     }
 
   gfc_set_sym_referenced (sym);
   gfc_gobble_whitespace ();
   if (gfc_peek_ascii_char () != '(')
-    return false;
+    goto syntax;
 
   gfc_current_ns = ns;
   m = gfc_match_actual_arglist (1, &arglist);
   if (m != MATCH_YES)
-    return false;
+    goto syntax;
 
   if (gfc_match_char (')') != MATCH_YES)
-    return false;
+    goto syntax;
 
+  gfc_clear_error ();
   ns->code = gfc_get_code (EXEC_CALL);
   ns->code->symtree = st;
   ns->code->ext.actual = arglist;
   ns->code->loc = old_loc;
   return true;
+syntax:
+  gfc_clear_error ();
+  gfc_error ("Expected either %<%s = expr%> or %<subroutine-name(argument-list)"
+	     "%> followed by %<)%> at %L", omp_sym1->name, &old_loc);
+  return false;
 }
 
 static bool
@@ -6364,7 +6373,10 @@ gfc_match_omp_declare_reduction (void)
   gfc_omp_reduction_op rop = OMP_REDUCTION_NONE;
 
   if (gfc_match_char ('(') != MATCH_YES)
-    return MATCH_ERROR;
+    {
+      gfc_error ("Expected %<(%> at %C");
+      return MATCH_ERROR;
+    }
 
   m = gfc_match (" %o : ", &op);
   if (m == MATCH_ERROR)
@@ -6384,19 +6396,29 @@ gfc_match_omp_declare_reduction (void)
 	  name[0] = '.';
 	  strcat (name, ".");
 	  if (gfc_match (" : ") != MATCH_YES)
-	    return MATCH_ERROR;
+	    {
+	      gfc_error ("Expected %<:%> at %C");
+	      return MATCH_ERROR;
+	    }
 	}
       else
 	{
 	  if (gfc_match (" %n : ", name) != MATCH_YES)
-	    return MATCH_ERROR;
+	    {
+	      gfc_error ("Expected an identfifier or operator as reduction "
+			 "identifier followed by a colon at %C");
+	      return MATCH_ERROR;
+	    }
 	}
       rop = OMP_REDUCTION_USER;
     }
 
   m = gfc_match_type_spec (&ts);
   if (m != MATCH_YES)
-    return MATCH_ERROR;
+    {
+      gfc_error ("Expected type spec at %C");
+      return MATCH_ERROR;
+    }
   /* Treat len=: the same as len=*.  */
   if (ts.type == BT_CHARACTER)
     ts.deferred = false;
@@ -6406,11 +6428,17 @@ gfc_match_omp_declare_reduction (void)
     {
       m = gfc_match_type_spec (&ts);
       if (m != MATCH_YES)
-	return MATCH_ERROR;
+	{
+	  gfc_error ("Expected type spec at %C");
+	  return MATCH_ERROR;
+	}
       tss.safe_push (ts);
     }
   if (gfc_match_char (':') != MATCH_YES)
-    return MATCH_ERROR;
+    {
+      gfc_error ("Expected %<:%> or %<,%> at %C");
+      return MATCH_ERROR;
+    }
 
   st = gfc_find_symtree (gfc_current_ns->omp_udr_root, name);
   for (i = 0; i < tss.length (); i++)
@@ -6449,7 +6477,6 @@ gfc_match_omp_declare_reduction (void)
       if (!match_udr_expr (omp_out, omp_in))
 	{
 	 syntax:
-	  gfc_current_locus = old_loc;
 	  gfc_current_ns = combiner_ns->parent;
 	  gfc_undo_symbols ();
 	  gfc_free_omp_udr (omp_udr);
@@ -6498,19 +6525,21 @@ gfc_match_omp_declare_reduction (void)
 	  && (rop != OMP_REDUCTION_USER || name[0] == '.'))
 	{
 	  if (predef_name)
-	    gfc_error_now ("Redefinition of predefined %s "
+	    gfc_error_now ("Redefinition of predefined %qs in "
 			   "!$OMP DECLARE REDUCTION at %L",
 			   predef_name, &where);
 	  else
-	    gfc_error_now ("Redefinition of predefined "
-			   "!$OMP DECLARE REDUCTION at %L", &where);
+	    gfc_error_now ("Redefinition of predefined %qs in "
+			   "!$OMP DECLARE REDUCTION at %L", name, &where);
+	  goto syntax;
 	}
       else if (prev_udr)
 	{
-	  gfc_error_now ("Redefinition of !$OMP DECLARE REDUCTION at %L",
-			 &where);
-	  gfc_error_now ("Previous !$OMP DECLARE REDUCTION at %L",
-			 &prev_udr->where);
+	  gfc_error_now ("Redefinition of %qs in !$OMP DECLARE REDUCTION at %L",
+			 name, &where);
+	  inform (gfc_get_location (&prev_udr->where),
+		  "Previous !$OMP DECLARE REDUCTION");
+	  goto syntax;
 	}
       else if (st)
 	{
@@ -6529,14 +6558,11 @@ gfc_match_omp_declare_reduction (void)
       gfc_current_locus = end_loc;
       if (gfc_match_omp_eos () != MATCH_YES)
 	{
-	  gfc_error ("Unexpected junk after !$OMP DECLARE REDUCTION at %C");
-	  gfc_current_locus = where;
+	  gfc_error ("Unexpected junk at %C");
 	  return MATCH_ERROR;
 	}
-
       return MATCH_YES;
     }
-  gfc_clear_error ();
   return MATCH_ERROR;
 }
 
@@ -14061,12 +14087,13 @@ gfc_resolve_omp_udr (gfc_omp_udr *omp_udr)
 			  &omp_udr->ts, &predef_name))
     {
       if (predef_name)
-	gfc_error_now ("Redefinition of predefined %s "
-		       "!$OMP DECLARE REDUCTION at %L",
-		       predef_name, &omp_udr->where);
+	gfc_error ("Redefinition of predefined %qs in "
+		   "!$OMP DECLARE REDUCTION at %L",
+		   predef_name, &omp_udr->where);
       else
-	gfc_error_now ("Redefinition of predefined "
-		       "!$OMP DECLARE REDUCTION at %L", &omp_udr->where);
+	gfc_error ("Redefinition of predefined %qs in "
+		   "!$OMP DECLARE REDUCTION at %L", omp_udr->name,
+		   &omp_udr->where);
       return;
     }
 
@@ -14074,7 +14101,7 @@ gfc_resolve_omp_udr (gfc_omp_udr *omp_udr)
       && omp_udr->ts.u.cl->length
       && omp_udr->ts.u.cl->length->expr_type != EXPR_CONSTANT)
     {
-      gfc_error ("CHARACTER length in !$OMP DECLARE REDUCTION %s not "
+      gfc_error ("CHARACTER length in !$OMP DECLARE REDUCTION %qs not "
 		 "constant at %L", omp_udr->name, &omp_udr->where);
       return;
     }

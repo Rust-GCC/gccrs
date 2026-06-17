@@ -22,12 +22,12 @@ subroutine f2
   end do
 end subroutine f2
 subroutine f3
-!$omp declare reduction (foo:blah:omp_out=omp_out + omp_in) ! { dg-error "30: Syntax error in statement at .1." }
+!$omp declare reduction (foo:blah:omp_out=omp_out + omp_in) ! { dg-error "30: Expected type spec at .1." }
 end subroutine f3
 subroutine f4
-!$omp declare reduction (foo:integer:a => null()) ! { dg-error "Invalid character in name" }
+!$omp declare reduction (foo:integer:a => null()) ! { dg-error "Expected either 'omp_out = expr' or 'subroutine-name\\(argument-list\\)' followed by '\\)' at .1." }
 !$omp declare reduction (foo:integer:omp_out = omp_in + omp_out) &
-!$omp & initializer(a => null()) ! { dg-error "Invalid character in name" }
+!$omp & initializer(a => null()) ! { dg-error "Expected either 'omp_priv = expr' or 'subroutine-name\\(argument-list\\)' followed by '\\)' at .1." }
 end subroutine f4
 subroutine f5
   integer :: a, b

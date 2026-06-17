@@ -7,21 +7,21 @@ subroutine f1
   type dt2
     logical :: l = .false.
   end type
-!$omp declare reduction (foo:integer(kind = 4) & ! { dg-error "Previous !.OMP DECLARE REDUCTION" }
+!$omp declare reduction (foo:integer(kind = 4) & ! { dg-note "Previous !.OMP DECLARE REDUCTION" }
 !$omp & :omp_out = omp_out + omp_in)
-!$omp declare reduction (foo:integer(kind = 4) : & ! { dg-error "Redefinition of !.OMP DECLARE REDUCTION" }
+!$omp declare reduction (foo:integer(kind = 4) : & ! { dg-error "Redefinition of 'foo' in !.OMP DECLARE REDUCTION at .1." }
 !$omp & omp_out = omp_out + omp_in)
 !$omp declare reduction (bar:integer, &
 !$omp & real:omp_out = omp_out + omp_in)
-!$omp declare reduction (baz:integer,real,integer & ! { dg-error "Redefinition of !.OMP DECLARE REDUCTION|Previous" }
+!$omp declare reduction (baz:integer,real,integer & ! { dg-error "Redefinition of 'baz' in !.OMP DECLARE REDUCTION|Previous !.OMP DECLARE REDUCTION" }
 !$omp & : omp_out = omp_out + omp_in)
 !$omp declare reduction (id1:dt,dt2:omp_out%l=omp_out%l &
 !$omp & .or.omp_in%l)
-!$omp declare reduction (id2:dt,dt:omp_out%l=omp_out%l & ! { dg-error "Redefinition of !.OMP DECLARE REDUCTION|Previous" }
+!$omp declare reduction (id2:dt,dt:omp_out%l=omp_out%l & ! { dg-error "Redefinition of 'id2' in !.OMP DECLARE REDUCTION|Previous !.OMP DECLARE REDUCTION" }
 !$omp & .or.omp_in%l)
-!$omp declare reduction (id3:dt2,dt:omp_out%l=omp_out%l & ! { dg-error "Previous !.OMP DECLARE REDUCTION" }
+!$omp declare reduction (id3:dt2,dt:omp_out%l=omp_out%l & ! { dg-note "Previous !.OMP DECLARE REDUCTION" }
 !$omp & .or.omp_in%l)
-!$omp declare reduction (id3:dt2:omp_out%l=omp_out%l & ! { dg-error "Redefinition of !.OMP DECLARE REDUCTION" }
+!$omp declare reduction (id3:dt2:omp_out%l=omp_out%l & ! { dg-error "Redefinition of 'id3' in !.OMP DECLARE REDUCTION" }
 !$omp & .or.omp_in%l)
 end subroutine f1
 subroutine f2
@@ -56,13 +56,13 @@ subroutine f2
 !$omp declare reduction (baz:character(len=6): &
 !$omp & f2a (omp_out, omp_in, .false.)) &
 !$omp & initializer (f2a (omp_priv, omp_orig, .true.))
-!$omp declare reduction (id:character(len=*): & ! { dg-error "Previous !.OMP DECLARE REDUCTION" }
+!$omp declare reduction (id:character(len=*): & ! { dg-note "Previous !.OMP DECLARE REDUCTION" }
 !$omp & f2a (omp_out, omp_in, .false.)) &
 !$omp & initializer (f2a (omp_priv, omp_orig, .true.))
-!$omp declare reduction (id: & ! { dg-error "Redefinition of !.OMP DECLARE REDUCTION" }
+!$omp declare reduction (id: & ! { dg-error "Redefinition of 'id' in !.OMP DECLARE REDUCTION" }
 !$omp & character(len=:) : f2a (omp_out, omp_in, .false.)) &
 !$omp & initializer (f2a (omp_priv, omp_orig, .true.))
-!$omp declare reduction & ! { dg-error "Redefinition of !.OMP DECLARE REDUCTION|Previous" }
+!$omp declare reduction & ! { dg-error "Redefinition of 'id2' in !.OMP DECLARE REDUCTION|Previous !.OMP DECLARE REDUCTION" }
 !$omp (id2:character(len=*), character(len=:): &
 !$omp f2a (omp_out, omp_in, .false.)) &
 !$omp & initializer (f2a (omp_priv, omp_orig, .true.))

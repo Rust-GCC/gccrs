@@ -1,13 +1,13 @@
 ! { dg-do compile }
 
 subroutine f6
-!$omp declare reduction (foo:real:omp_out (omp_in)) ! { dg-error "35: Syntax error in statement at .1." }
-!$omp declare reduction (bar:real:omp_out = omp_in * omp_out) & ! { dg-error "35: Syntax error in statement at .1." }
-!$omp & initializer (omp_priv (omp_orig))
+!$omp declare reduction (foo:real:omp_out (omp_in)) ! { dg-error "34: Expected either 'omp_out = expr' or 'subroutine-name\\(argument-list\\)' followed by '\\)' at .1." }
+!$omp declare reduction (bar:real:omp_out = omp_in * omp_out) &
+!$omp & initializer (omp_priv (omp_orig)) ! { dg-error "Expected either 'omp_priv = expr' or 'subroutine-name\\(argument-list\\)' followed by '\\)' at .1." }
 end subroutine f6
 subroutine f7
   integer :: a
-!$omp declare reduction (foo:integer:a (omp_out, omp_in)) ! { dg-error "38: Syntax error in statement at .1." }
+!$omp declare reduction (foo:integer:a (omp_out, omp_in)) ! { dg-error "37: Expected either 'omp_out = expr' or 'subroutine-name\\(argument-list\\)' followed by '\\)' at .1." }
 !$omp declare reduction (bar:real:omp_out = omp_out.or.omp_in) ! { dg-error "Operands of logical operator" }
 !$omp declare reduction (baz:real:omp_out = omp_out + omp_in)
 !$omp & initializer (a (omp_priv, omp_orig)) ! { dg-error "Unclassifiable OpenMP directive" }
@@ -24,9 +24,9 @@ subroutine f8
   end interface
 !$omp declare reduction (baz:integer:omp_out = omp_out + omp_in) &
 !$omp & initializer (f8a (omp_orig)) ! { dg-error "One of actual subroutine arguments in INITIALIZER clause" }
-!$omp declare reduction (foo:integer:f8a) ! { dg-error "is not a variable" }
+!$omp declare reduction (foo:integer:f8a) ! { dg-error "Expected either 'omp_out = expr' or 'subroutine-name\\(argument-list\\)' followed by '\\)' at .1." }
 !$omp declare reduction (bar:integer:omp_out = omp_out - omp_in) &
-!$omp & initializer (f8a) ! { dg-error "is not a variable" }
+!$omp & initializer (f8a) ! { dg-error "Expected either 'omp_priv = expr' or 'subroutine-name\\(argument-list\\)' followed by '\\)' at .1." }
 end subroutine f8
 subroutine f9
   type dt	! { dg-error "which is not consistent with the CALL" }
