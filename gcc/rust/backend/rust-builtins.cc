@@ -20,6 +20,7 @@
 
 #include "target.h"
 #include "stringpool.h"
+#include "rust-intrinsic-values.h"
 
 namespace Rust {
 namespace Compile {
@@ -285,72 +286,72 @@ void
 BuiltinsContext::register_rust_mappings ()
 {
   rust_intrinsic_to_gcc_builtin = {
-    {"unreachable", "__builtin_unreachable"},
-    {"abort", "__builtin_abort"},
+    {Values::Intrinsics::UNREACHABLE, "__builtin_unreachable"},
+    {Values::Intrinsics::ABORT, "__builtin_abort"},
 
     // Math intrinsics
-    {"sqrtf32", "__builtin_sqrtf"},
-    {"sqrtf64", "__builtin_sqrt"},
+    {Values::Intrinsics::SQRTF32, "__builtin_sqrtf"},
+    {Values::Intrinsics::SQRTF64, "__builtin_sqrt"},
 
-    {"sinf32", "__builtin_sinf"},
-    {"sinf64", "__builtin_sin"},
+    {Values::Intrinsics::SINF32, "__builtin_sinf"},
+    {Values::Intrinsics::SINF64, "__builtin_sin"},
 
-    {"cosf32", "__builtin_cosf"},
-    {"cosf64", "__builtin_cos"},
+    {Values::Intrinsics::COSF32, "__builtin_cosf"},
+    {Values::Intrinsics::COSF64, "__builtin_cos"},
 
-    {"powf32", "__builtin_powf"},
-    {"powf64", "__builtin_pow"},
+    {Values::Intrinsics::POWF32, "__builtin_powf"},
+    {Values::Intrinsics::POWF64, "__builtin_pow"},
 
-    {"powif32", "__builtin_powif"},
-    {"powif64", "__builtin_powi"},
+    {Values::Intrinsics::POWIF32, "__builtin_powif"},
+    {Values::Intrinsics::POWIF64, "__builtin_powi"},
 
-    {"expf32", "__builtin_expf"},
-    {"expf64", "__builtin_exp"},
+    {Values::Intrinsics::EXPF32, "__builtin_expf"},
+    {Values::Intrinsics::EXPF64, "__builtin_exp"},
 
-    {"exp2f32", "__builtin_exp2f"},
-    {"exp2f64", "__builtin_exp2"},
+    {Values::Intrinsics::EXP2F32, "__builtin_exp2f"},
+    {Values::Intrinsics::EXP2F64, "__builtin_exp2"},
 
-    {"logf32", "__builtin_logf"},
-    {"logf64", "__builtin_log"},
+    {Values::Intrinsics::LOGF32, "__builtin_logf"},
+    {Values::Intrinsics::LOGF64, "__builtin_log"},
 
-    {"log10f32", "__builtin_log10f"},
-    {"log10f64", "__builtin_log10"},
+    {Values::Intrinsics::LOG10F32, "__builtin_log10f"},
+    {Values::Intrinsics::LOG10F64, "__builtin_log10"},
 
-    {"log2f32", "__builtin_log2f"},
-    {"log2f64", "__builtin_log2"},
+    {Values::Intrinsics::LOG2F32, "__builtin_log2f"},
+    {Values::Intrinsics::LOG2F64, "__builtin_log2"},
 
-    {"fmaf32", "__builtin_fmaf"},
-    {"fmaf64", "__builtin_fma"},
+    {Values::Intrinsics::FMAF32, "__builtin_fmaf"},
+    {Values::Intrinsics::FMAF64, "__builtin_fma"},
 
-    {"fabsf32", "__builtin_fabsf"},
-    {"fabsf64", "__builtin_fabs"},
+    {Values::Intrinsics::FABSF32, "__builtin_fabsf"},
+    {Values::Intrinsics::FABSF64, "__builtin_fabs"},
 
-    {"minnumf32", "__builtin_fminf"},
-    {"minnumf64", "__builtin_fmin"},
+    {Values::Intrinsics::MINNUMF32, "__builtin_fminf"},
+    {Values::Intrinsics::MINNUMF64, "__builtin_fmin"},
 
-    {"maxnumf32", "__builtin_fmaxf"},
-    {"maxnumf64", "__builtin_fmax"},
+    {Values::Intrinsics::MAXNUMF32, "__builtin_fmaxf"},
+    {Values::Intrinsics::MAXNUMF64, "__builtin_fmax"},
 
-    {"copysignf32", "__builtin_copysignf"},
-    {"copysignf64", "__builtin_copysign"},
+    {Values::Intrinsics::COPYSIGNF32, "__builtin_copysignf"},
+    {Values::Intrinsics::COPYSIGNF64, "__builtin_copysign"},
 
-    {"floorf32", "__builtin_floorf"},
-    {"floorf64", "__builtin_floor"},
+    {Values::Intrinsics::FLOORF32, "__builtin_floorf"},
+    {Values::Intrinsics::FLOORF64, "__builtin_floor"},
 
-    {"ceilf32", "__builtin_ceilf"},
-    {"ceilf64", "__builtin_ceil"},
+    {Values::Intrinsics::CEILF32, "__builtin_ceilf"},
+    {Values::Intrinsics::CEILF64, "__builtin_ceil"},
 
-    {"truncf32", "__builtin_truncf"},
-    {"truncf64", "__builtin_trunc"},
+    {Values::Intrinsics::TRUNCF32, "__builtin_truncf"},
+    {Values::Intrinsics::TRUNCF64, "__builtin_trunc"},
 
-    {"rintf32", "__builtin_rintf"},
-    {"rintf64", "__builtin_rint"},
+    {Values::Intrinsics::RINTF32, "__builtin_rintf"},
+    {Values::Intrinsics::RINTF64, "__builtin_rint"},
 
-    {"nearbyintf32", "__builtin_nearbyintf"},
-    {"nearbyintf64", "__builtin_nearbyint"},
+    {Values::Intrinsics::NEARBYINTF32, "__builtin_nearbyintf"},
+    {Values::Intrinsics::NEARBYINTF64, "__builtin_nearbyint"},
 
-    {"roundf32", "__builtin_roundf"},
-    {"roundf64", "__builtin_round"},
+    {Values::Intrinsics::ROUNDF32, "__builtin_roundf"},
+    {Values::Intrinsics::ROUNDF64, "__builtin_round"},
   };
 }
 
