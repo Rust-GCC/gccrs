@@ -21,6 +21,66 @@ namespace Values {
 class Intrinsics
 {
 public:
+  static constexpr auto &UNREACHABLE = "unreachable";
+
+  // Math intrinsics
+  static constexpr auto &SQRTF32 = "sqrtf32";
+  static constexpr auto &SQRTF64 = "sqrtf64";
+
+  static constexpr auto &SINF32 = "sinf32";
+  static constexpr auto &SINF64 = "sinf64";
+
+  static constexpr auto &COSF32 = "cosf32";
+  static constexpr auto &COSF64 = "cosf64";
+
+  static constexpr auto &POWF32 = "powf32";
+  static constexpr auto &POWF64 = "powf64";
+
+  static constexpr auto &POWIF32 = "powif32";
+  static constexpr auto &POWIF64 = "powif64";
+
+  static constexpr auto &EXPF32 = "expf32";
+  static constexpr auto &EXPF64 = "expf64";
+
+  static constexpr auto &EXP2F32 = "exp2f32";
+  static constexpr auto &EXP2F64 = "exp2f64";
+
+  static constexpr auto &LOGF32 = "logf32";
+  static constexpr auto &LOGF64 = "logf64";
+
+  static constexpr auto &LOG10F32 = "log10f32";
+  static constexpr auto &LOG10F64 = "log10f64";
+
+  static constexpr auto &LOG2F32 = "log2f32";
+  static constexpr auto &LOG2F64 = "log2f64";
+
+  static constexpr auto &FMAF32 = "fmaf32";
+  static constexpr auto &FMAF64 = "fmaf64";
+
+  static constexpr auto &FABSF32 = "fabsf32";
+  static constexpr auto &FABSF64 = "fabsf64";
+
+  static constexpr auto &COPYSIGNF32 = "copysignf32";
+  static constexpr auto &COPYSIGNF64 = "copysignf64";
+
+  static constexpr auto &FLOORF32 = "floorf32";
+  static constexpr auto &FLOORF64 = "floorf64";
+
+  static constexpr auto &CEILF32 = "ceilf32";
+  static constexpr auto &CEILF64 = "ceilf64";
+
+  static constexpr auto &TRUNCF32 = "truncf32";
+  static constexpr auto &TRUNCF64 = "truncf64";
+
+  static constexpr auto &RINTF32 = "rintf32";
+  static constexpr auto &RINTF64 = "rintf64";
+
+  static constexpr auto &NEARBYINTF32 = "nearbyintf32";
+  static constexpr auto &NEARBYINTF64 = "nearbyintf64";
+
+  static constexpr auto &ROUNDF32 = "roundf32";
+  static constexpr auto &ROUNDF64 = "roundf64";
+
   static constexpr auto &ABORT = "abort";
   static constexpr auto &OFFSET = "offset";
   static constexpr auto &SIZE_OF = "size_of";
