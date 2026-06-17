@@ -4547,6 +4547,7 @@ loongarch_builtin_vectorization_cost (enum vect_cost_for_stmt type_of_cost,
 	return 2;
 
       case vec_construct:
+      case vec_deconstruct:
 	elements = TYPE_VECTOR_SUBPARTS (vectype);
 	if (LASX_SUPPORTED_MODE_P (mode) && !LSX_SUPPORTED_MODE_P (mode))
 	  return elements / 2 + 3;

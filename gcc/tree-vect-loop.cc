@@ -4752,10 +4752,10 @@ vect_model_reduction_cost (loop_vec_info loop_vinfo,
 					node, 0, vect_body);
       else
 	{
-	  /* Use NELEMENTS extracts and NELEMENTS scalar ops.  */
+	  /* Use NCOPIES deconstructs and NELEMENTS scalar ops.  */
 	  unsigned int nelements = ncopies * vect_nunits_for_cost (vectype);
-	  inside_cost = record_stmt_cost (cost_vec, nelements,
-					  vec_to_scalar, node, 0,
+	  inside_cost = record_stmt_cost (cost_vec, ncopies,
+					  vec_deconstruct, node, 0,
 					  vect_body);
 	  inside_cost += record_stmt_cost (cost_vec, nelements,
 					   scalar_stmt, node, 0,
@@ -4817,9 +4817,8 @@ vect_model_reduction_cost (loop_vec_info loop_vinfo,
 	{
 	  unsigned estimated_nunits = vect_nunits_for_cost (vectype);
 	  /* Extraction of scalar elements.  */
-	  epilogue_cost += record_stmt_cost (cost_vec,
-					     2 * estimated_nunits,
-					     vec_to_scalar, node, 0,
+	  epilogue_cost += record_stmt_cost (cost_vec, 2,
+					     vec_deconstruct, node, 0,
 					     vect_epilogue);
 	  /* Scalar max reductions via COND_EXPR / MAX_EXPR.  */
 	  epilogue_cost += record_stmt_cost (cost_vec,

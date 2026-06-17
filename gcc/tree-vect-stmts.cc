@@ -8654,12 +8654,12 @@ vectorizable_store (vec_info *vinfo,
 		inside_cost
 		  += record_stmt_cost (cost_vec, n_adjacent_stores,
 				       scalar_store, slp_node, 0, vect_body);
-	      /* Only need vector extracting when there are more
-		 than one stores.  */
+	      /* Only need vector deconstruction when there is more
+		 than one store.  */
 	      if (nstores > 1)
 		inside_cost
-		  += record_stmt_cost (cost_vec, n_adjacent_stores,
-				       vec_to_scalar, slp_node, 0, vect_body);
+		  += record_stmt_cost (cost_vec, ncopies,
+				       vec_deconstruct, slp_node, 0, vect_body);
 	    }
 	  if (dump_enabled_p ())
 	    dump_printf_loc (MSG_NOTE, vect_location,
@@ -9222,11 +9222,11 @@ vectorizable_store (vec_info *vinfo,
 		     (we assume the scalar scaling and ptr + offset add is
 		     consumed by the load).  */
 		  inside_cost
-		    += record_stmt_cost (cost_vec, cnunits, vec_to_scalar,
+		    += record_stmt_cost (cost_vec, 1, vec_deconstruct,
 					 slp_node, 0, vect_body);
 		  /* N scalar stores plus extracting the elements.  */
 		  inside_cost
-		    += record_stmt_cost (cost_vec, cnunits, vec_to_scalar,
+		    += record_stmt_cost (cost_vec, 1, vec_deconstruct,
 					 slp_node, 0, vect_body);
 		  inside_cost
 		    += record_stmt_cost (cost_vec, cnunits, scalar_store,
@@ -11201,8 +11201,7 @@ vectorizable_load (vec_info *vinfo,
 		{
 		  /* For emulated gathers N offset vector element
 		     offset add is consumed by the load).  */
-		  inside_cost = record_stmt_cost (cost_vec, const_nunits,
-						  vec_to_scalar,
+		  inside_cost = record_stmt_cost (cost_vec, 1, vec_deconstruct,
 						  slp_node, 0, vect_body);
 		  /* N scalar loads plus gathering them into a
 		     vector.  */

@@ -212,7 +212,8 @@ enum vect_cost_for_stmt
   cond_branch_taken,
   vec_perm,
   vec_promote_demote,
-  vec_construct
+  vec_construct,
+  vec_deconstruct
 };
 
 /* Separate locations for which the vectorizer cost model should

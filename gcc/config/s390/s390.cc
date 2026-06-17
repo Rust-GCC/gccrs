@@ -4385,6 +4385,7 @@ s390_builtin_vectorization_cost (enum vect_cost_for_stmt type_of_cost,
 	return 3;
 
       case vec_construct:
+      case vec_deconstruct:
 	return TYPE_VECTOR_SUBPARTS (vectype) - 1;
 
       default:

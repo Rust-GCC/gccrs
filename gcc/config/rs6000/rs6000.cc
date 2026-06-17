@@ -5113,6 +5113,7 @@ rs6000_builtin_vectorization_cost (enum vect_cost_for_stmt type_of_cost,
 	return 2;
 
       case vec_construct:
+      case vec_deconstruct:
 	/* This is a rough approximation assuming non-constant elements
 	   constructed into a vector via element insertion.  FIXME:
 	   vec_construct is not granular enough for uniformly good

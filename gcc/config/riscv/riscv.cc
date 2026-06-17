@@ -14065,6 +14065,7 @@ riscv_builtin_vectorization_cost (enum vect_cost_for_stmt type_of_cost,
       return fp ? common_costs->fp_stmt_cost : common_costs->int_stmt_cost;
 
     case vec_construct:
+    case vec_deconstruct:
 	{
 	  /* TODO: This is too pessimistic in case we can splat.  */
 	  int regmove_cost = fp ? get_fr2vr_cost () : get_gr2vr_cost ();

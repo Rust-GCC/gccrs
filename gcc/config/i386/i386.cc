@@ -25699,6 +25699,7 @@ ix86_default_vector_cost (enum vect_cost_for_stmt type_of_cost,
         return ix86_vec_cost (mode, ix86_cost->sse_op);
 
       case vec_construct:
+      case vec_deconstruct:
 	{
 	  int n = GET_MODE_NUNITS (mode);
 	  /* N - 1 element inserts into an SSE vector, the possible

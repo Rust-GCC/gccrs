@@ -169,6 +169,9 @@ dump_stmt_cost (FILE *f, int count, enum vect_cost_for_stmt kind,
     case vec_construct:
       ks = "vec_construct";
       break;
+    case vec_deconstruct:
+      ks = "vec_deconstruct";
+      break;
     }
   fprintf (f, "%s ", ks);
   if (kind == unaligned_load || kind == unaligned_store)
