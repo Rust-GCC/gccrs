@@ -2591,7 +2591,9 @@ aarch64_fntype_abi (const_tree fntype)
   if (lookup_attribute ("aarch64_vector_pcs", TYPE_ATTRIBUTES (fntype)))
     return aarch64_simd_abi ();
 
-  if (lookup_attribute ("preserve_none", TYPE_ATTRIBUTES (fntype)))
+  /* Fall back to AAPCS for variadic functions.  */
+  if (lookup_attribute ("preserve_none", TYPE_ATTRIBUTES (fntype))
+      && !stdarg_p (fntype))
     return aarch64_preserve_none_abi ();
 
   if (aarch64_returns_value_in_sve_regs_p (fntype)
