@@ -3718,12 +3718,10 @@ factor_out_conditional_load (edge e0, edge e1, basic_block merge, gphi *phi,
   tree ref0 = gimple_assign_rhs1 (load0);
   tree ref1 = gimple_assign_rhs1 (load1);
 
-  /* Both must be plain *P loads (zero offset) of a compatible value type.  The
+  /* Both must be *P loads of a compatible value type.  The
      TBAA alias-ptr type carried by MEM_REF operand 1 need not match; it is
      merged the way get_alias_type_for_stmts does when the load is built.  */
   if (TREE_CODE (ref0) != MEM_REF || TREE_CODE (ref1) != MEM_REF
-      || !integer_zerop (TREE_OPERAND (ref0, 1))
-      || !integer_zerop (TREE_OPERAND (ref1, 1))
       || !types_compatible_p (TREE_TYPE (ref0), TREE_TYPE (ref1)))
     return false;
 
@@ -3737,6 +3735,89 @@ factor_out_conditional_load (edge e0, edge e1, basic_block merge, gphi *phi,
     return false;
   if (!is_factor_profitable (load1, merge, &p1, 1))
     return false;
+
+  /* Merge the two arms' TBAA info as get_alias_type_for_stmts does: keep the
+     common alias-ptr type and dependence clique/base when the arms agree,
+     otherwise fall back to ptr_type_node (alias-everything) and drop the
+     clique/base, so the combined load conservatively conflicts with any store
+     either original arm could.  */
+  unsigned short clique = MR_DEPENDENCE_CLIQUE (ref0);
+  unsigned short base = MR_DEPENDENCE_BASE (ref0);
+  if (clique != MR_DEPENDENCE_CLIQUE (ref1) || base != MR_DEPENDENCE_BASE (ref1))
+    clique = base = 0;
+  tree atype = TREE_TYPE (TREE_OPERAND (ref0, 1));
+  if (!alias_ptr_types_compatible_p (atype, TREE_TYPE (TREE_OPERAND (ref1, 1))))
+    {
+      atype = ptr_type_node;
+      clique = base = 0;
+    }
+
+  tree index0 = TREE_OPERAND (ref0, 1);
+  tree index1 = TREE_OPERAND (ref1, 1);
+  tree newindex;
+  gimple_stmt_iterator gsi;
+  gsi = gsi_after_labels (merge);
+
+  /* Try to handle different indices.  */
+  if (operand_equal_p (index0, index1))
+    newindex = fold_convert (atype, index0);
+  /* FIXME: right now non ssa names with different indices are not handled.  */
+  else if (TREE_CODE (p0) != SSA_NAME || TREE_CODE (p1) != SSA_NAME)
+    return false;
+  /* If we have the same base already, just create a phi for the index
+     and the pointer plus will be done in the merge.  */
+  else if (p0 == p1)
+    {
+      index0 = fold_convert (sizetype, index0);
+      index1 = fold_convert (sizetype, index1);
+      tree index = make_ssa_name (sizetype);
+      gphi *pphi = create_phi_node (index, merge);
+      add_phi_arg (pphi, index0, e0, gimple_phi_arg_location (phi, e0->dest_idx));
+      add_phi_arg (pphi, index1, e1, gimple_phi_arg_location (phi, e1->dest_idx));
+      p0 = gimple_build (&gsi, true, GSI_SAME_STMT,
+			 UNKNOWN_LOCATION,
+			 POINTER_PLUS_EXPR, atype, p0, index);
+      /* Since we already have the same pointer for both, just set that way.
+	 Also the index offset is already 0 because we just did the add.  */
+      p1 = p0;
+      newindex = build_zero_cst (atype);
+      if (dump_file && (dump_flags & TDF_DETAILS))
+	{
+	  fprintf (dump_file, "new PHI ");
+	  print_generic_expr (dump_file, index);
+	  fprintf (dump_file,
+		   " was created for the index.\n");
+	}
+    }
+  else
+    {
+      gimple_stmt_iterator gsi_index;
+      /* When the indices are different create 2 new pointers on each
+	 of the middle bb right after the original load.
+	 Note in the case of 0 index, gimple_build just returns
+	 the original pointer.  */
+      gsi_index = gsi_for_stmt (load0);
+      index0 = fold_convert (sizetype, index0);
+      p0 = gimple_build (&gsi_index, false, GSI_SAME_STMT,
+			 gimple_location (load0),
+			 POINTER_PLUS_EXPR, atype, p0, index0);
+
+      gsi_index = gsi_for_stmt (load1);
+      index1 = fold_convert (sizetype, index1);
+      p1 = gimple_build (&gsi_index, false, GSI_SAME_STMT,
+			 gimple_location (load1),
+			 POINTER_PLUS_EXPR, atype, p1, index1);
+      newindex = build_zero_cst (atype);
+      if (dump_file && (dump_flags & TDF_DETAILS))
+	{
+	  fprintf (dump_file, "new ptrs ");
+	  print_generic_expr (dump_file, p0);
+	  fprintf (dump_file, " and ");
+	  print_generic_expr (dump_file, p1);
+	  fprintf (dump_file,
+		   " was created due to different offsets.\n");
+	}
+    }
 
   tree newptr;
   if (p0 != p1)
@@ -3760,25 +3841,9 @@ factor_out_conditional_load (edge e0, edge e1, basic_block merge, gphi *phi,
    else
      newptr = p0;
 
-  /* Merge the two arms' TBAA info as get_alias_type_for_stmts does: keep the
-     common alias-ptr type and dependence clique/base when the arms agree,
-     otherwise fall back to ptr_type_node (alias-everything) and drop the
-     clique/base, so the combined load conservatively conflicts with any store
-     either original arm could.  */
-  unsigned short clique = MR_DEPENDENCE_CLIQUE (ref0);
-  unsigned short base = MR_DEPENDENCE_BASE (ref0);
-  if (clique != MR_DEPENDENCE_CLIQUE (ref1) || base != MR_DEPENDENCE_BASE (ref1))
-    clique = base = 0;
-  tree atype = TREE_TYPE (TREE_OPERAND (ref0, 1));
-  if (!alias_ptr_types_compatible_p (atype, TREE_TYPE (TREE_OPERAND (ref1, 1))))
-    {
-      atype = ptr_type_node;
-      clique = base = 0;
-    }
-
   /* Build the combined load RES = *PTR, reusing the PHI result so any range
      info on it is preserved (as factor_out_conditional_operation does).  */
-  tree nref = build2 (MEM_REF, TREE_TYPE (ref0), newptr, build_int_cst (atype, 0));
+  tree nref = build2 (MEM_REF, TREE_TYPE (ref0), newptr, newindex);
   MR_DEPENDENCE_CLIQUE (nref) = clique;
   MR_DEPENDENCE_BASE (nref) = base;
   tree res = gimple_phi_result (phi);
@@ -3787,7 +3852,6 @@ factor_out_conditional_load (edge e0, edge e1, basic_block merge, gphi *phi,
     gimple_set_vuse (load, gimple_phi_result (vphi));
   else
     gimple_set_vuse (load, gimple_vuse (load0));
-  gimple_stmt_iterator gsi = gsi_after_labels (merge);
   gsi_insert_before (&gsi, load, GSI_SAME_STMT);
 
   /* RES is now defined by the load; drop the original PHI.  */
