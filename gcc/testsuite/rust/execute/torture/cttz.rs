@@ -7,7 +7,7 @@
 pub trait Sized {}
 
 extern "rust-intrinsic" {
-    pub fn cttz<T>(x: T) -> u32;
+    pub fn cttz<T>(x: T) -> T;
     pub fn abort() -> !;
 }
 

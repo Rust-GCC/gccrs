@@ -9,5 +9,5 @@ pub trait Sized {}
 
 #[cfg(not(cg_gcc))]
 extern "rust-intrinsic" {
-    fn copy_nonoverlapping<T>(src: &T, dst: &mut T, count: usize);
+    fn copy_nonoverlapping<T>(src: *const T, dst: *mut T, count: usize);
 }
