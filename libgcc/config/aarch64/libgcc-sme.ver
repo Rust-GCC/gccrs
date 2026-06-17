@@ -26,3 +26,10 @@ GCC_14.0 {
 GCC_16.0 {
   __arm_get_current_vg
 }
+
+GCC_17.0 {
+  __arm_sc_memchr
+  __arm_sc_memcpy
+  __arm_sc_memmove
+  __arm_sc_memset
+}

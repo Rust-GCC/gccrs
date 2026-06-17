@@ -127,6 +127,11 @@ FEATURE_1_AND_MARK (BTI_FLAG|PAC_FLAG|GCS_FLAG)
 # endif
 #endif
 
+# define ENTRY_ALIAS(name)	\
+  .global name;			\
+  SYMBOL_TYPE(name, %function);		\
+  name:
+
 #define ENTRY_ALIGN(name, align) \
   .global name;		\
   SYMBOL_TYPE(name, %function);		\

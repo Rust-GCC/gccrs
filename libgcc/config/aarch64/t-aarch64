@@ -28,7 +28,10 @@ LIB2ADDEH += \
 	$(srcdir)/config/aarch64/__arm_sme_state.S \
 	$(srcdir)/config/aarch64/__arm_tpidr2_restore.S \
 	$(srcdir)/config/aarch64/__arm_tpidr2_save.S \
-	$(srcdir)/config/aarch64/__arm_za_disable.S
+	$(srcdir)/config/aarch64/__arm_za_disable.S \
+	$(srcdir)/config/aarch64/__arm_sc_memchr_scalar.S \
+	$(srcdir)/config/aarch64/__arm_sc_memcpy_scalar.S \
+	$(srcdir)/config/aarch64/__arm_sc_memset_scalar.S
 
 SHLIB_MAPFILES += $(srcdir)/config/aarch64/libgcc-sme.ver
 LIBGCC2_CFLAGS += $(WERROR) -Wno-prio-ctor-dtor
