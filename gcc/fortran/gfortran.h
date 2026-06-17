@@ -1900,7 +1900,7 @@ typedef struct gfc_omp_namelist_udr
 gfc_omp_namelist_udr;
 #define gfc_get_omp_namelist_udr() XCNEW (gfc_omp_namelist_udr)
 
-
+/* Store list of user-defined mapper (created by 'omp declare mapper').  */
 typedef struct gfc_omp_udm
 {
   struct gfc_omp_udm *next;
@@ -1922,10 +1922,11 @@ typedef struct gfc_omp_udm
 gfc_omp_udm;
 #define gfc_get_omp_udm() XCNEW (gfc_omp_udm)
 
+/* Mapper data for a MAP or TO/FROM list item.  */
 typedef struct gfc_omp_namelist_udm
 {
-  const char *mapper_id;
-  struct gfc_omp_udm *udm;
+  const char *requested_mapper_id;
+  struct gfc_omp_udm *resolved_udm;
 }
 gfc_omp_namelist_udm;
 #define gfc_get_omp_namelist_udm() XCNEW (gfc_omp_namelist_udm)

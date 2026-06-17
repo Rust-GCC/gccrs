@@ -5565,12 +5565,12 @@ load_omp_udms (void)
 	  if (peek_atom () != ATOM_RPAREN)
 	    {
 	      n->u3.udm = gfc_get_omp_namelist_udm ();
-	      mio_pool_string (&n->u3.udm->mapper_id);
+	      mio_pool_string (&n->u3.udm->requested_mapper_id);
 
-	      if (n->u3.udm->mapper_id == NULL)
-		n->u3.udm->mapper_id = gfc_get_string ("%s", "");
+	      if (n->u3.udm->requested_mapper_id == NULL)
+		n->u3.udm->requested_mapper_id = gfc_get_string ("%s", "");
 
-	      mio_pointer_ref (&n->u3.udm->udm);
+	      mio_pointer_ref (&n->u3.udm->resolved_udm);
 	    }
 
 	  mio_rparen ();
@@ -6687,8 +6687,8 @@ write_omp_udm (gfc_omp_udm *udm)
 
       if (n->u3.udm)
 	{
-	  mio_pool_string (&n->u3.udm->mapper_id);
-	  mio_pointer_ref (&n->u3.udm->udm);
+	  mio_pool_string (&n->u3.udm->requested_mapper_id);
+	  mio_pointer_ref (&n->u3.udm->resolved_udm);
 	}
 
       mio_rparen ();

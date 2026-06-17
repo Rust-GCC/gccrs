@@ -3940,7 +3940,7 @@ gfc_match_omp_clauses (gfc_omp_clauses **cp, const omp_mask mask,
 		      if (mapper_id[0] != '\0')
 			{
 			  n->u3.udm = gfc_get_omp_namelist_udm ();
-			  n->u3.udm->mapper_id
+			  n->u3.udm->requested_mapper_id
 			    = gfc_get_string ("%s", mapper_id);
 			}
 		      n->u2.ns = ns_iter;
@@ -10504,8 +10504,8 @@ resolve_omp_clauses (gfc_code *code, gfc_omp_clauses *omp_clauses,
 
 		    if (ts->type == BT_DERIVED || ts->type == BT_CLASS)
 		      {
-			const char *mapper_id = (n->u3.udm
-						 ? n->u3.udm->mapper_id : "");
+			const char *mapper_id
+			   = (n->u3.udm ? n->u3.udm->requested_mapper_id : "");
 			gfc_omp_udm *udm = gfc_find_omp_udm (gfc_current_ns,
 							     mapper_id, ts);
 			if (mapper_id[0] != '\0' && !udm)
@@ -10517,9 +10517,9 @@ resolve_omp_clauses (gfc_code *code, gfc_omp_clauses *omp_clauses,
 			      {
 				gcc_assert (mapper_id[0] == '\0');
 				n->u3.udm = gfc_get_omp_namelist_udm ();
-				n->u3.udm->mapper_id = mapper_id;
+				n->u3.udm->requested_mapper_id = mapper_id;
 			      }
-			    n->u3.udm->udm = udm;
+			    n->u3.udm->resolved_udm = udm;
 			  }
 		      }
 		  }

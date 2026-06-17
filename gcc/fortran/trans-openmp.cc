@@ -4343,8 +4343,8 @@ gfc_trans_omp_clauses (stmtblock_t *block, gfc_omp_clauses *clauses,
 		  if (n->u3.udm)
 		    gfc_error ("Sorry, declared mapper %qs, used for %qs at %L, "
 			       "is not yet supported",
-			       n->u3.udm->mapper_id[0] != '\0'
-			       ? n->u3.udm->mapper_id : "default",
+			       n->u3.udm->requested_mapper_id[0] != '\0'
+			       ? n->u3.udm->requested_mapper_id : "default",
 			       n->sym->name, &n->where);
 
 		  // Remove duplicates
