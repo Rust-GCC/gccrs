@@ -2045,9 +2045,12 @@ riscv_select_multilib (
     }
 
   if (best_match_multi_lib == -1)
-    return NULL;
-
-  return xstrdup (multilib_infos[best_match_multi_lib].path.c_str ());
+    {
+      riscv_no_matched_multi_lib = true;
+      return NULL;
+    }
+  else
+    return xstrdup (multilib_infos[best_match_multi_lib].path.c_str ());
 }
 
 #ifndef RISCV_USE_CUSTOMISED_MULTI_LIB
@@ -2083,17 +2086,9 @@ riscv_compute_multilib (
   std::string option_cond;
   riscv_multi_lib_info_t multilib_info;
 
-  /* The generic textual matcher in gcc.cc:set_multilib_dir does not
-     understand RISC-V arch supersetting and treats MULTILIB_DEFAULTS
-     entries as if they were on the command line via default_arg ().
-     That can pick the wrong multilib when the user's -march is a
-     superset of one of MULTILIB_OPTIONS' arches but does not textually
-     match.  Run our own match-score-based selection regardless.  The
-     default "." multilib is included in multilib_infos with the
-     compiler's default arch/abi, so the smart matcher handles every
-     case the generic matcher can reach; if it still returns NULL the
-     request is genuinely incompatible and riscv_multi_lib_check will
-     emit the proper diagnostic.  */
+  /* Already found suitable, multi-lib, just use that.  */
+  if (multilib_dir != NULL)
+    return multilib_dir;
 
   /* Find march.  */
   riscv_current_arch_str =
@@ -2183,28 +2178,19 @@ riscv_compute_multilib (
       p++;
     }
 
-  const char *selected = NULL;
   switch (select_kind)
     {
     case select_by_abi:
-      selected = riscv_select_multilib_by_abi (riscv_current_abi_str,
-					       multilib_infos);
-      break;
+      return riscv_select_multilib_by_abi (riscv_current_abi_str,
+					   multilib_infos);
     case select_by_abi_arch_cmodel:
-      selected = riscv_select_multilib (riscv_current_abi_str, subset_list,
-					switches, n_switches, multilib_infos);
-      break;
+      return riscv_select_multilib (riscv_current_abi_str, subset_list,
+				    switches, n_switches, multilib_infos);
     case select_by_builtin:
+      gcc_unreachable ();
     default:
       gcc_unreachable ();
     }
-
-  /* Either select function may return NULL when nothing is compatible;
-     ensure the flag is set so riscv_multi_lib_check fires its
-     "Cannot find suitable multilib" diagnostic.  */
-  if (selected == NULL)
-    riscv_no_matched_multi_lib = true;
-  return selected;
 }
 
 #undef TARGET_COMPUTE_MULTILIB
