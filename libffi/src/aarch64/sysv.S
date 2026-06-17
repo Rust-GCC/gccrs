@@ -70,7 +70,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.  */
  * The ELF Notes section needs to indicate if BTI is supported, as the first ELF loaded that doesn't
  * declare this support disables it for memory region containing the loaded library.
  */
-# define GNU_PROPERTY_AARCH64_BTI (1 << 0)         /* Has Branch Target Identification */
+# define AARCH64_BTI (1 << 0)         /* Has Branch Target Identification */
 	.text
 	.align 4
 
@@ -681,19 +681,39 @@ CNAME(ffi_go_closure_SYSV):
 #endif /* FFI_CLOSURES */
 #endif /* __arm64__ */
 
+#define GNU_PROPERTY(value)						\
+	.pushsection .note.gnu.property, "a";				\
+	.balign 8;							\
+	.long 4;							\
+	.long 0x10;							\
+	.long 0x5;							\
+	.asciz "GNU";							\
+	.long 0xc0000000; /* GNU_PROPERTY_AARCH64_FEATURE_1_AND */	\
+	.long 4;							\
+	.long value;							\
+	.long 0;							\
+	.popsection;
+
+#ifdef __ARM_BUILDATTR64_FV
+/* Add AArch64 feature bits build attributes.  */
+# define FEATURE_1_AND_MARK(value)					\
+    .aeabi_subsection aeabi_feature_and_bits, optional, ULEB128;	\
+    .if ((value) & AARCH64_BTI);					\
+    .aeabi_attribute Tag_Feature_BTI, 1;				\
+    .else;								\
+    .aeabi_attribute Tag_Feature_BTI, 0;				\
+    .endif;								\
+    .if ((value) & AARCH64_POINTER_AUTH);				\
+    .aeabi_attribute Tag_Feature_PAC, 1;				\
+    .else;								\
+    .aeabi_attribute Tag_Feature_PAC, 0;				\
+    .endif;
+#else
+/* Add a NT_GNU_PROPERTY_TYPE_0 note.  */
+# define FEATURE_1_AND_MARK(value) GNU_PROPERTY (value)
+#endif /* __ARM_BUILDATTR64_FV */
+
 #if defined __ELF__ && defined __linux__
 	.section .note.GNU-stack,"",%progbits
-
-	.pushsection .note.gnu.property, "a";
-	.balign 8;
-	.long 4;
-	.long 0x10;
-	.long 0x5;
-	.asciz "GNU";
-	.long 0xc0000000; /* GNU_PROPERTY_AARCH64_FEATURE_1_AND */
-	.long 4;
-	.long GNU_PROPERTY_AARCH64_BTI | GNU_PROPERTY_AARCH64_POINTER_AUTH;
-	.long 0;
-	.popsection;
+FEATURE_1_AND_MARK(AARCH64_BTI | AARCH64_POINTER_AUTH)
 #endif
-
