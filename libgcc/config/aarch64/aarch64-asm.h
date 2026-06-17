@@ -78,7 +78,6 @@
 #define SYMBOL_TYPE(name, _type)
 #endif
 
-/* Add a NT_GNU_PROPERTY_TYPE_0 note.  */
 #define GNU_PROPERTY(type, value)	\
   .section .note.gnu.property, "a";	\
   .p2align 3;				\
@@ -92,14 +91,39 @@
   .word 0;				\
   .previous
 
+#ifdef __ARM_BUILDATTR64_FV
+/* Add AArch64 feature bits build attributes.  */
+# define FEATURE_1_AND_MARK(value)					\
+    .aeabi_subsection aeabi_feature_and_bits, optional, ULEB128;	\
+    .if ((value) & FEATURE_1_BTI);					\
+    .aeabi_attribute Tag_Feature_BTI, 1;				\
+    .else;								\
+    .aeabi_attribute Tag_Feature_BTI, 0;				\
+    .endif;								\
+    .if ((value) & FEATURE_1_PAC);					\
+    .aeabi_attribute Tag_Feature_PAC, 1;				\
+    .else;								\
+    .aeabi_attribute Tag_Feature_PAC, 0;				\
+    .endif;								\
+    .if ((value) & FEATURE_1_GCS);					\
+    .aeabi_attribute Tag_Feature_GCS, 1;				\
+    .else;								\
+    .aeabi_attribute Tag_Feature_GCS, 0;				\
+    .endif;								\
+    .previous
+#else
+/* Add a NT_GNU_PROPERTY_TYPE_0 note.  */
+# define FEATURE_1_AND_MARK(value) GNU_PROPERTY (FEATURE_1_AND, value)
+#endif
+
 #if defined(__linux__) || defined(__FreeBSD__)
 /* Do not require executable stack.  */
 .section .note.GNU-stack, "", %progbits
 .previous
 
-/* Add GNU property note if built with branch protection.  */
+/* Add marking if built with branch protection.  */
 # if (BTI_FLAG|PAC_FLAG|GCS_FLAG) != 0
-GNU_PROPERTY (FEATURE_1_AND, BTI_FLAG|PAC_FLAG|GCS_FLAG)
+FEATURE_1_AND_MARK (BTI_FLAG|PAC_FLAG|GCS_FLAG)
 # endif
 #endif
 
