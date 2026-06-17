@@ -4612,9 +4612,9 @@ struct processor_costs c86_4g_m7_cost = {
 					   in SImode and DImode.  */
   2, 2, 3,				/* cost of moving XMM,YMM,ZMM
 					   register.  */
-  {6, 6, 10, 10, 12},			/* cost of loading SSE registers
+  {6, 6, 10, 10, 20},			/* cost of loading SSE registers
 					   in 32,64,128,256 and 512-bit.  */
-  {8, 8, 8, 12, 12},			/* cost of storing SSE registers
+  {8, 8, 8, 12, 24},			/* cost of storing SSE registers
 					   in 32,64,128,256 and 512-bit.  */
   6, 8,					/* SSE->integer and integer->SSE
 					   moves.  */
@@ -4654,12 +4654,12 @@ struct processor_costs c86_4g_m7_cost = {
 					   Relative to reg-reg move (2).  */
   {8, 8, 8},				/* cost of storing integer
 					   registers.  */
-  {6, 6, 10, 10, 12},			/* cost of loading SSE registers
+  {6, 6, 10, 10, 20},			/* cost of loading SSE registers
 					   in 32bit, 64bit, 128bit, 256bit and 512bit */
-  {8, 8, 8, 12, 12},			/* cost of storing SSE register
+  {8, 8, 8, 12, 24},			/* cost of storing SSE register
 					   in 32bit, 64bit, 128bit, 256bit and 512bit */
-  {6, 6, 10, 10, 12},			/* cost of unaligned loads.  */
-  {8, 8, 8, 12, 12},			/* cost of unaligned stores.  */
+  {6, 6, 10, 10, 20},			/* cost of unaligned loads.  */
+  {8, 8, 8, 12, 24},			/* cost of unaligned stores.  */
   2, 2, 3,				/* cost of moving XMM,YMM,ZMM
 					   register.  */
   6,					/* cost of moving SSE register to integer.  */
