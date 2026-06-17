@@ -757,7 +757,9 @@ fold_using_range::fold_stmt (vrange &r, gimple *s, fur_source &src, tree name)
 	{
 	  p.set_pt (rhs, true);
 	}
-      else
+      // PR 125854 - Do not attempt to invoke the fold machinery unless this
+      // query is the same as the current query (which fold may invoke).
+      else if (src.query () == get_range_query (cfun))
 	{
 	  // If we couldn't find anything, try fold.
 	  x_fold_context = { s, src.query () };
