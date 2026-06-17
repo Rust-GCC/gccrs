@@ -294,9 +294,10 @@ section.
 @item @anchor{GCOBOL-prerequisite}GCOBOL
 
 The COBOL compiler, gcobol, first appeared in GCC 15.  To build the
-COBOL parser, you need GNU Bison 3.5.1 or later (but not 3.8.0). To build
-the lexer requires GNU Flex 2.6.4, the current version as of this writing,
-released on 2017-05-06.
+COBOL parser, you need GNU Bison 3.8.2, the current version of as of
+this writing, released 2021-09-25. To build the lexer requires GNU
+Flex 2.6.4, also the current version as of this writing, released on
+2017-05-06.
 
 The gcobol documentation is maintained as manpages using troff
 mdoc. GNU groff is required to convert them to PDF format.  Conversion
@@ -598,7 +599,7 @@ Necessary to build GCC during development because the generated output
 files are not included in the version-controlled source repository.
 They are included in releases.
 
-@item Bison version 3.5.1 or later (but not 3.8.0)
+@item Bison version 3.8.2 (or later)
 
 Necessary when modifying @file{*.y} files in the COBOL front end.
 
