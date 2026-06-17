@@ -3320,7 +3320,8 @@ vect_do_peeling (loop_vec_info loop_vinfo, tree niters, tree nitersm1,
   /* For early breaks the scalar loop needs to execute at most VF times
      to find the element that caused the break.  */
   if (LOOP_VINFO_EARLY_BREAKS (loop_vinfo)
-      && LOOP_VINFO_EARLY_BRK_NEEDS_EPILOG (loop_vinfo))
+      && (LOOP_VINFO_EARLY_BRK_NEEDS_EPILOG (loop_vinfo)
+	  || LOOP_VINFO_EARLY_BREAKS_VECT_PEELED (loop_vinfo)))
     bound_epilog = vf;
 
   bool epilog_peeling = maybe_ne (bound_epilog, 0U);
