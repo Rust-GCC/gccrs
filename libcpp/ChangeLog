@@ -1,3 +1,10 @@
+2026-06-16  Jakub Jelinek  <jakub@redhat.com>
+
+	* include/cpplib.h (enum c_lang): Add CLK_GNUCXX29 and CLK_CXX29.
+	* init.cc (lang_defaults): Add CLK_GNUCXX29 and CLK_CXX29 row.
+	(cpp_init_builtins): Change __cplusplus value for C++26 from 202400L
+	to 202603L and set __cplusplus value for C++29 to 202700L.
+
 2026-06-14  Ben Boeckel  <ben.boeckel@kitware.com>
 
 	* init.cc (cpp_finish): Remove unnecessary `struct` keyword.

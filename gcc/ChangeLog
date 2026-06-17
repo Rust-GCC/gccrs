@@ -1,3 +1,91 @@
+2026-06-16  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR c/125226
+	* targhooks.cc (default_stack_protect_guard): If UINTPTR_TYPE
+	isn't NULL, call unsigned_integer_tree_node_for_type with
+	UINTPTR_TYPE to get unsigned integer type for uintptr_t.
+	* tree.cc (unsigned_integer_tree_node_for_type): New function.
+	(build_common_tree_nodes): Call unsigned_integer_tree_node with
+	SIZE_TYPE to get unsigned integer type for size_t.
+	* tree.h (unsigned_integer_tree_node_for_type): New prototype.
+
+2026-06-16  Jakub Jelinek  <jakub@redhat.com>
+
+	* doc/invoke.texi (-std=c++2d, -std=c++29, -std=gnu++2d,
+	-std=gnu++29): Document.
+	(-std=c++2c, -std=c++26, -std=gnu++2c, -std=gnu++26): Tweak so that
+	26 comes first and is meant as the supported option.
+	* doc/cpp.texi: Adjust expected __cplusplus value for -std=c++26,
+	document value for -std=c++29.
+	* dwarf2out.cc (highest_c_language): Handle C++29.
+	(gen_compile_unit_die): Likewise.  Adjust lversion for C++26.
+
+2026-06-16  Robin Dapp  <rdapp.gcc@gmail.com>
+
+	PR tree-optimization/125516
+	* tree-vect-data-refs.cc (vect_gather_scatter_fn_p): Set
+	supported_offset_vectype.
+	* tree-vect-stmts.cc (vectorizable_store): Skip nop conversions
+	when costing scatters.
+	(vectorizable_load): Ditto for gathers.
+
+2026-06-16  Abhishek Kaushik  <abhishek.kaushik@arm.com>
+
+	* tree-ssa-loop-niter.cc (determine_value_range): Query ranger
+	for integral expressions, not only SSA_NAMEs.  Query ranges on the
+	loop preheader edge.
+
+2026-06-16  Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	* tree-vect-data-refs.cc (vect_slp_analyze_data_ref_dependence):
+	Return a three-way tree result (chrec_known when independent,
+	chrec_dont_know when the affine test cannot analyze the pair, the
+	dependence otherwise) instead of a bool.
+	(vect_slp_analyze_store_dependences): Resort to the alias oracle on
+	an unknown dependence as well as on a missing data reference; a
+	store is being moved so do not use TBAA.
+	(vect_slp_analyze_load_dependences): Likewise on the load-hoist
+	paths, using TBAA as a load is being hoisted; also record that the
+	ao_ref has been initialized in check_hoist.
+
+2026-06-16  Robin Dapp  <rdapp.gcc@gmail.com>
+
+	PR target/125670
+	* config/riscv/autovec-opt.md: Use avl_type operand number.
+
+2026-06-16  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125730
+	* tree-ssa-loop-ivopts.cc (alloc_iv): Do not convert pointer
+	IVs to unsigned before canonicalizing.
+
+2026-06-16  Richard Biener  <rguenther@suse.de>
+
+	* fold-const.cc (fold_plusminus_mult_expr): Use
+	wide_int for the case of two INTEGER_CST multiplicands.
+
+2026-06-16  Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	PR target/125794
+	* config/aarch64/aarch64.cc (aarch64_simd_valid_imm): Do not fall
+	through to the replicating SVE immediate forms for a 128-bit
+	Advanced SIMD constant whose high 64 bits are zero (output_width
+	!= 0).
+
+2026-06-16  Avinash Jayakar  <avinashd@linux.ibm.com>
+
+	PR tree-optimization/59429
+	* match.pd: New match patterns to recognize spaceship variants.
+	* tree-ssa-math-opts.cc (gimple_spaceship): Match function declaration.
+	(match_spaceship): New function to recognize spaceship given phi node.
+	(math_opts_dom_walker::after_dom_children): Add match_spaceship check.
+
+2026-06-16  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/125614
+	* config/i386/i386-features.cc (replace_vector_const): Replace
+	gen_rtx_SUBREG with gen_lowpart.
+
 2026-06-15  Roger Sayle  <roger@nextmovesoftware.com>
 
 	* config/i386/i386.cc (ix86_insn_cost): Add a suitable penalty

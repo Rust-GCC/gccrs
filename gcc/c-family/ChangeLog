@@ -1,3 +1,13 @@
+2026-06-16  Jakub Jelinek  <jakub@redhat.com>
+
+	* c-common.h (enum cxx_dialect): Add cxx29.
+	* c-opts.cc (set_std_cxx29): New function.
+	(c_common_handle_option): Handle -std=c++2d, -std=c++29, -std=gnu++2d
+	and -std=gnu++29.
+	* c.opt (std=c++2d, std=c++29, std=gnu++2d, std=gnu++29): New.
+	(std=c++2c, std=c++26, std=gnu++2c, std=gnu++26): Move Undocumented
+	to the 2c cases, tweak description.
+
 2026-06-08  Zhou Qiankang  <wszqkzqk@qq.com>
 
 	PR c++/125642

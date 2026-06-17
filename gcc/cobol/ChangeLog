@@ -1,3 +1,231 @@
+2026-06-16  Robert Dubner  <rdubner@symas.com>
+
+	* compare.cc (numeric_alpha_compare): Use tree_type_from_refer().
+	* genapi.cc (file_static_variable): Eliminate function.
+	(psa_FldLiteralN): Use tree_type_from_field.
+	(parser_accept_command_line): Eliminate file-static variables.
+	(parser_accept_envar): Likewise.
+	(parser_assign): Likewise.
+	(parser_initialize_table): Likewise.
+	(parser_see_stop_run): Likewise.
+	(parser_file_write): Likewise.
+	(parser_file_start): Likewise.
+	(inspect_tally): Likewise.
+	(inspect_replacing): Likewise.
+	(field_increment): Likewise.
+	(parser_match_exception): Likewise.
+	* genapi.h (file_static_variable): Eliminate function.
+	* genmath.cc (largest_binary_term): Use tree_type_from_refer().
+	(fast_add):  Likewise.
+	(fast_subtract): Likewise.
+	(fast_multiply): Likewise.
+	(fast_divide): Likewise.
+	(parser_divide): Likewise.
+	* genutil.cc (tree_type_from_digits): Eliminate function.
+	(get_integer_value): Eliminate file-static variables.
+	(get_data_offset): Eliminate file-static variables.
+	(get_binary_value_tree): Eliminate file-static variables.
+	(tree_type_from_field): Updated function.
+	(tree_type_from_refer): New function.
+	(scale_by_power_of_ten): Eliminate file-static variables.
+	(tree_type_from_size): Eliminate function.
+	(copy_little_endian_into_place): Improve logic.
+	(build_array_of_size_t): Eliminate file-static variables.
+	(refer_refmod_length): Likewise.
+	(refer_fill_depends): Likewise.
+	(refer_size): Likewise.
+	(refer_size_source): Likewise.
+	* genutil.h (tree_type_from_digits): Eliminate function.
+	(tree_type_from_size): Eliminate function.
+	(tree_type_from_refer): New function.
+	* lang.opt: Updated documentation.
+	* lang.opt.urls: Updated documentation.
+	* move.cc (digits_to_bytes): Eliminate function.
+	(get_bytes_needed): Likewise.
+	(mh_source_is_literalN): Eliminate file-static variables; use
+	tree_type_from_refer().
+	(mh_numeric_display): Likewise.
+	(mh_little_endian): tree_type_from_refer().
+	(mh_numdisp_to_packed): Use get_location() function.
+	(mh_packed_to_packed): Likewise.
+	(mh_packed_to_numdisp): Likewise.
+	(move_helper): Likewise.
+
+2026-06-16  James K. Lowden  <jklowden@cobolworx.com>
+
+	* Make-lang.in: Report Bison version.
+	* cbldiag.h (defined): Define possibly missing macros.
+	(ATTRIBUTE_GCOBOL_DIAG): Define if missing.
+	(ATTRIBUTE_PRINTF_1): Same.
+	(ATTRIBUTE_PRINTF_3): Same.
+	(yyerror): Remove.
+	(struct YYLTYPE): Remove.
+	(enum cbl_gcobol_feature_t): Relocate from symbols.h.
+	(YYLTYPE_IS_DECLARED): Remove.
+	(YYLTYPE_IS_TRIVIAL): Remove.
+	(cobol_location): Relocate.
+	(cobol_gcobol_feature_set): Declare.
+	(struct YDFLTYPE): Remove.
+	(enum cbl_call_convention_t): Relocate from symbols.h.
+	(YDFLTYPE_IS_DECLARED): Remove.
+	(YDFLTYPE_IS_TRIVIAL): Remove.
+	(current_call_convention): Declare.
+	(cdf_push): Declare.
+	(cdf_push_call_convention): Declare.
+	(cdf_push_current_tokens): Declare.
+	(cdf_push_dictionary): Declare.
+	(cdf_push_enabled_exceptions): Declare.
+	(cdf_push_source_format): Declare.
+	(cdf_pop): Declare.
+	(cdf_pop_call_convention): Declare.
+	(cdf_pop_current_tokens): Declare.
+	(cdf_pop_dictionary): Declare.
+	(cdf_pop_source_format): Declare.
+	(cdf_pop_enabled_exceptions): Declare.
+	(current_program_index): Declare.
+	(struct cbl_loc_t): Derive from cbl_loc_base_t.
+	(struct cbl_loc_base_t): Define.
+	(cbl_err): Declare.
+	(cbl_errx): Declare.
+	(error_msg): Use cbl_loc_t.
+	(warn_msg): Same.
+	(cbl_unimplemented_at): Same.
+	(gcc_location_set): Same.
+	* cdf.y: Require Bison 3.8.2 and generate C++ in cdf namespace.
+	* cdfval.h (struct YDFLTYPE): Remove.
+	(struct cbl_loc_t): Forward declaration.
+	(struct cdfval_base_t): User-defined conversion from derived.
+	* copybook.h (gcc_assert): Use assert(3) within cdf.y.
+	(gcc_unreachable): Declare within cdf.y.
+	(class copybook_elem_t): Use cbl_loc_t.
+	(CTOUPPER): Use toupper(3) in uppername_t helper.
+	(TOUPPER): Same.
+	(class copybook_t): Use cbl_loc_t.
+	* exceptg.h (struct cbl_label_t): Declare cbl_label_t.
+	* gcobc: Support -fno-ec.
+	* gcobol.1: Reword -fsyntax-only slightly.
+	* genapi.cc (parser_label_label): Use cobol_location().
+	* lang.opt: Add comment in re lang.opt.urls.
+	* lexio.cc (struct replacing_term_t): Use cbl_loc_t.
+	(location_in): Same.
+	(parse_copy_directive): Same.
+	* lexio.h (struct filespan_t): Same.
+	* messages.cc (cbl_message): Same.
+	* parse.y: Same, and propagate location variously.
+	* parse_ante.h (current_data_section_set): Use cbl_loc_t.
+	(namcpy): Same.
+	(reject_refmod): Same.
+	(require_pointer): Same.
+	(require_integer): Same.
+	(ast_op): Same.
+	(perform_tgt_set): Same.
+	(label_add): Same.
+	(paragraph_reference): Same.
+	(tee_up_name): Same.
+	(ast_inspect): Same.
+	(ast_enter_section): Same.
+	(ast_enter_paragraph): Same.
+	(prototype_add): Same.
+	(verify_args): Same.
+	(subscript_dimension_error): Same.
+	(literal_subscripts_valid): Same.
+	(literal_refmod_valid): Same.
+	(struct cbl_fieldloc_t): Remove.
+	(intrinsic_call_1): Use cbl_loc_t.
+	(symbol_find): Same.
+	(valid_redefine): Same.
+	(field_add): Same.
+	(field_type_update): Same.
+	(field_capacity_error): Same.
+	(field_alloc): Same.
+	(file_add): Same.
+	(alphabet_add): Same.
+	(set_real_from_capacity): Same.
+	(procedure_division_ready): Same.
+	(file_section_fd_set): Same.
+	(ast_call): Same.
+	(field_binary_usage): Same.
+	(ast_end_program): Same.
+	(cobol_location): Same.
+	(location_set): Same.
+	(statement_begin): Same.
+	(ast_first_statement): Same.
+	* scan.l: Qualify tokens with new cdf namespace.
+	* scan_ante.h (ydfparse): Now static.
+	(cdf_context): Declare.
+	(ydfltype_of): Remove.
+	(update_location): Use cbl_loc_t.
+	(reset_location): Same.
+	(YY_USER_INIT): Same.
+	(class picture_t): Same.
+	* scan_post.h (ydfparse): Wrapper for cdf_parser::parse() method.
+	(ydfchar): Lookahead helper.
+	(ydfdebug): Same.
+	(run_cdf): Clearer debug messages.
+	(struct pending_token_t): Renamed to recent_token_t.
+	(struct recent_token_t): As above.
+	(PENDING): Renames to RECENT.
+	(RECENT): As above.
+	(next_token): Removed.
+	(recent_tokens_t): Capture abandoned lookahead tokens.
+	(prelex): Use recent_tokens queue.
+	(yylex): Drop normal parsing idea.
+	* symbols.cc (symbol_field_location): Use cbl_loc_t.
+	(symbol_alphabet): Same.
+	(cbl_alphabet_t::cbl_alphabet_t): Same.
+	(cbl_alphabet_t::assign): Same.
+	(cbl_alphabet_t::also): Same.
+	(symbol_temporary_location): Same.
+	(cbl_field_t::encode): Same.
+	* symbols.h (enum cbl_gcobol_feature_t): Remove.
+	(cobol_gcobol_feature_set): Remove.
+	(struct cbl_field_t): Use cbl_loc_t.
+	(struct cbl_refer_t): Same.
+	(struct cbl_alphabet_t): Same.
+	(struct cbl_perform_tgt_t): Same.
+	(struct cbl_nameloc_t): Same.
+	(class name_queue_t): Same.
+	(tee_up_name): Same.
+	(symbol_field_location): Same.
+	(enum cbl_call_convention_t): Remove
+	(class current_tokens_t):  Use cbl_loc_t.
+	(current_call_convention): Same.
+	(gcc_location_set): Same.
+	* util.cc (class cdf_directives_t): Use cbl_loc_t.
+	(cdf_unreachable): Define as gcc_unreachable.
+	(cdf_literalize): Do not handle location.
+	(cdf_file): New function.
+	(cdf_file_index): Same.
+	(cdf_file_name): Same.
+	(cdf_add_field): Same.
+	(cbl_field_t::encode_numeric): Remove unused parameter.
+	(cbl_field_t::report_invalid_initial_value): Use cbl_loc_t.
+	(match_proc): Namespace for local prototype-verification functions.
+	(DUMP_PROCEDURE_CALLS): Guard macro for debug function.
+	(procedure_calls_dump): New function to show uses of PERFORM.
+	(gcc_location_set_impl): Use cbl_loc_t.
+	(gcc_location_set): Same.
+	(class temp_loc_t): Same.
+	(error_msg): Same.
+	(warn_msg): Same.
+	(ydfdebug): Same.
+	(cobol_set_debugging): Same.
+	(cbl_unimplemented_at): Same.
+	* util.h (cbl_err): Remove declaration.
+	(cbl_errx): Same.
+	(cdf_push): Same.
+	(cdf_push_call_convention): Same.
+	(cdf_push_current_tokens): Same.
+	(cdf_push_dictionary): Same.
+	(cdf_push_enabled_exceptions): Same.
+	(cdf_push_source_format): Same.
+	(cdf_pop): Same.
+	(cdf_pop_call_convention): Same.
+	(cdf_pop_current_tokens): Same.
+	(cdf_pop_dictionary): Same.
+	(cdf_pop_source_format): Same.
+	(cdf_pop_enabled_exceptions): Same.
+
 2026-06-14  Robert Dubner  <rdubner@symas.com>
 
 	* move.cc (hex_of): Move the routine.

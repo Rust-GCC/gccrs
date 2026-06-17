@@ -1,3 +1,14 @@
+2026-06-16  Robert Dubner  <rdubner@symas.com>
+
+	* gmath.cc (multiply_int256_by_int64): Comment.
+	(int256_as_decimal): Handle negative values.
+	(__gg__dividef45): Repair remainder logic when numeric-display
+	parameters are negative.
+
+2026-06-16  James K. Lowden  <jklowden@cobolworx.com>
+
+	* posix/shim/open.cc (defined): Honor _GNU_SOURCE and _POSIX_C_SOURCE.
+
 2026-06-14  Robert Dubner  <rdubner@symas.com>
 
 	* libgcobol.cc (int128_to_field): Set packed-decimal sign nybble to

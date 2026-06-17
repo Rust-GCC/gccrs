@@ -1,3 +1,18 @@
+2026-06-16  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125770
+	* decl2.cc (mark_used): Check complain & tf_error before giving
+	an error.
+
+2026-06-16  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125539
+	* cvt.cc (ocp_convert): In a template, always call
+	perform_implicit_conversion.  Pass flags to
+	perform_implicit_conversion_flags.
+	* decl.cc (check_initializer): Remove a call to
+	build_implicit_conv_flags.
+
 2026-06-12  Jakub Jelinek  <jakub@redhat.com>
 
 	PR c++/125674

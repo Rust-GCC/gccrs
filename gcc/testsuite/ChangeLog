@@ -1,3 +1,100 @@
+2026-06-16  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* gcc.target/i386/fabsneg-2.c: Allow for lC* in Mach-O.
+
+2026-06-16  Robert Dubner  <rdubner@symas.com>
+
+	* cobol.dg/group2/DIVIDE_binary-long_giving_remainder.cob: New test.
+	* cobol.dg/group2/DIVIDE_binary-long_giving_remainder.out: New test.
+	* cobol.dg/group2/DIVIDE_numeric-display_giving_remainder.cob: New test.
+	* cobol.dg/group2/DIVIDE_numeric-display_giving_remainder.out: New test.
+	* cobol.dg/group2/GCC_125616_RT3601_-_IBM_incorrect_DISPLAY_of_COMP-1_COMP-2_float.cob:
+	New test.
+	* cobol.dg/group2/PR39_RT3573_-_Parser_issue_w_concat._source_lines.cob: New test.
+
+2026-06-16  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/cpp26/cplusplus.C: Expect __cplusplus == 202603L.
+	* g++.dg/cpp29/cplusplus.C: New test.
+	* g++.dg/cpp29/feat-cxx29.C: New test.
+	* lib/target-supports.exp (check_effective_target_c++26): Also
+	true for C++29.
+	(check_effective_target_c++26_down, check_effective_target_c++29_only,
+	check_effective_target_c++29): New procedures.
+	* lib/g++-dg.exp (g++-std-flags): Replace 26 with 29 in the list
+	and add 26 to the end.
+
+2026-06-16  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125770
+	* g++.dg/reflect/members_of15.C: New test.
+
+2026-06-16  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125539
+	* g++.dg/cpp1y/var-templ89.C: New test.
+
+2026-06-16  Robin Dapp  <rdapp.gcc@gmail.com>
+
+	PR tree-optimization/125516
+	* gcc.target/riscv/rvv/autovec/pr125516.c: New test.
+
+2026-06-16  Abhishek Kaushik  <abhishek.kaushik@arm.com>
+
+	* gcc.target/aarch64/sve2/niter-convert-range.c: New test.
+
+2026-06-16  Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	* gcc.dg/vect/bb-slp-dep-oracle.c: New test.
+
+2026-06-16  Robin Dapp  <rdapp.gcc@gmail.com>
+
+	PR target/125670
+	* gcc.target/riscv/rvv/autovec/pr125670.c: New test.
+
+2026-06-16  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR testsuite/125584
+	* gfortran.dg/coarray/caf.exp: Default GFORTRAN_SHARED_MEMORY_SIZE
+	to 2 MB unless running expensive tests.
+
+2026-06-16  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125730
+	* gcc.dg/torture/pr125730.c: New testcase.
+
+2026-06-16  Richard Biener  <rguenther@suse.de>
+
+	* gcc.dg/loop-versioning-13.c: XFAIL one transfor for ilp32.
+	* gcc.dg/pr109393.c: Remove XFAIL for ilp32.
+
+2026-06-16  Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	PR target/125794
+	* gcc.target/aarch64/sve/pr125794.c: New test.
+
+2026-06-16  Avinash Jayakar  <avinashd@linux.ibm.com>
+
+	PR tree-optimization/59429
+	* lib/target-supports.exp (check_effective_target_spaceship): Add new
+	proc for spaceship optab. x86, aarch64 and s390 included.
+	* gcc.dg/spaceship_int_variants.c: New test.
+	* gcc.dg/spaceship_uint_variants.c: New test.
+	* gcc.dg/spaceship_mixed_variants.c: New test.
+
+2026-06-16  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/125614
+	* gcc.target/i386/pr125614.c: New file.
+
+2026-06-16  Zhongyao Chen  <chen.zhongyao@zte.com.cn>
+
+	* gcc.target/riscv/rvv/autovec/vx_vf/vx-5-i16.c: Expect vadd.vx,
+	vmul.vx, vsadd.vx and vssub.vx.
+	* gcc.target/riscv/rvv/autovec/vx_vf/vx-5-i8.c: Likewise.
+	* gcc.target/riscv/rvv/autovec/vx_vf/vx-6-i16.c: Likewise.
+	* gcc.target/riscv/rvv/autovec/vx_vf/vx-6-i8.c: Likewise.
+
 2026-06-15  Roger Sayle  <roger@nextmovesoftware.com>
 
 	* gcc.target/i386/fabsneg-2.c: New test case.
