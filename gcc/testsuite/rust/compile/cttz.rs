@@ -9,7 +9,7 @@ pub trait Sized {}
 pub trait Copy {}
 
 extern "rust-intrinsic" {
-    pub fn cttz<T>(x: T) -> u32;
+    pub fn cttz<T>(x: T) -> T;
 }
 
 fn main() {
