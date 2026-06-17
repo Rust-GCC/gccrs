@@ -38,6 +38,18 @@ GOMP_teams_reg (void (*fn) (void *), void *data, unsigned int num_teams,
   (void) thread_limit;
 }
 
+/* For a distribute construct with static schedule, return the team ID and
+   number of teams packed into a single complexvalue.  */
+
+_Complex int
+GOMP_distribute_static_worksharing (void)
+{
+  int __lds *gomp_team_num = (int __lds *) GOMP_TEAM_NUM;
+  unsigned tid = *gomp_team_num;
+  unsigned nteams = gomp_num_teams_var + 1;
+  return nteams + tid * 1I;
+}
+
 int
 omp_get_num_teams (void)
 {

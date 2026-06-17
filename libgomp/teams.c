@@ -58,6 +58,18 @@ GOMP_teams_reg (void (*fn) (void *), void *data, unsigned int num_teams,
     }
 }
 
+/* For a distribute construct with static schedule, return the team ID and
+   number of teams packed into a single complex value.  */
+
+_Complex int
+GOMP_distribute_static_worksharing (void)
+{
+  struct gomp_thread *thr = gomp_thread ();
+  unsigned tid = thr->team_num;
+  unsigned nteams = thr->num_teams + 1;
+  return nteams + tid * 1I;
+}
+
 int
 omp_get_num_teams (void)
 {
