@@ -512,7 +512,7 @@ along with GCC; see the file COPYING3.  If not see
 			       INTEGER_CST@2)
 		       integer_zerop)
 		   @3 INTEGER_CST@4))
-   (if (types_match (type, @0, @1))
+   (if (types_match (type, @0, @1) && tree_fits_uhwi_p (@2))
     (with
      {
       unsigned prec = TYPE_PRECISION (type);
@@ -562,7 +562,7 @@ along with GCC; see the file COPYING3.  If not see
      (negate
       (convert (ne (convert2? (rshift @3 INTEGER_CST@2)) integer_zerop))))
     (convert (usmul_widen_mult@3 @0 @1)))
-   (if (types_match (type, @0, @1))
+   (if (types_match (type, @0, @1) && tree_fits_uhwi_p (@2))
     (with
      {
       unsigned prec = TYPE_PRECISION (type);
