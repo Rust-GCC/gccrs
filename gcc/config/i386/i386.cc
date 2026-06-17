@@ -26728,7 +26728,7 @@ ix86_vector_costs::add_stmt_cost (int count, vect_cost_for_stmt kind,
      latency and execution resources for the many scalar loads
      (AGU and load ports).  Try to account for this by scaling the
      construction cost by the number of elements involved.  */
-  if ((kind == vec_construct || kind == vec_to_scalar)
+  if ((kind == vec_construct || kind == vec_deconstruct)
       && ((node
 	   && (((SLP_TREE_MEMORY_ACCESS_TYPE (node) == VMAT_ELEMENTWISE
 		 || (SLP_TREE_MEMORY_ACCESS_TYPE (node) == VMAT_STRIDED_SLP
