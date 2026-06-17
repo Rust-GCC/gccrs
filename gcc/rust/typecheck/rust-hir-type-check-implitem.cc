@@ -21,6 +21,7 @@
 #include "rust-hir-full-decls.h"
 #include "rust-hir-pattern.h"
 #include "rust-hir-type-check-base.h"
+#include "rust-hir-type-check-intrinsic.h"
 #include "rust-hir-type-check-type.h"
 #include "rust-hir-type-check-expr.h"
 #include "rust-hir-type-check-pattern.h"
@@ -157,6 +158,11 @@ TypeCheckTopLevelExternItem::visit (HIR::ExternalFunctionItem &function)
     region_constraints);
 
   context->insert_type (function.get_mappings (), fnType);
+
+  if (parent.get_abi () == Rust::ABI::INTRINSIC
+      && IntrinsicChecker::check (fnType) == IntrinsicCheckResult::Invalid)
+    return;
+
   resolved = fnType;
 }
 
