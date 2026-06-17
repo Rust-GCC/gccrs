@@ -411,7 +411,11 @@ lookup_field_for_decl (struct nesting_info *info, tree decl,
 	  SET_DECL_ALIGN (field, DECL_ALIGN (decl));
 	  DECL_USER_ALIGN (field) = DECL_USER_ALIGN (decl);
 	  DECL_IGNORED_P (field) = DECL_IGNORED_P (decl);
-	  DECL_NONADDRESSABLE_P (field) = !TREE_ADDRESSABLE (decl);
+	  /* Even if the address of the DECL is not needed, when it is of an
+	     aggregate type, it may contain addressable fields whose address
+	     will be taken later.  */
+	  DECL_NONADDRESSABLE_P (field)
+	    = !TREE_ADDRESSABLE (decl) && !AGGREGATE_TYPE_P (TREE_TYPE (decl));
 	  TREE_THIS_VOLATILE (field) = TREE_THIS_VOLATILE (decl);
 	  copy_warning (field, decl);
 
