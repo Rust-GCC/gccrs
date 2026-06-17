@@ -146,7 +146,6 @@ GTM_longjmp:
 # define PAC_FLAG 0
 #endif
 
-/* Add a NT_GNU_PROPERTY_TYPE_0 note.  */
 #define GNU_PROPERTY(type, value)	\
   .section .note.gnu.property, "a";	\
   .p2align 3;				\
@@ -159,11 +158,30 @@ GTM_longjmp:
   .word value;				\
   .word 0;
 
+#ifdef __ARM_BUILDATTR64_FV
+/* Add AArch64 feature bits build attributes.  */
+# define FEATURE_1_AND_MARK(value)					\
+    .aeabi_subsection aeabi_feature_and_bits, optional, ULEB128;	\
+    .if ((value) & FEATURE_1_BTI);					\
+    .aeabi_attribute Tag_Feature_BTI, 1;				\
+    .else;								\
+    .aeabi_attribute Tag_Feature_BTI, 0;				\
+    .endif;								\
+    .if ((value) & FEATURE_1_PAC);					\
+    .aeabi_attribute Tag_Feature_PAC, 1;				\
+    .else;								\
+    .aeabi_attribute Tag_Feature_PAC, 0;				\
+    .endif;
+#else
+/* Add a NT_GNU_PROPERTY_TYPE_0 note.  */
+# define FEATURE_1_AND_MARK(value) GNU_PROPERTY (FEATURE_1_AND, value)
+#endif
+
 #if defined(__linux__) || defined(__FreeBSD__)
 .section .note.GNU-stack, "", %progbits
 
-/* Add GNU property note if built with branch protection.  */
+/* Add markings if built with branch protection.  */
 # if (BTI_FLAG|PAC_FLAG) != 0
-GNU_PROPERTY (FEATURE_1_AND, BTI_FLAG|PAC_FLAG)
+FEATURE_1_AND_MARK (BTI_FLAG|PAC_FLAG)
 # endif
 #endif
