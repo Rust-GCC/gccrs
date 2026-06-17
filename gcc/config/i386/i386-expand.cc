@@ -9547,6 +9547,34 @@ ix86_expand_set_or_cpymem (rtx dst, rtx src, rtx count_exp, rtx val_exp,
 			   rtx max_size_exp, rtx probable_max_size_exp,
 			   bool issetmem)
 {
+  if (TARGET_MISALIGNED_MOVE_STRING_PRO_EPILOGUES)
+    {
+      /* Expand bounded memset and memcpy as memmove if misaligned moves
+	 are preferred.  Since
+
+	 commit b41f96465190751561f6909e858604ceab00595b
+	 Author: H.J. Lu <hjl.tools@gmail.com>
+	 Date:   Mon Oct 20 16:14:34 2025 +0800
+
+	 x86-64: Inline memmove with overlapping unaligned loads and stores.
+
+	 inlines memmove with overlapping unaligned and stores, which
+	 reduces the numbers of branches and memory moves, comparing
+	 against the regular memset and memcpy inlining.  */
+      rtx operands[9];
+      operands[0] = dst;
+      operands[1] = issetmem ? val_exp : src;
+      operands[2] = count_exp;
+      operands[3] = align_exp;
+      operands[4] = expected_align_exp;
+      operands[5] = expected_size_exp;
+      operands[6] = min_size_exp;
+      operands[7] = max_size_exp;
+      operands[8] = probable_max_size_exp;
+      if (ix86_expand_set_or_movmem (operands, !issetmem, issetmem))
+	return true;
+    }
+
   rtx destreg;
   rtx srcreg = NULL;
   rtx_code_label *label = NULL;
@@ -10130,20 +10158,63 @@ ix86_expand_unroll_movmem (rtx dst, rtx src, rtx destreg, rtx srcreg,
   return true;
 }
 
+/* Value kind in MEMSET_VALS:
+
+   memset_val_byte:   The value rtx in QImode.
+   memset_val_word:   The value rtx in word_mode.
+   memset_val_vector: The value rtx in QI vector mode.
+
+ */
+enum memset_val_kind
+{
+  memset_val_byte = 0,
+  memset_val_word = 1,
+  memset_val_vector = 2,
+  memset_val_max = 3
+};
+
+/* Return a value rtx in MODE for memset from MEMSET_VALS.  */
+
+static rtx
+ix86_expand_memset_val (rtx *memset_vals, machine_mode mode)
+{
+  rtx byte_val = memset_vals[memset_val_byte];
+
+  if (mode == QImode)
+    return byte_val;
+  else if (mode == word_mode)
+    return memset_vals[memset_val_word];
+
+  /* All-zero/all-ones is a property of the original byte value, so
+     detect it once here rather than re-deriving it from each slot.  */
+  if (byte_val == const0_rtx)
+    return CONST0_RTX (mode);
+  if (byte_val == constm1_rtx)
+    return CONSTM1_RTX (mode);
+
+  if (GET_MODE_CLASS (mode) == MODE_VECTOR_INT)
+    {
+      if (GET_MODE (memset_vals[memset_val_vector]) == mode)
+	return memset_vals[memset_val_vector];
+      return gen_rtx_SUBREG (mode, memset_vals[memset_val_vector], 0);
+    }
+
+  gcc_assert (mode == HImode || mode == SImode);
+  return gen_rtx_SUBREG (mode, memset_vals[memset_val_word], 0);
+}
+
 /* Expand memmove of size with MOVES * mode size and MOVES <= 4.  If
    FORWARD is true, copy forward.  Otherwise copy backward.  */
 
 static void
-ix86_expand_n_move_movmem (rtx destmem, rtx srcmem, machine_mode mode,
-			   unsigned int moves, bool forward)
+ix86_expand_n_move_set_or_movmem (rtx destmem, rtx srcmem,
+				  rtx *memset_vals, machine_mode mode,
+				  unsigned int moves, bool forward)
 {
   gcc_assert (moves <= 4);
 
   unsigned int i;
   rtx tmp[8];
-
-  for (i = 0; i < moves; i++)
-    tmp[i] = gen_reg_rtx (mode);
 
   rtx step;
   if (forward)
@@ -10151,13 +10222,27 @@ ix86_expand_n_move_movmem (rtx destmem, rtx srcmem, machine_mode mode,
   else
     step = GEN_INT (-GET_MODE_SIZE (mode));
 
-  /* Load MOVES.  */
-  for (i = 0; i < moves - 1; i++)
+  if (memset_vals)
     {
-      emit_move_insn (tmp[i], srcmem);
-      srcmem = offset_address (srcmem, step, GET_MODE_SIZE (mode));
+      /* Expand memset.  */
+      rtx val = ix86_expand_memset_val (memset_vals, mode);
+      for (i = 0; i < moves; i++)
+	tmp[i] = val;
     }
-  emit_move_insn (tmp[i], srcmem);
+  else
+    {
+      /* Expand memmove.  */
+      for (i = 0; i < moves; i++)
+	tmp[i] = gen_reg_rtx (mode);
+
+      /* Load MOVES.  */
+      for (i = 0; i < moves - 1; i++)
+	{
+	  emit_move_insn (tmp[i], srcmem);
+	  srcmem = offset_address (srcmem, step, GET_MODE_SIZE (mode));
+	}
+      emit_move_insn (tmp[i], srcmem);
+    }
 
   /* Store MOVES.  */
   for (i = 0; i < moves - 1; i++)
@@ -10234,10 +10319,12 @@ ix86_expand_store_movmem (rtx dst, rtx destreg, rtx count_exp,
    MOVES >= 2 and MOVES <= 8.  */
 
 static void
-ix86_expand_n_overlapping_move_movmem (rtx dst, rtx src, rtx destreg,
-				       rtx srcreg, rtx count_exp,
-				       machine_mode mode,
-				       unsigned int moves)
+ix86_expand_n_overlapping_move_set_or_movmem (rtx dst, rtx src,
+					      rtx *memset_vals,
+					      rtx destreg, rtx srcreg,
+					      rtx count_exp,
+					      machine_mode mode,
+					      unsigned int moves)
 {
   gcc_assert (moves >= 2 && moves <= 8 && (moves & 1) == 0);
 
@@ -10245,35 +10332,46 @@ ix86_expand_n_overlapping_move_movmem (rtx dst, rtx src, rtx destreg,
   unsigned int i, j;
   rtx tmp[8];
 
-  for (i = 0; i < moves; i++)
-    tmp[i] = gen_reg_rtx (mode);
-
-  rtx base_srcmem = change_address (src, mode, srcreg);
-
-  /* Load the first half.  */
-  rtx srcmem = base_srcmem;
-  for (i = 0; i < half_moves - 1; i++)
+  if (memset_vals)
     {
-      emit_move_insn (tmp[i], srcmem);
-      srcmem = offset_address (srcmem,
-			       GEN_INT (GET_MODE_SIZE (mode)),
-			       GET_MODE_SIZE (mode));
+      /* Expand memset.  */
+      rtx val = ix86_expand_memset_val (memset_vals, mode);
+      for (i = 0; i < moves; i++)
+	tmp[i] = val;
     }
-  emit_move_insn (tmp[i], srcmem);
-
-  /* Load the second half.  */
-  srcmem = offset_address (base_srcmem, count_exp, 1);
-  srcmem = offset_address (srcmem,
-			   GEN_INT (-GET_MODE_SIZE (mode)),
-			   GET_MODE_SIZE (mode));
-  for (j = half_moves, i = 0; i < half_moves - 1; i++, j++)
+  else
     {
-      emit_move_insn (tmp[j], srcmem);
+      /* Expand memmove.  */
+      for (i = 0; i < moves; i++)
+	tmp[i] = gen_reg_rtx (mode);
+
+      rtx base_srcmem = change_address (src, mode, srcreg);
+
+      /* Load the first half.  */
+      rtx srcmem = base_srcmem;
+      for (i = 0; i < half_moves - 1; i++)
+	{
+	  emit_move_insn (tmp[i], srcmem);
+	  srcmem = offset_address (srcmem,
+				   GEN_INT (GET_MODE_SIZE (mode)),
+				   GET_MODE_SIZE (mode));
+	}
+      emit_move_insn (tmp[i], srcmem);
+
+      /* Load the second half.  */
+      srcmem = offset_address (base_srcmem, count_exp, 1);
       srcmem = offset_address (srcmem,
 			       GEN_INT (-GET_MODE_SIZE (mode)),
 			       GET_MODE_SIZE (mode));
+      for (j = half_moves, i = 0; i < half_moves - 1; i++, j++)
+	{
+	  emit_move_insn (tmp[j], srcmem);
+	  srcmem = offset_address (srcmem,
+				   GEN_INT (-GET_MODE_SIZE (mode)),
+				   GET_MODE_SIZE (mode));
+	}
+      emit_move_insn (tmp[j], srcmem);
     }
-  emit_move_insn (tmp[j], srcmem);
 
   rtx base_destmem = change_address (dst, mode, destreg);
 
@@ -10304,11 +10402,12 @@ ix86_expand_n_overlapping_move_movmem (rtx dst, rtx src, rtx destreg,
 /* Expand memmove of size < mode size which is <= 64.  */
 
 static void
-ix86_expand_less_move_movmem (rtx dst, rtx src, rtx destreg,
-			      rtx srcreg, rtx count_exp,
-			      unsigned HOST_WIDE_INT min_size,
-			      machine_mode mode,
-			      rtx_code_label *done_label)
+ix86_expand_less_move_set_or_movmem (rtx dst, rtx src, rtx *memset_vals,
+				     rtx destreg, rtx srcreg,
+				     rtx count_exp,
+				     unsigned HOST_WIDE_INT min_size,
+				     machine_mode mode,
+				     rtx_code_label *done_label)
 {
   bool skip = false;
   machine_mode count_mode = counter_mode (count_exp);
@@ -10410,9 +10509,16 @@ ix86_expand_less_move_movmem (rtx dst, rtx src, rtx destreg,
 				 profile_probability::unlikely ());
 
       /* Move 1 byte.  */
-      rtx tmp0 = gen_reg_rtx (QImode);
-      rtx srcmem = change_address (src, QImode, srcreg);
-      emit_move_insn (tmp0, srcmem);
+      rtx tmp0;
+      /* Use the value rtx in QImode for memset.  */
+      if (memset_vals)
+	tmp0 = memset_vals[memset_val_byte];
+      else
+	{
+	  tmp0 = gen_reg_rtx (QImode);
+	  rtx srcmem = change_address (src, QImode, srcreg);
+	  emit_move_insn (tmp0, srcmem);
+	}
       rtx destmem = change_address (dst, QImode, destreg);
       emit_move_insn (destmem, tmp0);
 
@@ -10423,50 +10529,35 @@ ix86_expand_less_move_movmem (rtx dst, rtx src, rtx destreg,
       emit_barrier ();
     }
 
-  if (between_32_63_label)
-    {
-      emit_label (between_32_63_label);
-      ix86_expand_n_overlapping_move_movmem (dst, src, destreg, srcreg,
-					     count_exp, OImode, 2);
-      emit_jump_insn (gen_jump (done_label));
-      emit_barrier ();
-    }
+  /* For each size band, memset uses a QI-vector mode above a word so it
+     can broadcast the fill value, while memmove uses the same-size
+     scalar integer mode; at and below a word both use the scalar
+     integer mode.  */
+  struct {
+    rtx_code_label *label;
+    machine_mode set_mode;
+    machine_mode move_mode;
+  } bands[] = {
+    { between_32_63_label, V32QImode, OImode },
+    { between_16_31_label, V16QImode, TImode },
+    { between_8_15_label,  DImode,    DImode },
+    { between_4_7_label,   SImode,    SImode },
+    { between_2_3_label,   HImode,    HImode },
+  };
 
-  if (between_16_31_label)
-    {
-      emit_label (between_16_31_label);
-      ix86_expand_n_overlapping_move_movmem (dst, src, destreg, srcreg,
-					     count_exp, TImode, 2);
-      emit_jump_insn (gen_jump (done_label));
-      emit_barrier ();
-    }
-
-  if (between_8_15_label)
-    {
-      emit_label (between_8_15_label);
-      ix86_expand_n_overlapping_move_movmem (dst, src, destreg, srcreg,
-					     count_exp, DImode, 2);
-      emit_jump_insn (gen_jump (done_label));
-      emit_barrier ();
-    }
-
-  if (between_4_7_label)
-    {
-      emit_label (between_4_7_label);
-      ix86_expand_n_overlapping_move_movmem (dst, src, destreg, srcreg,
-					     count_exp, SImode, 2);
-      emit_jump_insn (gen_jump (done_label));
-      emit_barrier ();
-    }
-
-  if (between_2_3_label)
-    {
-      emit_label (between_2_3_label);
-      ix86_expand_n_overlapping_move_movmem (dst, src, destreg, srcreg,
-					     count_exp, HImode, 2);
-      emit_jump_insn (gen_jump (done_label));
-      emit_barrier ();
-    }
+  for (auto &band : bands)
+    if (band.label)
+      {
+       emit_label (band.label);
+       machine_mode bmode = memset_vals ? band.set_mode : band.move_mode;
+       ix86_expand_n_overlapping_move_set_or_movmem (dst, src,
+						     memset_vals,
+						     destreg, srcreg,
+						     count_exp, bmode,
+						     2);
+       emit_jump_insn (gen_jump (done_label));
+       emit_barrier ();
+      }
 }
 
 /* Expand movmem with overlapping unaligned loads and stores:
@@ -10491,7 +10582,7 @@ ix86_expand_less_move_movmem (rtx dst, rtx src, rtx destreg,
  */
 
 bool
-ix86_expand_movmem (rtx operands[])
+ix86_expand_set_or_movmem (rtx operands[], bool iscpymem, bool issetmem)
 {
   /* Since there are much less registers available in 32-bit mode, don't
      inline movmem in 32-bit mode.  */
@@ -10499,19 +10590,31 @@ ix86_expand_movmem (rtx operands[])
     return false;
 
   rtx dst = operands[0];
-  rtx src = operands[1];
+  rtx src, memset_val_exp;
+  if (issetmem)
+    {
+      src = nullptr;
+      memset_val_exp = operands[1];
+    }
+  else
+    {
+      src = operands[1];
+      memset_val_exp = nullptr;
+    }
   rtx count_exp = operands[2];
   rtx expected_size_exp = operands[5];
   rtx min_size_exp = operands[6];
+  rtx max_size_exp = operands[7];
   rtx probable_max_size_exp = operands[8];
   unsigned HOST_WIDE_INT count = HOST_WIDE_INT_0U;
   HOST_WIDE_INT expected_size = HOST_WIDE_INT_M1U;
   unsigned HOST_WIDE_INT min_size = HOST_WIDE_INT_0U;
+  unsigned HOST_WIDE_INT max_size = HOST_WIDE_INT_M1U;
   unsigned HOST_WIDE_INT probable_max_size = HOST_WIDE_INT_M1U;
 
   if (CONST_INT_P (count_exp))
     {
-      min_size = probable_max_size = count = expected_size
+      min_size = max_size = probable_max_size = count = expected_size
 	= INTVAL (count_exp);
       /* When COUNT is 0, there is nothing to do.  */
       if (!count)
@@ -10521,6 +10624,8 @@ ix86_expand_movmem (rtx operands[])
     {
       if (min_size_exp)
 	min_size = INTVAL (min_size_exp);
+      if (max_size_exp)
+	max_size = INTVAL (max_size_exp);
       if (probable_max_size_exp)
 	probable_max_size = INTVAL (probable_max_size_exp);
       if (CONST_INT_P (expected_size_exp))
@@ -10532,18 +10637,35 @@ ix86_expand_movmem (rtx operands[])
     return false;
 
   addr_space_t dst_as = MEM_ADDR_SPACE (dst);
-  addr_space_t src_as = MEM_ADDR_SPACE (src);
+  addr_space_t src_as = (issetmem
+			 ? ADDR_SPACE_GENERIC
+			 : MEM_ADDR_SPACE (src));
   int dynamic_check;
   bool noalign;
   enum stringop_alg alg = decide_alg (count, expected_size, min_size,
-				      probable_max_size, false, false,
+				      probable_max_size, issetmem,
+				      (issetmem
+				       && memset_val_exp == const0_rtx),
 				      dst_as, src_as, &dynamic_check,
 				      &noalign, false);
   if (alg == libcall)
     return false;
 
+  /* Expand memcpy and memset like memmove only for bounded size.  */
+  if (iscpymem || issetmem)
+    {
+       unsigned HOST_WIDE_INT unbounded
+	 = GET_MODE_MASK (counter_mode (count_exp));
+       if (count != 0				/* Fixed size.  */
+	  || max_size == 0			/* Unbounded size.  */
+	  || max_size == unbounded)		/* Unbounded size.  */
+	 return false;
+    }
+
   rtx destreg = ix86_copy_addr_to_reg (XEXP (dst, 0));
-  rtx srcreg = ix86_copy_addr_to_reg (XEXP (src, 0));
+  rtx srcreg = (issetmem
+		? nullptr
+		: ix86_copy_addr_to_reg (XEXP (src, 0)));
 
   unsigned int move_max = MOVE_MAX;
   machine_mode mode = smallest_int_mode_for_size
@@ -10565,6 +10687,53 @@ ix86_expand_movmem (rtx operands[])
       && ix86_expand_unroll_movmem (dst, src, destreg, srcreg, count,
 				    mode))
     return true;
+
+  rtx memset_vals[memset_val_max];
+  rtx *memset_vals_p;
+  if (issetmem)
+    {
+      /* Use vector mode if MODE size > word size.  */
+      unsigned int size = GET_MODE_SIZE (mode);
+      poly_uint64 nunits;
+      if (size > UNITS_PER_WORD)
+	{
+	  nunits = size / GET_MODE_SIZE (QImode);
+	  mode = mode_for_vector (QImode, nunits).require ();
+	}
+
+      /* Populate MEMSET_VALS to expand memset.  */
+      rtx val_word;
+      memset_vals[memset_val_byte] = memset_val_exp;
+      if (memset_val_exp == const0_rtx || memset_val_exp == constm1_rtx)
+	val_word = memset_val_exp;
+      else
+	val_word = promote_duplicated_reg (word_mode, memset_val_exp);
+      memset_vals[memset_val_word] = val_word;
+      if (GET_MODE_SIZE (mode) > UNITS_PER_WORD)
+	{
+	  if (memset_val_exp == const0_rtx)
+	    memset_vals[memset_val_vector] = CONST0_RTX (mode);
+	  else if (memset_val_exp == constm1_rtx)
+	    memset_vals[memset_val_vector] = CONSTM1_RTX (mode);
+	  else
+	    {
+	      /* Use the vector mode based on WORD_MODE to avoid extra
+		 GPR moves.  */
+	      nunits = size / GET_MODE_SIZE (word_mode);
+	      machine_mode vector_mode
+		= mode_for_vector (word_mode, nunits).require ();
+	      rtx vector = promote_duplicated_reg (vector_mode,
+						   val_word);
+	      memset_vals[memset_val_vector]
+		= convert_to_mode (mode, vector, 1);
+	    }
+	}
+      else
+	memset_vals[memset_val_vector] = nullptr;
+      memset_vals_p = memset_vals;
+    }
+  else
+    memset_vals_p = nullptr;
 
   rtx_code_label *done_label = gen_label_rtx ();
 
@@ -10593,8 +10762,10 @@ ix86_expand_movmem (rtx operands[])
   if (min_size == 0 || min_size <= 2 * move_max)
     {
       /* Size >= MOVE_MAX and size <= 2 * MOVE_MAX.  */
-      ix86_expand_n_overlapping_move_movmem (dst, src, destreg, srcreg,
-					     count_exp, mode, 2);
+      ix86_expand_n_overlapping_move_set_or_movmem (dst, src,
+						    memset_vals_p,
+						    destreg, srcreg,
+						    count_exp, mode, 2);
       emit_jump_insn (gen_jump (done_label));
       emit_barrier ();
     }
@@ -10603,9 +10774,9 @@ ix86_expand_movmem (rtx operands[])
     {
       /* Size < MOVE_MAX.  */
       emit_label (less_vec_label);
-      ix86_expand_less_move_movmem (dst, src, destreg, srcreg,
-				    count_exp, min_size, mode,
-				    done_label);
+      ix86_expand_less_move_set_or_movmem (dst, src, memset_vals_p,
+					   destreg, srcreg, count_exp,
+					   min_size, mode, done_label);
       emit_jump_insn (gen_jump (done_label));
       emit_barrier ();
     }
@@ -10638,9 +10809,11 @@ ix86_expand_movmem (rtx operands[])
       if (probable_max_size == 0 || probable_max_size > 4 * move_max)
 	{
 	  /* Size > 4 * MOVE_MAX and size <= 8 * MOVE_MAX.  */
-	  ix86_expand_n_overlapping_move_movmem (dst, src, destreg,
-						 srcreg, count_exp,
-						 mode, 8);
+	  ix86_expand_n_overlapping_move_set_or_movmem (dst, src,
+							memset_vals_p,
+							destreg, srcreg,
+							count_exp, mode,
+							8);
 	  emit_jump_insn (gen_jump (done_label));
 	  emit_barrier ();
 	}
@@ -10649,9 +10822,11 @@ ix86_expand_movmem (rtx operands[])
 	{
 	  /* Size > 2 * MOVE_MAX and size <= 4 * MOVE_MAX.  */
 	  emit_label (last_4x_vec_label);
-	  ix86_expand_n_overlapping_move_movmem (dst, src, destreg,
-						 srcreg, count_exp,
-						 mode, 4);
+	  ix86_expand_n_overlapping_move_set_or_movmem (dst, src,
+							memset_vals_p,
+							destreg, srcreg,
+							count_exp, mode,
+							4);
 	  emit_jump_insn (gen_jump (done_label));
 	  emit_barrier ();
 	}
@@ -10664,34 +10839,66 @@ ix86_expand_movmem (rtx operands[])
 	  rtx loop_count = gen_reg_rtx (count_mode);
 	  emit_move_insn (loop_count, count_exp);
 
-	  /* Jump to MORE_8X_VEC_BACKWARD_LABEL if source address is
-	     lower than destination address.  */
-	  rtx_code_label *more_8x_vec_backward_label = gen_label_rtx ();
-	  emit_cmp_and_jump_insns (srcreg, destreg, LTU, nullptr,
-				   GET_MODE (destreg), 1,
-				   more_8x_vec_backward_label);
-
-	  /* Skip if source == destination which is less common.  */
-	  emit_cmp_and_jump_insns (srcreg, destreg, EQ, nullptr,
-				   GET_MODE (destreg), 1, done_label,
-				   profile_probability::unlikely ());
-
-	  rtx base_destreg = gen_reg_rtx (GET_MODE (destreg));
-	  emit_move_insn (base_destreg, destreg);
-
-	  /* Load the last 4 * MOVE_MAX.  */
+	  rtx_code_label *more_8x_vec_backward_label;
+	  rtx base_destreg;
+	  rtx srcmem;
 	  rtx regs[4];
-	  ix86_expand_load_movmem (src, srcreg, count_exp, mode,
-				   ARRAY_SIZE (regs), regs, true);
+	  if (iscpymem || issetmem)
+	    {
+	      /* Always store forward for memcpy and memset.  */
+	      more_8x_vec_backward_label = nullptr;
+	      if (iscpymem)
+		{
+		  /* Load the last 4 * MOVE_MAX for memcpy.  */
+		  ix86_expand_load_movmem (src, srcreg, count_exp, mode,
+					   ARRAY_SIZE (regs), regs,
+					   true);
+		  srcmem = change_address (src, mode, srcreg);
+		}
+	      else
+		{
+		  /* Fill REGS with MEMSET_VALS for memset.  */
+		  rtx val = ix86_expand_memset_val (memset_vals, mode);
+		  for (unsigned int i = 0; i < 4; i++)
+		    regs[i] = val;
+		  srcmem = nullptr;
+		}
+	      base_destreg = gen_reg_rtx (GET_MODE (destreg));
+	      emit_move_insn (base_destreg, destreg);
+	    }
+	  else
+	    {
+	      /* Jump to MORE_8X_VEC_BACKWARD_LABEL if source address is
+		 lower than destination address.  */
+	      more_8x_vec_backward_label = gen_label_rtx ();
+	      emit_cmp_and_jump_insns (srcreg, destreg, LTU, nullptr,
+				       GET_MODE (destreg), 1,
+				       more_8x_vec_backward_label);
 
-	  rtx srcmem = change_address (src, mode, srcreg);
+	      /* Skip if source == destination which is less common.  */
+	      emit_cmp_and_jump_insns (srcreg, destreg, EQ, nullptr,
+				       GET_MODE (destreg), 1, done_label,
+				       profile_probability::unlikely ());
+
+	      base_destreg = gen_reg_rtx (GET_MODE (destreg));
+	      emit_move_insn (base_destreg, destreg);
+
+	      /* Load the last 4 * MOVE_MAX.  */
+	      ix86_expand_load_movmem (src, srcreg, count_exp, mode,
+				       ARRAY_SIZE (regs), regs, true);
+
+	      srcmem = change_address (src, mode, srcreg);
+	    }
+
 	  rtx destmem = change_address (dst, mode, destreg);
 
 	  /* Copy forward with a 4 * MOVE_MAX loop.  */
 	  rtx_code_label *loop_4x_vec_forward_label = gen_label_rtx ();
 	  emit_label (loop_4x_vec_forward_label);
 
-	  ix86_expand_n_move_movmem (destmem, srcmem, mode, 4, true);
+	  ix86_expand_n_move_set_or_movmem (destmem, srcmem,
+					    memset_vals_p, mode, 4,
+					    true);
 
 	  rtx tmp;
 	  rtx delta = GEN_INT (4 * MOVE_MAX);
@@ -10709,10 +10916,14 @@ ix86_expand_movmem (rtx operands[])
 				     OPTAB_DIRECT);
 	  if (tmp != destreg)
 	    emit_move_insn (destreg, tmp);
-	  tmp = expand_simple_binop (GET_MODE (srcreg), PLUS, srcreg,
-				     delta, nullptr, 1, OPTAB_DIRECT);
-	  if (tmp != srcreg)
-	    emit_move_insn (srcreg, tmp);
+	  if (!issetmem)
+	    {
+	      tmp = expand_simple_binop (GET_MODE (srcreg), PLUS,
+					 srcreg, delta, nullptr, 1,
+					 OPTAB_DIRECT);
+	      if (tmp != srcreg)
+		emit_move_insn (srcreg, tmp);
+	    }
 
 	  /* Stop if LOOP_EXP <= 4 * MOVE_MAX.  */
 	  emit_cmp_and_jump_insns (loop_count, delta, GTU, nullptr,
@@ -10726,67 +10937,78 @@ ix86_expand_movmem (rtx operands[])
 	  emit_jump_insn (gen_jump (done_label));
 	  emit_barrier ();
 
-	  /* Copy backward with a 4 * MOVE_MAX loop.  */
-	  emit_label (more_8x_vec_backward_label);
+	  if (more_8x_vec_backward_label)
+	    {
+	      /* Copy backward with a 4 * MOVE_MAX loop.  */
+	      emit_label (more_8x_vec_backward_label);
 
-	  base_destreg = gen_reg_rtx (GET_MODE (destreg));
-	  emit_move_insn (base_destreg, destreg);
+	      base_destreg = gen_reg_rtx (GET_MODE (destreg));
+	      emit_move_insn (base_destreg, destreg);
 
-	  /* Load the first 4 * MOVE_MAX.  */
-	  ix86_expand_load_movmem (src, srcreg, count_exp, mode,
-				   ARRAY_SIZE (regs), regs, false);
+	      /* Load the first 4 * MOVE_MAX.  */
+	      ix86_expand_load_movmem (src, srcreg, count_exp, mode,
+				       ARRAY_SIZE (regs), regs, false);
 
-	  /* Increment DESTREG and SRCREG by COUNT_EXP.  */
-	  tmp = expand_simple_binop (GET_MODE (destreg), PLUS,
-				     destreg, count_exp, nullptr, 1,
-				     OPTAB_DIRECT);
-	  if (tmp != destreg)
-	    emit_move_insn (destreg, tmp);
-	  tmp = expand_simple_binop (GET_MODE (srcreg), PLUS, srcreg,
-				     count_exp, nullptr, 1, OPTAB_DIRECT);
-	  if (tmp != srcreg)
-	    emit_move_insn (srcreg, tmp);
+	      /* Increment DESTREG and SRCREG by COUNT_EXP.  */
+	      tmp = expand_simple_binop (GET_MODE (destreg), PLUS,
+					 destreg, count_exp, nullptr, 1,
+					 OPTAB_DIRECT);
+	      if (tmp != destreg)
+		emit_move_insn (destreg, tmp);
+	      tmp = expand_simple_binop (GET_MODE (srcreg), PLUS, srcreg,
+					 count_exp, nullptr, 1,
+					 OPTAB_DIRECT);
+	      if (tmp != srcreg)
+		emit_move_insn (srcreg, tmp);
 
-	  srcmem = change_address (src, mode, srcreg);
-	  destmem = change_address (dst, mode, destreg);
-	  rtx step = GEN_INT (-GET_MODE_SIZE (mode));
-	  srcmem = offset_address (srcmem, step, GET_MODE_SIZE (mode));
-	  destmem = offset_address (destmem, step, GET_MODE_SIZE (mode));
+	      srcmem = change_address (src, mode, srcreg);
+	      destmem = change_address (dst, mode, destreg);
+	      rtx step = GEN_INT (-GET_MODE_SIZE (mode));
+	      srcmem = offset_address (srcmem, step,
+				       GET_MODE_SIZE (mode));
+	      destmem = offset_address (destmem, step,
+					GET_MODE_SIZE (mode));
 
-	  rtx_code_label *loop_4x_vec_backward_label = gen_label_rtx ();
-	  emit_label (loop_4x_vec_backward_label);
+	      rtx_code_label *loop_4x_vec_backward_label
+		= gen_label_rtx ();
+	      emit_label (loop_4x_vec_backward_label);
 
-	  ix86_expand_n_move_movmem (destmem, srcmem, mode, 4, false);
+	      ix86_expand_n_move_set_or_movmem (destmem, srcmem,
+						memset_vals_p, mode, 4,
+						false);
 
-	  /* Decrement LOOP_COUNT by 4 * MOVE_MAX.  */
-	  tmp = expand_simple_binop (GET_MODE (loop_count), MINUS,
-				     loop_count, delta, nullptr, 1,
-				     OPTAB_DIRECT);
-	  if (tmp != loop_count)
-	    emit_move_insn (loop_count, tmp);
+	      /* Decrement LOOP_COUNT by 4 * MOVE_MAX.  */
+	      tmp = expand_simple_binop (GET_MODE (loop_count), MINUS,
+					 loop_count, delta, nullptr, 1,
+					 OPTAB_DIRECT);
+	      if (tmp != loop_count)
+		emit_move_insn (loop_count, tmp);
 
-	  /* Decrement DESTREG and SRCREG by 4 * MOVE_MAX.  */
-	  tmp = expand_simple_binop (GET_MODE (destreg), MINUS,
-				     destreg, delta, nullptr, 1,
-				     OPTAB_DIRECT);
-	  if (tmp != destreg)
-	    emit_move_insn (destreg, tmp);
-	  tmp = expand_simple_binop (GET_MODE (srcreg), MINUS, srcreg,
-				     delta, nullptr, 1, OPTAB_DIRECT);
-	  if (tmp != srcreg)
-	    emit_move_insn (srcreg, tmp);
+	      /* Decrement DESTREG and SRCREG by 4 * MOVE_MAX.  */
+	      tmp = expand_simple_binop (GET_MODE (destreg), MINUS,
+					 destreg, delta, nullptr, 1,
+					 OPTAB_DIRECT);
+	      if (tmp != destreg)
+		emit_move_insn (destreg, tmp);
+	      tmp = expand_simple_binop (GET_MODE (srcreg), MINUS,
+					 srcreg, delta, nullptr, 1,
+					 OPTAB_DIRECT);
+	      if (tmp != srcreg)
+		emit_move_insn (srcreg, tmp);
 
-	  /* Stop if LOOP_EXP <= 4 * MOVE_MAX.  */
-	  emit_cmp_and_jump_insns (loop_count, delta, GTU, nullptr,
-				   GET_MODE (loop_count), 1,
-				   loop_4x_vec_backward_label);
+	      /* Stop if LOOP_EXP <= 4 * MOVE_MAX.  */
+	      emit_cmp_and_jump_insns (loop_count, delta, GTU, nullptr,
+				       GET_MODE (loop_count), 1,
+				       loop_4x_vec_backward_label);
 
-	  /* Store the first 4 * MOVE_MAX.  */
-	  ix86_expand_store_movmem (dst, base_destreg, count_exp, mode,
-				    ARRAY_SIZE (regs), regs, false);
+	      /* Store the first 4 * MOVE_MAX.  */
+	      ix86_expand_store_movmem (dst, base_destreg, count_exp,
+					mode, ARRAY_SIZE (regs), regs,
+					false);
 
-	  emit_jump_insn (gen_jump (done_label));
-	  emit_barrier ();
+	      emit_jump_insn (gen_jump (done_label));
+	      emit_barrier ();
+	    }
 	}
     }
 
