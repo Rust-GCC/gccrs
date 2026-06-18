@@ -461,12 +461,16 @@ public:
   tree pt_invariant () const;
   tree pt_invariant_away () const;
 
-  // Return true if present and identical for THIS and R.
+  // Return true if THIS and R both point to the same object.
   bool pt_invariant_p (const prange &r) const;
+  // Return true if THIS and R both point away from the same object.
   bool pt_invariant_away_p (const prange &r) const;
-
-  bool pt_invert ();
+  // Return true if THIS and R refer to the same object, and one is inverted
+  // from the other,  Ie, both to and away.
   bool pt_inverted_p (const prange &r) const;
+
+  // Invert THIS if it points either to or away from an object.
+  bool pt_invert ();
 
   // pt_base () - object/allocation the pointer refers into.
   tree pt_base () const;
@@ -1555,8 +1559,8 @@ prange::pt_invariant_p (const prange &r) const
 {
   if (m_pt && m_points_to_p && vrp_operand_equal_p (r.m_pt, m_pt)
       && m_points_to_p == r.m_points_to_p)
-    return m_pt;
-  return NULL_TREE;
+    return true;
+  return false;
 }
 
 inline bool
@@ -1564,8 +1568,8 @@ prange::pt_invariant_away_p (const prange &r) const
 {
   if (m_pt && !m_points_to_p && vrp_operand_equal_p (r.m_pt, m_pt)
       && m_points_to_p == r.m_points_to_p)
-    return m_pt;
-  return NULL_TREE;
+    return true;
+  return false;
 }
 
 
