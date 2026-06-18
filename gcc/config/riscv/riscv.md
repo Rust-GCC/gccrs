@@ -5338,6 +5338,24 @@
   operands[7] = gen_lowpart (SImode, operands[6]);
 })
 
+;; If through a series of combinations/simplifications we ultimately
+;; recover an equality test against a small constant we can win because
+;; that's a 2 instruction sequence.  addi to set a zero/nonzero status
+;; followed be seqz/snez to canonicalize into 0/1.
+;;
+;; Since we're going to use the negated constant in an addi to get the
+;; zero/nonzero status we need to verify the negated constant is a
+;; small operand, not the original constant.
+(define_split
+  [(set (match_operand:X 0 "register_operand")
+	(any_eq:X (match_operand:X 1 "register_operand")
+		  (match_operand 2 "const_int_operand")))]
+  "(SMALL_OPERAND (-UINTVAL (operands[2]))
+    && operands[2] != CONST0_RTX (GET_MODE (operands[1])))"
+  [(set (match_dup 0) (plus:X (match_dup 1) (match_dup 2)))
+   (set (match_dup 0) (any_eq:X (match_dup 0) (const_int 0)))]
+{ operands[2] = GEN_INT (-UINTVAL (operands[2])); })
+
 (include "bitmanip.md")
 (include "crypto.md")
 (include "sync.md")
