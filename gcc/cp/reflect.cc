@@ -7077,6 +7077,13 @@ class_members_of (location_t loc, const constexpr_ctx *ctx, tree r,
 				    get_reflection_raw (loc, m));
 	    break;
 	  }
+      for (tree m : implicitly_declared)
+	if (LAMBDA_FUNCTION_P (m))
+	  {
+	    CONSTRUCTOR_APPEND_ELT (elts, NULL_TREE,
+				    get_reflection_raw (loc, m));
+	    break;
+	  }
     }
   return elts;
 }
