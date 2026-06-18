@@ -538,10 +538,14 @@ TypeBoundPredicate::apply_generic_arguments (HIR::GenericArgs *generic_args,
     }
 
   // now actually perform a substitution
-  auto args = get_mappings_from_generic_args (
-    *generic_args,
-    Resolver::TypeCheckContext::get ()->regions_from_generic_args (
-      *generic_args));
+  auto regions = Resolver::TypeCheckContext::get ()->regions_from_generic_args (
+    *generic_args);
+  if (!regions.has_value ())
+    {
+      error_flag = true;
+      return;
+    }
+  auto args = get_mappings_from_generic_args (*generic_args, regions.value ());
 
   apply_argument_mappings (args, is_super_trait);
 }
