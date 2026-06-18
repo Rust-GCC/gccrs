@@ -788,6 +788,13 @@ prange::intersect (const vrange &v)
       return true;
     }
 
+  // If this points to and away, results are undefined,
+  if (pt_inverted_p (r))
+    {
+      set_undefined ();
+      return true;
+    }
+
   prange save = *this;
   m_min = wi::max (r.lower_bound (), lower_bound (), UNSIGNED);
   m_max = wi::min (r.upper_bound (), upper_bound (), UNSIGNED);
