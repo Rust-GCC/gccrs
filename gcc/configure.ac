@@ -4005,7 +4005,7 @@ changequote(,)dnl
     conftest_s='
       .section .tdata,"aw'$tls_section_flag'",@progbits'
     case "$target" in
-      i?86-*-*)
+      i?86-*-* | x86_64-*-linux-gnuabi32 | x86_64-*-mingw32abi32)
 	tls_as_opt="$tls_as_opt $as_32_opt"
 	conftest_s="$conftest_s
 foo:	.long	25

@@ -511,6 +511,9 @@ AC_DEFUN([gcc_GAS_FLAGS],
       x86_64-*-linux-gnux32*)
 	gcc_cv_as_flags=--x32
 	;;
+      x86_64-*-linux-gnuabi32 | x86_64-*-mingw32abi32)
+	gcc_cv_as_flags=--32
+	;;
       x86_64-*-* | sparcv9-*-* | sparc64-*-*)
 	gcc_cv_as_flags=--64
 	;;

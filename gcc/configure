@@ -26256,6 +26256,9 @@ else
       x86_64-*-linux-gnux32*)
 	gcc_cv_as_flags=--x32
 	;;
+      x86_64-*-linux-gnuabi32 | x86_64-*-mingw32abi32)
+	gcc_cv_as_flags=--32
+	;;
       x86_64-*-* | sparcv9-*-* | sparc64-*-*)
 	gcc_cv_as_flags=--64
 	;;
@@ -28108,7 +28111,7 @@ $as_echo "#define TLS_SECTION_ASM_FLAG 't'" >>confdefs.h
     conftest_s='
       .section .tdata,"aw'$tls_section_flag'",@progbits'
     case "$target" in
-      i?86-*-*)
+      i?86-*-* | x86_64-*-linux-gnuabi32 | x86_64-*-mingw32abi32)
 	tls_as_opt="$tls_as_opt $as_32_opt"
 	conftest_s="$conftest_s
 foo:	.long	25
