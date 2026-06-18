@@ -2252,6 +2252,26 @@ function (tree functype, GGC::Ident name, tl::optional<GGC::Ident> asm_name,
     TREE_THIS_VOLATILE (decl) = 1;
   if ((flags & function_in_unique_section) != 0)
     resolve_unique_section (decl, 0, 1);
+  if ((flags & function_is_public) != 0)
+    TREE_PUBLIC (decl) = 1;
+  else
+    TREE_PUBLIC (decl) = 0;
+  if ((flags & function_is_readonly) != 0)
+    TREE_READONLY (decl) = 1;
+  else
+    TREE_READONLY (decl) = 0;
+  if ((flags & function_has_side_effects) != 0)
+    TREE_SIDE_EFFECTS (decl) = 1;
+  if ((flags & function_is_inline) != 0
+      && (flags & function_is_uninlinable) == 0)
+    DECL_DECLARED_INLINE_P (decl) = 1;
+  if ((flags & function_always_inline) != 0
+      && (flags & function_is_uninlinable) == 0)
+    {
+      DECL_DISREGARD_INLINE_LIMITS (decl) = 1;
+      DECL_ATTRIBUTES (decl) = tree_cons (get_identifier ("always_inline"),
+					  NULL_TREE, DECL_ATTRIBUTES (decl));
+    }
 
   rust_preserve_from_gc (decl);
   return decl;
