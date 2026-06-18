@@ -4714,8 +4714,9 @@ gfc_procedure_use (gfc_symbol *sym, gfc_actual_arglist **ap, locus *where)
 
       if (implicit)
 	for (a = *ap; a; a = a->next)
-	  gfc_value_set_and_used (a->expr, &a->expr->where, VALUE_ARG,
-				  VALUE_MAYBE_USED);
+	  if (a->expr)
+	    gfc_value_set_and_used (a->expr, &a->expr->where, VALUE_ARG,
+				    VALUE_MAYBE_USED);
 
       return true;
     }
