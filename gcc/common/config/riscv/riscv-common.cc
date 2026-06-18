@@ -279,6 +279,23 @@ static const riscv_profiles riscv_profiles_table[] =
     {NULL, NULL}
 };
 
+/* Alternate/alias name for a CPU we know about.  */
+struct riscv_cpu_alias_info {
+  /* This CPU's canonical name.  */
+  const char *name;
+
+  /* This CPU's alternate name.  */
+  const char *alias;
+};
+
+static const riscv_cpu_alias_info riscv_cpu_alias_table[] =
+{
+#define RISCV_CORE_ALIAS(CANONICAL_NAME, ALIAS_NAME) \
+    {CANONICAL_NAME, ALIAS_NAME},
+#include "../../../config/riscv/riscv-cores.def"
+    {NULL, NULL}
+};
+
 static const riscv_cpu_info riscv_cpu_tables[] =
 {
 #define RISCV_CORE(CORE_NAME, ARCH, TUNE) \
@@ -1699,6 +1716,14 @@ riscv_find_cpu (const char *cpu)
       if (strcmp (cpu, name) == 0)
 	return cpu_info;
     }
+
+  /* We did not find CPU, check if CPU is a core's alias name and look it
+     up using its canonical name.  */
+  const riscv_cpu_alias_info *alias_info = &riscv_cpu_alias_table[0];
+  for (; alias_info->alias != NULL; alias_info++)
+    if (strcmp (cpu, alias_info->alias) == 0)
+      return riscv_find_cpu (alias_info->name);
+
   return NULL;
 }
 
@@ -2220,12 +2245,30 @@ riscv_get_valid_option_values (int option_code,
 	    int i;
 	    const char *str;
 	    FOR_EACH_VEC_ELT (v, i, str)
-	      {
-		if (!strcmp (str, cpu_info->name))
+	      if (!strcmp (str, cpu_info->name))
+		{
 		  skip = true;
-	      }
+		  break;
+		}
 	    if (!skip)
 	      v.safe_push (cpu_info->name);
+	  }
+
+	const riscv_cpu_alias_info *alias_info = &riscv_cpu_alias_table[0];
+	for (; alias_info->alias; alias_info++)
+	  {
+	    /* Skip duplicates.  */
+	    bool skip = false;
+	    int i;
+	    const char *str;
+	    FOR_EACH_VEC_ELT (v, i, str)
+	      if (!strcmp (str, alias_info->alias))
+		{
+		  skip = true;
+		  break;
+		}
+	    if (!skip)
+	      v.safe_push (alias_info->alias);
 	  }
       }
       break;
@@ -2234,6 +2277,10 @@ riscv_get_valid_option_values (int option_code,
 	const riscv_cpu_info *cpu_info = &riscv_cpu_tables[0];
 	for (;cpu_info->name; ++cpu_info)
 	  v.safe_push (cpu_info->name);
+
+	const riscv_cpu_alias_info *alias_info = &riscv_cpu_alias_table[0];
+	for (; alias_info->alias; alias_info++)
+	  v.safe_push (alias_info->alias);
       }
       break;
     default:
