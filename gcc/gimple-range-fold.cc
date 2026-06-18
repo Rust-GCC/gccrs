@@ -1266,8 +1266,7 @@ fold_using_range::range_of_phi (vrange &r, gphi *phi, fur_source &src)
 	    {
 	      prange &ptr = as_a <prange> (arg_range);
 	      // If it doesn't already point at something, set points to.
-	      if (!ptr.pt_unknown_p ()
-		  && TREE_CODE (single_arg) == ADDR_EXPR)
+	      if (ptr.pt_unknown_p () && TREE_CODE (single_arg) == ADDR_EXPR)
 		ptr.set_pt (single_arg, true);
 	      r = ptr;
 	      return true;
