@@ -1424,7 +1424,10 @@ prange::contains_p (tree cst) const
 inline bool
 prange::zero_p () const
 {
-  return m_kind == VR_RANGE && m_min == 0 && m_max == 0 && pt_unknown_p ();
+  bool ret = m_kind == VR_RANGE && m_min == 0 && m_max == 0;
+  // if zero_p is true, there should be no points to info.
+  gcc_checking_assert (!ret || pt_unknown_p ());
+  return ret;
 }
 
 inline bool
