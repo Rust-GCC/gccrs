@@ -208,10 +208,17 @@ is_macro_export (AST::MacroRulesDefinition &def)
 void
 TopLevel::visit (AST::MacroRulesDefinition &macro)
 {
-  // we do not insert macros in the current rib as that needs to be done in the
-  // textual scope of the Early pass. we only insert them in the root of the
-  // crate if they are marked with #[macro_export]. The execption to this is
-  // macros 2.0, which get resolved and inserted like regular items.
+  // Macros are inserted in both the current rib and the textual scope within
+  // the Early pass. We also insert them at the root of the crate if they are
+  // marked with `#[macro_export]`
+
+  // impl<'a, 'b> visit::Visitor<'a> for DefCollector<'a, 'b> {
+  //     fn visit_item(&mut self, i: &'a Item) {
+  //         // Pick the def data. This need not be unique, but the more
+  //         // information we encapsulate into, the better
+  //         let def_data = match &i.kind {
+  //             ItemKind::MacroDef(..) => DefPathData::MacroNs(i.ident.name),
+  // /* ... */
 
   if (is_macro_export (macro))
     {
@@ -229,8 +236,7 @@ TopLevel::visit (AST::MacroRulesDefinition &macro)
 	}
     }
 
-  if (macro.get_kind () == AST::MacroRulesDefinition::MacroKind::DeclMacro)
-    insert_or_error_out (macro.get_rule_name (), macro, Namespace::Macros);
+  insert_or_error_out (macro.get_rule_name (), macro, Namespace::Macros);
 
   auto &mappings = Analysis::Mappings::get ();
   if (mappings.lookup_macro_def (macro.get_node_id ()))
