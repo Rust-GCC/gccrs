@@ -5986,6 +5986,23 @@ ipa_prop_write_jump_functions (void)
 static void
 ipa_record_return_value_range_1 (cgraph_node *n, value_range val)
 {
+  // Remove local invariant from return values.
+  if (is_a<prange> (val))
+    {
+      const prange &pr = as_a <prange> (val);
+      tree t = pr.pt_invariant ();
+      if (t && !is_gimple_ip_invariant (t))
+        {
+	  if (dump_file && (dump_flags & TDF_DETAILS))
+	    {
+	      fprintf (dump_file, "Could not record return range of %s:", n->dump_name ());
+	      val.dump (dump_file);
+	      fprintf (dump_file, "\n");
+	      fprintf (dump_file, "Because uses non ipa invariant\n");
+	    }
+	  return;
+        }
+    }
   if (!ipa_return_value_sum)
     {
       if (!ipa_vr_hash_table)
