@@ -717,8 +717,23 @@ CompileExpr::visit (HIR::FieldAccessExpr &expr)
 				       nullptr, &field_index);
       rust_assert (ok);
 
-      tree indirect = indirect_expression (receiver_ref, expr.get_locus ());
-      receiver_ref = indirect;
+      // TODO this check is only used for CStr, test again when we support
+      // compilation of #[repr(transparent)] structs
+      if (RS_DST_FLAG_P (TREE_TYPE (receiver_ref)))
+	{
+	  const TyTy::StructFieldType *field
+	    = variant->get_field_at_index (field_index);
+	  tree field_type
+	    = TyTyResolveCompile::compile (ctx, field->get_field_type ());
+	  translated = fold_build1_loc (expr.get_locus (), VIEW_CONVERT_EXPR,
+					field_type, receiver_ref);
+	  return;
+	}
+      else
+	{
+	  tree indirect = indirect_expression (receiver_ref, expr.get_locus ());
+	  receiver_ref = indirect;
+	}
     }
 
   translated = Backend::struct_field_expression (receiver_ref, field_index,
