@@ -1,5 +1,5 @@
 // { dg-do compile }
-// { dg-options "-Os -fdump-tree-optimized" }
+// { dg-options "-Os -fdump-tree-optimized --param logical-op-non-short-circuit=0" }
 
 struct Potato {
   int size;

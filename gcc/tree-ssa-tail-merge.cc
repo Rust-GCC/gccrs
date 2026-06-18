@@ -202,9 +202,11 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-cfg.h"
 #include "tree-into-ssa.h"
 #include "tree-ssa-sccvn.h"
+#include "tree-ssa-ifcombine.h"
 #include "cfgloop.h"
 #include "tree-eh.h"
 #include "tree-cfgcleanup.h"
+#include "tree-ssa.h"
 
 const int ignore_edge_flags = EDGE_DFS_BACK | EDGE_EXECUTABLE;
 
@@ -1707,6 +1709,8 @@ replace_block_by (basic_block bb1, basic_block bb2)
 
 static bitmap update_bbs;
 
+static bitmap ifcombine_candidate_bbs;
+
 /* For each cluster in all_clusters, merge all cluster->bbs.  Returns
    number of bbs removed.  */
 
@@ -1735,6 +1739,31 @@ apply_clusters (void)
 	  bitmap_clear_bit (update_bbs, bb1->index);
 
 	  replace_block_by (bb1, bb2);
+
+	  basic_block imm_dominator
+	    = get_immediate_dominator (CDI_DOMINATORS, bb2);
+
+	  /* Find conditions in if-statements that lead to bb2.  */
+	  edge e;
+	  edge_iterator ei;
+	  FOR_EACH_EDGE (e, ei, bb2->preds)
+	    {
+	      /* The immediate dominator's condition cannot be combined; skip it
+		 before the more expensive recognize_if_then_else check.  */
+	      if (e->src == imm_dominator)
+		continue;
+
+	      basic_block then_tmp = NULL;
+	      basic_block else_tmp = NULL;
+	      if (recognize_if_then_else (e->src, &bb2, &else_tmp)
+		  || recognize_if_then_else (e->src, &then_tmp, &bb2))
+		{
+		  /* A recognized if-then-else always ends in a gcond.  */
+		  gcc_assert (safe_dyn_cast <gcond *> (*gsi_last_bb (e->src)));
+		  bitmap_set_bit (ifcombine_candidate_bbs, e->src->index);
+		}
+	    }
+
 	  nr_bbs_removed++;
 	}
     }
@@ -1807,6 +1836,7 @@ tail_merge_optimize (bool need_crit_edge_split)
   bool loop_entered = false;
   int iteration_nr = 0;
   int max_iterations = param_max_tail_merge_iterations;
+  unsigned int todo = 0;
 
   if (!flag_tree_tail_merge
       || max_iterations == 0)
@@ -1833,6 +1863,7 @@ tail_merge_optimize (bool need_crit_edge_split)
 	  loop_entered = true;
 	  alloc_cluster_vectors ();
 	  update_bbs = BITMAP_ALLOC (NULL);
+	  ifcombine_candidate_bbs = BITMAP_ALLOC (NULL);
 	}
       else
 	reset_cluster_vectors ();
@@ -1866,10 +1897,30 @@ tail_merge_optimize (bool need_crit_edge_split)
 
   if (nr_bbs_removed_total > 0)
     {
+      bool need_dominance
+	= MAY_HAVE_DEBUG_BIND_STMTS
+	  || !bitmap_empty_p (ifcombine_candidate_bbs);
+
+      if (need_dominance)
+	calculate_dominance_info (CDI_DOMINATORS);
+
       if (MAY_HAVE_DEBUG_BIND_STMTS)
+	update_debug_stmts ();
+
+      unsigned int i;
+      bitmap_iterator bi;
+      bool cfg_changed = false;
+      /* Try to combine conditions of blocks that were made to branch to the
+	 same successor by tail merging.  */
+      if (!bitmap_empty_p (ifcombine_candidate_bbs))
 	{
-	  calculate_dominance_info (CDI_DOMINATORS);
-	  update_debug_stmts ();
+	  mark_ssa_maybe_undefs ();
+	  EXECUTE_IF_SET_IN_BITMAP (ifcombine_candidate_bbs, 0, i, bi)
+	    {
+	      basic_block bb = BASIC_BLOCK_FOR_FN (cfun, i);
+	      if (bb)
+		cfg_changed |= tree_ssa_ifcombine_bb (bb);
+	    }
 	}
 
       if (dump_file && (dump_flags & TDF_DETAILS))
@@ -1879,6 +1930,8 @@ tail_merge_optimize (bool need_crit_edge_split)
 	}
 
       mark_virtual_operands_for_renaming (cfun);
+
+      todo |= cfg_changed ? TODO_cleanup_cfg : 0;
     }
 
   delete_worklist ();
@@ -1886,9 +1939,10 @@ tail_merge_optimize (bool need_crit_edge_split)
     {
       delete_cluster_vectors ();
       BITMAP_FREE (update_bbs);
+      BITMAP_FREE (ifcombine_candidate_bbs);
     }
 
   timevar_pop (TV_TREE_TAIL_MERGE);
 
-  return 0;
+  return todo;
 }
