@@ -96,6 +96,7 @@ size_t current_program_index();
  *  These are user-facing messages.  They go through the gcc
  *  diagnostic framework and use text that can be localized.
  */
+// cppcheck-suppress syntaxError
 void yyerror( const char fmt[], ... ) ATTRIBUTE_GCOBOL_DIAG(1, 2);
 
 struct cbl_loc_base_t {
@@ -115,7 +116,7 @@ struct cbl_loc_t : public cbl_loc_base_t {
         last_line, last_column
       }
   {}
-  cbl_loc_t( const cbl_loc_base_t& base ) : cbl_loc_base_t(base)
+  cbl_loc_t( const cbl_loc_base_t& base ) : cbl_loc_base_t(base)   // cppcheck-suppress noExplicitConstructor
   {}
 #if 0
   cbl_loc_t(   int first_line, int first_column,

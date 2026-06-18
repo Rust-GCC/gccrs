@@ -92,131 +92,6 @@ is_figconst(const cbl_refer_t &sourceref)
   return is_figconst_t(sourceref.field);
   }
 
-static tree
-get_reference_to_data(cbl_field_t *field)
-  {
-  // Given a field, we can derive the type of data the field needs to provide.
-  // That field has a field->data_decl_node, which is the starting point for
-  // the reference to the data we calculate.
-  tree retval = NULL_TREE;
-  tree field_type = data_decl_type_for(field);
-  tree data_type  = TREE_TYPE(field->data_decl_node);
-  bool field_is_array = TREE_CODE(field_type) == ARRAY_TYPE;
-  bool data_is_array  = TREE_CODE(data_type) == ARRAY_TYPE;
-
-  int field_code = TREE_CODE(field_type);
-  int data_code  = TREE_CODE(data_type);
-  size_t field_size = TREE_INT_CST_LOW(TYPE_SIZE_UNIT(field_type));
-  size_t data_size  = TREE_INT_CST_LOW(TYPE_SIZE_UNIT(data_type));
-
-  if( field_code == data_code && field_size == data_size )
-    {
-    if( !field_is_array )
-      {
-      // The two types are the same and are not ARRAY_TYPE
-      if( field->offset == 0 )
-        {
-        // This is an "ah, that feels good" moment.  Getting here means the
-        // field is something like "77 foo pic 9999" and that means the
-        // data_decl_node is exactly what is needed.
-        retval = field->data_decl_node;
-        }
-      else
-        {
-        // We have an offset.
-        if( (field->offset % field_size) == 0 )
-          {
-          // The offset is an integer number of bytes from data_decl_node:
-          size_t index = field->offset % field_size;
-          retval = gg_indirect( gg_cast(build_pointer_type(data_type),
-                                     gg_get_address_of(field->data_decl_node)),
-                               build_int_cst_type(SIZE_T, index));
-          }
-        else
-          {
-          // The offset is some random number of bytes.  We need to do a
-          // retval = *(data_type *)((char *)&data_decl_node + offset)
-          tree base = gg_get_address_of(field->data_decl_node);
-          base = gg_cast(UCHAR_P, base);
-          base = gg_add(base, build_int_cst_type(SIZE_T, field->offset));
-          retval = gg_cast(field_type, gg_indirect(base));
-          }
-        }
-      }
-    else
-      {
-      // The two types are the same ARRAY_TYPE
-      retval = gg_cast(UCHAR_P, gg_pointer_to_array(field->data_decl_node));
-      if( field->offset )
-        {
-        retval = gg_add(retval, build_int_cst_type(SIZE_T, field->offset));
-        }
-      }
-    }
-  else if( field_is_array && data_is_array )
-    {
-    // We have two different array types
-    retval = gg_cast(UCHAR_P, gg_pointer_to_array(field->data_decl_node));
-    if( field->offset )
-      {
-      retval = gg_add(retval, build_int_cst_type(SIZE_T, field->offset));
-      }
-    }
-  else if( !field_is_array && !data_is_array )
-    {
-    // The two data types are different, and neither is an array
-    if( field->offset == 0 )
-      {
-      if( field_size == data_size )
-        {
-        // The offset is zero, and the sizes are the same.
-        // This must be something like REDEFINES or the like:
-        retval = gg_cast(field_type, field->data_decl_node);
-        }
-      else
-        {
-        // The sizes are different:
-        // retval = *(data_type *)((char *)&data_decl_node)
-        tree base = gg_get_address_of(field->data_decl_node);
-        retval = gg_indirect(gg_cast(build_pointer_type(field_type), base));
-        }
-      }
-    else
-      {
-      // There is an offset
-      tree base = gg_get_address_of(field->data_decl_node);
-      base = gg_cast(UCHAR_P, base);
-      base = gg_add(base, build_int_cst_type(SIZE_T, field->offset));
-      retval = gg_indirect(gg_cast(build_pointer_type(field_type), base));
-      }
-    }
-  else if( !field_is_array && data_is_array )
-    {
-    // The return is a scalar, but we start from an array.
-    tree base = gg_pointer_to_array(field->data_decl_node);
-    base = gg_cast(UCHAR_P, base);
-    if( field->offset )
-      {
-      base = gg_add(base, build_int_cst_type(SIZE_T, field->offset));
-      }
-    base = gg_cast(build_pointer_type(field_type), base);
-    retval = gg_indirect(base);
-    }
-  else // if( field_is_array !data_is_array )
-    {
-    // The return is an array, but we start from a scalar
-    tree base = gg_get_address_of(field->data_decl_node);
-    base = gg_cast(UCHAR_P, base);
-    if( field->offset )
-      {
-      base = gg_add(base, build_int_cst_type(SIZE_T, field->offset));
-      }
-    retval = base;
-    }
-
-  return retval;
-  }
-
 static void
 conditional_abs(tree source, const cbl_field_t *field)
   {
@@ -313,24 +188,15 @@ mh_identical(const cbl_refer_t &destref,
       {
       // They are identical, and they have no subscripts
 
-      tree source = get_reference_to_data(sourceref.field);
-      tree dest   = get_reference_to_data(destref.field);
+      tree source;
+      tree dest;
+      get_location(source, sourceref);
+      get_location(dest, destref);
 
-      tree type = data_decl_type_for(destref.field);
-      if( TREE_CODE(type) == ARRAY_TYPE )
-        {
-        // We are dealing with pointers to UCHAR.
-        // The move has to be done with a copy:
-        gg_memcpy(dest,
-                  source,
-                  build_int_cst_type(SIZE_T,
-                                     destref.field->data.capacity()));
-        }
-      else
-        {
-        // We are dealing with scalars
-        gg_assign(dest, source);
-        }
+      gg_memcpy(dest,
+                source,
+                build_int_cst_type(SIZE_T,
+                                   destref.field->data.capacity()));
       moved = true;
       }
     }
@@ -1402,6 +1268,67 @@ mh_numeric_display( const cbl_refer_t &destref,
   return moved;
   }
 
+static void
+copy_little_endian_into_place(cbl_field_t *dest,
+                              tree         dest_offset,
+                              tree value,
+                              int rhs_rdigits,
+                              bool check_for_error,
+                        const tree &size_error)
+  {
+  if( !(dest->attr & signable_e) )
+    {
+    gg_assign(value, gg_abs(value));
+    }
+
+  if( check_for_error )
+    {
+    // We need to see if value can fit into destref
+
+    // We do this by comparing value to 10^(lhs.ldigits + rhs_rdigits)
+    // Example:  rhs is 123.45, whichis 12345 with rdigits 2
+    // lhs is 99.999.  So, lhs.digits is 5, and lhs.rdigits is 3.
+    // 10^(5 - 3 + 2) is 10^4, which is 10000.  Because 12345 is >= 10000, the
+    // source can't fit into the destination.
+
+    tree abs_value = gg_define_variable(TREE_TYPE(value));
+    gg_assign(abs_value, gg_abs(value));
+
+    FIXED_WIDE_INT(128) power_of_ten = get_power_of_ten(  dest->data.digits
+                                                        - dest->data.rdigits
+                                                        + rhs_rdigits );
+    IF( gg_cast(INT128, abs_value),
+        ge_op,
+        wide_int_to_tree(INT128, power_of_ten) )
+      {
+      // Flag the size error
+      gg_assign(size_error, integer_one_node);
+      }
+    ELSE
+      ENDIF
+    }
+  scale_by_power_of_ten_N(value, dest->data.rdigits - rhs_rdigits);
+
+  // Create a variable of our target type.
+  tree dest_type = tree_type_from_field(dest);
+  tree target = gg_define_variable(dest_type);
+  // Cast the source to the target
+  gg_assign(target, gg_cast(dest_type, value));
+
+  tree dest_pointer = gg_define_variable(UCHAR_P);
+  gg_assign(dest_pointer, gg_add(member(dest->var_decl_node, "data"),
+                                 dest_offset));
+
+  if( dest->type == FldNumericBinary )
+    {
+    gg_assign(target, gg_bswap(target));
+    }
+  // Copy the target to the destination.
+  gg_memcpy(dest_pointer,
+            gg_get_address_of(target),
+            build_int_cst_type(SIZE_T, gg_sizeof(dest_type)));
+  }
+
 static bool
 mh_little_endian( const cbl_refer_t &destref,
                   const cbl_refer_t &sourceref,
@@ -1409,6 +1336,9 @@ mh_little_endian( const cbl_refer_t &destref,
                         bool check_for_error,
                         tree size_error)
   {
+  // The name of this routine is misleading.  It also handles big-endian
+  // destinations.
+
   bool moved = false;
 
   cbl_figconst_t figconst = cbl_figconst_of( sourceref.field->data.original());
@@ -1422,6 +1352,7 @@ mh_little_endian( const cbl_refer_t &destref,
       &&  sourceref.field->type     != FldNumericEdited
       &&  sourceref.field->type     != FldPacked
       &&  (     destref.field->type == FldNumericBin5
+            ||  destref.field->type == FldNumericBinary
             ||  destref.field->type == FldPointer
             ||  destref.field->type == FldIndex ) )
     {

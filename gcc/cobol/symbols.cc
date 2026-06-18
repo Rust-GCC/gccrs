@@ -3411,7 +3411,9 @@ cbl_locale_t::cbl_locale_t( const cbl_name_t name, const char iconv_name[] ) {
   }
 }
 
-cbl_alphabet_t::cbl_alphabet_t(const cbl_loc_t& loc, size_t locale, cbl_name_t name )
+cbl_alphabet_t::cbl_alphabet_t(const cbl_loc_t& loc,
+                               size_t locale,
+                               cbl_name_t name ) // cppcheck-suppress constParameter
   : loc(loc)
   , locale(locale)
   , low_index(0)

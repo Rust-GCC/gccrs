@@ -106,12 +106,6 @@ void      get_integer_value(tree value,  // This is always a LONG
                             tree         offset=NULL,  // size_t
                             bool check_for_fractional_digits=false);
 void      rt_error(const char *msg);
-void      copy_little_endian_into_place(cbl_field_t *dest,
-                                        tree         dest_offset,
-                                        tree value,
-                                        int rhs_rdigits,
-                                        bool check_for_error,
-                                  const tree &size_error);
 tree      build_array_of_size_t( size_t  N,
                                  const size_t *values);
 void      parser_display_internal_field(tree file_descriptor,
