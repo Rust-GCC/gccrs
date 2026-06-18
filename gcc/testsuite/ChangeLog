@@ -1,3 +1,109 @@
+2026-06-17  Robert Dubner  <rdubner@symas.com>
+
+	* cobol.dg/group2/258_Nested_PERFORM.cob: Removed.
+	* cobol.dg/group2/258_Nested_PERFORM.out: Removed.
+	* cobol.dg/group2/259_PERFORM_VARYING_BY_-0.2.cob: Removed.
+	* cobol.dg/group2/259_PERFORM_VARYING_BY_-0.2.out: Removed.
+	* cobol.dg/group2/338_Default_Arithmetic__1_.cob: Removed.
+	* cobol.dg/group2/338_Default_Arithmetic__1_.out: Removed.
+	* cobol.dg/group2/Complex_HEX__VALUE_and_MOVE.cob: Removed.
+	* cobol.dg/group2/Complex_HEX__VALUE_and_MOVE.out: Removed.
+	* cobol.dg/group2/Intrinsics_without_FUNCTION_keyword__2_.cob: Removed.
+	* cobol.dg/group2/MOVE_to_JUSTIFIED_item.cob: Removed.
+	* cobol.dg/group2/MOVE_to_JUSTIFIED_item.out: Removed.
+	* cobol.dg/group2/SORT__table_sort__2_.cob: Removed.
+	* cobol.dg/group2/SORT__table_sort__2_.out: Removed.
+	* cobol.dg/group2/_-static__compilation.cob: Removed.
+
+2026-06-17  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125764
+	* g++.dg/reflect/can_substitute3.C: New test.
+
+2026-06-17  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125759
+	* g++.dg/reflect/expr17.C: New test.
+
+2026-06-17  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125492
+	* g++.dg/reflect/size_of2.C: New test.
+
+2026-06-17  Wang Jinghao  <zheng.xianyuwang@gmail.com>
+
+	* g++.dg/reflect/is_explicit_object_parameter2.C: New test.
+
+2026-06-17  Antoni Boucher  <bouanto@zoho.com>
+	    Robert Zakrzewski  <robert.zakrzewski1@stellantis.com>
+
+	* jit.dg/test-reflection.c: Add test for
+	gcc_jit_type_is_floating_point.
+
+2026-06-17  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125613
+	* g++.dg/cpp0x/explicit-inst2.C: New test.
+
+2026-06-17  Robert Zakrzewski  <robert.zakrzewski1@stellantis.com>
+	    Antoni Boucher  <bouanto@zoho.com>
+
+	* jit.dg/all-non-failing-tests.h: Mention new test.
+	* jit.dg/test-comparison.c: New test.
+
+2026-06-17  Robert Zakrzewski  <robert.zakrzewski1@stellantis.com>
+	    Antoni Boucher  <bouanto@zoho.com>
+
+	* jit.dg/test-types.c: Add vector type comparison in test.
+
+2026-06-17  Tamar Christina  <tamar.christina@arm.com>
+
+	PR tree-optimization/125804
+	* gcc.dg/vect/vect-early-break_144-pr125804.c: New test.
+
+2026-06-17  Tobias Burnus  <tburnus@baylibre.com>
+
+	* gfortran.dg/gomp/declare-reduction-2.f90: Update dg-error.
+	* gfortran.dg/gomp/udr1.f90: Likewise.
+	* gfortran.dg/gomp/udr2.f90: Likewise.
+	* gfortran.dg/gomp/udr3.f90: Likewise.
+	* gfortran.dg/gomp/udr4.f90: Likewise.
+	* gfortran.dg/gomp/declare-reduction-5.f90: New test.
+
+2026-06-17  Zhongjie Guo  <guozhongjie@hygon.cn>
+
+	* gcc.target/i386/c86-4g-m7-vect-load-cost-reduc.c: New test.
+
+2026-06-17  Robin Dapp  <rdapp.gcc@gmail.com>
+
+	PR target/125478
+	* gcc.target/riscv/rvv/autovec/pr125478.c: New test.
+
+2026-06-17  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	Revert:
+	2026-06-17  Jim Tsung-Chun Lin  <jim@andestech.com>
+
+	* gcc.target/riscv/multilib.exp: New test.
+
+2026-06-17  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	* gcc.target/riscv/pr120811.c: Add missing escapes and xfail.
+
+2026-06-17  Andrew MacLeod  <amacleod@redhat.com>
+
+	* gcc.c-torture/execute/builtins/memcpy-chk.c: Adjust.
+	* gcc.c-torture/execute/builtins/memmove-chk.c: Adjust.
+	* gcc.dg/builtin-object-size-4.c: XFAIL until pr123160 is fixed.
+	* gcc.dg/builtin-dynamic-object-size-4.c: Likewise.
+	* gcc.misc-tests/gcov-14.c: Add noipa.
+
+2026-06-17  Andrew MacLeod  <amacleod@redhat.com>
+
+	* gcc.dg/Wreturn-local-addr-9.c: Remove xfail.
+	* gcc.c-torture/execute/builtins/strncat-chk.c: Adjust for new
+	prange points_to capabilities.
+
 2026-06-16  Iain Sandoe  <iain@sandoe.co.uk>
 
 	* gcc.target/i386/fabsneg-2.c: Allow for lC* in Mach-O.

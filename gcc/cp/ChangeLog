@@ -1,3 +1,37 @@
+2026-06-17  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125764
+	* reflect.cc (eval_can_substitute): Don't call
+	convert_from_reference on types.
+
+2026-06-17  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125759
+	* reflect.cc (get_reflection): Do STRIP_REFERENCE_REF.
+
+2026-06-17  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125492
+	* reflect.cc (eval_size_of): Add a separate throw_exception for
+	function types.
+
+2026-06-17  Wang Jinghao  <zheng.xianyuwang@gmail.com>
+
+	* reflect.cc (eval_is_explicit_object_parameter): Call
+	maybe_update_function_parm before checking the parameter
+	against DECL_ARGUMENTS.
+
+2026-06-17  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125613
+	* pt.cc (check_explicit_specialization): Detect mismatches in
+	exception specifications in explicit instantiations.
+
+2026-06-17  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR c++/125851
+	* name-lookup.cc (get_cxx_dialect_name): Handle cxx29.
+
 2026-06-16  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/125770

@@ -1,3 +1,168 @@
+2026-06-17  James K. Lowden  <jklowden@cobolworx.com>
+
+	* doc/install.texi: COBOL requires Bison 3.8.2.
+
+2026-06-17  Tamar Christina  <tamar.christina@arm.com>
+
+	PR tree-optimization/125804
+	* tree-vect-loop-manip.cc (vect_do_peeling): Have
+	LOOP_VINFO_EARLY_BREAKS_VECT_PEELED require epilog.
+
+2026-06-17  Dhruv Chawla  <dhruvc@nvidia.com>
+
+	PR fortran/125717
+	* lto-streamer-in.cc (input_cfg): Stream loop->can_be_parallel in.
+	* lto-streamer-out.cc (output_cfg): Stream loop->can_be_parallel out.
+
+2026-06-17  Zhongjie Guo  <guozhongjie@hygon.cn>
+
+	* config/i386/x86-tune-costs.h (c86_4g_m7_cost): Increase
+	512-bit load/store and unaligned load/store costs.
+
+2026-06-17  Xin Liu  <liulxx@hygon.cn>
+
+	* config/i386/c86-4g-m7.md (c86_4g_m7_imov_xchg): Adjust
+	reservation units.
+	(c86_4g_m7_imov_xchg_load): Ditto.
+	(c86_4g_m7_call): Ditto.
+	(c86_4g_m7_branch): Ditto.
+	(c86_4g_m7_branch_load): Ditto.
+	(c86_4g_m7_fp_spc_direct): Add missing store unit.
+	(c86_4g_m7_sse_pinsr_reg): Adjust reservation units.
+	(c86_4g_m7_avx512_insertx_ymm): Ditto.
+	(c86_4g_m7_avx512_insertx_ymem): Ditto.
+	(c86_4g_m7_avx512_insertx_zxmm): Ditto.
+	(c86_4g_m7_avx512_insertx_zxmem): Ditto.
+	(c86_4g_m7_avx512_abs_load): Add missing store unit.
+	(c86_4g_m7_avx_sign): Use combined FPU reservation.
+	(c86_4g_m7_avx_sign_load): Ditto.
+	(c86_4g_m7_avx_aes): Ditto.
+	(c86_4g_m7_avx_aes_load): Ditto.
+	(c86_4g_m7_extr_load): Rename to ...
+	(c86_4g_m7_extr_store): ... this and restrict to store memory.
+	(c86_4g_m7_avx_imul): Use combined FPU reservation.
+	(c86_4g_m7_avx_imul_mem): Ditto.
+	(c86_4g_m7_avx512_vpmovx_y_load): Add missing store unit.
+	(c86_4g_m7_avx_vpmovx_xx_load): Ditto.
+	(c86_4g_m7_avx512_sseadd_maxmin_xy): Rename to ...
+	(c86_4g_m7_avx512_sseadd_maxmin): ... this and simplify
+	memory attribute check.
+	(c86_4g_m7_avx512_sseadd_maxmin_xy_load): Rename to ...
+	(c86_4g_m7_avx512_sseadd_maxmin_load): ... this and simplify
+	memory attribute check.
+	(c86_4g_m7_avx512_sseadd_xy): Rename to ...
+	(c86_4g_m7_avx512_sseadd): ... this.
+	(c86_4g_m7_avx512_sseadd_xy_load): Rename to ...
+	(c86_4g_m7_avx512_sseadd_load): ... this.
+	(c86_4g_m7_sse_sseiadd_sadbw): Use combined FPU reservation.
+	(c86_4g_m7_sse_sseiadd_sadbw_mem): Ditto.
+	(c86_4g_m7_avx512_ssecmp_vp_z): Adjust reservation units.
+	(c86_4g_m7_avx512_ssecmp_vp_z_load): Ditto.
+	(c86_4g_m7_avx512_ssecmp_test_load): Ditto.
+	(c86_4g_m7_avx512_mskmov_k_m): Adjust latency.
+
+2026-06-17  Robin Dapp  <rdapp.gcc@gmail.com>
+
+	PR target/125478
+	* config/riscv/vector.md: Set widen-alu mode_idx to 3.
+
+2026-06-17  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	Revert:
+	2026-06-15  Jim Tsung-Chun Lin  <jim@andestech.com>
+
+	* common/config/riscv/riscv-common.cc (riscv_select_multilib):
+	Don't set riscv_no_matched_multi_lib here; let the caller own
+	the flag.
+	(riscv_compute_multilib): Drop the early return that accepted
+	the generic-matched multilib_dir; always run the smart matcher
+	and set riscv_no_matched_multi_lib when it finds no candidate.
+
+2026-06-17  Andrew MacLeod  <amacleod@redhat.com>
+
+	* gimple-range-cache.cc (ranger_cache::set_global_range): Nonzero
+	pointer ranges are no longer invariant.
+
+2026-06-17  Andrew MacLeod  <amacleod@redhat.com>
+
+	* Makefile.in (OBJS): Remove value-pointer-equiv.o.
+	* tree-vrp.cc (rvrp_folder::m_pta): Delete member.
+	(rvrp_folder::rvrp_folder): Remove m_pta allocation.
+	(rvrp_folder::~rvrp_folder): Delete.
+	(rvrp_folder::pre_fold_bb): Remove m_pta reference.
+	(rvrp_folder::post_fold_bb): Delete.
+	(rvrp_folder::pre_fold_stmt): Remove m_pta reference.
+	* value-pointer-equiv.cc: Delete.
+	* value-pointer-equiv.h: Delete.
+
+2026-06-17  Andrew MacLeod  <amacleod@redhat.com>
+
+	* tree-vrp.cc (rvrp_folder::value_of_expr): Use prange PTA info.
+	(value_on_edge): Likewise.
+
+2026-06-17  Andrew MacLeod  <amacleod@redhat.com>
+
+	* gimple-range-fold.cc (x_fold_context): New.
+	(pta_valueize): New.
+	(fold_using_range::fold_stmt): Set PTA fields.
+	(fold_using_range::range_of_phi): Ditto.
+	* ipa-prop.cc (ipa_vr::ipa_vr): Allocate unshared range.
+	* range-op-ptr.cc (pointer_plus_operator::fold_range): Handle PTA.
+	(pointer_plus_operator::op2_range): Ditto.
+	(operator_pointer_diff::fold_range): Ditto.
+	(operator_cast::fold_range): Ditto.
+	(operator_cast::lhs_op1_relation): Ditto.
+	(operator_equal::fold_range): Ditto.
+	(operator_not_equal::fold_range): Ditto.
+	* value-query.cc (range_query::get_tree_range): Ditto.
+	* value-range-pretty-print.cc (vrange_printer::print_pt): New.
+	(vrange_printer::visit): Add print support.
+	* value-range-pretty-print.h (vrange_printer::print_pt): New prototype.
+	* value-range-storage.cc (vrange_allocator::clone): Allow unshared
+	expression allocation.
+	(vrange_storage::alloc): Likewise.
+	(prange_storage::alloc): Likewise.
+	(prange_storage::prange_format): Copy PTA.
+	(prange_storage::set_prange): Ditto.
+	(prange_storage::get_prange): Ditto.
+	(prange_storage::equal_p): Compare points-to data.
+	(ggc_alloc_vrange_storage): Allow unshared expression.
+	* value-range-storage.h (clone): Adjust param list.
+	(prange_storage::m_pt, m_points_to_p): New.
+	* value-range.cc (inchash::add_vrange): Add points-to to hash value.
+	(prange::set_pt): New.
+	(prange::pt_base): New.
+	(prange::pt_offset): New.
+	(prange::pt_size): New.
+	(prange::set): Initialize PTA field.
+	(prange::union_): Handle PTA cases.
+	(prange::intersect): Ditto.
+	(prange::operator=): Ditto.
+	(prange::operator==): Ditto.
+	(prange::invert): Handle PTA cases.
+	(prange::verify_range): Ditto.
+	* value-range.h (set_pt, set_pt_unknown, pt_unknown_p,
+	pt_invariant, pt_invariant_away, pt_invariant_p, pt_invariant_away_p,
+	pt_invert, pt_inverted_p, pt_base, pt_offset, pt_size,
+	pt_equal_p): New prange prototypes.
+	(prange::m_pt, prange::m_points_to_p): New members.
+	(prange::set_undefined): Clear PTA fields.
+	(prange::set_varying): Ditto.
+	(prange::set_nonzero): Ditto.
+	(prange::set_zero): Ditto.
+	(prange::zero_p): Check PTA fields.
+	(varying_compatible_p): Ditto.
+	(prange::set_pt): New.
+	(prange::set_pt_unknown): New.
+	(prange::pt_unknown_p): New.
+	(prange::pt_equal_p): New prange prototypes.
+	(prange::pt_inverted_p): New.
+	(prange::pt_invert): New.
+	(prange::pt_invariant): New.
+	(prange::pt_invariant_away): New.
+	(prange::pt_invariant_p): New.
+	(prange::pt_invariant_away_p): New.
+
 2026-06-16  H.J. Lu  <hjl.tools@gmail.com>
 
 	PR c/125226

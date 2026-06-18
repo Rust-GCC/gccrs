@@ -1,3 +1,18 @@
+2026-06-17  Wilco Dijkstra  <wilco.dijkstra@arm.com>
+
+	* LOCAL_PATCHES: Add commit 94c5f47d21aa5f144a690189222cc08b86a00505.
+
+2026-06-17  Muhammad Kamran  <muhammad.kamran@arm.com>
+
+	* src/aarch64/internal.h (AARCH64_POINTER_AUTH): Rename from
+	GNU_PROPERTY_AARCH64_POINTER_AUTH.
+	* src/aarch64/sysv.S (AARCH64_BTI): Rename from
+	GNU_PROPERTY_AARCH64_BTI.
+	(GNU_PROPERTY): New macro.
+	(FEATURE_1_AND_MARK): Likewise.
+	Emit BTI and PAC feature build attributes when
+	__ARM_BUILDATTR64_FV is defined.
+
 2026-05-26  Pietro Monteiro  <pietro@sociotechnical.xyz>
 
 	PR libffi/125417

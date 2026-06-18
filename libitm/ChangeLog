@@ -1,3 +1,9 @@
+2026-06-17  Muhammad Kamran  <muhammad.kamran@arm.com>
+
+	* config/aarch64/sjlj.S (FEATURE_1_AND_MARK): Define.  Use
+	AArch64 build attributes when __ARM_BUILDATTR64_FV is available,
+	otherwise emit a GNU property note.
+
 2026-06-01  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* config/linux/futex_bits.h: Fix typo.

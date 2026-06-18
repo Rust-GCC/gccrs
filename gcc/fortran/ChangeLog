@@ -1,3 +1,17 @@
+2026-06-17  Tobias Burnus  <tburnus@baylibre.com>
+
+	* gfortran.h (struct gfc_omp_udm): Add comment.
+	(struct gfc_omp_namelist_udm): Likewise; rename members
+	mapper_id to requested_mapper_id and usm to resolved_usm.
+	* module.cc (load_omp_udms, write_omp_udm): Update accordingly.
+	* openmp.cc (gfc_match_omp_clauses, resolve_omp_clauses): Likewise.
+	* trans-openmp.cc (gfc_trans_omp_clauses): Likewise.
+
+2026-06-17  Tobias Burnus  <tburnus@baylibre.com>
+
+	* openmp.cc (match_udr_expr, gfc_match_omp_declare_reduction,
+	gfc_resolve_omp_udr): Improve diagnostic.
+
 2026-06-14  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
 
 	PR fortran/125782

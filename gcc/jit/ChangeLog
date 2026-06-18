@@ -1,3 +1,28 @@
+2026-06-17  Antoni Boucher  <bouanto@zoho.com>
+	    Robert Zakrzewski  <robert.zakrzewski1@stellantis.com>
+
+	* docs/topics/compatibility.rst (LIBGCCJIT_ABI_38): New ABI tag.
+	* docs/topics/types.rst: Document gcc_jit_type_is_floating_point.
+	* libgccjit.cc (gcc_jit_type_is_floating_point): New function.
+	* libgccjit.h (gcc_jit_type_is_floating_point): New function.
+	* libgccjit.map: New function.
+	* libgccjit.exports: New function.
+
+2026-06-17  Robert Zakrzewski  <robert.zakrzewski1@stellantis.com>
+	    Antoni Boucher  <bouanto@zoho.com>
+
+	* jit-recording.h: Fix float comparison.
+	* libgccjit.cc: Fix type check in gcc_jit_context_new_comparison.
+
+2026-06-17  Robert Zakrzewski  <robert.zakrzewski1@stellantis.com>
+	    Antoni Boucher  <bouanto@zoho.com>
+
+	* jit-recording.h: Fix type comparison.
+
+2026-06-17  Antoni Boucher  <bouanto@zoho.com>
+
+	* dummy-frontend.cc: Handle new types in jit_langhook_type_for_mode.
+
 2026-06-09  Antoni Boucher  <bouanto@zoho.com>
 
 	* libgccjit.cc: Allow cast between integers and pointers in

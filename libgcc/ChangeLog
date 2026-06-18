@@ -1,3 +1,9 @@
+2026-06-17  Muhammad Kamran  <muhammad.kamran@arm.com>
+
+	* config/aarch64/aarch64-asm.h (FEATURE_1_AND_MARK): Define.
+	Use AArch64 build attributes when __ARM_BUILDATTR64_FV is
+	available, otherwise emit a GNU property note.
+
 2026-06-15  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
 
 	PR target/38239

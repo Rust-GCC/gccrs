@@ -1,3 +1,7 @@
+2026-06-17  Marek Polacek  <polacek@redhat.com>
+
+	* src/c++17/string-inst.cc (basic_string::data): Remove noexcept.
+
 2026-06-15  Gerald Pfeifer  <gerald@pfeifer.com>
 
 	* doc/xml/manual/using_exceptions.xml: Switch link to
