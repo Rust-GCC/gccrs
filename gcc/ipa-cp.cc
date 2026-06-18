@@ -1818,21 +1818,22 @@ ipa_vr_intersect_with_arith_jfunc (vrange &vr,
 	  if (!ipa_vr_operation_and_type_effects (op_res, src_vr, operation,
 						  operation_type, src_type))
 	    return;
-	  if (src_type == dst_type)
-	    {
-	      vr.intersect (op_res);
-	      return;
-	    }
 	  inter_vr = &op_res;
 	  src_type = operation_type;
 	}
       else
 	inter_vr = &src_vr;
 
-      value_range tmp_res (dst_type);
-      if (ipa_vr_operation_and_type_effects (tmp_res, *inter_vr, NOP_EXPR,
-					     dst_type, src_type))
-	vr.intersect (tmp_res);
+      if (src_type != dst_type)
+	{
+	  value_range tmp_res (dst_type);
+	  if (!ipa_vr_operation_and_type_effects (tmp_res, *inter_vr, NOP_EXPR,
+						  dst_type, src_type))
+	    return;
+	  vr.intersect (tmp_res);
+	}
+      else
+	vr.intersect (*inter_vr);
       return;
     }
 
