@@ -4958,6 +4958,23 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
      (if (stype && (width == 1 || type_has_mode_precision_p (stype)))
       (convert (convert:stype @0))))))))
 
+/* PR125405: (x & ((1 << (N - 1)) - 1)) - (x & (1 << (N - 1)))
+   -> sign_extend<N> (x). */
+(simplify
+ (minus (bit_and @0 INTEGER_CST@1) (bit_and @0 integer_pow2p@2))
+ (if (INTEGRAL_TYPE_P (type)
+      && TYPE_PRECISION (type) <= MAX_FIXED_MODE_SIZE
+      && wi::to_wide (@1) + 1 == wi::to_wide (@2))
+  (with {
+    int width = wi::exact_log2 (wi::to_wide (@2)) + 1;
+    tree ntype = NULL_TREE;
+
+    if (width > 0 && width < TYPE_PRECISION (type))
+      ntype = build_nonstandard_integer_type (width, SIGNED);
+   }
+   (if (ntype && type_has_mode_precision_p (ntype))
+    (convert (convert:ntype @0))))))
+
 /* Optimize x >> x into 0 */
 (simplify
  (rshift @0 @0)
