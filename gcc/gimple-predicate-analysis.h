@@ -91,6 +91,8 @@ class predicate
 
   bool superset_of (const predicate &) const;
 
+  bool drop_conjuncts_implied_by (const vec<pred_info> &);
+
 private:
 
   bool includes (const pred_chain &) const;

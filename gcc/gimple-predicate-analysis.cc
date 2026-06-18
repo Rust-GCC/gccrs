@@ -826,6 +826,42 @@ predicate::superset_of (const predicate &preds) const
   return true;
 }
 
+/* Remove from every chain in *THIS any (comparison) conjunct whose domain is
+   a superset of every predicate in EDGE_CONDS, i.e. a conjunct implied by all
+   of them.  Returns true if any conjunct was removed.  */
+
+bool
+predicate::drop_conjuncts_implied_by (const vec<pred_info> &edge_conds)
+{
+  if (edge_conds.is_empty ())
+    return false;
+
+  bool changed = false;
+  for (unsigned i = 0; i < m_preds.length (); i++)
+    {
+      pred_chain &chain = m_preds[i];
+      for (unsigned j = 0; j < chain.length (); )
+	{
+	  /* Only reason about comparison conjuncts: subset_of negates the
+	     code for inverted predicates, which is invalid for e.g. the
+	     BIT_AND_EXPR of an "x & mask" predicate.  */
+	  bool implied = TREE_CODE_CLASS (chain[j].cond_code) == tcc_comparison;
+	  for (unsigned k = 0; implied && k < edge_conds.length (); k++)
+	    if (!subset_of (edge_conds[k], chain[j]))
+	      implied = false;
+
+	  if (implied)
+	    {
+	      chain.ordered_remove (j);
+	      changed = true;
+	    }
+	  else
+	    j++;
+	}
+    }
+  return changed;
+}
+
 /* Create a predicate of the form OP != 0 and push it the work list CHAIN.  */
 
 static void
@@ -854,6 +890,22 @@ get_pred_info_from_cmp (const gimple *cmp_assign)
   pred.pred_rhs = gimple_assign_rhs2 (cmp_assign);
   pred.cond_code = gimple_assign_rhs_code (cmp_assign);
   pred.invert = false;
+  return pred;
+}
+
+/* Return a pred_info for the GIMPLE_COND ending E's source block.  The true
+   edge corresponds to the condition holding, so a false edge yields the
+   inverted predicate.  */
+
+static pred_info
+get_pred_info_from_cond_edge (edge e)
+{
+  gcond *cond = as_a<gcond *> (*gsi_last_bb (e->src));
+  pred_info pred;
+  pred.pred_lhs = gimple_cond_lhs (cond);
+  pred.pred_rhs = gimple_cond_rhs (cond);
+  pred.cond_code = gimple_cond_code (cond);
+  pred.invert = !!(e->flags & EDGE_FALSE_VALUE);
   return pred;
 }
 
@@ -1826,11 +1878,7 @@ predicate::init_from_control_deps (const vec<edge> *dep_chains,
 	      /* The true edge corresponds to the uninteresting condition.
 		 Add the negated predicate(s) for the edge to record
 		 the interesting condition.  */
-	      pred_info one_pred;
-	      one_pred.pred_lhs = gimple_cond_lhs (cond_stmt);
-	      one_pred.pred_rhs = gimple_cond_rhs (cond_stmt);
-	      one_pred.cond_code = gimple_cond_code (cond_stmt);
-	      one_pred.invert = !!(e->flags & EDGE_FALSE_VALUE);
+	      pred_info one_pred = get_pred_info_from_cond_edge (e);
 
 	      t_chain.safe_push (one_pred);
 
@@ -2241,6 +2289,44 @@ uninit_analysis::is_use_guarded (gimple *use_stmt, basic_block use_bb,
      USE_PREDS).  */
   if (m_phi_def_preds.superset_of (use_preds))
     return true;
+
+  /* The superset test fails when a guard that distinguishes the defined from
+     the undefined value sits on the PHI's maybe-undef incoming edge rather
+     than on the use's control-dependence chain -- e.g. after ifcombine merges
+     the conditions guarding the definition.  A conjunct of the definition
+     predicate that is implied by the incoming-edge condition of every
+     maybe-undef operand cannot make the use unsafe: when that conjunct is
+     false the maybe-undef edge is not taken either, so no undefined value
+     reaches the PHI.  Drop such conjuncts from a copy of the definition
+     predicate and retry; bail unless every maybe-undef operand arrives on a
+     simple conditional edge.  */
+  auto_vec<pred_info, 4> edge_conds;
+  unsigned nargs = gimple_phi_num_args (phi);
+  for (unsigned i = 0; i < nargs && i < m_eval.max_phi_args; i++)
+    {
+      if (!MASK_TEST_BIT (opnds, i))
+	continue;
+      edge e = gimple_phi_arg_edge (phi, i);
+      /* Walk up through forwarder blocks to the controlling conditional; a
+	 single-predecessor forwarder preserves the implication.  */
+      while (single_pred_p (e->src) && single_succ_p (e->src))
+	e = single_pred_edge (e->src);
+      if (EDGE_COUNT (e->src->succs) != 2
+	  || !safe_dyn_cast <gcond *> (*gsi_last_bb (e->src)))
+	{
+	  edge_conds.truncate (0);
+	  break;
+	}
+      edge_conds.safe_push (get_pred_info_from_cond_edge (e));
+    }
+
+  if (!edge_conds.is_empty ())
+    {
+      predicate relaxed (m_phi_def_preds);
+      if (relaxed.drop_conjuncts_implied_by (edge_conds)
+	  && relaxed.superset_of (use_preds))
+	return true;
+    }
 
   return false;
 }
