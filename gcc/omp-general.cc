@@ -920,11 +920,12 @@ omp_extract_for_data (gomp_for *for_stmt, struct omp_for_data *fd,
 /* Build a call to GOMP_barrier.  */
 
 gimple *
-omp_build_barrier (tree lhs)
+omp_build_barrier (tree lhs, int kind)
 {
   tree fndecl = builtin_decl_explicit (lhs ? BUILT_IN_GOMP_BARRIER_CANCEL
 					   : BUILT_IN_GOMP_BARRIER);
-  gcall *g = gimple_build_call (fndecl, 0);
+  gcall *g = gimple_build_call (fndecl, 1,
+				build_int_cst (integer_type_node, kind));
   if (lhs)
     gimple_call_set_lhs (g, lhs);
   return g;

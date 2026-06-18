@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <assert.h>
 #include "libgomp_g.h"
-
+#include <gomp-constants.h>
 
 struct timeval stamps[3][3];
 
@@ -17,7 +17,7 @@ static void function(void *dummy)
   if (iam == 0)
     usleep (10);
 
-  GOMP_barrier ();
+  GOMP_barrier_ext (GOMP_BARRIER_EXPLICIT);
 
   if (iam == 0)
     {
@@ -25,8 +25,8 @@ static void function(void *dummy)
       usleep (10);
     }
 
-  GOMP_barrier ();
-  
+  GOMP_barrier_ext (GOMP_BARRIER_EXPLICIT);
+
   gettimeofday (&stamps[iam][2], NULL);
 }
 

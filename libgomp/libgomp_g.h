@@ -41,7 +41,9 @@ extern void GOMP_atomic_end (void);
 /* barrier.c */
 
 extern void GOMP_barrier (void);
+extern void GOMP_barrier_ext (int);
 extern bool GOMP_barrier_cancel (void);
+extern bool GOMP_barrier_cancel_ext (int);
 
 /* critical.c */
 

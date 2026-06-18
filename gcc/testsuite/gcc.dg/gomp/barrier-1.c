@@ -14,4 +14,4 @@ void f2(_Bool p)
     }
 }
 
-/* { dg-final { scan-tree-dump-times "GOMP_barrier" 2 "gimple" } } */
+/* { dg-final { scan-tree-dump-times "GOMP_barrier_ext \\(2\\)" 2 "gimple" } } */

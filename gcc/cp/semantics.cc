@@ -12547,6 +12547,7 @@ finish_omp_barrier (void)
 {
   tree fn = builtin_decl_explicit (BUILT_IN_GOMP_BARRIER);
   releasing_vec vec;
+  vec->quick_push (build_int_cst (integer_type_node, GOMP_BARRIER_EXPLICIT));
   tree stmt = finish_call_expr (fn, &vec, false, false, tf_warning_or_error);
   finish_expr_stmt (stmt);
 }

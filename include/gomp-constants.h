@@ -435,4 +435,10 @@ enum gomp_map_kind
 /* Identifiers of device-specific target arguments.  */
 #define GOMP_TARGET_ARG_HSA_KERNEL_ATTRIBUTES	(1 << 8)
 
+/* GOMP_barrier{,_cancel}_ext argument.
+   TODO turn this into an enum?  */
+#define GOMP_BARRIER_IMPLICIT_PARALLEL 0
+#define GOMP_BARRIER_IMPLICIT_WORKSHARE 1
+#define GOMP_BARRIER_EXPLICIT 2
+
 #endif

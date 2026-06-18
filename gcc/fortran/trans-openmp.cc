@@ -6977,7 +6977,9 @@ static tree
 gfc_trans_omp_barrier (void)
 {
   tree decl = builtin_decl_explicit (BUILT_IN_GOMP_BARRIER);
-  return build_call_expr_loc (input_location, decl, 0);
+  return build_call_expr_loc (input_location, decl, 1,
+			      build_int_cst (integer_type_node,
+					     GOMP_BARRIER_EXPLICIT));
 }
 
 static tree

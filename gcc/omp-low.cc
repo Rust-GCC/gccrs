@@ -7043,7 +7043,25 @@ lower_rec_input_clauses (tree clauses, gimple_seq *ilist, gimple_seq *dlist,
       if (!is_task_ctx (ctx)
 	  && (gimple_code (ctx->stmt) != GIMPLE_OMP_FOR
 	      || gimple_omp_for_kind (ctx->stmt) == GF_OMP_FOR_KIND_FOR))
-	gimple_seq_add_stmt (ilist, omp_build_barrier (NULL_TREE));
+	{
+	  int barrier_kind;
+	  switch (gimple_code (ctx->stmt))
+	    {
+	    case GIMPLE_OMP_SECTIONS:
+	    case GIMPLE_OMP_SCOPE:
+	    case GIMPLE_OMP_FOR:
+	      barrier_kind = GOMP_BARRIER_IMPLICIT_WORKSHARE;
+	      break;
+	    case GIMPLE_OMP_PARALLEL:
+	    case GIMPLE_OMP_TEAMS:
+	      barrier_kind = GOMP_BARRIER_IMPLICIT_PARALLEL;
+	      break;
+	    default:
+	      gcc_unreachable ();
+	    }
+	  gimple_seq_add_stmt (ilist,
+			       omp_build_barrier (NULL_TREE, barrier_kind));
+	}
     }
 
   /* If max_vf is non-zero, then we can use only a vectorization factor
@@ -11477,7 +11495,7 @@ lower_omp_for_scan (gimple_seq *body_p, gimple_seq *dlist, gomp_for *stmt,
   g = gimple_build_label (lab1);
   gimple_seq_add_stmt (body_p, g);
 
-  g = omp_build_barrier (NULL);
+  g = omp_build_barrier (NULL, GOMP_BARRIER_IMPLICIT_WORKSHARE);
   gimple_seq_add_stmt (body_p, g);
 
   tree down = create_tmp_var (unsigned_type_node);
@@ -11594,7 +11612,7 @@ lower_omp_for_scan (gimple_seq *body_p, gimple_seq *dlist, gomp_for *stmt,
   g = gimple_build_label (lab12);
   gimple_seq_add_stmt (body_p, g);
 
-  g = omp_build_barrier (NULL);
+  g = omp_build_barrier (NULL, GOMP_BARRIER_IMPLICIT_WORKSHARE);
   gimple_seq_add_stmt (body_p, g);
 
   g = gimple_build_cond (NE_EXPR, k, build_zero_cst (unsigned_type_node),

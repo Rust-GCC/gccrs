@@ -5602,7 +5602,10 @@ expand_omp_for_static_nochunk (struct omp_region *region,
 	  gsi_insert_after (&gsi, g, GSI_SAME_STMT);
 	}
       else
-	gsi_insert_after (&gsi, omp_build_barrier (t), GSI_SAME_STMT);
+	gsi_insert_after (&gsi,
+			  omp_build_barrier (t,
+					     GOMP_BARRIER_IMPLICIT_WORKSHARE),
+			  GSI_SAME_STMT);
     }
   else if ((fd->have_pointer_condtemp || fd->have_scantemp)
 	   && !fd->have_nonctrl_scantemp)
@@ -6324,7 +6327,10 @@ expand_omp_for_static_chunk (struct omp_region *region,
 	  gsi_insert_after (&gsi, g, GSI_SAME_STMT);
 	}
       else
-	gsi_insert_after (&gsi, omp_build_barrier (t), GSI_SAME_STMT);
+	gsi_insert_after (&gsi,
+			  omp_build_barrier (t,
+					     GOMP_BARRIER_IMPLICIT_WORKSHARE),
+			  GSI_SAME_STMT);
     }
   else if (fd->have_pointer_condtemp)
     {
@@ -8702,7 +8708,9 @@ expand_omp_single (struct omp_region *region)
   if (!gimple_omp_return_nowait_p (gsi_stmt (si)))
     {
       tree t = gimple_omp_return_lhs (gsi_stmt (si));
-      gsi_insert_after (&si, omp_build_barrier (t), GSI_SAME_STMT);
+      gsi_insert_after (&si,
+			omp_build_barrier (t, GOMP_BARRIER_IMPLICIT_WORKSHARE),
+			GSI_SAME_STMT);
     }
   gsi_remove (&si, true);
   single_succ_edge (exit_bb)->flags = EDGE_FALLTHRU;

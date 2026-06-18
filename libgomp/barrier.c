@@ -27,6 +27,8 @@
 
 #include "libgomp.h"
 
+/* GOMP_barrier is no longer called by new code; it is only kept for
+   backward compatibility. New code uses GOMP_barrier_ext.  */
 
 void
 GOMP_barrier (void)
@@ -41,8 +43,36 @@ GOMP_barrier (void)
   gomp_team_barrier_wait (&team->barrier);
 }
 
+void
+GOMP_barrier_ext (int kind __attribute__ ((unused)))
+{
+  struct gomp_thread *thr = gomp_thread ();
+  struct gomp_team *team = thr->ts.team;
+
+  /* It is legal to have orphaned barriers.  */
+  if (team == NULL)
+    return;
+
+  gomp_team_barrier_wait (&team->barrier);
+}
+
+/* GOMP_barrier_cancel is no longer called by new code; it is only kept for
+   backward compatibility. New code uses GOMP_barrier_cancel_ext.  */
+
 bool
 GOMP_barrier_cancel (void)
+{
+  struct gomp_thread *thr = gomp_thread ();
+  struct gomp_team *team = thr->ts.team;
+
+  /* The compiler transforms to barrier_cancel when it sees that the
+     barrier is within a construct that can cancel.  Thus we should
+     never have an orphaned cancellable barrier.  */
+  return gomp_team_barrier_wait_cancel (&team->barrier);
+}
+
+bool
+GOMP_barrier_cancel_ext (int kind __attribute__ ((unused)))
 {
   struct gomp_thread *thr = gomp_thread ();
   struct gomp_team *team = thr->ts.team;

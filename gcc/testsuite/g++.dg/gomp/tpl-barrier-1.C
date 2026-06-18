@@ -21,4 +21,4 @@ void f3 ()
   f2<0> (true);
 }
 
-// { dg-final { scan-tree-dump-times "GOMP_barrier" 2 "gimple" } }
+// { dg-final { scan-tree-dump-times "GOMP_barrier_ext" 2 "gimple" } }

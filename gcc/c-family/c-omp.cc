@@ -175,7 +175,9 @@ c_finish_omp_barrier (location_t loc)
   tree x;
 
   x = builtin_decl_explicit (BUILT_IN_GOMP_BARRIER);
-  x = build_call_expr_loc (loc, x, 0);
+  x = build_call_expr_loc (loc, x, 1,
+			   build_int_cst (integer_type_node,
+					  GOMP_BARRIER_EXPLICIT));
   add_stmt (x);
 }
 
