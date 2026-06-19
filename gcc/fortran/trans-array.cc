@@ -1967,6 +1967,20 @@ static bool first_len;
 static tree first_len_val;
 static bool typespec_chararray_ctor;
 
+/* Return true if DER has any CLASS allocatable component.  Such components
+   are initialised by VIEW_CONVERT in structure constructors (a bitwise copy
+   of the class descriptor), so their _data pointer may refer to a non-heap
+   object and must not be passed to gfc_deallocate_alloc_comp_no_caf.  */
+
+static bool
+has_class_alloc_comp (gfc_symbol *der)
+{
+  for (gfc_component *c = der->components; c; c = c->next)
+    if (c->ts.type == BT_CLASS && !c->attr.pointer)
+      return true;
+  return false;
+}
+
 static void
 gfc_trans_array_ctor_element (stmtblock_t * pblock, tree desc,
 			      tree offset, gfc_se * se, gfc_expr * expr)
@@ -1978,12 +1992,15 @@ gfc_trans_array_ctor_element (stmtblock_t * pblock, tree desc,
   /* Store the value.  */
   tmp = build_fold_indirect_ref_loc (input_location,
 				 gfc_conv_descriptor_data_get (desc));
-  /* The offset may change, so get its value now and use that to free memory.
-   */
+
+  /* The offset may change, so get its value now and use that to free memory.  */
   offset_eval = gfc_evaluate_now (offset, &se->pre);
   tmp = gfc_build_array_ref (tmp, offset_eval, NULL);
 
-  if (expr->expr_type == EXPR_FUNCTION && expr->ts.type == BT_DERIVED
+  if (expr->ts.type == BT_DERIVED
+      && (expr->expr_type == EXPR_FUNCTION
+	  || (expr->expr_type == EXPR_STRUCTURE
+	      && !has_class_alloc_comp (expr->ts.u.derived)))
       && expr->ts.u.derived->attr.alloc_comp)
     gfc_add_expr_to_block (&se->finalblock,
 			   gfc_deallocate_alloc_comp_no_caf (expr->ts.u.derived,
@@ -2168,8 +2185,10 @@ gfc_constructor_is_owned_alloc_comp (gfc_constructor_base base,
 	  if (!gfc_constructor_is_owned_alloc_comp (e->value.constructor, der))
 	    return false;
 	}
-      else if (!(e->expr_type == EXPR_FUNCTION
-		 && e->ts.type == BT_DERIVED
+      else if (!(e->ts.type == BT_DERIVED
+		 && (e->expr_type == EXPR_FUNCTION
+		     || (e->expr_type == EXPR_STRUCTURE
+			 && !has_class_alloc_comp (e->ts.u.derived)))
 		 && e->ts.u.derived == der))
 	return false;
     }

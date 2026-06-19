@@ -9855,8 +9855,15 @@ gfc_trans_alloc_subarray_assign (tree dest, gfc_component * cm,
     gfc_add_block_to_block (final_block, &se.finalblock);
 
   if (expr->expr_type != EXPR_VARIABLE)
-    gfc_conv_descriptor_data_set (&block, se.expr,
-				  null_pointer_node);
+    {
+      if (gfc_bt_struct (cm->ts.type) && cm->ts.u.derived->attr.alloc_comp)
+	{
+	  tmp = gfc_deallocate_alloc_comp_no_caf (cm->ts.u.derived,
+						  se.expr, cm->as->rank, true);
+	  gfc_add_expr_to_block (&block, tmp);
+	}
+      gfc_conv_descriptor_data_set (&block, se.expr, null_pointer_node);
+    }
 
   /* We need to know if the argument of a conversion function is a
      variable, so that the correct lower bound can be used.  */
