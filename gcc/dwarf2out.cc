@@ -3161,15 +3161,15 @@ typedef struct GTY((chain_circular ("%h.die_sib"), for_user)) die_struct {
   unsigned int decl_id;
   enum dwarf_tag die_tag;
   /* Die is used and must not be pruned as unused.  */
-  BOOL_BITFIELD die_perennial_p : 1;
-  BOOL_BITFIELD comdat_type_p : 1; /* DIE has a type signature */
+  bool die_perennial_p : 1;
+  bool comdat_type_p : 1; /* DIE has a type signature */
   /* For an external ref to die_symbol if die_offset contains an extra
      offset to that symbol.  */
-  BOOL_BITFIELD with_offset : 1;
+  bool with_offset : 1;
   /* Whether this DIE was removed from the DIE tree, for example via
      prune_unused_types.  We don't consider those present from the
      DIE lookup routines.  */
-  BOOL_BITFIELD removed : 1;
+  bool removed : 1;
   /* Lots of spare bits.  */
 }
 die_node;

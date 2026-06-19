@@ -221,10 +221,10 @@ struct GTY((chain_next ("%h.prev"))) c_binding {
   struct c_binding *prev;	/* the previous decl in this scope */
   struct c_binding *shadowed;	/* the innermost decl shadowed by this one */
   unsigned int depth : 28;      /* depth of this scope */
-  BOOL_BITFIELD invisible : 1;  /* normal lookup should ignore this binding */
-  BOOL_BITFIELD nested : 1;     /* do not set DECL_CONTEXT when popping */
-  BOOL_BITFIELD inner_comp : 1; /* incomplete array completed in inner scope */
-  BOOL_BITFIELD in_struct : 1;	/* currently defined as struct field */
+  bool invisible : 1;  /* normal lookup should ignore this binding */
+  bool nested : 1;     /* do not set DECL_CONTEXT when popping */
+  bool inner_comp : 1; /* incomplete array completed in inner scope */
+  bool in_struct : 1;	/* currently defined as struct field */
   location_t locus;		/* location for nested bindings */
 };
 #define B_IN_SCOPE(b1, b2) ((b1)->depth == (b2)->depth)
@@ -502,38 +502,38 @@ struct GTY((chain_next ("%h.outer"))) c_scope {
 
   /* True if we are currently filling this scope with parameter
      declarations.  */
-  BOOL_BITFIELD parm_flag : 1;
+  bool parm_flag : 1;
 
   /* True if we saw [*] in this scope.  Used to give an error messages
      if these appears in a function definition.  */
-  BOOL_BITFIELD had_vla_unspec : 1;
+  bool had_vla_unspec : 1;
 
   /* True if we parsed a list of forward parameter decls in this scope.  */
-  BOOL_BITFIELD had_forward_parm_decls : 1;
+  bool had_forward_parm_decls : 1;
 
   /* True if this is the outermost block scope of a function body.
      This scope contains the parameters, the local variables declared
      in the outermost block, and all the labels (except those in
      nested functions, or declared at block scope with __label__).  */
-  BOOL_BITFIELD function_body : 1;
+  bool function_body : 1;
 
   /* True means make a BLOCK for this scope no matter what.  */
-  BOOL_BITFIELD keep : 1;
+  bool keep : 1;
 
   /* True means that an unsuffixed float constant is _Decimal64.  */
-  BOOL_BITFIELD float_const_decimal64 : 1;
+  bool float_const_decimal64 : 1;
 
   /* True if this scope has any label bindings.  This is used to speed
      up searching for labels when popping scopes, particularly since
      labels are normally only found at function scope.  */
-  BOOL_BITFIELD has_label_bindings : 1;
+  bool has_label_bindings : 1;
 
   /* True if we should issue a warning if a goto statement crosses any
      of the bindings.  We still need to check the list of bindings to
      find the specific ones we need to warn about.  This is true if
      decl_jump_unsafe would return true for any of the bindings.  This
      is used to avoid looping over all the bindings unnecessarily.  */
-  BOOL_BITFIELD has_jump_unsafe_decl : 1;
+  bool has_jump_unsafe_decl : 1;
 };
 
 /* The scope currently in effect.  */

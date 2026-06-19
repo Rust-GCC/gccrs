@@ -205,54 +205,54 @@ struct GTY(()) c_parser {
   /* True if a syntax error is being recovered from; false otherwise.
      c_parser_error sets this flag.  It should clear this flag when
      enough tokens have been consumed to recover from the error.  */
-  BOOL_BITFIELD error : 1;
+  bool error : 1;
   /* True if we're processing a pragma, and shouldn't automatically
      consume CPP_PRAGMA_EOL.  */
-  BOOL_BITFIELD in_pragma : 1;
+  bool in_pragma : 1;
   /* True if we're parsing the outermost block of an if statement.  */
-  BOOL_BITFIELD in_if_block : 1;
+  bool in_if_block : 1;
   /* True if we want to lex a translated, joined string (for an
      initial #pragma pch_preprocess).  Otherwise the parser is
      responsible for concatenating strings and translating to the
      execution character set as needed.  */
-  BOOL_BITFIELD lex_joined_string : 1;
+  bool lex_joined_string : 1;
   /* True if, when the parser is concatenating string literals, it
      should translate them to the execution character set (false
      inside attributes).  */
-  BOOL_BITFIELD translate_strings_p : 1;
+  bool translate_strings_p : 1;
 
   /* Objective-C specific parser/lexer information.  */
 
   /* True if we are in a context where the Objective-C "PQ" keywords
      are considered keywords.  */
-  BOOL_BITFIELD objc_pq_context : 1;
+  bool objc_pq_context : 1;
   /* True if we are parsing a (potential) Objective-C foreach
      statement.  This is set to true after we parsed 'for (' and while
      we wait for 'in' or ';' to decide if it's a standard C for loop or an
      Objective-C foreach loop.  */
-  BOOL_BITFIELD objc_could_be_foreach_context : 1;
+  bool objc_could_be_foreach_context : 1;
   /* The following flag is needed to contextualize Objective-C lexical
      analysis.  In some cases (e.g., 'int NSObject;'), it is
      undesirable to bind an identifier to an Objective-C class, even
      if a class with that name exists.  */
-  BOOL_BITFIELD objc_need_raw_identifier : 1;
+  bool objc_need_raw_identifier : 1;
   /* Nonzero if we're processing a __transaction statement.  The value
      is 1 | TM_STMT_ATTR_*.  */
   unsigned int in_transaction : 4;
   /* True if we are in a context where the Objective-C "Property attribute"
      keywords are valid.  */
-  BOOL_BITFIELD objc_property_attr_context : 1;
+  bool objc_property_attr_context : 1;
 
   /* Whether we have just seen/constructed a string-literal.  Set when
      returning a string-literal from c_parser_string_literal.  Reset
      in consume_token.  Useful when we get a parse error and see an
      unknown token, which could have been a string-literal constant
      macro.  */
-  BOOL_BITFIELD seen_string_literal : 1;
+  bool seen_string_literal : 1;
 
   /* TRUE if omp::directive, omp::decl or omp::sequence attributes may not
      appear.  */
-  BOOL_BITFIELD omp_attrs_forbidden_p : 1;
+  bool omp_attrs_forbidden_p : 1;
 
   /* Location of the last consumed token.  */
   location_t last_token_location;

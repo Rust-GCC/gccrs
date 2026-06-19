@@ -140,17 +140,17 @@ struct _expr
 
   /* True when this expression needs a speculation check to be scheduled.
      This is used during find_used_regs.  */
-  BOOL_BITFIELD needs_spec_check_p : 1;
+  bool needs_spec_check_p : 1;
 
   /* True when the expression was substituted.  Used for statistical
      purposes.  */
-  BOOL_BITFIELD was_substituted : 1;
+  bool was_substituted : 1;
 
   /* True when the expression was renamed.  */
-  BOOL_BITFIELD was_renamed : 1;
+  bool was_renamed : 1;
 
   /* True when expression can't be moved.  */
-  BOOL_BITFIELD cant_move : 1;
+  bool cant_move : 1;
 };
 
 typedef struct _expr expr_def;
@@ -286,16 +286,16 @@ struct _fence
   rtx_insn *sched_next;
 
   /* True if fill_insns processed this fence.  */
-  BOOL_BITFIELD processed_p : 1;
+  bool processed_p : 1;
 
   /* True if fill_insns actually scheduled something on this fence.  */
-  BOOL_BITFIELD scheduled_p : 1;
+  bool scheduled_p : 1;
 
   /* True when the next insn scheduled here would start a cycle.  */
-  BOOL_BITFIELD starts_cycle_p : 1;
+  bool starts_cycle_p : 1;
 
   /* True when the next insn scheduled here would be scheduled after a stall.  */
-  BOOL_BITFIELD after_stall_p : 1;
+  bool after_stall_p : 1;
 };
 typedef struct _fence *fence_t;
 
@@ -702,10 +702,10 @@ struct transformed_insns
   enum local_trans_type type;
 
   /* Whether a conflict on the target register happened.  */
-  BOOL_BITFIELD was_target_conflict : 1;
+  bool was_target_conflict : 1;
 
   /* Whether a check was needed.  */
-  BOOL_BITFIELD needs_check : 1;
+  bool needs_check : 1;
 };
 
 /* Indexed by INSN_LUID, the collection of all data associated with
@@ -762,14 +762,14 @@ public:
   ds_t spec_checked_ds;
 
   /* Whether the live set valid or not.  */
-  BOOL_BITFIELD live_valid_p : 1;
+  bool live_valid_p : 1;
   /* Insn is an ASM.  */
-  BOOL_BITFIELD asm_p : 1;
+  bool asm_p : 1;
 
   /* True when an insn is scheduled after we've determined that a stall is
      required.
      This is used when emulating the Haifa scheduler for bundling.  */
-  BOOL_BITFIELD after_stall_p : 1;
+  bool after_stall_p : 1;
 };
 
 typedef class _sel_insn_data sel_insn_data_def;

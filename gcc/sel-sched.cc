@@ -354,7 +354,7 @@ struct cmpd_local_params
   /* Local params used in move_op_* functions.  */
   /* True when we have removed last insn in the block which was
      also a boundary.  Do not update anything or create bookkeeping copies.  */
-  BOOL_BITFIELD removed_last_insn : 1;
+  bool removed_last_insn : 1;
 };
 
 /* Stores the static parameters for move_op_* calls.  */

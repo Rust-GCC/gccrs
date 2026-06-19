@@ -95,36 +95,36 @@ struct conversion {
   conversion_kind kind;
   /* The rank of this conversion.  */
   conversion_rank rank;
-  BOOL_BITFIELD user_conv_p : 1;
-  BOOL_BITFIELD ellipsis_p : 1;
-  BOOL_BITFIELD this_p : 1;
+  bool user_conv_p : 1;
+  bool ellipsis_p : 1;
+  bool this_p : 1;
   /* True if this conversion would be permitted with a bending of
      language standards, e.g. disregarding pointer qualifiers or
      converting integers to pointers.  */
-  BOOL_BITFIELD bad_p : 1;
+  bool bad_p : 1;
   /* If KIND is ck_ref_bind or ck_base, true to indicate that a
      temporary should be created to hold the result of the
      conversion.  If KIND is ck_ambig or ck_user, true means force
      copy-initialization.  */
-  BOOL_BITFIELD need_temporary_p : 1;
+  bool need_temporary_p : 1;
   /* If KIND is ck_ptr or ck_pmem, true to indicate that a conversion
      from a pointer-to-derived to pointer-to-base is being performed.  */
-  BOOL_BITFIELD base_p : 1;
+  bool base_p : 1;
   /* If KIND is ck_ref_bind, true when either an lvalue reference is
      being bound to an lvalue expression or an rvalue reference is
      being bound to an rvalue expression.  If KIND is ck_rvalue or ck_base,
      true when we are treating an lvalue as an rvalue (12.8p33).  If
      ck_identity, we will be binding a reference directly or decaying to
      a pointer.  */
-  BOOL_BITFIELD rvaluedness_matches_p: 1;
-  BOOL_BITFIELD check_narrowing: 1;
+  bool rvaluedness_matches_p: 1;
+  bool check_narrowing: 1;
   /* Whether check_narrowing should only check TREE_CONSTANTs; used
      in build_converted_constant_expr.  */
-  BOOL_BITFIELD check_narrowing_const_only: 1;
+  bool check_narrowing_const_only: 1;
   /* True if this conversion is taking place in a copy-initialization context
      and we should only consider converting constructors.  Only set in
      ck_base and ck_rvalue.  */
-  BOOL_BITFIELD copy_init_p : 1;
+  bool copy_init_p : 1;
   /* The type of the expression resulting from the conversion.  */
   tree type;
   union {

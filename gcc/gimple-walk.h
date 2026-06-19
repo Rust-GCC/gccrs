@@ -57,20 +57,20 @@ struct walk_stmt_info
      statement 'foo (&var)', the flag VAL_ONLY will initially be set
      to true, however, when walking &var, the operand of that
      ADDR_EXPR does not need to be a GIMPLE value.  */
-  BOOL_BITFIELD val_only : 1;
+  bool val_only : 1;
 
   /* True if we are currently walking the LHS of an assignment.  */
-  BOOL_BITFIELD is_lhs : 1;
+  bool is_lhs : 1;
 
   /* Optional.  Set to true by the callback functions if they made any
      changes.  */
-  BOOL_BITFIELD changed : 1;
+  bool changed : 1;
 
   /* True if we're interested in location information.  */
-  BOOL_BITFIELD want_locations : 1;
+  bool want_locations : 1;
 
   /* True if we've removed the statement that was processed.  */
-  BOOL_BITFIELD removed_stmt : 1;
+  bool removed_stmt : 1;
 };
 
 /* Callback for walk_gimple_stmt.  Called for every statement found

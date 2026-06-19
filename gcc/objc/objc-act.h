@@ -302,7 +302,7 @@ struct GTY(()) imp_entry {
   tree imp_template;
   tree class_decl;		/* _OBJC[_v2]_CLASS/CATEGORY_<my_name>; */
   tree meta_decl;		/* _OBJC[_v2]_METACLASS_<my_name>; */
-  BOOL_BITFIELD has_cxx_cdtors : 1;
+  bool has_cxx_cdtors : 1;
 };
 
 extern GTY(()) struct imp_entry *imp_list;

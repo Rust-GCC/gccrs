@@ -572,7 +572,7 @@ public:
 
   /* True when this context should be treated as a readonly by
      the analysis.  */
-  BOOL_BITFIELD readonly : 1;
+  bool readonly : 1;
 };
 
 typedef class deps_desc *deps_t;

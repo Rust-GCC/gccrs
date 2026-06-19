@@ -895,9 +895,6 @@ extern void fancy_abort (const char *, int, const char *)
 # define FALSE false
 #endif /* !__cplusplus */
 
-/* Some compilers do not allow the use of unsigned char in bitfields.  */
-#define BOOL_BITFIELD unsigned int
-
 /* As the last action in this file, we poison the identifiers that
    shouldn't be used.  Note, luckily gcc-3.0's token-based integrated
    preprocessor won't trip on poisoned identifiers that arrive from

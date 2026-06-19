@@ -2089,16 +2089,16 @@ struct GTY (()) saved_scope
   int x_processing_specialization;
   int x_processing_constraint;
   int suppress_location_wrappers;
-  BOOL_BITFIELD x_processing_explicit_instantiation : 1;
-  BOOL_BITFIELD need_pop_function_context : 1;
+  bool x_processing_explicit_instantiation : 1;
+  bool need_pop_function_context : 1;
 
   /* Nonzero if we are parsing the discarded statement of a constexpr
      if-statement.  */
-  BOOL_BITFIELD discarded_stmt : 1;
+  bool discarded_stmt : 1;
   /* Nonzero if we are parsing or instantiating the compound-statement
      of consteval if statement.  Also set while processing an immediate
      invocation.  */
-  BOOL_BITFIELD consteval_if_p : 1;
+  bool consteval_if_p : 1;
 
   int unevaluated_operand;
   int inhibit_evaluation_warnings;
@@ -2193,7 +2193,7 @@ struct GTY (()) rust_cp_binding_level
 
   /* True if this scope is an SK_TEMPLATE_SPEC scope.  This field is
       only valid if KIND == SK_TEMPLATE_PARMS.  */
-  BOOL_BITFIELD explicit_spec_p : 1;
+  bool explicit_spec_p : 1;
 
   /* true means make a BLOCK for this level regardless of all else.  */
   unsigned keep : 1;
@@ -2292,18 +2292,18 @@ struct GTY (()) language_function
   tree x_vtt_parm;
   tree x_return_value;
 
-  BOOL_BITFIELD returns_value : 1;
-  BOOL_BITFIELD returns_null : 1;
-  BOOL_BITFIELD returns_abnormally : 1;
-  BOOL_BITFIELD infinite_loop : 1;
-  BOOL_BITFIELD x_in_function_try_handler : 1;
-  BOOL_BITFIELD x_in_base_initializer : 1;
+  bool returns_value : 1;
+  bool returns_null : 1;
+  bool returns_abnormally : 1;
+  bool infinite_loop : 1;
+  bool x_in_function_try_handler : 1;
+  bool x_in_base_initializer : 1;
 
   /* True if this function can throw an exception.  */
-  BOOL_BITFIELD can_throw : 1;
+  bool can_throw : 1;
 
-  BOOL_BITFIELD invalid_constexpr : 1;
-  BOOL_BITFIELD throwing_cleanup : 1;
+  bool invalid_constexpr : 1;
+  bool throwing_cleanup : 1;
 
   hash_table<rust_named_label_hash> *x_named_labels;
 

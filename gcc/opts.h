@@ -95,31 +95,31 @@ struct cl_option
   /* CL_* flags for this option.  */
   unsigned int flags;
   /* Disabled in this configuration.  */
-  BOOL_BITFIELD cl_disabled : 1;
+  bool cl_disabled : 1;
   /* Options marked with CL_SEPARATE take a number of separate
      arguments (1 to 4) that is one more than the number in this
      bit-field.  */
   unsigned int cl_separate_nargs : 2;
   /* Option is an alias when used with separate argument.  */
-  BOOL_BITFIELD cl_separate_alias : 1;
+  bool cl_separate_alias : 1;
   /* Alias to negative form of option.  */
-  BOOL_BITFIELD cl_negative_alias : 1;
+  bool cl_negative_alias : 1;
   /* Option takes no argument in the driver.  */
-  BOOL_BITFIELD cl_no_driver_arg : 1;
+  bool cl_no_driver_arg : 1;
   /* Reject this option in the driver.  */
-  BOOL_BITFIELD cl_reject_driver : 1;
+  bool cl_reject_driver : 1;
   /* Reject no- form.  */
-  BOOL_BITFIELD cl_reject_negative : 1;
+  bool cl_reject_negative : 1;
   /* Missing argument OK (joined).  */
-  BOOL_BITFIELD cl_missing_ok : 1;
+  bool cl_missing_ok : 1;
   /* Argument is an integer >=0.  */
-  BOOL_BITFIELD cl_uinteger : 1;
+  bool cl_uinteger : 1;
   /* Argument is a HOST_WIDE_INT.  */
-  BOOL_BITFIELD cl_host_wide_int : 1;
+  bool cl_host_wide_int : 1;
   /* Argument should be converted to lowercase.  */
-  BOOL_BITFIELD cl_tolower : 1;
+  bool cl_tolower : 1;
   /* Argument is an unsigned integer with an optional byte suffix.  */
-  BOOL_BITFIELD cl_byte_size: 1;
+  bool cl_byte_size: 1;
   /* Offset of field for this option in struct gcc_options, or
      (unsigned short) -1 if none.  */
   unsigned short flag_var_offset;

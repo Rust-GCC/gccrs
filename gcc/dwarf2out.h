@@ -161,8 +161,8 @@ struct GTY(()) dw_cfa_location {
   poly_int64 base_offset;
   /* REG is in DWARF_FRAME_REGNUM space, *not* normal REGNO space.  */
   struct cfa_reg reg;
-  BOOL_BITFIELD indirect : 1;  /* 1 if CFA is accessed via a dereference.  */
-  BOOL_BITFIELD in_use : 1;    /* 1 if a saved cfa is stored here.  */
+  bool indirect : 1;  /* 1 if CFA is accessed via a dereference.  */
+  bool in_use : 1;    /* 1 if a saved cfa is stored here.  */
 };
 
 

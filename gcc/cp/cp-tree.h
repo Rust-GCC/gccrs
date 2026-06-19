@@ -2107,20 +2107,20 @@ struct GTY(()) saved_scope {
   int x_processing_specialization;
   int x_processing_constraint;
   int suppress_location_wrappers;
-  BOOL_BITFIELD x_processing_postcondition : 1;
-  BOOL_BITFIELD x_processing_explicit_instantiation : 1;
-  BOOL_BITFIELD need_pop_function_context : 1;
-  BOOL_BITFIELD x_processing_omp_trait_property_expr : 1;
+  bool x_processing_postcondition : 1;
+  bool x_processing_explicit_instantiation : 1;
+  bool need_pop_function_context : 1;
+  bool x_processing_omp_trait_property_expr : 1;
 
   /* Nonzero if we are parsing the discarded statement of a constexpr
      if-statement.  */
-  BOOL_BITFIELD discarded_stmt : 1;
+  bool discarded_stmt : 1;
   /* Nonzero if we are parsing or instantiating the compound-statement
      of consteval if statement.  Also set while processing an immediate
      invocation.  */
-  BOOL_BITFIELD consteval_if_p : 1;
+  bool consteval_if_p : 1;
   /* Nonzero if we are parsing the substatement of expansion-statement.  */
-  BOOL_BITFIELD expansion_stmt : 1;
+  bool expansion_stmt : 1;
 
   int unevaluated_operand;
   int inhibit_evaluation_warnings;
@@ -2365,20 +2365,20 @@ struct GTY(()) language_function {
   tree x_vtt_parm;
   tree x_return_value;
 
-  BOOL_BITFIELD returns_value : 1;
-  BOOL_BITFIELD returns_null : 1;
-  BOOL_BITFIELD returns_abnormally : 1;
-  BOOL_BITFIELD infinite_loop: 1;
-  BOOL_BITFIELD x_in_function_try_handler : 1;
-  BOOL_BITFIELD x_in_base_initializer : 1;
+  bool returns_value : 1;
+  bool returns_null : 1;
+  bool returns_abnormally : 1;
+  bool infinite_loop: 1;
+  bool x_in_function_try_handler : 1;
+  bool x_in_base_initializer : 1;
 
   /* True if this function can throw an exception.  */
-  BOOL_BITFIELD can_throw : 1;
+  bool can_throw : 1;
 
-  BOOL_BITFIELD invalid_constexpr : 1;
-  BOOL_BITFIELD throwing_cleanup : 1;
+  bool invalid_constexpr : 1;
+  bool throwing_cleanup : 1;
   /* True if we gave any errors in this function.  */
-  BOOL_BITFIELD erroneous : 1;
+  bool erroneous : 1;
 
   hash_table<named_label_hash> *x_named_labels;
 
@@ -7001,31 +7001,31 @@ struct cp_decl_specifier_seq {
   /* For the __intN declspec, this stores the index into the int_n_* arrays.  */
   int int_n_idx;
   /* True iff TYPE_SPEC defines a class or enum.  */
-  BOOL_BITFIELD type_definition_p : 1;
+  bool type_definition_p : 1;
   /* True iff multiple types were (erroneously) specified for this
      decl-specifier-seq.  */
-  BOOL_BITFIELD multiple_types_p : 1;
+  bool multiple_types_p : 1;
   /* True iff multiple storage classes were (erroneously) specified
      for this decl-specifier-seq or a combination of a storage class
      with a typedef specifier.  */
-  BOOL_BITFIELD conflicting_specifiers_p : 1;
+  bool conflicting_specifiers_p : 1;
   /* True iff at least one decl-specifier was found.  */
-  BOOL_BITFIELD any_specifiers_p : 1;
+  bool any_specifiers_p : 1;
   /* True iff at least one type-specifier was found.  */
-  BOOL_BITFIELD any_type_specifiers_p : 1;
+  bool any_type_specifiers_p : 1;
   /* True iff "int" was explicitly provided.  */
-  BOOL_BITFIELD explicit_int_p : 1;
+  bool explicit_int_p : 1;
   /* True iff "__intN" was explicitly provided.  */
-  BOOL_BITFIELD explicit_intN_p : 1;
+  bool explicit_intN_p : 1;
   /* True iff "char" was explicitly provided.  */
-  BOOL_BITFIELD explicit_char_p : 1;
+  bool explicit_char_p : 1;
   /* True iff ds_thread is set for __thread, not thread_local.  */
-  BOOL_BITFIELD gnu_thread_keyword_p : 1;
+  bool gnu_thread_keyword_p : 1;
   /* True iff the type is a decltype.  */
-  BOOL_BITFIELD decltype_p : 1;
+  bool decltype_p : 1;
   /* True iff the alternate "__intN__" form of the __intN type has been
      used.  */
-  BOOL_BITFIELD int_n_alt: 1;
+  bool int_n_alt: 1;
 };
 
 /* The various kinds of declarators.  */
@@ -7069,7 +7069,7 @@ struct cp_declarator {
   ENUM_BITFIELD (cp_declarator_kind) kind : 4;
   /* Whether we parsed an ellipsis (`...') just before the declarator,
      to indicate this is a parameter pack.  */
-  BOOL_BITFIELD parameter_pack_p : 1;
+  bool parameter_pack_p : 1;
   /* If this declarator is parenthesized, this the open-paren.  It is
      UNKNOWN_LOCATION when not parenthesized.  */
   location_t parenthesized;

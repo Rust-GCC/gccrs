@@ -181,9 +181,9 @@ struct GTY ((for_user)) ctf_dtdef
   uint32_t linkage;           /* Used in function types.  0=local, 1=global.  */
 
   /* Whether this type was added from a global function.  */
-  BOOL_BITFIELD from_global_func : 1;
+  bool from_global_func : 1;
   /* Enum signedness.  */
-  BOOL_BITFIELD dtd_enum_unsigned : 1;
+  bool dtd_enum_unsigned : 1;
   /* Lots of spare bits.  */
 
   union GTY ((desc ("ctf_dtu_d_union_selector (&%1)")))

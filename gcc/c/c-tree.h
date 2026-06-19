@@ -418,78 +418,78 @@ struct c_declspecs {
   ENUM_BITFIELD (c_declspec_il) declspec_il : 3;
   /* Whether any expressions in typeof specifiers may appear in
      constant expressions.  */
-  BOOL_BITFIELD expr_const_operands : 1;
+  bool expr_const_operands : 1;
   /* Whether any declaration specifiers have been seen at all.  */
-  BOOL_BITFIELD declspecs_seen_p : 1;
+  bool declspecs_seen_p : 1;
   /* Whether any declaration specifiers other than standard attributes
      have been seen at all.  If only standard attributes have been
      seen, this is an attribute-declaration.  */
-  BOOL_BITFIELD non_std_attrs_seen_p : 1;
+  bool non_std_attrs_seen_p : 1;
   /* Whether something other than a storage class specifier or
      attribute has been seen.  This is used to warn for the
      obsolescent usage of storage class specifiers other than at the
      start of the list.  (Doing this properly would require function
      specifiers to be handled separately from storage class
      specifiers.)  */
-  BOOL_BITFIELD non_sc_seen_p : 1;
+  bool non_sc_seen_p : 1;
   /* Whether the type is specified by a typedef or typeof name.  */
-  BOOL_BITFIELD typedef_p : 1;
+  bool typedef_p : 1;
   /* Whether the type is explicitly "signed" or specified by a typedef
      whose type is explicitly "signed".  */
-  BOOL_BITFIELD explicit_signed_p : 1;
+  bool explicit_signed_p : 1;
   /* Whether the specifiers include a deprecated typedef.  */
-  BOOL_BITFIELD deprecated_p : 1;
+  bool deprecated_p : 1;
   /* Whether the specifiers include an unavailable typedef.  */
-  BOOL_BITFIELD unavailable_p : 1;
+  bool unavailable_p : 1;
   /* Whether the type defaulted to "int" because there were no type
      specifiers.  */
-  BOOL_BITFIELD default_int_p : 1;
+  bool default_int_p : 1;
   /* Whether "long" was specified.  */
-  BOOL_BITFIELD long_p : 1;
+  bool long_p : 1;
   /* Whether "long" was specified more than once.  */
-  BOOL_BITFIELD long_long_p : 1;
+  bool long_long_p : 1;
   /* Whether "short" was specified.  */
-  BOOL_BITFIELD short_p : 1;
+  bool short_p : 1;
   /* Whether "signed" was specified.  */
-  BOOL_BITFIELD signed_p : 1;
+  bool signed_p : 1;
   /* Whether "unsigned" was specified.  */
-  BOOL_BITFIELD unsigned_p : 1;
+  bool unsigned_p : 1;
   /* Whether "complex" was specified.  */
-  BOOL_BITFIELD complex_p : 1;
+  bool complex_p : 1;
   /* Whether "inline" was specified.  */
-  BOOL_BITFIELD inline_p : 1;
+  bool inline_p : 1;
   /* Whether "_Noreturn" was specified.  */
-  BOOL_BITFIELD noreturn_p : 1;
+  bool noreturn_p : 1;
   /* Whether "__thread" or "_Thread_local" was specified.  */
-  BOOL_BITFIELD thread_p : 1;
+  bool thread_p : 1;
   /* Whether "__thread" rather than "_Thread_local" was specified.  */
-  BOOL_BITFIELD thread_gnu_p : 1;
+  bool thread_gnu_p : 1;
   /* Whether "const" was specified.  */
-  BOOL_BITFIELD const_p : 1;
+  bool const_p : 1;
   /* Whether "volatile" was specified.  */
-  BOOL_BITFIELD volatile_p : 1;
+  bool volatile_p : 1;
   /* Whether "restrict" was specified.  */
-  BOOL_BITFIELD restrict_p : 1;
+  bool restrict_p : 1;
   /* Whether "_Atomic" was specified.  */
-  BOOL_BITFIELD atomic_p : 1;
+  bool atomic_p : 1;
   /* Whether "_Sat" was specified.  */
-  BOOL_BITFIELD saturating_p : 1;
+  bool saturating_p : 1;
   /* Whether any alignment specifier (even with zero alignment) was
      specified.  */
-  BOOL_BITFIELD alignas_p : 1;
+  bool alignas_p : 1;
   /* Whether an enum type specifier (": specifier-qualifier-list") was
      specified other than in a definition of that enum (if so, this is
      invalid unless it is an empty declaration "enum identifier
      enum-type-specifier;", but such an empty declaration is valid in
      C23 when "enum identifier;" would not be).  */
-  BOOL_BITFIELD enum_type_specifier_ref_p : 1;
+  bool enum_type_specifier_ref_p : 1;
   /* Whether "auto" was specified in C23 (or later) mode and means the
      type is to be deduced from an initializer, or would mean that if
      no type specifier appears later in these declaration
      specifiers.  */
-  BOOL_BITFIELD c23_auto_p : 1;
+  bool c23_auto_p : 1;
   /* Whether "constexpr" was specified.  */
-  BOOL_BITFIELD constexpr_p : 1;
+  bool constexpr_p : 1;
   /* The address space that the declaration belongs to.  */
   addr_space_t address_space;
 };
@@ -534,13 +534,13 @@ struct c_arg_info {
      ignored.  */
   tree pending_sizes;
   /* True when these arguments had [*].  */
-  BOOL_BITFIELD had_vla_unspec : 1;
+  bool had_vla_unspec : 1;
   /* True when the arguments are a (...) prototype.  */
-  BOOL_BITFIELD no_named_args_stdarg_p : 1;
+  bool no_named_args_stdarg_p : 1;
   /* True when empty parentheses have been interpreted as (void) in C23 or
      later.  This is only for use by -Wtraditional and is no longer needed if
      -Wtraditional is removed.  */
-  BOOL_BITFIELD c23_empty_parens : 1;
+  bool c23_empty_parens : 1;
 };
 
 /* A declarator.  */
@@ -571,9 +571,9 @@ struct c_declarator {
       /* The attributes (currently ignored) inside [].  */
       tree attrs;
       /* Whether [static] was used.  */
-      BOOL_BITFIELD static_p : 1;
+      bool static_p : 1;
       /* Whether [*] was used.  */
-      BOOL_BITFIELD vla_unspec_p : 1;
+      bool vla_unspec_p : 1;
     } array;
     /* For pointers, the qualifiers on the pointer type.  */
     int pointer_quals;
