@@ -186,7 +186,7 @@ mark_use (tree expr, bool rvalue_p, bool read_p,
 	    return error_mark_node;
 	  if (r != ref)
 	    {
-	      if (!rvalue_p)
+	      if (DECL_P (ref) && !lvalue_p (r))
 		{
 		  /* Make sure we still return an lvalue.  */
 		  gcc_assert (TREE_CODE (r) == NOP_EXPR);
