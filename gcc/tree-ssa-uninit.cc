@@ -758,6 +758,30 @@ maybe_warn_operand (ao_ref &ref, gimple *stmt, tree lhs, tree rhs,
   if (is_empty_type (rhstype))
     return NULL_TREE;
 
+  /* Avoid diagnosing read-modify-write cycles that in the end only
+     sets a subset of bits to zero or one.
+     ???  Note that further reads will then appear (partly) initialized
+     and will not be diagnosed.  */
+  gimple *use_stmt;
+  if (gimple_assign_load_p (stmt)
+      && TREE_CODE (lhs) == SSA_NAME
+      && single_imm_use (lhs, &luse_p, &use_stmt))
+    {
+      gassign *use_ass = dyn_cast <gassign *> (use_stmt);
+      for (int i = 0; i < 2; ++i)
+	if (use_ass
+	    && (gimple_assign_rhs_code (use_ass) == BIT_AND_EXPR
+		|| gimple_assign_rhs_code (use_ass) == BIT_IOR_EXPR)
+	    && single_imm_use (gimple_assign_lhs (use_ass), &luse_p,
+			       &use_stmt))
+	  use_ass = dyn_cast <gassign *> (use_stmt);
+      if (use_ass
+	  && gimple_vdef (use_ass)
+	  && operand_equal_p (gimple_assign_rhs1 (stmt),
+			      gimple_assign_lhs (use_ass)))
+	return NULL_TREE;
+    }
+
   bool warned = false;
   /* We didn't find any may-defs so on all paths either
      reached function entry or a killing clobber.  */
