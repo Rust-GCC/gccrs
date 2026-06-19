@@ -1658,13 +1658,13 @@ strcpy_irom (buf, IROM_message);
 strcpy_irom (alt_buf, "placed within read-only RAM area.");
 @end smallexample
 
+@node Attributes
 @anchor{Function Attributes}
 @anchor{Variable Attributes}
 @anchor{Type Attributes}
 @anchor{Label Attributes}
 @anchor{Enumerator Attributes}
 @anchor{Statement Attributes}
-@node Attributes
 @section Attributes Specific to GCC
 @cindex attributes
 @cindex declaring attributes
@@ -1847,10 +1847,10 @@ ordinary functions or C++ member functions.
 * Attribute Syntax::            Formal syntax for traditional GNU attributes.
 @end menu
 
+@node Common Attributes
 @anchor{Common Function Attributes}
 @anchor{Common Variable Attributes}
 @anchor{Common Type Attributes}
-@node Common Attributes
 @subsection Common Attributes
 
 The following GNU-specific attributes are supported on most targets in
@@ -5771,8 +5771,8 @@ The default for the attribute is controlled by @option{-fzero-call-used-regs}.
 * Xtensa Attributes::
 @end menu
 
-@anchor{AArch64 Function Attributes}
 @node AArch64 Attributes
+@anchor{AArch64 Function Attributes}
 @subsubsection AArch64 Attributes
 
 The following target-specific function attributes are available for the
@@ -5994,8 +5994,8 @@ architectural feature rules specified above.
 
 @end table
 
-@anchor{AMD GCN Function Attributes}
 @node AMD GCN Attributes
+@anchor{AMD GCN Function Attributes}
 @subsubsection AMD GCN Attributes
 
 These attributes are supported by the AMD GCN back end:
@@ -6087,10 +6087,10 @@ OpenACC/OpenMP).
 @end table
 @end table
 
+@node ARC Attributes
 @anchor{ARC Function Attributes}
 @anchor{ARC Type Attributes}
 @anchor{ARC Variable Attributes}
-@node ARC Attributes
 @subsubsection ARC Attributes
 
 These attributes are supported by the ARC back end:
@@ -6185,9 +6185,9 @@ without involving the additional semantic implications of
 loads and stores of data declared @code{uncached}.
 @end table
 
+@node ARM Attributes
 @anchor{ARM Function Attributes}
 @anchor{ARM Type Attributes}
-@node ARM Attributes
 @subsubsection ARM Attributes
 
 These attributes are supported for ARM targets:
@@ -6366,9 +6366,9 @@ most Symbian OS code uses @code{__declspec}.)
 
 @end table
 
+@node AVR Attributes
 @anchor{AVR Function Attributes}
 @anchor{AVR Variable Attributes}
-@node AVR Attributes
 @subsubsection AVR Attributes
 
 These attributes are supported by the AVR back end:
@@ -6711,9 +6711,9 @@ See also the @option{-mabsdata} @ref{AVR Options,command-line option}.
 
 @end table
 
+@node Blackfin Attributes
 @anchor{Blackfin Function Attributes}
 @anchor{Blackfin Variable Attributes}
-@node Blackfin Attributes
 @subsubsection Blackfin Attributes
 
 These attributes are supported by the Blackfin back end:
@@ -6829,9 +6829,9 @@ the specific section named @code{.l1.data.A}. Those with @code{l1_data_B}
 attribute are put into the specific section named @code{.l1.data.B}.
 @end table
 
+@node BPF Attributes
 @anchor{BPF Function Attributes}
 @anchor{BPF Type Attributes}
-@node BPF Attributes
 @subsubsection BPF Attributes
 
 These attributes are supported by the BPF back end:
@@ -6863,8 +6863,8 @@ of that type. The behavior is equivalent to manually
 wrapping every such access with @code{__builtin_preserve_access_index}.
 @end table
 
-@anchor{C-SKY Function Attributes}
 @node C-SKY Attributes
+@anchor{C-SKY Function Attributes}
 @subsubsection C-SKY Attributes
 
 These attributes are supported by the C-SKY back end:
@@ -6887,8 +6887,8 @@ are ignored with a warning otherwise.  @xref{C-SKY Options}.
 @end table
 
 
-@anchor{Epiphany Function Attributes}
 @node Epiphany Attributes
+@anchor{Epiphany Function Attributes}
 @subsubsection Epiphany Attributes
 
 These attributes are supported by the Epiphany back end:
@@ -6969,9 +6969,9 @@ command-line switch and @code{#pragma long_calls} settings.
 @end table
 
 
+@node H8/300 Attributes
 @anchor{H8/300 Function Attributes}
 @anchor{H8/300 Variable Attributes}
-@node H8/300 Attributes
 @subsubsection H8/300 Attributes
 
 These attributes are available for H8/300 targets:
@@ -7046,9 +7046,9 @@ on data in the tiny data section.  Note the tiny data area is limited to
 slightly under 32KB of data.
 @end table
 
+@node IA-64 Attributes
 @anchor{IA-64 Function Attributes}
 @anchor{IA-64 Variable Attributes}
-@node IA-64 Attributes
 @subsubsection IA-64 Attributes
 
 These attributes are supported on IA-64 targets:
@@ -7093,9 +7093,9 @@ independent and hence this attribute must not be used for objects
 defined by shared libraries.
 @end table
 
+@node LoongArch Attributes
 @anchor{LoongArch Function Attributes}
 @anchor{LoongArch Variable Attributes}
-@node LoongArch Attributes
 @subsubsection LoongArch Attributes
 
 The following attributes are supported by the LoongArch back end:
@@ -7423,9 +7423,9 @@ specially.  Currently the only supported values of @var{name} are
 @code{normal} and @code{extreme}.
 @end table
 
+@node M32R/D Attributes
 @anchor{M32R/D Function Attributes}
 @anchor{M32R/D Variable Attributes}
-@node M32R/D Attributes
 @subsubsection M32R/D Attributes
 
 These attributes are supported by the M32R/D back end:
@@ -7465,8 +7465,8 @@ and may not be reachable with the @code{bl} instruction (the compiler
 generates the much slower @code{seth/add3/jl} instruction sequence).
 @end table
 
-@anchor{m68k Function Attributes}
 @node m68k Attributes
+@anchor{m68k Function Attributes}
 @subsubsection m68k Attributes
 
 These attributes are supported by the m68k back end:
@@ -7494,8 +7494,8 @@ sequences and replaces the return instruction with a @code{sleep}
 instruction.  This attribute is available only on fido.
 @end table
 
-@anchor{MicroBlaze Function Attributes}
 @node MicroBlaze Attributes
+@anchor{MicroBlaze Function Attributes}
 @subsubsection MicroBlaze Attributes
 
 These attributes are supported on MicroBlaze targets:
@@ -7540,9 +7540,9 @@ emits appropriate prologue code and generates a return from the handler
 using @code{rtid} instead of @code{rtsd}.
 @end table
 
+@node Microsoft Windows Attributes
 @anchor{Microsoft Windows Function Attributes}
 @anchor{Microsoft Windows Variable Attributes}
-@node Microsoft Windows Attributes
 @subsubsection Microsoft Windows Attributes
 
 @cindex @code{__declspec}
@@ -7701,8 +7701,8 @@ linkers work.  See @code{section} attribute for more information.
 The @code{shared} attribute is only available on Microsoft Windows@.
 @end table
 
-@anchor{MIPS Function Attributes}
 @node MIPS Attributes
+@anchor{MIPS Function Attributes}
 @subsubsection MIPS Attributes
 
 These attributes are supported by the MIPS back end:
@@ -7871,9 +7871,9 @@ The function can read the instruction stream in a pc-relative mode.
 If there is no argument supplied, the default of @code{"yes"} applies.
 @end table
 
+@node MSP430 Attributes
 @anchor{MSP430 Function Attributes}
 @anchor{MSP430 Variable Attributes}
-@node MSP430 Attributes
 @subsubsection MSP430 Attributes
 
 These attributes are supported by the MSP430 back end:
@@ -7977,8 +7977,8 @@ is used, and the @code{.lower} prefix is not added.
 
 @end table
 
-@anchor{NDS32 Function Attributes}
 @node NDS32 Attributes
+@anchor{NDS32 Function Attributes}
 @subsubsection NDS32 Attributes
 
 These attributes are supported by the NDS32 back end:
@@ -8042,9 +8042,9 @@ Provide a user-defined function to handle warm reset exception.
 @end table
 @end table
 
+@node Nvidia PTX Attributes
 @anchor{Nvidia PTX Function Attributes}
 @anchor{Nvidia PTX Variable Attributes}
-@node Nvidia PTX Attributes
 @subsubsection Nvidia PTX Attributes
 
 These attributes are supported by the Nvidia PTX back end:
@@ -8071,10 +8071,10 @@ within one thread block refer to the same instance of the variable.
 The runtime does not initialize variables in this memory space.
 @end table
 
+@node PowerPC Attributes
 @anchor{PowerPC Function Attributes}
 @anchor{PowerPC Type Attributes}
 @anchor{PowerPC Variable Attributes}
-@node PowerPC Attributes
 @subsubsection PowerPC Attributes
 
 These attributes are supported by the PowerPC back end:
@@ -8303,8 +8303,8 @@ These attributes mainly are intended to support the @code{__vector},
 @code{__pixel}, and @code{__bool} AltiVec keywords.
 @end table
 
-@anchor{RISC-V Function Attributes}
 @node RISC-V Attributes
+@anchor{RISC-V Function Attributes}
 @subsubsection RISC-V Attributes
 
 These attributes are supported by the RISC-V back end:
@@ -8417,9 +8417,9 @@ and @code{zbb} extensions and tunes it for @code{rocket}.
 
 @end table
 
+@node RL78 Attributes
 @anchor{RL78 Function Attributes}
 @anchor{RL78 Variable Attributes}
-@node RL78 Attributes
 @subsubsection RL78 Attributes
 
 These attributes are supported by the RL78 back end:
@@ -8450,8 +8450,8 @@ which can be accessed more efficiently than the default memory region.
 
 @end table
 
-@anchor{RX Function Attributes}
 @node RX Attributes
+@anchor{RX Function Attributes}
 @subsubsection RX Attributes
 
 These attributes are supported by the RX back end:
@@ -8507,8 +8507,8 @@ function (i.e.@: it retains the normal C function calling ABI).  See the
 @code{interrupt} attribute for a description of its arguments.
 @end table
 
-@anchor{S/390 Function Attributes}
 @node S/390 Attributes
+@anchor{S/390 Function Attributes}
 @subsubsection S/390 Attributes
 
 These attributes are supported on the S/390:
@@ -8577,8 +8577,8 @@ change any feature macros.  For example,
 does not undefine the @code{__VEC__} macro.
 @end table
 
-@anchor{SH Function Attributes}
 @node SH Attributes
+@anchor{SH Function Attributes}
 @subsubsection SH Attributes
 
 These attributes are supported on the SH family of processors:
@@ -8674,16 +8674,16 @@ On SH targets this attribute is similar to @code{interrupt_handler}
 but it does not save and restore all registers.
 @end table
 
-@anchor{Symbian OS Function Attributes}
 @node Symbian OS Attributes
+@anchor{Symbian OS Function Attributes}
 @subsubsection Symbian OS Attributes
 
 @xref{Microsoft Windows Attributes}, for discussion of the
 @code{dllexport} and @code{dllimport} attributes.
 
+@node V850 Attributes
 @anchor{V850 Function Attributes}
 @anchor{V850 Variable Attributes}
-@node V850 Attributes
 @subsubsection V850 Attributes
 
 The V850 back end supports these attributes:
@@ -8722,8 +8722,8 @@ Use it to explicitly place a variable in the first 32 kilobytes
 of memory.
 @end table
 
-@anchor{Visium Function Attributes}
 @node Visium Attributes
+@anchor{Visium Function Attributes}
 @subsubsection Visium Attributes
 
 These attributes are supported by the Visium back end:
@@ -8739,10 +8739,10 @@ function entry and exit sequences suitable for use in an interrupt handler
 when this attribute is present.
 @end table
 
+@node x86 Attributes
 @anchor{x86 Function Attributes}
 @anchor{x86 Type Attributes}
 @anchor{x86 Variable Attributes}
-@node x86 Attributes
 @subsubsection x86 Attributes
 
 These attributes are supported by the x86 back end:
@@ -9750,9 +9750,9 @@ see @ref{x86 Options}, for details of how structure layout is affected.
 @end table
 
 
+@node Xstormy16 Attributes
 @anchor{Xstormy16 Function Attributes}
 @anchor{Xstormy16 Variable Attributes}
-@node Xstormy16 Attributes
 @subsubsection Xstormy16 Attributes
 
 These attributes are supported by the Xstormy16 back end:

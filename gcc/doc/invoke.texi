@@ -21277,8 +21277,8 @@ problems or, in some cases, to provide workarounds for compiler bugs.
 for documentation of these internal parameters.
 @end table
 
-@anchor{Submodel Options}
 @node Target-Specific Options
+@anchor{Submodel Options}
 @section Target-Specific Options
 @cindex submodel options
 @cindex hardware-specific options
