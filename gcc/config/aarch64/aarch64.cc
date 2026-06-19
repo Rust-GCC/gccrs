@@ -18384,6 +18384,7 @@ aarch64_vector_costs::count_ops (unsigned int count, vect_cost_for_stmt kind,
     case vec_perm:
     case vec_promote_demote:
     case vec_construct:
+    case vec_deconstruct:
     case vec_to_scalar:
     case scalar_to_vec:
     case vector_stmt:
