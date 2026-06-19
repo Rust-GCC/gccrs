@@ -1,3 +1,101 @@
+2026-06-18  Milan Tripkovic  <Milan.Tripkovic@rt-rk.com>
+
+	PR target/125405
+	* match.pd: New pattern added.
+
+2026-06-18  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	* config/riscv/riscv.md (splitter for equality test): New splitter.
+
+2026-06-18  Paul Iannetta  <piannetta@kalrayinc.com>
+	    Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* tree.h (ENCODE_QUAL_ADDR_SPACE): Add missing parentheses.
+
+2026-06-18  Andrew MacLeod  <amacleod@redhat.com>
+
+	* value-range.cc (prange::intersect): Points-to and away results
+	in undefined.
+
+2026-06-18  Andrew MacLeod  <amacleod@redhat.com>
+
+	* value-range.h (prange::pt_invariant_p): Return true or false.
+	(prange::pt_invariant_away_p): Likewise.
+
+2026-06-18  Andrew MacLeod  <amacleod@redhat.com>
+
+	* value-range.h (prange::zero_p): Assert that is zero_p is true,
+	points_to is unknown.
+
+2026-06-18  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	PR tree-optimization/125872
+	* gimple-ssa-backprop.cc (backprop::execute): Don't try to delete
+	default definitions.
+
+2026-06-18  Andrew MacLeod  <amacleod@redhat.com>
+
+	* gimple-range-fold.cc (fold_using_range::range_of_phi): Remove
+	extranous logical not from expression.
+
+2026-06-18  Andrew MacLeod  <amacleod@redhat.com>
+
+	PR tree-optimization/125854
+	* gimple-range-fold.cc (fold_using_range::fold_stmt): Check if the
+	range_query matches the current one before invoking fold.
+
+2026-06-18  Martin Jambor  <mjambor@suse.cz>
+
+	PR ipa/124128
+	* ipa-cp.cc (ipa_vr_intersect_with_arith_jfunc): Move the check if
+	the final type conversion needs to happen before the conversion.
+
+2026-06-18  Richard Biener  <rguenther@suse.de>
+
+	* config/i386/i386.cc (ix86_vector_costs::add_stmt_cost):
+	Use vector construction scaling also for mult-lane
+	VMAT_STRIDED_SLP but use vector composition type recorded
+	to avoid excessive over-costing.
+
+2026-06-18  Richard Biener  <rguenther@suse.de>
+
+	* config/i386/i386.cc (ix86_vector_costs::add_stmt_cost):
+	Expect vec_deconstruct where formerly handling vec_to_scalar
+	for emulated gather/scatter, elementwise and strided accesses.
+
+2026-06-18  Richard Biener  <rguenther@suse.de>
+
+	* config/i386/i386.cc (ix86_vector_cd_cost): New function,
+	enhanced and split out from ...
+	(ix86_default_vector_cost): ... here.
+
+2026-06-18  Richard Biener  <rguenther@suse.de>
+
+	* target.h (vect_cost_for_stmt::vec_deconstruct): New kind.
+	* tree-vect-loop.cc (vect_model_reduction_cost): Use it.
+	* tree-vect-stmts.cc (vectorizable_store): Likewise.
+	(vectorizable_load): Likewise.
+	* tree-vectorizer.cc (dump_stmt_cost): Handle vec_deconstruct.
+	* config/aarch64/aarch64.cc (aarch64_builtin_vectorization_cost):
+	Handle vec_deconstruct like vec_construct.
+	* config/i386/i386.cc (ix86_default_vector_cost): Likewise.
+	* config/arm/arm.cc (arm_builtin_vectorization_cost): Likewise.
+	* config/loongarch/loongarch.cc (loongarch_builtin_vectorization_cost):
+	Likewise.
+	* config/riscv/riscv.cc (riscv_builtin_vectorization_cost):
+	Likewise.
+	* config/rs6000/rs6000.cc (rs6000_builtin_vectorization_cost):
+	Likewise.
+	* config/s390/s390.cc (s390_builtin_vectorization_cost): Likewise.
+	* targhooks.cc (default_builtin_vectorization_cost): Likewise.
+
+2026-06-18  Richard Biener  <rguenther@suse.de>
+
+	* tree-vectorizer.h (vect_load_store_data::ls_eltype): New field.
+	* tree-vect-stmts.cc (vectorizable_load): Record ltype
+	as ls_eltype for VMAT_STRIDED_SLP.
+	(vectorizable_store): Likewise.
+
 2026-06-17  James K. Lowden  <jklowden@cobolworx.com>
 
 	* doc/install.texi: COBOL requires Bison 3.8.2.

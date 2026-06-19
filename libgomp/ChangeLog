@@ -1,3 +1,41 @@
+2026-06-18  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* config/accel/target-indirect.h (GOMP_INDIRECT_ADDR_MAP)
+	(GOMP_INDIRECT_ADDR_HMAP): Prototype.
+	* config/gcn/team.c: Adjust.
+	* config/nvptx/team.c: Likewise.
+
+2026-06-18  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* config/accel/target-indirect.h: New.
+	* config/accel/target-indirect.c: Adjust.
+	* config/gcn/team.c: Likewise.
+	* config/nvptx/team.c: Likewise.
+
+2026-06-18  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* target-indirect.c: '#include "libgomp.h"'.
+
+2026-06-18  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* libgomp_g.h (GOMP_target_map_indirect_ptr): Sort correctly.
+
+2026-06-18  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* libgomp_g.h (GOMP_atomic_start, GOMP_atomic_end): Sort correctly.
+
+2026-06-18  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* oacc-init.c (acc_init, acc_shutdown, acc_get_num_devices)
+	(acc_set_device_type, acc_get_device_type, acc_get_device_num)
+	(acc_set_device_num, acc_get_property, acc_get_property_string)
+	(acc_on_device): Drop 'ialias'es.
+
+2026-06-18  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* config/nvptx/oacc-parallel.c: Move...
+	* config/accel/oacc-parallel.c: ... here.
+
 2026-06-12  Thomas Schwinge  <tschwinge@baylibre.com>
 
 	* config/linux/allocator.c: De-duplicate '#define _GNU_SOURCE'.

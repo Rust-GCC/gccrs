@@ -1,3 +1,8 @@
+2026-06-18  Marek Polacek  <polacek@redhat.com>
+
+	* decl.cc (check_initializer): Don't call
+	build_aggr_init_full_exprs for {} of an aggregate.
+
 2026-06-17  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/125764

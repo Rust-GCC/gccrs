@@ -1,3 +1,35 @@
+2026-06-18  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/125535
+	* trans-array.cc (gfc_constructor_is_owned_alloc_comp): New function.
+	(gfc_trans_array_constructor_value): Add OWNED_SWEEP parameter and,
+	when set, suppress the per-element finalization.  Pass it through the
+	recursive call.
+	(trans_array_constructor): Compute OWNED_SWEEP and, when set,
+	deallocate the allocatable components of the whole temporary in one
+	sweep.
+
+2026-06-18  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/30438
+	* gfortran.h (gfc_value_set_at): Remove default argument.
+	(gfc_expr_set_at): Add prototype.
+	* interface.cc (gfc_compare_actual_formal): Use gfc_expr_set_at.
+	* intrinsic.cc (mark_args_as_used): Likewise.
+	* io.cc (resolve_tag): Likewise.
+	(gfc_resolve_dt): Likewise.
+	(gfc_resolve_inquire): Likewise.
+	* resolve.cc (resolve_transfer): Likewise.
+	(mark_lhs_assignments_set): Likewise.
+	* symbol.cc (gfc_lvalue_allocated_at): Add comment, fix formatting.
+	(gfc_expr_set_at): New fuction.
+
+2026-06-18  Martin Jambor  <mjambor@suse.cz>
+
+	PR fortran/125860
+	* interface.cc (gfc_procedure_use): Check a->expr is not NULL before
+	calling gfc_value_set_and_used.
+
 2026-06-17  Tobias Burnus  <tburnus@baylibre.com>
 
 	* gfortran.h (struct gfc_omp_udm): Add comment.

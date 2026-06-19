@@ -1,3 +1,39 @@
+2026-06-18  Milan Tripkovic  <Milan.Tripkovic@rt-rk.com>
+
+	PR target/125405
+	* gcc.dg/pr125405-bitint.c: New test.
+	* gcc.dg/tree-ssa/pr125405.c: New test.
+	* gcc.target/riscv/pr125405.c: New test.
+
+2026-06-18  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	* gcc.target/riscv/test-equal.c: New test.
+
+2026-06-18  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/125535
+	* gfortran.dg/asan/implied_do_alloc_comp_leak_1.f90: New test.
+
+2026-06-18  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/30438
+	* gfortran.dg/warn_unused_but_set_variable_2.f90: New test.
+
+2026-06-18  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	PR tree-optimization/125872
+	* gcc.dg/torture/pr125872.c: New test.
+
+2026-06-18  Andrew MacLeod  <amacleod@redhat.com>
+
+	PR tree-optimization/125854
+	* g++.dg/pr125854.C: New.
+
+2026-06-18  Martin Jambor  <mjambor@suse.cz>
+
+	PR ipa/124128
+	* gcc.dg/ipa/pr124128.c: New test.
+
 2026-06-17  Robert Dubner  <rdubner@symas.com>
 
 	* cobol.dg/group2/258_Nested_PERFORM.cob: Removed.

@@ -1,3 +1,239 @@
+2026-06-18  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* accessibility.ads (Apply_Accessibility_Check_For_Allocator):
+	Rename to...
+	(Apply_Accessibility_Check_For_Class_Wide_Allocator): ...this.
+	(Apply_Accessibility_Check_For_Discriminated_Allocator): New.
+	* accessibility.adb (Apply_Accessibility_Check_For_Allocator):
+	Rename to...
+	(Apply_Accessibility_Check_For_Class_Wide_Allocator): ...this.
+	Call Duplicate_Subexpr directly instead of reimplementing it.
+	(Apply_Accessibility_Check_For_Discriminated_Allocator): New.
+	(Apply_Accessibility_Check_For_Discriminated_Return): Streamline.
+	(Apply_Accessibility_Check_For_Return): Tweak comments.
+	* exp_ch4.adb (Expand_Allocator_Expression): Call
+	Apply_Accessibility_Check_For_Discriminated_Allocator and
+	adjust calls to Apply_Accessibility_Check_For_Allocator.
+	(Expand_N_Allocator): Likewise.
+
+2026-06-18  Piotr Trojanek  <trojanek@adacore.com>
+
+	* sem_util.adb (Is_OK_Modifies_Context): Accept references in Modifies
+	clauses.
+
+2026-06-18  Piotr Trojanek  <trojanek@adacore.com>
+
+	* aspects.ads (Aspect_Id, Implementation_Defined_Aspect,
+	Aspect_Argument, Is_Representation_Aspect, Aspect_Names, Aspect_Delay):
+	Add new aspect and its basic characteristics.
+	* contracts.adb (Add_Contract_Item,
+	Analyze_Entry_Or_Subprogram_Contract,
+	Analyze_Entry_Or_Subprogram_Body_Contract,
+	Analyze_Subprogram_Body_Stub_Contract): Handle new aspect.
+	* contracts.ads (Add_Contract_Item,
+	Analyze_Entry_Or_Subprogram_Contract,
+	Analyze_Entry_Or_Subprogram_Body_Contract,
+	Analyze_Subprogram_Body_Stub_Contract): Likewise.
+	* doc/gnat_rm/implementation_defined_aspects.rst (Aspect Modifies):
+	Document new aspect.
+	* doc/gnat_rm/implementation_defined_pragmas.rst (Pragma Modifies):
+	Document corresponding pragma.
+	* einfo-utils.adb
+	(Get_Pragma): Handle new pragma
+	* einfo-utils.ads
+	(Get_Pragma): Likewise.
+	* inline.adb (Remove_Aspects_And_Pragmas): Handle new pragma.
+	* par-ch13.adb (P_Modifies_Specification): Parse special aspect syntax.
+	(Get_Aspect_Specifications): Parse new aspect.
+	* par-prag.adb (Prag): Temporarily accept new pragma.
+	* sem_ch12.adb (Implementation of Generic Contracts): Update list of
+	supported contracts.
+	* sem_ch13.adb (Analyze_One_Aspect, Analyze_Aspect_Specifications,
+	Check_Aspect_At_Freeze_Point): Analyze new aspect.
+	* sem_ch8.adb (In_Abstract_View_Pragma): Abstract states can appear in
+	new contract.
+	* sem_prag.adb (Contract_Freeze_Error, Ensure_Aggregate_Form): Update
+	list of supported contracts.
+	(Analyze_Modifies_In_Decl_Part, Analyze_Pragma): Analyze new pragma.
+	(Sig_Flags): Support new pragma.
+	* sem_prag.ads (Aspect_Specifying_Pragma, Assertion_Expression_Pragma,
+	Pragma_Significant_To_Subprograms, Find_Related_Declaration_Or_Body):
+	Handle new pragma.
+	(Analyze_Modifies_In_Decl_Part): Analyze new pragma.
+	* sem_util.adb, sem_util.ads (Is_Subprogram_Contract_Annotation):
+	Handle new contract.
+	* sinfo.ads (Is_Generic_Contract_Pragma, Contract): New contract is
+	a generic contract.
+	* snames.ads-tmpl: New contract name and new pragma.
+	* gnat_rm.texi: Regenerate.
+
+2026-06-18  Piotr Trojanek  <trojanek@adacore.com>
+
+	* doc/gnat_rm/implementation_defined_pragmas.rst
+	(Subprogram_Variant): Refill paragraph.
+	* sem_prag.adb (Analyze_Exceptional_Cases_In_Decl_Part): Fix header.
+	* gnat_rm.texi: Regenerate.
+
+2026-06-18  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* sem_util.ads (Get_Pool_Object_Or_Dereference): New function.
+	* sem_util.adb (Get_Pool_Object_Or_Dereference): Likewise, mostly
+	taken from...
+	* sem_ch13.adb (Analyze_Attribute_Definition_Clause) <Object_From>:
+	...here.
+	<Attribute_Storage_Pool>: Call Get_Pool_Object_Or_Dereference.
+	* exp_ch3.adb (Freeze_Type): Add missing checks of RM 13.11.4(24-27)
+	and apply them to all regular pools not statically descendants from
+	Root_Storage_Pool_With_Subpools when its unit has been loaded.
+
+2026-06-18  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* exp_ch4.adb (Expand_N_Type_Conversion): Do not apply again static
+	accessibility checks in instance bodies.
+	* sem_res.adb (Valid_Conversion): Insert the raise statements for
+	the failure of static accessibility checks in instance bodies.
+
+2026-06-18  Ronan Desplanques  <desplanques@adacore.com>
+	    Mathias Aparicio  <aparicio@adacore.com>
+
+	* gen_il-fields.ads (Declared_In_Package_Body): New field.
+	(Scope): Rename into...
+	(Scope_Gen_IL_Private): ...this.
+	* einfo-utils.ads (Scope, Set_Scope): New subprograms.
+	* einfo-utils.adb (Set_Scope): New subprogram.
+	* einfo.ads (In_Package_Body): Update documentation.
+	(Declared_In_Package_Body): Add documentation.
+	(Is_Package_Body_Entity): Remove.
+	* fe.h (Scope): New macro.
+	* gen_il-gen-gen_entities.adb (Gen_Entities): New field.
+	New contract. Remove Sm (Is_Package_Body_Entity).
+	* gen_il-gen-gen_nodes.adb (Gen_Nodes): Adapt to renaming.
+	* gen_il-gen.adb (Compute_Field_Offsets): Adapt to renaming.
+	* gen_il-internals.adb (Image): Adapt to renaming.
+	* lib-load.adb, lib.adb: Add with clauses.
+	* sem_ch3.adb (Analyze_Object_Declaration): Remove field update.
+	* sem_ch6.adb (Enter_Overloaded_Entity): Likewise.
+	* sem_util.adb (Collect_Primitive_Operations): Use new field.
+	(Enter_Name): Replace Is_Package_Body_Entity with
+	Declared_In_Package_Body.
+	* treepr.adb (Image): Add F_Scope_Gen_IL_Private alternative
+	that returns Scope.
+	* exp_dbug.adb (Is_BNPE): Replace Is_Package_Body_Entity with
+	Declared_In_Package_Body.
+	* sem_ch12.adb (Check_Generic_Actuals): Likewise.
+	* sem_warn.adb (Generic_Package_Spec_Entity): Likewise.
+	* sem_ch7.adb (Analyze_Package_Body_Helper): Replace
+	Set_Is_Package_Body_Entity with Set_Declared_In_Package_Body.
+
+2026-06-18  Viljar Indus  <indus@adacore.com>
+
+	* sem_disp.adb (Warn_On_Late_Primitive_After_Private_Extension):
+	apply warning character correctly.
+
+2026-06-18  Viljar Indus  <indus@adacore.com>
+
+	* sem_elab.adb (Output_Calls): Apply correct warning
+	characeter for each continuation message.
+	(Check_Internal_Call_Continue): Use regular warning
+	character in error messages.
+
+2026-06-18  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* accessibility.adb (Accessibility_Level): Also deal with SAOOAAATs
+	without extra accessibility object alongside formal parameters.
+	(Check_Return_Construct_Accessibility): Streamline the error message
+	and adjust it to expression functions.
+	* exp_ch4.adb (Expand_Allocator_Expression): Do not perform a static
+	accessibility check here.
+	* sem_res.adb (Resolve_Allocator): Streamline the implementation of
+	the static accessibility check of RM 4.8(5.3), use a more consistent
+	error message, adjust it to instantiation bodies, and specifically
+	deal with formal parameters.
+
+2026-06-18  Ronan Desplanques  <desplanques@adacore.com>
+
+	* exp_attr.adb (Skip_Non_Source_Subps): Move before local object
+	declarations and add formals.
+	(Build): Move before local object declarations.
+	(Find_Insertion_Point_For_Ancestor): New local function.
+	(Build_And_Insert_Type_Attr_Subp): Use new function.
+
+2026-06-18  Piotr Trojanek  <trojanek@adacore.com>
+
+	* sem_attr.adb (Uneval_Old_Msg): Attribute Old never occurs outside of
+	a pragma.
+	* sem_ch13.adb (Analyze_One_Aspect): Attach expression copy of a
+	class-wide aspect to the corresponding pragma.
+	* sem_prag.adb (Analyze_Pre_Post_Condition): Likewise for a class-wide
+	pragma.
+
+2026-06-18  Viljar Indus  <indus@adacore.com>
+
+	* rtsfind.adb (Maybe_Add_With): Fix skipping implicit
+	withs when only an ignored implicit with exists.
+
+2026-06-18  Marc Poulhiès  <poulhies@adacore.com>
+
+	* sprint.ads (Sprint_Indented_List): Adjust comment.
+
+2026-06-18  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* sem_ch12.adb (Analyze_Generic_Package_Declaration): Do not set the
+	Body_Needed_For_Inlining flag on the current semantic unit if the
+	package is declared within an instance or does not require a body.
+	(Analyze_Generic_Subprogram_Declaration): Similarly, do not set the
+	Body_Needed_For_Inlining flag on the current semantic unit if the
+	subprogram is declared within an instance.
+
+2026-06-18  Javier Miranda  <miranda@adacore.com>
+
+	* exp_ch4.adb (Expand_N_Allocator): For a class-wide designated
+	type with a constructor initializer, add a type conversion to
+	the specific type to avoid a dispatching call (since contructors
+	are not dispatching primitives).
+	* sem_ch13.adb (Analyze_Aspect_Specifications)
+	<Aspect_Initialize>: Avoid reporting a spurious error.
+
+2026-06-18  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* accessibility.ads (Check_Return_Construct_Accessibility): Document
+	that it also implements the 6.8(5) rule.
+	* accessibility.adb (Accessibility_Message): Remove dead return.
+	(Apply_Accessibility_Check_For_Anonymous_Return): Do not apply the
+	static check of 6.5(5.9) here.
+	(Check_Return_Construct_Accessibility): Do not use "return object"
+	in the error message.  Do not reject synthesized return statements
+	when the function comes from source to handle expression funtions.
+	Robustify processing and explicitly deal with formal parameters.
+
+2026-06-18  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* sem_ch12.adb (Build_Structural_Instantiation): Temporarily disable
+	registration of tagged types when analyzing the instantiation.
+
+2026-06-18  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* libgnat/a-cbinho.adb (Clear): Deallocate the subpool even if the
+	container is empty.
+
+2026-06-18  Viljar Indus  <indus@adacore.com>
+
+	* restrict.adb (Process_Restriction_Synonyms): Fix continuation
+	message.
+	* sem_prag.adb (Analyze_Pragma): Likewise.
+
+2026-06-18  Javier Miranda  <miranda@adacore.com>
+
+	* sem_attr.adb (Analyze_Attribute): Report an error when the number
+	of actual parameters for a constructor do not match any available
+	constructor.
+	* exp_ch6.adb (Make_Init_Proc_Call): Add the _Init_Level accessibility
+	level formal when building a call to the init proc of a limited record
+	type.
+	(Prepend_Constructor_Procedure_Prologue): Restrict the initialization
+	of the _parent component to cases where a Super aspect is present
+	or a parameterless parent constructor exists.
+
 2026-06-09  Eric Botcazou  <ebotcazou@adacore.com>
 
 	PR ada/125695

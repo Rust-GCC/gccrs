@@ -1,3 +1,26 @@
+2026-06-18  Robert Dubner  <rdubner@symas.com>
+
+	* cbldiag.h (current_program_index): Suppress cppcheck warning.
+	(struct cbl_loc_t): Likewise.
+	* genutil.cc (get_depending_on_value_from_odo): Check subscript
+	against occurs-depending-on value.
+	(get_data_offset): Likewise.
+	(digit): Fast string-to-binary routine.
+	(num_disp_dive): Likewise.
+	(get_binary_value_tree): Likewise.
+	(copy_little_endian_into_place): Move the function to move.cc.
+	(get_location): Normalize use of "data" pointer versus using the
+	address of a known variable.
+	* genutil.h (copy_little_endian_into_place): Remove declarations.
+	* move.cc (get_reference_to_data): Eliminate function.
+	(mh_identical): Simplify the logic that uses get_location.
+	(copy_little_endian_into_place):  Use the routine for both little-
+	and big-endian targets.  Take absolute value of signed inputs when
+	the target is unsigned.
+	(mh_little_endian): Handle both little- and big-endian targets.
+	* symbols.cc (cbl_alphabet_t::cbl_alphabet_t):  Suppress
+	cppcheck warning.
+
 2026-06-16  Robert Dubner  <rdubner@symas.com>
 
 	* compare.cc (numeric_alpha_compare): Use tree_type_from_refer().
