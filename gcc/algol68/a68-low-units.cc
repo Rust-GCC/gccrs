@@ -1133,8 +1133,7 @@ collect_call_arguments (NODE_T *p, vec<tree, va_gc> *args, LOW_CTX_T ctx)
 	  /* In Algol 68 parameters are passed via an identity declaration, so
 	     this must implement same semantics.  */
 	  tree arg = a68_lower_tree (p, ctx);
-	  if (HAS_ROWS (MOID (p)))
-	    arg = a68_low_dup (arg);
+	  arg = a68_low_dup (arg);
 	  arg = a68_consolidate_ref (MOID (p), arg);
 	  args->quick_push (arg);
 	}

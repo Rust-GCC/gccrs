@@ -1137,8 +1137,7 @@ a68_lower_collateral_clause (NODE_T *p ATTRIBUTE_UNUSED,
 	  for (tree_stmt_iterator si = tsi_start (units); !tsi_end_p (si); tsi_next (&si))
 	    {
 	      tree unit = tsi_stmt (si);
-	      if (A68_TYPE_HAS_ROWS_P (TREE_TYPE (unit)))
-		unit = a68_low_dup (unit);
+	      unit = a68_low_dup (unit);
 	      CONSTRUCTOR_APPEND_ELT (ve, size_int (num_units), unit);
 	      num_units += 1;
 	    }
