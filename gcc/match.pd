@@ -5091,6 +5091,29 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
         (op @0 { build_int_cst (TREE_TYPE (@1), prec - 1); })))
       (op @0 { build_int_cst (TREE_TYPE (@1), low); })))))))
 
+/* Fold x | (x >> (TYPE_PRECISION (type) - 1)) to max (x, -1)
+   Fold x | (~ (x >> (TYPE_PRECISION (type) - 1))) to min (x, -1)
+   Fold x & (x >> (TYPE_PRECISION (type) - 1)) to min (x, 0)
+   Fold x & (~ (x >> (TYPE_PRECISION (type) - 1))) to max (x, 0)
+*/
+#ifdef GIMPLE
+(for bitop (bit_ior bit_and)
+     result (max min)
+     rresult (min max)
+ (simplify
+  (bitop:c @0 (rshift @0 INTEGER_CST@1))
+  (if (INTEGRAL_TYPE_P (type)
+       && !TYPE_UNSIGNED (type)
+       && wi::eq_p (wi::to_wide (@1), TYPE_PRECISION (type) - 1))
+   (result @0 { build_int_cst (type, bitop == BIT_IOR_EXPR ? -1 : 0); })))
+ (simplify
+  (bitop:c @0 (bit_not (rshift @0 INTEGER_CST@1)))
+  (if (INTEGRAL_TYPE_P (type)
+       && !TYPE_UNSIGNED (type)
+       && wi::eq_p (wi::to_wide (@1), TYPE_PRECISION (type) - 1))
+   (rresult @0 { build_int_cst (type, bitop == BIT_IOR_EXPR ? -1 : 0); }))))
+#endif
+
 /* Fold `1 >> a` into `a == 0` for scalar integral types. */
 (simplify
  (rshift integer_onep @2)
