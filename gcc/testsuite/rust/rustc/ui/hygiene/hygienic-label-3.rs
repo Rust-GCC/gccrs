@@ -1,0 +1,10 @@
+macro_rules! foo {
+    () => { break 'x; } // { dg-error ".E0426." "" { target *-*-* } }
+}
+
+pub fn main() {
+    'x: for _ in 0..1 {
+        foo!()
+    };
+}
+

@@ -1,0 +1,31 @@
+// This note is annotated because the purpose of the test
+// is to ensure that certain other notes are not generated.
+#![deny(unused_unsafe)] // { dg-note "" "" { target *-*-* } }
+
+
+// (test that no note is generated on this unsafe fn)
+pub unsafe fn a() {
+    fn inner() {
+        unsafe { /* unnecessary */ } // { dg-error "" "" { target *-*-* } }
+// { dg-note "" "" { target *-*-* } .-1 }
+    }
+
+    inner()
+}
+
+pub fn b() {
+    // (test that no note is generated on this unsafe block)
+    unsafe {
+        fn inner() {
+            unsafe { /* unnecessary */ } // { dg-error "" "" { target *-*-* } }
+// { dg-note "" "" { target *-*-* } .-1 }
+        }
+        // `()` is fine to zero-initialize as it is zero sized and inhabited.
+        let () = ::std::mem::zeroed();
+
+        inner()
+    }
+}
+
+fn main() {}
+
