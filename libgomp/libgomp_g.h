@@ -51,6 +51,8 @@ extern void GOMP_critical_start (void);
 extern void GOMP_critical_end (void);
 extern void GOMP_critical_name_start (void **);
 extern void GOMP_critical_name_end (void **);
+extern void GOMP_reduction_start (void);
+extern void GOMP_reduction_end (void);
 
 /* loop.c */
 

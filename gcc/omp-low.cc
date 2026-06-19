@@ -8000,8 +8000,9 @@ lower_reduction_clauses (tree clauses, gimple_seq *stmt_seqp,
 	}
     }
 
-  stmt = gimple_build_call (builtin_decl_explicit (BUILT_IN_GOMP_ATOMIC_START),
-			    0);
+  stmt
+    = gimple_build_call (builtin_decl_explicit (BUILT_IN_GOMP_REDUCTION_START),
+			 0);
   gimple_seq_add_stmt (stmt_seqp, stmt);
 
   gimple_seq_add_seq (stmt_seqp, sub_seq);
@@ -8012,7 +8013,7 @@ lower_reduction_clauses (tree clauses, gimple_seq *stmt_seqp,
       *clist = NULL;
     }
 
-  stmt = gimple_build_call (builtin_decl_explicit (BUILT_IN_GOMP_ATOMIC_END),
+  stmt = gimple_build_call (builtin_decl_explicit (BUILT_IN_GOMP_REDUCTION_END),
 			    0);
   gimple_seq_add_stmt (stmt_seqp, stmt);
 }
@@ -8716,11 +8717,11 @@ lower_omp_sections (gimple_stmt_iterator *gsi_p, omp_context *ctx)
 			   &clist, ctx);
   if (clist)
     {
-      tree fndecl = builtin_decl_explicit (BUILT_IN_GOMP_ATOMIC_START);
+      tree fndecl = builtin_decl_explicit (BUILT_IN_GOMP_REDUCTION_START);
       gcall *g = gimple_build_call (fndecl, 0);
       gimple_seq_add_stmt (&olist, g);
       gimple_seq_add_seq (&olist, clist);
-      fndecl = builtin_decl_explicit (BUILT_IN_GOMP_ATOMIC_END);
+      fndecl = builtin_decl_explicit (BUILT_IN_GOMP_REDUCTION_END);
       g = gimple_build_call (fndecl, 0);
       gimple_seq_add_stmt (&olist, g);
     }
@@ -8995,11 +8996,11 @@ lower_omp_scope (gimple_stmt_iterator *gsi_p, omp_context *ctx)
 			   &bind_body, &clist, ctx);
   if (clist)
     {
-      tree fndecl = builtin_decl_explicit (BUILT_IN_GOMP_ATOMIC_START);
+      tree fndecl = builtin_decl_explicit (BUILT_IN_GOMP_REDUCTION_START);
       gcall *g = gimple_build_call (fndecl, 0);
       gimple_seq_add_stmt (&bind_body, g);
       gimple_seq_add_seq (&bind_body, clist);
-      fndecl = builtin_decl_explicit (BUILT_IN_GOMP_ATOMIC_END);
+      fndecl = builtin_decl_explicit (BUILT_IN_GOMP_REDUCTION_END);
       g = gimple_build_call (fndecl, 0);
       gimple_seq_add_stmt (&bind_body, g);
     }
@@ -11952,11 +11953,11 @@ lower_omp_for (gimple_stmt_iterator *gsi_p, omp_context *ctx)
 
   if (clist)
     {
-      tree fndecl = builtin_decl_explicit (BUILT_IN_GOMP_ATOMIC_START);
+      tree fndecl = builtin_decl_explicit (BUILT_IN_GOMP_REDUCTION_START);
       gcall *g = gimple_build_call (fndecl, 0);
       gimple_seq_add_stmt (&body, g);
       gimple_seq_add_seq (&body, clist);
-      fndecl = builtin_decl_explicit (BUILT_IN_GOMP_ATOMIC_END);
+      fndecl = builtin_decl_explicit (BUILT_IN_GOMP_REDUCTION_END);
       g = gimple_build_call (fndecl, 0);
       gimple_seq_add_stmt (&body, g);
     }

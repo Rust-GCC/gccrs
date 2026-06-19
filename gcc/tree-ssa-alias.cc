@@ -2807,6 +2807,8 @@ check_fnspec (gcall *call, ao_ref *ref, bool clobber)
 #undef DEF_SYNC_BUILTIN
       case BUILT_IN_GOMP_ATOMIC_START:
       case BUILT_IN_GOMP_ATOMIC_END:
+      case BUILT_IN_GOMP_REDUCTION_START:
+      case BUILT_IN_GOMP_REDUCTION_END:
       case BUILT_IN_GOMP_BARRIER:
       case BUILT_IN_GOMP_BARRIER_CANCEL:
       case BUILT_IN_GOMP_TASKWAIT:

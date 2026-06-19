@@ -48,6 +48,18 @@ GOMP_atomic_end (void)
   gomp_mutex_unlock (&atomic_lock);
 }
 
+void
+GOMP_reduction_start (void)
+{
+  gomp_mutex_lock (&atomic_lock);
+}
+
+void
+GOMP_reduction_end (void)
+{
+  gomp_mutex_unlock (&atomic_lock);
+}
+
 #if !GOMP_MUTEX_INIT_0
 static void __attribute__((constructor))
 initialize_atomic (void)
