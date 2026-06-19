@@ -613,6 +613,8 @@ extern int gomp_debug_var;
 extern bool gomp_display_affinity_var;
 extern char *gomp_affinity_format_var;
 extern size_t gomp_affinity_format_len;
+extern int gomp_get_current_numa_node ();
+extern int gomp_get_numa_distance (int, int);
 extern uintptr_t gomp_def_allocator;
 extern const struct gomp_default_icv gomp_default_icv_values;
 extern struct gomp_icv_list *gomp_initial_icv_list;
@@ -1446,6 +1448,7 @@ struct gomp_device_descr
   /* Function handlers.  */
   __typeof (GOMP_OFFLOAD_get_name) *get_name_func;
   __typeof (GOMP_OFFLOAD_get_uid) *get_uid_func;
+  __typeof (GOMP_OFFLOAD_get_numa_node) *get_numa_node_func;
   __typeof (GOMP_OFFLOAD_get_caps) *get_caps_func;
   __typeof (GOMP_OFFLOAD_get_type) *get_type_func;
   __typeof (GOMP_OFFLOAD_get_num_devices) *get_num_devices_func;

@@ -1740,6 +1740,7 @@ They have C linkage and do not throw exceptions.
 @c * omp_set_device_num_teams::  <fixme>/TR13
 @c * omp_get_device_teams_thread_limit::  <fixme>/TR13
 @c * omp_set_device_teams_thread_limit::  <fixme>/TR13
+* omp_get_device_distances:: Obtain the NUMA distance of a device
 @end menu
 
 
@@ -2015,6 +2016,55 @@ to @code{omp_initial_device}; and otherwise it is replaced with a call to
 
 @item @emph{Reference}:
 @uref{https://www.openmp.org, OpenMP specification v4.5}, Section 3.2.35.
+@end table
+
+
+@node omp_get_device_distances
+@subsection @code{omp_get_device_distances} -- Obtain the NUMA distance of a device
+@table @asis
+@item @emph{Description}:
+The routine takes two arrays, @var{devs} and @var{distances}, that have at least
+the size @var{ndevs}.  For each element of @var{devs}, the corresponding element
+of @var{distances} is set to an implementation-defined non-negative distance
+between the place on which the routine was invoked and the device number
+specified in @var{devs}. For the host device, the distance is zero.
+
+The routine must be executed on the host device and all values of @var{devs}
+must be conforming devices numbers other than @code{omp_invalid_device}.
+
+In GCC the distance is the value returned by the operating system for the
+NUMA distance between the node on which the routine was executed and the node
+to which the device is attached to. There are two exceptions: As required by
+the specification, for the host device @code{0} is returned.  Additionally,
+when either the operating system reports a negative number or when GCC runtime
+cannot obtain the distance, the fixed value @code{10} is returned.  The former
+is in particular the case when the system is virtualized.  The values the
+operating system returns are usually based on the SLIT (System Locality Distance
+Information Table) of ACPI (Advanced Configuration and Power Interface) and have
+values between @code{10} and @code{254}.  If an invalid device number is
+specified, GCC returns @code{-1}.
+
+Fortran note: In GCC, this routine does not support passing default-kind integer
+arguments with @code{-fdefault-integer-8}.
+
+@item @emph{C/C++}
+@multitable @columnfractions .20 .80
+@item @emph{Prototype}: @tab @code{void omp_get_device_distances (int ndevs, const int *devs, int *distances)}
+@end multitable
+
+@item @emph{Fortran}:
+@multitable @columnfractions .20 .80
+@item @emph{Interface}: @tab @code{subroutine omp_get_device_distances (ndevs, devs, distances)}
+@item                   @tab @code{integer, intent(in) :: ndevs, devs(*)}
+@item                   @tab @code{integer, intent(out) :: distances(*)}
+@end multitable
+
+@item @emph{See also}:
+@ref{omp_get_num_devices}
+
+@item @emph{Reference}:
+@c TODO: Update once OpenMP 6.1 is released
+@uref{https://www.openmp.org, OpenMP specification Technical Report 15}, Section 3.16
 @end table
 
 

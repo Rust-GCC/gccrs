@@ -328,6 +328,7 @@ struct ptx_device
   int warp_size;
   int max_threads_per_block;
   int max_threads_per_multiprocessor;
+  int numa_node;
   int default_dims[GOMP_DIM_MAX];
 
   /* Length as used by the CUDA Runtime API ('struct cudaDeviceProp').  */
@@ -1338,6 +1339,48 @@ GOMP_OFFLOAD_get_uid (int ord)
 	   (unsigned char) s.bytes[12], (unsigned char) s.bytes[13],
 	   (unsigned char) s.bytes[14], (unsigned char) s.bytes[15]);
   return str;
+}
+
+/* Return the NUMA node of the GPU identified by ORD; returns -1 when
+   an error occurred; this value might also be returned if on
+   virtualized systems.
+   The implementation assumes that the Linux /sys is available.  */
+
+int
+GOMP_OFFLOAD_get_numa_node (int ord)
+{
+  CUresult r = CUDA_ERROR_NOT_FOUND;
+  char bus_id[14] = {};
+  struct ptx_device *dev = ptx_devices[ord];
+
+  /* Initialized to 0; to distinguish, save with offset.  */
+  if (dev->numa_node != 0)
+    return dev->numa_node > 0 ? dev->numa_node - 1 : dev->numa_node;
+
+  dev->numa_node = -1;
+
+  if (CUDA_CALL_EXISTS (cuDeviceGetPCIBusId))
+    r = CUDA_CALL_NOCHECK (cuDeviceGetPCIBusId, bus_id, sizeof (bus_id)-1,
+			   dev->dev);
+  if (bus_id[0] == '\0' || r != CUDA_SUCCESS)
+    return -1;
+
+  constexpr int len = (sizeof("/sys/bus/pci/devices//numa_node")
+		       + sizeof (bus_id));
+  char filename[len];
+  if (len < snprintf (filename, sizeof (filename),
+		     "/sys/bus/pci/devices/%s/numa_node", bus_id))
+    return -1;
+
+  FILE *in = fopen (filename, "r");
+  if (!in)
+    return -1;
+  int numa_node = -1;
+  fscanf (in, "%d", &numa_node);
+  fclose (in);
+
+  dev->numa_node = numa_node >= 0 ? numa_node + 1 : numa_node;
+  return numa_node;
 }
 
 unsigned int

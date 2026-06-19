@@ -30,12 +30,14 @@
 #endif
 #include "libgomp.h"
 #include "proc.h"
+#include <dirent.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <limits.h>
+#include <sys/syscall.h>
 
 #ifdef HAVE_PTHREAD_AFFINITY_NP
 
@@ -624,3 +626,69 @@ ialias(omp_get_place_proc_ids)
 #include "../../affinity.c"
 
 #endif
+
+static int num_numa_nodes = 0;
+static int *numa_distances = NULL;
+
+int
+gomp_get_current_numa_node ()
+{
+  int node;
+  syscall (SYS_getcpu, NULL /* cpu */, &node, NULL /* no longer used */);
+  return node;
+}
+
+int
+gomp_get_numa_distance (int node1, int node2)
+{
+  if (node1 < 0 || node2 < 0 || num_numa_nodes < 0)
+    return -1;
+
+  if (numa_distances == NULL)
+    {
+      num_numa_nodes = -1;
+      DIR *dir = opendir ("/sys/devices/system/node");
+      if (!dir)
+        return -1;
+      struct dirent *dp;
+      int cnt = 0;
+      errno = 0;
+      while ((dp = readdir(dir)) != NULL)
+	if (strncmp ("node", dp->d_name, 4 /* strlen ("node") */) == 0)
+	  cnt++;
+	else if (errno)
+	  {
+	    closedir (dir);
+	    return -1;
+	  }
+      closedir (dir);
+      numa_distances = (int *) gomp_malloc (sizeof (int) * cnt * cnt);
+
+      constexpr int len = sizeof ("/sys/devices/system/node/node12345/"
+                                  "distance");
+      char filename[len];
+
+      for (int i = 0; i < cnt; i++)
+	{
+	  if (len < snprintf (filename, sizeof (filename),
+			      "/sys/devices/system/node/node%d/distance", i))
+	    return -1;
+	  int distance = -1;
+	  FILE *in = fopen (filename, "r");
+	  for (int j = 0; j < cnt; j++)
+	    {
+	      fscanf (in, "%d", &distance);
+	      if (distance == -1)
+		{
+		  fclose (in);
+		  free (numa_distances);
+		  return -1;
+		}
+	      numa_distances[i * cnt + j] = distance;
+	    }
+	  fclose (in);
+	}
+      num_numa_nodes = cnt;
+    }
+  return numa_distances[node1 * num_numa_nodes + node2];
+}

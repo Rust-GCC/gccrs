@@ -237,6 +237,7 @@ CUresult cuDeviceTotalMem (size_t *, CUdevice);
 CUresult cuDeviceGetAttribute (int *, CUdevice_attribute, CUdevice);
 CUresult cuDeviceGetCount (int *);
 CUresult cuDeviceGetName (char *, int, CUdevice);
+CUresult cuDeviceGetPCIBusId (char *, int, CUdevice);
 CUresult cuEventCreate (CUevent *, unsigned);
 #define cuEventDestroy cuEventDestroy_v2
 CUresult cuEventDestroy (CUevent);

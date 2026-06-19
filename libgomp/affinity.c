@@ -152,5 +152,19 @@ gomp_display_affinity_place (char *buffer, size_t size, size_t *ret,
   gomp_display_string (buffer, size, ret, buf, strlen (buf));
 }
 
+int
+gomp_get_current_numa_node ()
+{
+  return -1;
+}
+
+int
+gomp_get_numa_distance (int node1, int node2)
+{
+  (void) node1;
+  (void) node2;
+  return -1;
+}
+
 ialias(omp_get_place_num_procs)
 ialias(omp_get_place_proc_ids)

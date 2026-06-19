@@ -1071,6 +1071,18 @@
           end function omp_get_uid_from_device_8
         end interface omp_get_uid_from_device
 
+        interface
+          ! This function only supports integer(4) for simplicity.
+          ! Contrary to OpenMP 6.1, it also uses bind(C) and value
+          ! and an explicit-size instead of assumed-size array.
+          subroutine omp_get_device_distances (ndevs, devs, distances) bind(C)
+            use iso_c_binding
+            integer(c_int), value, intent(in) :: ndevs
+            integer(c_int), intent(in) :: devs(ndevs)
+            integer(c_int), intent(out) :: distances(ndevs)
+          end subroutine omp_get_device_distances
+        end interface
+
         interface omp_control_tool
           integer (kind=omp_control_tool_result_kind) function &
               omp_control_tool (command, modifier)
