@@ -11769,6 +11769,10 @@ resolve_transfer (gfc_code *code)
       return;
     }
 
+  if (dt && (dt->dt_io_kind->value.iokind == M_WRITE
+	     || dt->dt_io_kind->value.iokind == M_PRINT))
+    gfc_value_used_expr (exp, VALUE_USED);
+
   if (exp == NULL || (exp->expr_type != EXPR_VARIABLE
 		      && exp->expr_type != EXPR_FUNCTION
 		      && exp->expr_type != EXPR_ARRAY
@@ -11900,10 +11904,6 @@ resolve_transfer (gfc_code *code)
 		 "an assumed-size array", &code->loc);
       return;
     }
-
-  if (dt && (dt->dt_io_kind->value.iokind == M_WRITE
-	     || dt->dt_io_kind->value.iokind == M_PRINT))
-    gfc_value_used_expr (exp, VALUE_USED);
 
 }
 
@@ -21000,7 +21000,12 @@ gfc_resolve (gfc_namespace *ns)
 
   if (warn_unused_but_set_variable || warn_unused_intent_out
       || warn_unused_read || warn_undefined_vars)
-    warn_unused_vs_set (ns);
+    {
+      int error_count;
+      gfc_get_errors (NULL, &error_count);
+      if (error_count == 0)
+	warn_unused_vs_set (ns);
+    }
 
   if (ns->omp_assumes)
     gfc_resolve_omp_assumptions (ns->omp_assumes);

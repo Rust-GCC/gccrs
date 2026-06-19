@@ -3412,6 +3412,8 @@ gfc_resolve_dt (gfc_code *dt_code, gfc_dt *dt, locus *loc)
 
 	  gfc_expr_set_at (e, &e->where, VALUE_VARDEF);
 	}
+      else
+	gfc_value_used_expr (e, VALUE_USED);
     }
 
   if (e->rank && e->ts.type != BT_CHARACTER)
