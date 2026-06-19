@@ -5053,6 +5053,17 @@ pass_x86_cse::x86_cse (void)
 		    rtvec v = rtvec_alloc (nunits);
 		    for (int j = 0; j < nunits ; j++)
 		      RTVEC_ELT (v, j) = load->val;
+		    if (CONST_INT_P (load->val)
+			&& GET_MODE_CLASS (mode) != MODE_VECTOR_INT)
+		      {
+			gcc_assert (load->size <= UNITS_PER_WORD);
+			machine_mode imode = GET_MODE_INNER (mode);
+			class scalar_mode i_mode
+			  = int_mode_for_mode (imode).require ();
+			mode = mode_for_vector (i_mode,
+						nunits).require ();
+		      }
+
 		    broadcast_source = gen_rtx_CONST_VECTOR (mode, v);
 		  }
 
