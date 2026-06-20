@@ -529,7 +529,7 @@ avr_cpu_cpp_builtins (cpp_reader *pfile)
 	    && avr_addr_space_supported_p ((addr_space_t) i))
 	  {
 	    const char *name = avr_addrspace[i].name;
-	    char *Name = (char*) alloca (1 + strlen (name));
+	    char *Name = XALLOCAVEC (char, 1 + strlen (name));
 
 	    cpp_define (pfile, avr_toupper (Name, name));
 	  }

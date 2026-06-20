@@ -348,7 +348,7 @@ avr_log_set_avr_log (void)
     {
       /* Adding , at beginning and end of string makes searching easier.  */
 
-      char *str = (char*) alloca (3 + strlen (avropt_log_details));
+      char *str = XALLOCAVEC (char, 3 + strlen (avropt_log_details));
       bool info;
 
       str[0] = ',';

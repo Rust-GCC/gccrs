@@ -16529,7 +16529,7 @@ avr_init_builtins (void)
   {									\
     int id = AVR_BUILTIN_ ## NAME;					\
     const char *Name = "__builtin_avr_" #NAME;				\
-    char *name = (char *) alloca (1 + strlen (Name));			\
+    char *name = XALLOCAVEC (char, 1 + strlen (Name));			\
 									\
     gcc_assert (id < AVR_BUILTIN_COUNT);				\
     avr_bdesc[id].fndecl						\
