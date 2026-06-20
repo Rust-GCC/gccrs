@@ -11977,9 +11977,6 @@ avr_pgm_check_var_decl (tree node)
 
   gcc_assert (as == 0);
 
-  if (avr_log.progmem)
-    avr_edump ("%?: %t\n", node);
-
   switch (TREE_CODE (node))
     {
     default:
@@ -12082,6 +12079,10 @@ avr_attrs_section_name (tree attrs)
 static void
 avr_insert_attributes (tree node, tree *attributes)
 {
+  if (avr_log.insert_attributes)
+    if (TREE_CODE (node) != FUNCTION_DECL || !fndecl_built_in_p (node))
+      avr_edump ("%?:\n%N\n", node);
+
   if (VAR_P (node)
       && ! TREE_STATIC (node)
       && ! DECL_EXTERNAL (node))

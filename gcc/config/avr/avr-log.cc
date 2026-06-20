@@ -48,6 +48,7 @@
   T: tree (brief)
   C: enum rtx_code
   m: machine_mode
+  N: tree node (recursive, brief)
   R: enum reg_class
   L: insn list
   H: location_t
@@ -99,6 +100,67 @@ avr_vdump (FILE *stream, const char *caller, ...)
   va_end (ap);
 
   return 1;
+}
+
+
+/* %N: Brief dump of a node, but still displaying its structure.  */
+
+static void
+avr_log_node (FILE *file, tree node, int tab, const char *tag = nullptr)
+{
+  tab += 3;
+
+  auto code = TREE_CODE (node);
+
+  fprintf (file, "%*s", tab, "");
+
+  print_node_brief (file, "", node, 0);
+  if (tag)
+    fprintf (file, " %s", tag);
+  if (DECL_P (node) && DECL_ARTIFICIAL (node))
+    fprintf (file, " artificial");
+  if (code == VAR_DECL || code == PARM_DECL || code == FIELD_DECL)
+    if (TREE_READONLY (node))
+      fprintf (file, " read-only");
+  if (TYPE_P (node) && TYPE_READONLY (node))
+    fprintf (file, " read-only");
+
+  fprintf (file, "\n");
+
+  switch (code)
+    {
+    case FUNCTION_DECL:
+      avr_log_node (file, TREE_TYPE (TREE_TYPE (node)), tab, "return");
+      for (tree p = DECL_ARGUMENTS (node); p; p = DECL_CHAIN (p))
+	avr_log_node (file, p, tab);
+      break;
+
+    case FUNCTION_TYPE:
+    case METHOD_TYPE:
+      avr_log_node (file, TREE_TYPE (node), tab, "return");
+      for (tree p = TYPE_ARG_TYPES (node); p; p = TREE_CHAIN (p))
+	avr_log_node (file, TREE_VALUE (p), tab);
+      break;
+
+    case RECORD_TYPE:
+    case UNION_TYPE:
+    case QUAL_UNION_TYPE:
+      for (tree el = TYPE_FIELDS (node); el; el = DECL_CHAIN (el))
+	if (TREE_CODE (el) == FIELD_DECL)
+	  avr_log_node (file, el, tab);
+      break;
+
+    case ARRAY_TYPE:
+    case POINTER_TYPE:
+    case REFERENCE_TYPE:
+      avr_log_node (file, TREE_TYPE (node), tab);
+      break;
+
+    default:
+      if (DECL_P (node))
+	avr_log_node (file, TREE_TYPE (node), tab);
+      break;
+    }
 }
 
 
@@ -158,6 +220,16 @@ avr_log_vadump (FILE *file, const char *caller, va_list ap)
 		  fprintf (file, "<NULL-TREE>");
 		else
 		  print_node_brief (file, "", t, 3);
+	      }
+	      break;
+
+	    case 'N':
+	      {
+		tree t = va_arg (ap, tree);
+		if (NULL_TREE == t)
+		  fprintf (file, "<NULL-TREE>");
+		else
+		  avr_log_node (file, t, 0);
 	      }
 	      break;
 
@@ -370,6 +442,7 @@ avr_log_set_avr_log (void)
       SET_DUMP_DETAIL (address_cost);
       SET_DUMP_DETAIL (builtin);
       SET_DUMP_DETAIL (constraints);
+      SET_DUMP_DETAIL (insert_attributes);
       SET_DUMP_DETAIL (insn_addresses);
       SET_DUMP_DETAIL (legitimate_address_p);
       SET_DUMP_DETAIL (legitimize_address);
