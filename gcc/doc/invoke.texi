@@ -7405,7 +7405,7 @@ requires an unsigned argument and the argument is signed and vice versa.
 Warn about calls to formatted input/output functions such as @code{snprintf}
 and @code{vsnprintf} that might result in output truncation.  When the exact
 number of bytes written by a format directive cannot be determined at
-compile-time it is estimated based on heuristics that depend on
+compile time it is estimated based on heuristics that depend on
 the @var{level} argument and on optimization.  While enabling optimization
 will in most cases improve the accuracy of the warning, it may also result
 in false positives.  Except as noted otherwise, the option uses the same

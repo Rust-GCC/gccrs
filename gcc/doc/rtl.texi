@@ -2996,7 +2996,7 @@ to do it.
 
 For all conversion operations, @var{x} must not be @code{VOIDmode}
 because the mode in which to do the conversion would not be known.
-The conversion must either be done at compile-time or @var{x}
+The conversion must either be done at compile time or @var{x}
 must be placed into a register.
 
 @table @code

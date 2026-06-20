@@ -16330,7 +16330,7 @@ precision and signedness of the given bit-field, rather than precision and signe
 of the underlying type.
 
 For example, the following macro can be used to portably check, at
-compile-time, whether or not adding two constant integers will overflow,
+compile time, whether or not adding two constant integers will overflow,
 and perform the addition only when it is known to be safe and not to trigger
 a @option{-Woverflow} warning.
 

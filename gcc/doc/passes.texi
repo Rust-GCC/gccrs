@@ -796,7 +796,7 @@ pass is located in @code{tree-nrv.cc} and is described by
 
 This is a propagation pass similar to CCP that tries to remove calls to
 @code{__builtin_object_size} when the upper or lower bound for the size
-of the object can be computed at compile-time.  It also tries to replace
+of the object can be computed at compile time.  It also tries to replace
 calls to @code{__builtin_dynamic_object_size} with an expression that
 evaluates the upper or lower bound for the size of the object.  This
 pass is located in @file{tree-object-size.cc} and is described by
