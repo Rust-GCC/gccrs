@@ -21,11 +21,11 @@ int g;
 __attribute__((noipa))
 int h(bitmap i) {
   c j = *i->d;
-  unsigned k, l = j.b < 4;
+  unsigned k = 0, l = j.b < 4;
   for (; l < 2; l++) {
     long long m = j.bits[l];
     for (; k < 64; k++) {
-      long long n = (long long)1LL << k;
+      long long n = (long long)(1ull << k);
       if (m & n)
         goto o;
     }
@@ -40,8 +40,8 @@ int main() {
 
   check_vect ();
 
-  c a;
-  a.bits[0] = 1ull << 63;
+  c a = { 4, { 0, 0 } };
+  a.bits[0] = -0x7fffffffffffffffLL - 1;
   f.d = &a;
   g = h(&f);
   return g == 0;
