@@ -16421,6 +16421,9 @@ riscv_memtag_tag_bitsize ()
 #undef TARGET_FNTYPE_ABI
 #define TARGET_FNTYPE_ABI riscv_fntype_abi
 
+# undef  TARGET_SETJMP_PRESERVES_NONVOLATILE_REGS_P
+# define TARGET_SETJMP_PRESERVES_NONVOLATILE_REGS_P hook_bool_void_true
+
 #undef TARGET_SHRINK_WRAP_GET_SEPARATE_COMPONENTS
 #define TARGET_SHRINK_WRAP_GET_SEPARATE_COMPONENTS \
   riscv_get_separate_components
