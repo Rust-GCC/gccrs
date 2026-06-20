@@ -28264,4 +28264,163 @@ ix86_expand_gfni_bitreverse (rtx dest, rtx src)
     emit_insn (gen_rtx_SET (dest, gen_rtx_BSWAP (mode, target)));
 }
 
+/* Expand LCP stall or long immediate peephole for INSN.  Use the
+   previous scratch register if possible.  If USE_XOR is true,
+   generate "*movsi_xor".  */
+
+void
+ix86_expand_lcp_stall_peephole (rtx_insn *insn, rtx *operands,
+				bool use_xor)
+{
+  rtx imm, scratch;
+  machine_mode mode = GET_MODE (operands[0]);
+
+  /* Get the immediate operand and the allocated scratch register.  */
+  if (use_xor)
+    {
+      imm = const0_rtx;
+      scratch = operands[1];
+    }
+  else
+    {
+      imm = operands[1];
+      scratch = operands[2];
+    }
+
+  df_ref def;
+  rtx_insn *prev, *prev_insn = nullptr;
+  rtx set, prev_scratch = nullptr;
+
+  /* Scan backward for the previous scratch register def with IMM in
+     the same basic block.  */
+  basic_block bb = BLOCK_FOR_INSN (insn);
+  for (prev = PREV_INSN (insn);
+       prev != BB_HEAD (bb);
+       prev = PREV_INSN (prev))
+    {
+      if (NONDEBUG_INSN_P (prev))
+	FOR_EACH_INSN_DEF (def, prev)
+	  if (!DF_REF_IS_ARTIFICIAL (def)
+	      && !DF_REF_FLAGS_IS_SET (def, DF_REF_MAY_CLOBBER)
+	      && !DF_REF_FLAGS_IS_SET (def, DF_REF_MUST_CLOBBER))
+	    {
+	      rtx reg = DF_REF_REG (def);
+	      if (HARD_REGISTER_P (reg) && REGNO (reg) != FLAGS_REG)
+		{
+		  set = single_set (prev);
+		  if (!set)
+		    continue;
+
+		  rtx dest = SET_DEST (set);
+
+		  /* Reject DEST if a register is not wide enough to
+		     supply MODE or invalid for QImode.  */
+		  if (!REG_P (dest)
+		      || (GET_MODE_SIZE (GET_MODE (dest))
+			  < GET_MODE_SIZE (mode))
+		      || (mode == QImode
+			  && !ANY_QI_REGNO_P (REGNO (dest))))
+		    continue;
+
+		  rtx src = SET_SRC (set);
+		  if (rtx_equal_p (src, imm))
+		    {
+		      /* A previous scratch register is found.  */
+		      prev_scratch = dest;
+		      prev_insn = prev;
+		      break;
+		    }
+		}
+	    }
+
+      if (prev_scratch)
+	break;
+    }
+
+  if (prev_scratch)
+    {
+      /* The previous scratch register is unusable if it is set between
+	 PREV_INSN and INSN.  */
+      unsigned int regno = REGNO (prev_scratch);
+
+      /* Scan backward for the previous scratch register def.  */
+      for (prev = PREV_INSN (insn);
+	   prev != prev_insn;
+	   prev = PREV_INSN (prev))
+	{
+	  if (NONDEBUG_INSN_P (prev))
+	    FOR_EACH_INSN_DEF (def, prev)
+	      if (HARD_REGISTER_P (DF_REF_REAL_REG (def))
+		  && DF_REF_REGNO (def) == regno)
+		{
+		  /* Since the previous scratch register is set, it is
+		     unusable.  */
+		  if (dump_file)
+		    {
+		      fprintf (dump_file,
+			       "\nThe previous scratch register:\n\n");
+		      print_rtl_single (dump_file, prev_scratch);
+		      fprintf (dump_file, "\nset in:\n\n");
+		      print_rtl_single (dump_file, prev_insn);
+		      fprintf (dump_file,
+			       "\nis unusable by:\n\n");
+		      print_rtl_single (dump_file, insn);
+		      fprintf (dump_file,
+			       "\nsince it is overridden by:\n\n");
+		      print_rtl_single (dump_file, prev);
+		      fprintf (dump_file, "\n");
+		    }
+		  prev_scratch = nullptr;
+		  break;
+		}
+
+	  if (!prev_scratch)
+	    break;
+	}
+
+      if (prev_scratch)
+	{
+	  /* Ignore the allocated scratch register and use the previous
+	     scratch register.  */
+	  if (dump_file)
+	    {
+	      fprintf (dump_file,
+		       "\nIgnore the allocated scratch register:\n\n");
+	      print_rtl_single (dump_file, scratch);
+	      fprintf (dump_file,
+		       "\nand use the previous scratch register:\n\n");
+	      print_rtl_single (dump_file, prev_scratch);
+	      fprintf (dump_file, "\nset in:\n\n");
+	      print_rtl_single (dump_file, prev_insn);
+	      fprintf (dump_file, "\nfor:\n\n");
+	      print_rtl_single (dump_file, insn);
+	      fprintf (dump_file, "\n");
+	    }
+	  scratch = gen_lowpart (mode, prev_scratch);
+	  set = gen_rtx_SET (operands[0], scratch);
+	  emit_insn (set);
+	  return;
+	}
+    }
+
+  /* If there is no usable previous scratch register, use the allocated
+     scratch register.  */
+  if (use_xor)
+    {
+      /* Generate "*movsi_xor".  */
+      rtx x = gen_lowpart (SImode, scratch);
+      rtvec p = rtvec_alloc (2);
+      set = gen_rtx_SET (x, const0_rtx);
+      RTVEC_ELT (p, 0) = set;
+      rtx clobber = gen_rtx_REG (CCmode, FLAGS_REG);
+      RTVEC_ELT (p, 1) = gen_rtx_CLOBBER (VOIDmode, clobber);
+      set = gen_rtx_PARALLEL (VOIDmode, p);
+    }
+  else
+    set = gen_rtx_SET (scratch, imm);
+  emit_insn (set);
+  set = gen_rtx_SET (operands[0], scratch);
+  emit_insn (set);
+}
+
 #include "gt-i386-expand.h"
