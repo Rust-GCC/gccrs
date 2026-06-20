@@ -2652,7 +2652,8 @@ calls:
       static void nml_touch_nodes (namelist_info *nl)
       static int nml_read_obj (namelist_info *nl, index_type offset,
 			       namelist_info **prev_nl, char *, size_t,
-			       index_type clow, index_type chigh)
+			       index_type clow, index_type chigh,
+			       bool is_component)
 calls:
       -itself-  */
 
@@ -3123,7 +3124,8 @@ query_return:
 static bool
 nml_read_obj (st_parameter_dt *dtp, namelist_info *nl, index_type offset,
 	      namelist_info **pprev_nl, char *nml_err_msg,
-	      size_t nml_err_msg_size, index_type clow, index_type chigh)
+	      size_t nml_err_msg_size, index_type clow, index_type chigh,
+	      bool is_component)
 {
   namelist_info *cmp;
   char *obj_name;
@@ -3142,7 +3144,8 @@ nml_read_obj (st_parameter_dt *dtp, namelist_info *nl, index_type offset,
     return true;
 
   dtp->u.p.item_count++;  /* Used in error messages.  */
-  dtp->u.p.repeat_count = 0;
+  if (!is_component)
+    dtp->u.p.repeat_count = 0;
   eat_spaces (dtp);
 
   len = nl->len;
@@ -3196,9 +3199,60 @@ nml_read_obj (st_parameter_dt *dtp, namelist_info *nl, index_type offset,
 	      * GFC_DESCRIPTOR_STRIDE(nl,dim) * nl->size);
 	}
 
+      nml_carry = 0;
+
+      /* A default (non-DTIO) derived type does not itself hold a value to
+	 read; only its components do.  Recurse into the components on
+	 every iteration of the array loop, independently of the repeat
+	 count, so that a repeat count parsed while reading one component
+	 (e.g. "ta(1:8)%c = 8*'bogus'") gets applied to that component for
+	 each addressed array element.  */
+
+      if ((nl->type == BT_DERIVED || nl->type == BT_CLASS)
+	  && nl->dtio_sub == NULL)
+	{
+	  obj_name_len = strlen (nl->var_name) + 1;
+	  obj_name = xmalloc (obj_name_len+1);
+	  memcpy (obj_name, nl->var_name, obj_name_len-1);
+	  memcpy (obj_name + obj_name_len - 1, "%", 2);
+
+	  /* If reading a derived type, disable the expanded read warning
+	     since a single object can have multiple reads.  */
+	  dtp->u.p.expanded_read = 0;
+
+	  /* Now loop over the components.  */
+
+	  for (cmp = nl->next;
+	       cmp &&
+		 !strncmp (cmp->var_name, obj_name, obj_name_len);
+	       cmp = cmp->next)
+	    {
+	      /* Jump over nested derived type by testing if the potential
+		 component name contains '%'.  */
+	      if (strchr (cmp->var_name + obj_name_len, '%'))
+		  continue;
+
+	      if (!nml_read_obj (dtp, cmp, (index_type)(pdata - nl->mem_pos),
+				pprev_nl, nml_err_msg, nml_err_msg_size,
+				clow, chigh, true))
+		{
+		  free (obj_name);
+		  return false;
+		}
+
+	      if (dtp->u.p.input_complete)
+		{
+		  free (obj_name);
+		  return true;
+		}
+	    }
+
+	  free (obj_name);
+	  goto incr_idx;
+	}
+
       /* If we are finished with the repeat count, try to read next value.  */
 
-      nml_carry = 0;
       if (--dtp->u.p.repeat_count <= 0)
 	{
 	  if (dtp->u.p.input_complete)
@@ -3241,8 +3295,8 @@ nml_read_obj (st_parameter_dt *dtp, namelist_info *nl, index_type offset,
 
 	  case BT_DERIVED:
 	  case BT_CLASS:
-	    /* If this object has a User Defined procedure, call it.  */
-	    if (nl->dtio_sub != NULL)
+	    /* This object has a User Defined I/O procedure; objects
+	       without one were already handled above.  */
 	      {
 		GFC_INTEGER_4 unit = dtp->u.p.current_unit->unit_number;
 		char iotype[] = "NAMELIST";
@@ -3301,46 +3355,6 @@ nml_read_obj (st_parameter_dt *dtp, namelist_info *nl, index_type offset,
 
 		goto incr_idx;
 	      }
-
-	    /* Must be default derived type namelist read.  */
-	    obj_name_len = strlen (nl->var_name) + 1;
-	    obj_name = xmalloc (obj_name_len+1);
-	    memcpy (obj_name, nl->var_name, obj_name_len-1);
-	    memcpy (obj_name + obj_name_len - 1, "%", 2);
-
-	    /* If reading a derived type, disable the expanded read warning
-	       since a single object can have multiple reads.  */
-	    dtp->u.p.expanded_read = 0;
-
-	    /* Now loop over the components.  */
-
-	    for (cmp = nl->next;
-		 cmp &&
-		   !strncmp (cmp->var_name, obj_name, obj_name_len);
-		 cmp = cmp->next)
-	      {
-		/* Jump over nested derived type by testing if the potential
-		   component name contains '%'.  */
-		if (strchr (cmp->var_name + obj_name_len, '%'))
-		    continue;
-
-		if (!nml_read_obj (dtp, cmp, (index_type)(pdata - nl->mem_pos),
-				  pprev_nl, nml_err_msg, nml_err_msg_size,
-				  clow, chigh))
-		  {
-		    free (obj_name);
-		    return false;
-		  }
-
-		if (dtp->u.p.input_complete)
-		  {
-		    free (obj_name);
-		    return true;
-		  }
-	      }
-
-	    free (obj_name);
-	    goto incr_idx;
 
           default:
 	    snprintf (nml_err_msg, nml_err_msg_size,
@@ -3456,7 +3470,7 @@ incr_idx:
         }
     } while (!nml_carry);
 
-  if (dtp->u.p.repeat_count > 1)
+  if (!is_component && dtp->u.p.repeat_count > 1)
     {
       snprintf (nml_err_msg, nml_err_msg_size,
 		"Repeat count too large for namelist object %s", nl->var_name);
@@ -3780,7 +3794,7 @@ get_name:
 
   dtp->u.p.nml_read_error = 0;
   if (!nml_read_obj (dtp, nl, 0, pprev_nl, nml_err_msg, nml_err_msg_size,
-		    clow, chigh))
+		    clow, chigh, false))
     goto nml_err_ret;
 
   return true;
