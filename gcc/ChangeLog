@@ -1,3 +1,93 @@
+2026-06-19  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/125857
+	* ipa-prop.cc (ipa_record_return_value_range_1): Don't record
+	pranges which have non ipa-invariants in it.
+
+2026-06-19  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* config/aarch64/aarch64.cc
+	(aarch64_vector_costs::count_ops): Treat vec_deconstruct in the
+	same way as vec_construct.
+
+2026-06-19  Peter Bergner  <bergner@tenstorrent.com>
+
+	* config/riscv/riscv-cores.def (RISCV_TUNE)<tt-ascalon-d8>: Rename from
+	this...
+	(RISCV_TUNE)<tt-ascalon-x>: ...to this.
+	(RISCV_CORE)<tt-ascalon-d8>: Likewise.
+	(RISCV_CORE)<tt-ascalon-x>: Likewise.
+	(RISCV_CORE_ALIAS): Add tt-ascalon-d8 alias for tt-ascalon-x.
+	* doc/riscv-mcpu.texi: Document the name change.
+	* doc/riscv-mtune.texi: Likewise.
+
+2026-06-19  Peter Bergner  <bergner@tenstorrent.com>
+
+	* common/config/riscv/riscv-common.cc (struct riscv_cpu_alias_info):
+	New struct.
+	(riscv_cpu_alias_table): New.
+	(riscv_find_cpu): Add support for cpu alias names.
+	(riscv_get_valid_option_values): Likewise.
+	Add an early loop exit if we found a duplicate name.
+	* config/riscv/riscv-cores.def (RISCV_CORE_ALIAS): New macro.
+
+2026-06-19  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/122193
+	* tree-ssa-phiopt.cc (factor_out_conditional_load): Support non-zero
+	offsets.
+
+2026-06-19  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* tree-ssa-phiopt.cc (is_factor_profitable): Change arg_op
+	to operands and opcount.
+	(factor_out_conditional_operation): Update call to
+	is_factor_profitable.
+	(factor_out_conditional_load): Support when merge has
+	a virtual phi. The load's vuse needs to be the arguments
+	to the virtual phi. Call is_factor_profitable on the new phi
+	arguments. Update the vuse on the new load to the virtual phi.
+
+2026-06-19  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+	    Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	PR tree-optimization/125557
+	* tree-ssa-phiopt.cc (factor_out_conditional_load): New function.
+	(factor_out_all):  Call factor_out_conditional_load.
+
+2026-06-19  Xin Wang  <yw987194828@gmail.com>
+
+	* tree-ssa-loop-im.cc (mem_ref_hasher::equal): Refactor
+	for clarity.
+
+2026-06-19  Arsen Arsenović  <aarsenovic@baylibre.com>
+
+	* doc/extend.texi: Move @anchor-s referring to tops of nodes
+	after their corresponding @node lines.
+	* doc/invoke.texi: Ditto.
+
+2026-06-19  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* acinclude.m4 (gcc_GAS_FLAGS): Set to --32 for abi32 targets.
+	* configure.ac (TLS support): Use 32-bit sequence for abi32 targets.
+	* configure: Regenerate.
+
+2026-06-19  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* tree-nested.cc (lookup_field_for_decl): In the non-pointer case,
+	clear DECL_NONADDRESSABLE_P if the DECL is of an aggregate type.
+
+2026-06-19  Kael Andrew Franco  <kaelfandrew@gmail.com>
+
+	PR tree-optimization/125641
+	PR tree-optimization/125641
+	* match.pd: Add bit_ior/bit_and {bit_not} rshift to min/max.
+
+2026-06-19  Léo Hardt  <leom.hardt@inf.ufrgs.br>
+
+	* ddg.h (GCC_DDG_H): Removed orphaned comment from 60393bbc
+	* sel-sched-ir.h (GCC_SEL_SCHED_IR_H): Removed orphaned comment from c7131fb
+
 2026-06-18  Milan Tripkovic  <Milan.Tripkovic@rt-rk.com>
 
 	PR target/125405

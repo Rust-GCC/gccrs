@@ -1,3 +1,120 @@
+2026-06-19  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* exp_ch4.adb (Expand_N_Expression_With_Actions): Create a temporary
+	only for types that can be copied, and replace the EWA node by its
+	expression for other types.
+	* exp_ch6.adb (Expand_Ctrl_Function_Call): Bail out when the parent
+	is an EWA node.
+	* sem_ch3.adb (OK_For_Limited_Init_In_05): Recurse on the expression
+	of an EWA node.
+
+2026-06-19  Viljar Indus  <indus@adacore.com>
+
+	* fe.h: Define Error_Msg_Sloc for gigi.
+
+2026-06-19  Viljar Indus  <indus@adacore.com>
+
+	* styleg.adb (Check_Comment): use correct switch name in
+	error message.
+
+2026-06-19  Ronan Desplanques  <desplanques@adacore.com>
+
+	* exp_attr.adb (Spot, Spot_Kind): New types.
+	(Build_And_Insert_Type_Attr_Subp, Skip_Non_Source_Subps,
+	Find_Insertion_Point_For_Ancestor): Handle case of empty body
+	declaration list.
+
+2026-06-19  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* sem_res.adb (Check_Discriminant_Use): Rename PN local variable as
+	Par and apply minor formatting tweaks.
+	(Resolve_Allocator): For the subtype indication form, make sure to
+	take the constraints of a subtype into account instead of those of
+	the indication in order to implement the static accessibility check.
+
+2026-06-19  Olivier Hainque  <hainque@adacore.com>
+
+	* tracebak.c: Improve documentation of BASE_SKIP.
+	* libgnat/g-traceb.ads (Call_Chain procedure): Clarify the
+	expected behavior wrt Call_Chain itself.
+	* libgnat/g-traceb.adb (Call_Chain procedure): Propagate
+	a Skip_Frames value to System.TB.Call_Chain accordingly.
+	* libgnat/libgnat.gpr: Use the same special switches for
+	g-traceb.adb as for s-traceb.adb.
+	* Makefile.rtl: Likewise.
+	* libgnat/s-traceb.adb: Reword top comment on the need
+	to prevent optimizations. No need to specify how to do it
+	here.
+
+2026-06-19  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* expander.adb (Expand): Revert latest change.
+	* ghost.adb (Set_Ghost_Mode): Likewise.
+	* sem_ch3.adb (Analyze_Subtype_Declaration): Also copy the RM size
+	for floating-point types.
+	* sem_prag.adb (Analyze_Pragma) <Pragma_Check>: Do not mark the
+	pragma as Ghost when expander is active and the pragma is ignored.
+	Preanalyze it instead of analyzing it, and rewrite it as a null
+	statement at the end of the processing.
+
+2026-06-19  Viljar Indus  <indus@adacore.com>
+
+	* restrict.adb (Check_Restriction_No_Specification_Of_Aspect): add
+	Diagnostic_Id for error message.
+	(Check_Restriction_No_Use_Of_Attribute): Likewise.
+	(Check_Restriction_No_Use_Of_Pragma): Likewise.
+
+2026-06-19  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* libgnat/a-suenco.adb (Convert): Remove double space after comma.
+
+2026-06-19  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* sem_ch3.adb (Analyze_Object_Declaration): Streamline test.
+
+2026-06-19  Marc Poulhiès  <poulhies@adacore.com>
+
+	* par.adb (Pf_Rec.Pexp): Renamed to...
+	(Pf_Rec.Expf): ...this.
+	(Pf_Decl_Gins_Pbod_Rnam_Stub_Pexp): Renamed to...
+	(Pf_Decl_Gins_Pbod_Rnam_Stub_Expf): ... this.
+	(Pf_Decl_Gins_Pbod_Rnam_Stub_Pexp): Renamed to...
+	(Pf_Decl_Gins_Pbod_Rnam_Stub_Expf): ... this.
+	(Pf_Decl_Gins_Pbod_Rnam_Pexp): Renamed to ...
+	(Pf_Decl_Gins_Pbod_Rnam_Expf): ... this.
+	(Pf_Decl_Pbod_Pexp): Renamed to ...
+	(Pf_Decl_Pbod_Expf): ... this.
+	(Pf_Pbod_Pexp): Renamed to ...
+	(Pf_Pbod_Expf): ... this.
+	* par-ch6.adb (Rewrite_Entity_If_Direct_Attribute_Def)
+	(Likely_Expression_Function): Adjust.
+	* par-ch10.adb (P_Compilation_Unit, P_Subunit): Likewise.
+	* par-ch3.adb (P_Declarative_Item): Likewise.
+	* par-ch7.adb (P_Package): Likewise.
+	* par-ch9.adb (P_Entry_Or_Subprogram_With_Indicator)
+	(P_Protected_Operation_Items): Adjust.
+
+2026-06-19  Marc Poulhiès  <poulhies@adacore.com>
+
+	* exp_ch3.adb (Build_Implicit_Copy_Constructor)
+	(Build_Implicit_Parameterless_Constructor): Refactor how node is
+	discarded.
+
+2026-06-19  Ronan Desplanques  <desplanques@adacore.com>
+
+	* opt.ads (Init_Or_Norm_Scalars): Turn into expression function.
+	* opt.adb (Restore_Config_Switches, Set_Config_Switches): Remove
+	assignment.
+	* frontend.adb (Frontend): Remove assignment.
+	* sem_prag.adb (Do_Initialize_Scalars, Analyze_Pragma): Remove
+	assignment.
+	* targparm.adb (Get_Target_Parameters): Remove assignment.
+
+2026-06-19  Ronan Desplanques  <desplanques@adacore.com>
+
+	* opt.adb (Save_Config_Switches): Remove useless assignment.
+	* opt.ads (Config_Switches_Type): Remove unused component.
+
 2026-06-18  Eric Botcazou  <ebotcazou@adacore.com>
 
 	* accessibility.ads (Apply_Accessibility_Check_For_Allocator):

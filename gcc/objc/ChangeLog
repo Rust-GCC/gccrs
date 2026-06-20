@@ -1,3 +1,8 @@
+2026-06-19  Léo Hardt  <leom.hardt@inf.ufrgs.br>
+
+	* objc-act.cc: Removed orphaned comment from 69f293c
+	* objc-encoding.cc: Removed orphaned comment from 69f293c
+
 2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* objc-act.cc (objc_compare_types): Fix typos.

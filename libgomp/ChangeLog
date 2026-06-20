@@ -1,3 +1,29 @@
+2026-06-19  Tobias Burnus  <tburnus@baylibre.com>
+
+	PR libgomp/125877
+	* affinity.c (gomp_get_current_numa_node,
+	gomp_get_numa_distance): New functions.
+	* config/linux/affinity.c (gomp_get_current_numa_node,
+	gomp_get_numa_distance): Likewise.
+	* libgomp-plugin.h (GOMP_OFFLOAD_get_numa_node): Declare.
+	* libgomp.h (gomp_get_current_numa_node,
+	gomp_get_numa_distance): Declare.
+	(struct gomp_device_descr): Add get_numa_node_func.
+	* libgomp.map (OMP_6.1): Add.
+	* libgomp.texi (omp_get_device_distances): Add routine.
+	* omp.h.in (omp_get_device_distances): Declare.
+	* omp_lib.f90.in (omp_get_device_distances): Add interface.
+	* omp_lib.h.in (omp_get_device_distances): Likewise.
+	* plugin/cuda-lib.def (cuDeviceGetPCIBusId): Add.
+	* plugin/plugin-gcn.c (struct agent_info): Add numa_node.
+	(GOMP_OFFLOAD_get_numa_node): New.
+	* plugin/plugin-nvptx.c (struct ptx_device): Add numa_node.
+	(GOMP_OFFLOAD_get_numa_node): New.
+	* target.c (omp_get_device_distances): New function.
+	(gomp_load_plugin_for_device): Load get_numa_node symbol.
+	* testsuite/libgomp.c/omp-get-device-distances.c: New test.
+	* testsuite/libgomp.fortran/omp-get-device-distances.f90: New test.
+
 2026-06-18  Thomas Schwinge  <tschwinge@baylibre.com>
 
 	* config/accel/target-indirect.h (GOMP_INDIRECT_ADDR_MAP)

@@ -1,3 +1,9 @@
+2026-06-19  Kanishka Solanki  <kanishkasolanki456s@gmail.com>
+
+	* a68-low-clauses.cc (a68_lower_collateral_clause): Do not check
+	for rows before calling a68_low_dup.
+	* a68-low-units.cc (collect_call_arguments): Likewise.
+
 2026-06-16  Jose E. Marchesi  <jemarch@gnu.org>
 
 	* a68-imports.cc (a68_replace_equivalent_mode): Get a moif and

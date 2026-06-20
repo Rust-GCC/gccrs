@@ -1,3 +1,44 @@
+2026-06-19  Kees Cook  <kees@kernel.org>
+
+	PR c/125604
+	* gcc.dg/counted-by-unary.c: New test.
+
+2026-06-19  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/125857
+	* gcc.dg/pr125857-1.c: New test.
+
+2026-06-19  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/122193
+	* gcc.dg/tree-ssa/factor_op_phi-load-offsets-1.c: New test.
+	* gcc.dg/tree-ssa/factor_op_phi-load-offsets-2.c: New test.
+	* gcc.dg/tree-ssa/factor_op_phi-load-offsets-3.c: New test.
+
+2026-06-19  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* gcc.dg/tree-ssa/factor_op_phi-load-stores-1.c: New test.
+
+2026-06-19  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+	    Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	PR tree-optimization/125557
+	* gcc.dg/tree-ssa/scc-diamond-1.c: New test.
+	* gcc.dg/tree-ssa/scc-diamond-3.c: New test.
+	* gcc.dg/tree-ssa/scc-diamond-4.c: New test.
+	* gcc.target/aarch64/scc-diamond-2.c: New test.
+
+2026-06-19  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/opt108.adb: New test.
+	* gnat.dg/opt108_pkg.ads, gnat.dg/opt108_pkg.adb: New helper.
+
+2026-06-19  Kael Andrew Franco  <kaelfandrew@gmail.com>
+
+	PR tree-optimization/125641
+	PR tree-optimization/125641
+	* gcc.dg/pr125641.c: New test.
+
 2026-06-18  Milan Tripkovic  <Milan.Tripkovic@rt-rk.com>
 
 	PR target/125405
