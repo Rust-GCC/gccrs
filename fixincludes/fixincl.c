@@ -650,7 +650,7 @@ cksum_test (char * pz_data, tTestDesc * p_test, char * fname)
     char * fnm = strrchr(fname, '/');
     if (fnm != NULL)
       fname = fnm + 1;
-    
+
     errno = 0;
     cksum = (unsigned int)strtoul(p_test->pz_test_text, &fnm, 10);
     if (errno != 0)
@@ -691,7 +691,7 @@ cksum_test (char * pz_data, tTestDesc * p_test, char * fname)
 
 static int
 quoted_file_exists (const char* pz_src_path,
-                    const char* pz_file_path, 
+                    const char* pz_file_path,
                     const char* pz_file)
 {
   char z[ MAXPATHLEN ];
@@ -740,8 +740,8 @@ quoted_file_exists (const char* pz_src_path,
 
 
 static void
-extract_quoted_files (char* pz_data, 
-                      const char* pz_fixed_file,
+extract_quoted_files (char* pz_data,
+                      char* pz_fixed_file,
                       regmatch_t* p_re_match)
 {
   char *pz_dir_end = strrchr (pz_fixed_file, '/');
@@ -941,7 +941,7 @@ fix_with_system (tFixDesc* p_fixd,
       argsize = sizeof( z_cmd_fmt ) + strlen( pz_temp_file )
               + strlen( pz_file_source );
       parg_size = argsize;
-      
+
       if (p_fixd->fd_flags & FD_SHELL_SCRIPT)
         {
           argsize += strlen( z_subshell_start ) + strlen ( z_subshell_end );
