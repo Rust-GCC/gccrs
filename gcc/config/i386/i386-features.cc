@@ -1169,7 +1169,19 @@ scalar_chain::convert_op (rtx *op, rtx_insn *insn)
     {
       gcc_assert (SUBREG_P (*op));
       if (GET_MODE (*op) != vmode)
-	*op = gen_lowpart (vmode, *op);
+	{
+	  rtx inner = SUBREG_REG (*op);
+	  poly_uint64 byte = SUBREG_BYTE (*op);
+	  if (targetm.modes_tieable_p (vmode, GET_MODE (inner))
+	      && validate_subreg (vmode, GET_MODE (inner), inner, byte))
+	    *op = gen_lowpart (vmode, *op);
+	  else
+	    {
+	      tmp = gen_reg_rtx (GET_MODE (*op));
+	      emit_insn_before (gen_rtx_SET (tmp, *op), insn);
+	      *op = gen_rtx_SUBREG (vmode, tmp, 0);
+	    }
+	}
     }
 }
 
