@@ -61,6 +61,7 @@ extern tree var_decl_nop;         // int __gg__nop
 extern tree var_decl_main_called; // int __gg__main_called
 extern tree var_decl_entry_index; // void* __gg__entry_index
 extern tree var_decl_dialects;    // void* __gg__dialects
+extern tree var_decl_dp2bin;      // unsigned char * ___gg__dp2bin
 
 int       get_scaled_rdigits(cbl_field_t *field);
 int       get_scaled_digits(cbl_field_t *field);

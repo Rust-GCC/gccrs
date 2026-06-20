@@ -1417,29 +1417,6 @@ static encodings_t encodings[] = {
   { false, iconv_YU_e, "YU" },
 };
 
-/*
- * Because this variable is static, the constructor runs before main and is
- * guaranteed to run.
- */
-static class rt_encoding_t
-  {
-  const char *ctype, *lc_ctype;
-  public:
-  rt_encoding_t() : ctype( setlocale(LC_CTYPE, "") )
-    {
-    lc_ctype =  nl_langinfo(CODESET);
-    // Let's learn what the computer is using for the console:
-    // We need to establish the codeset used by the system console:
-  __gg__console_encoding = use_locale();
-    }
-  cbl_encoding_t use_locale() const
-    {
-    auto encoding = strstr(ctype, "UTF-8") ?
-      iconv_UTF_8_e : __gg__encoding_iconv_type(lc_ctype);
-    return encoding;
-    }
-  } rt_encoding;
-
 static const encodings_t *
 encoding_descr( cbl_encoding_t encoding ) {
   static encodings_t *eoencodings = encodings + COUNT_OF(encodings);

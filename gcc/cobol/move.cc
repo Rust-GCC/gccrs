@@ -1350,7 +1350,6 @@ mh_little_endian( const cbl_refer_t &destref,
       &&  sourceref.field->type     != FldLiteralA
       &&  sourceref.field->type     != FldAlphanumeric
       &&  sourceref.field->type     != FldNumericEdited
-      &&  sourceref.field->type     != FldPacked
       &&  (     destref.field->type == FldNumericBin5
             ||  destref.field->type == FldNumericBinary
             ||  destref.field->type == FldPointer

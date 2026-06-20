@@ -2785,6 +2785,7 @@ parser_enter_file(const char *filename)
     SET_VAR_DECL(var_decl_main_called             , INT                     , "__gg__main_called"     );
     SET_VAR_DECL(var_decl_entry_index             , SIZE_T                  , "__gg__entry_index"     );
     SET_VAR_DECL(var_decl_dialects                , INT                     , "__gg__dialects"        );
+    SET_VAR_DECL(var_decl_dp2bin                  , build_array_type(UCHAR, NULL), "__gg__dp2bin");
     }
   }
 

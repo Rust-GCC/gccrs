@@ -504,351 +504,170 @@ __gg__binary_to_packed( unsigned char *result,
   memcpy(result, combined_string, length);
   }
 
+
+#define digit_rt(loc, offset) (((loc)[(offset) * stride]) & 0x0F)
+
+static __int128
+num_disp_dive_rt(const unsigned char *pdigits,
+                    int            ndigits,
+                    int            stride)
+  {
+  __int128 retval;
+  switch(ndigits)
+    {
+    case 1:
+      retval =  digit_rt(pdigits, 0);
+      break;
+    case 2:
+      retval =  digit_rt(pdigits, 0)*10
+              + digit_rt(pdigits, 1);
+      break;
+    case 3:
+      retval =  digit_rt(pdigits, 0)*100
+              + digit_rt(pdigits, 1)*10
+              + digit_rt(pdigits, 2);
+      break;
+    case 4:
+      retval =  digit_rt(pdigits, 0)*1000
+              + digit_rt(pdigits, 1)*100
+              + digit_rt(pdigits, 2)*10
+              + digit_rt(pdigits, 3);
+      break;
+    default:
+      {
+      int nright = ndigits/2;
+      int nleft  = ndigits - nright;
+      __int128 pot = __gg__power_of_ten(nright);
+      retval =   num_disp_dive_rt(pdigits,               nleft, stride) * pot
+               + num_disp_dive_rt(pdigits+nleft*stride, nright, stride);
+      break;
+      }
+    }
+  return retval;
+  }
+
 extern "C"
 __int128
-__gg__numeric_display_to_binary(unsigned char *signp,
-                          const unsigned char *pdigits,
-                                int            ndigits,
-                                cbl_encoding_t encoding)
+__gg__numeric_display_to_binary(const unsigned char *signp,
+                                const unsigned char *pdigits,
+                                      int            ndigits,
+                                      int            stride)
   {
-  /*  This is specific to numeric display values.
-
-      Such values can be unsigned, or they can have leading or trailing
-      internal sign information, or they can have leading or trailing external
-      sign information.
-
-      In ASCII, digits are 030; internal sign is has the zone 0x70.
-
-      In EBDIC, normal digits are 0xF0.  The sign byte in for a positive
-      signable number has the zone 0xC0; a negative value has the zone 0xD0.
-
-      A further complication is that it is legal for NumericDisplay values to
-      have non-digit characters.  This is because of REDEFINES, and whatnot.
-      Some COBOL implementations just look at the bottom four bits of
-      characters regardless of their legality.  I am choosing to have non-legal
-      characters come back as zero.  I do this with tables, so the cost is low.
-      */
-
-  /*  We are assuming that 64-bit arithmetic is faster than 128-bit arithmetic,
-      and so we build up a 128-bit result in three 64-bit pieces, and assemble
-      them at the end.  */
-  size_t digit_index = 0;
-  cbl_char_t ch;
-
-  charmap_t *charmap = __gg__get_charmap(encoding);
-  cbl_char_t minus = charmap->mapped_character(ascii_minus);
-
-  bool is_ebcdic = charmap->is_like_ebcdic();
-
-  static const uint8_t lookup[] =
-    {
-     0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0,0,0,0,0,0,
-    10,11,12,13,14,15,16,17,18,19, 0,0,0,0,0,0,
-    20,21,22,23,24,25,26,27,28,29, 0,0,0,0,0,0,
-    30,31,32,33,34,35,36,37,38,39, 0,0,0,0,0,0,
-    40,41,42,43,44,45,46,47,48,49, 0,0,0,0,0,0,
-    50,51,52,53,54,55,56,57,58,59, 0,0,0,0,0,0,
-    60,61,62,63,64,65,66,67,68,69, 0,0,0,0,0,0,
-    70,71,72,73,74,75,76,77,78,79, 0,0,0,0,0,0,
-    80,81,82,83,84,85,86,87,88,89, 0,0,0,0,0,0,
-    90,91,92,93,94,95,96,97,98,99, 0,0,0,0,0,0,
-    };
-
-  static const uint8_t from_ebcdic[256] =
-    {
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x00
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x10
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x20
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x30
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x40
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x50
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x60
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x70
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x80
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x90
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0xa0
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0xb0
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0xc0
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0xd0
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0xe0
-    0,1,2,3,4,5,6,7,8,9,0,0,0,0,0,0, // 0xf0
-    };
-
-  static const uint8_t from_ascii[256] =
-    {
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x00
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x10
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x20
-    0,1,2,3,4,5,6,7,8,9,0,0,0,0,0,0, // 0x30
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x40
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x50
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x60
-    0,1,2,3,4,5,6,7,8,9,0,0,0,0,0,0, // 0x70
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x80
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0x90
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0xa0
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0xb0
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0xc0
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0xd0
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0xe0
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 0xf0
-    };
-
   __int128 retval;
 
-  uint64_t top = 0;
-  uint64_t middle = 0;
-  uint64_t bottom = 0;
+  retval = num_disp_dive_rt(pdigits, ndigits, stride);
 
-  int count_bottom;
-  int count_middle;
-  int count_top;
-
-  bool is_negative = false;
-
-  // Pick up the original sign byte:
-  cbl_char_t sign_byte = charmap->getch(signp, (size_t)0);
-
-  const unsigned char *mapper;
-  if( is_ebcdic )
-    {
-    mapper = from_ebcdic;
-    if( sign_byte == minus )
-      {
-      is_negative = true;
-      }
-    else if( (sign_byte & 0xF0) == 0xD0 )
-      {
-      is_negative = true;
-      }
-    // No matter what the digit, force it to be a valid positive digit by
-    // forcing the zone to 0xF0.  Note that this is harmless if redundant, and
-    // harmless as well if the data SIGN IS SEPARATE.  Whatever we do to this
-    // byte will be undone at the end of the routine.
-    charmap->putch(sign_byte|0xF0, signp, (size_t)0);
-    }
-  else
-    {
-    mapper = from_ascii;
-    if( sign_byte == minus )
-      {
-      is_negative = true;
-      }
-    else if( (sign_byte & 0xF0) == 0x70 )
-      {
-      is_negative = true;
-
-      // Make it a valid positive digit by turning the zone to 0x30
-      charmap->putch(sign_byte&0x3F, signp, (size_t)0);
-      }
-    }
-
-  // Digits 1 through 18 come from the bottom:
-  if( ndigits <= 18 )
-    {
-    count_bottom = ndigits;
-    count_middle = 0;
-    count_top = 0;
-    }
-  else if( ndigits<= 36 )
-    {
-    count_bottom = 18;
-    count_middle = ndigits - 18;
-    count_top = 0;
-    }
-  else
-    {
-    count_bottom = 18;
-    count_middle = 18;
-    count_top = ndigits - 36;
-    }
-
-  if( ndigits & 1 )
-    {
-    // We are dealing with an odd number of digits
-    if( count_top )
-      {
-      ch = charmap->getch(pdigits, &digit_index);
-      top = mapper[ch];
-      count_top -= 1;
-      }
-    else if( count_middle )
-      {
-      ch = charmap->getch(pdigits, &digit_index);
-      middle = mapper[ch];
-      count_middle -= 1;
-      }
-    else
-      {
-      ch = charmap->getch(pdigits, &digit_index);
-      bottom = mapper[ch];
-      count_bottom -= 1;
-      }
-    }
-
-  uint8_t add_me;
-
-  while( count_top )
-    {
-    ch = charmap->getch(pdigits, &digit_index);
-    add_me  = mapper[ch] << 4;
-    ch = charmap->getch(pdigits, &digit_index);
-    add_me += mapper[ch];
-    top *= 100 ;
-    top += lookup[add_me];
-    count_top -= 2;
-    }
-
-  while( count_middle )
-    {
-    ch = charmap->getch(pdigits, &digit_index);
-    add_me  = mapper[ch] << 4;
-    ch = charmap->getch(pdigits, &digit_index);
-    add_me += mapper[ch];
-    middle *= 100 ;
-    middle += lookup[add_me];
-    count_middle -= 2;
-    }
-
-  while( count_bottom )
-    {
-    ch = charmap->getch(pdigits, &digit_index);
-    add_me  = mapper[ch] << 4;
-    ch = charmap->getch(pdigits, &digit_index);
-    add_me += mapper[ch];
-    bottom *= 100 ;
-    bottom += lookup[add_me];
-    count_bottom -= 2;
-    }
-
-  retval = top;
-  retval *= 1000000000000000000ULL; // 10E18
-
-  retval += middle;
-  retval *= 1000000000000000000ULL;
-
-  retval += bottom;
-
-  if( is_negative )
+  // For speed, we assume this value is well-formed:
+  if( *signp == ascii_minus )
     {
     retval = -retval;
     }
+  else
+    {
+    unsigned int sbyte = *signp & 0xF0;
+    switch(sbyte)
+      {
+      case 0x60: // EBCDIC '-' is 0x60, and no other 0x6z characters matter.
+      case 0x70: // ASCII internal negative
+      case 0xD0: // EBDIC internal negative
+        retval = -retval;
+      break;
+      }
+    }
 
-  // Replace the original sign byte:
-  charmap->putch(sign_byte, signp, (size_t)0);
+  return retval;
+  }
+
+const unsigned char __gg__dp2bin[256] =
+  {
+  // This table is used both by the compile-time and the run-time.  Given the
+  // packed decimal byte 0x23, it provides s the equivalent decimal value of
+  // 23.  This table is not used on the final byte of COMP-3 values; that
+  // digit has to be extracted specifically.
+
+// 0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
+//--------------------------------------------------------------
+  00, 01, 02, 03, 04, 05, 06, 07,  8,  9,  0,  0,  0,  0,  0,  0, // 0x00
+  10, 11, 12, 13, 14, 15, 16, 17, 18, 19,  0,  0,  0,  0,  0,  0, // 0x10
+  20, 21, 22, 23, 24, 25, 26, 27, 28, 29,  0,  0,  0,  0,  0,  0, // 0x20
+  30, 31, 32, 33, 34, 35, 36, 37, 38, 39,  0,  0,  0,  0,  0,  0, // 0x30
+  40, 41, 42, 43, 44, 45, 46, 47, 48, 49,  0,  0,  0,  0,  0,  0, // 0x40
+  50, 51, 52, 53, 54, 55, 56, 57, 58, 59,  0,  0,  0,  0,  0,  0, // 0x50
+  60, 61, 62, 63, 64, 65, 66, 67, 68, 69,  0,  0,  0,  0,  0,  0, // 0x60
+  70, 71, 72, 73, 74, 75, 76, 77, 78, 79,  0,  0,  0,  0,  0,  0, // 0x70
+  80, 81, 82, 83, 84, 85, 86, 87, 88, 89,  0,  0,  0,  0,  0,  0, // 0x80
+  90, 91, 92, 93, 94, 95, 96, 97, 98, 99,  0,  0,  0,  0,  0,  0, // 0x90
+   0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, // 0xA0
+   0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, // 0xB0
+   0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, // 0xC0
+   0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, // 0xD0
+   0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, // 0xE0
+   0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, // 0xF0
+  };
+
+static
+__int128
+pd_dive_rt(const unsigned char *psz, int nplaces)
+  {
+  __int128 retval;
+  switch(nplaces)
+    {
+    case 0:
+      retval =   0;
+      break;
+    case 1:
+      retval =   __gg__dp2bin[psz[0]];
+      break;
+    case 2:
+      retval =   __gg__dp2bin[psz[0]] * 100
+               + __gg__dp2bin[psz[1]];
+      break;
+    case 3:
+      retval =   __gg__dp2bin[psz[0]] * 10000
+               + __gg__dp2bin[psz[1]] * 100
+               + __gg__dp2bin[psz[2]];
+      break;
+    case 4:
+      retval =   __gg__dp2bin[psz[0]] * 1000000
+               + __gg__dp2bin[psz[1]] * 10000
+               + __gg__dp2bin[psz[2]] * 100
+               + __gg__dp2bin[psz[3]];
+      break;
+    default:
+      {
+      int nright = nplaces/2;
+      int nleft  = nplaces - nright;
+      __int128 pot = __gg__power_of_ten(nright*2);
+      retval =   pd_dive_rt(psz,       nleft) * pot
+               + pd_dive_rt(psz+nleft, nright);
+      break;
+      }
+    }
+
   return retval;
   }
 
 extern "C"
 __int128
 __gg__packed_to_binary(const unsigned char *psz,
-                             int            nplaces )
+                             int            nplaces) // Number of bytes
   {
-  // See the comments in __gg__numeric_display_to_binary() above.
+  __int128 retval;
+  // Check to see if the final nybble is a sign bit:
+  bool signable = (psz[nplaces-1] & 0x0F) >= 0x0C;
 
-  __int128 retval = 0;
-
-  static const unsigned char dp2bin[160] =
+  if( signable )
     {
-    // This may not be the weirdest table I've ever created, but it is
-    // certainly a contender.  Given the packed decimal byte 0x23, it
-    // returns the equivalent decimal value of 23.  Note that the final
-    // entries in each line are intended to handle the final place of
-    // signed values.  0x2D, for example, gets picked up as 20.
-    00, 01, 02, 03, 04, 05, 06, 07,  8,  9,  0,  0,  0,  0,  0,  0, // 0x00
-    10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 10, 10, 10, 10, 10, 10, // 0x10
-    20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 20, 20, 20, 20, 20, 20, // 0x20
-    30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 30, 30, 30, 30, 30, 30, // 0x30
-    40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 40, 40, 40, 40, 40, 40, // 0x40
-    50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 50, 50, 50, 50, 50, 50, // 0x50
-    60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 60, 60, 60, 60, 60, 60, // 0x60
-    70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 70, 70, 70, 70, 70, 70, // 0x70
-    80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 80, 80, 80, 80, 80, 80, // 0x80
-    90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 90, 90, 90, 90, 90, 90, // 0x90
-    };
-
-  uint64_t top = 0;
-  uint64_t middle = 0;
-  uint64_t bottom = 0;
-
-  int count_bottom;
-  int count_middle;
-  int count_top;
-
-  // Turn places into n digits
-  int n = nplaces * 2;
-
-  // Digits 1 through 18 come from the bottom:
-  if( n <= 18 )
-    {
-    count_bottom = n;
-    count_middle = 0;
-    count_top = 0;
-    }
-  else if( n<= 36 )
-    {
-    count_bottom = 18;
-    count_middle = n - 18;
-    count_top = 0;
+    retval = pd_dive_rt(psz, nplaces-1) * 10 + (psz[nplaces-1] >> 4);
     }
   else
     {
-    count_bottom = 18;
-    count_middle = 18;
-    count_top = n - 36;
+    retval = pd_dive_rt(psz, nplaces);
     }
-
-  while( count_top )
+  if(     signable
+      && (psz[nplaces-1] & 0x0F) == 0x0D )
     {
-    top *= 100 ;
-    top += dp2bin[*psz++];
-    count_top -= 2;
+    retval = -retval;
     }
-
-  while( count_middle )
-    {
-    middle *= 100 ;
-    middle += dp2bin[*psz++];
-    count_middle -= 2;
-    }
-
-  while( count_bottom )
-    {
-    bottom *= 100 ;
-    bottom += dp2bin[*psz++];
-    count_bottom -= 2;
-    }
-
-  retval = top;
-  retval *= 1000000000000000000ULL; // 10E18
-
-  retval += middle;
-  retval *= 1000000000000000000ULL;
-
-  retval += bottom;
-
-  // retval is now the binary value of the packed decimal number.
-
-  // back up one byte to fetch the sign nybble.
-  uint8_t sign_nybble = *(psz-1) & 0x0F;
-  enum{ PACKED_NYBBLE_MINUS= 0x0D};
-
-  if( sign_nybble > 9 )
-    {
-    // There is a sign nybble.  We have to divide the result by ten to offset
-    // left shift due place taken up by the sign nybble.
-    retval /= 10;
-
-    if( sign_nybble == PACKED_NYBBLE_MINUS )
-      {
-      retval = -retval ;
-      }
-    }
-
   return retval;
   }
-
-
-
-
-

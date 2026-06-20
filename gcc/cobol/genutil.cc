@@ -59,7 +59,6 @@
 #include "exceptg.h"
 #include "dumpfile.h"
 
-
 bool exception_location_active = true;
 bool skip_exception_processing = true;
 
@@ -94,6 +93,10 @@ tree var_decl_call_parameter_lengths;   // size_t *__gg__call_parameter_count
 // wasn't successful figuring out how to create an actual NOP assembly language
 // instruction, I instead gg_assign(var_decl_nop, integer_zero_node)
 tree var_decl_nop;                // int         __gg__nop;
+
+// This table is used to access the table of packed-decimal->binary pairs
+// of digits.
+tree var_decl_dp2bin;  // unsigned char __gg__dp2bin[256]'
 
 // Indicates which routine main() called
 tree var_decl_main_called;        // int         __gg__main_called;
@@ -782,6 +785,31 @@ digit(tree location, int offset, int stride)
                         build_int_cst_type(UCHAR, 0x0F));
   }
 
+static const unsigned long pots[20] =
+  {
+  1ULL,                       // 00
+  10ULL,                      // 01
+  100ULL,                     // 02
+  1000ULL,                    // 03
+  10000ULL,                   // 04
+  100000ULL,                  // 05
+  1000000ULL,                 // 06
+  10000000ULL,                // 07
+  100000000ULL,               // 08
+  1000000000ULL,              // 09
+  10000000000ULL,             // 10
+  100000000000ULL,            // 11
+  1000000000000ULL,           // 12
+  10000000000000ULL,          // 13
+  100000000000000ULL,         // 14
+  1000000000000000ULL,        // 15
+  10000000000000000ULL,       // 16
+  100000000000000000ULL,      // 17
+  1000000000000000000ULL,     // 18
+  10000000000000000000ULL,    // 19
+  };
+
+
 static tree
 num_disp_dive(tree location,  // UCHAR_P to first digit
               int  digits,    //
@@ -856,29 +884,7 @@ num_disp_dive(tree location,  // UCHAR_P to first digit
       int nright = digits/2;
       int nleft  = digits - nright;
 
-      int64_t right_factor = 0;
-      switch(nright)
-        {
-        // Look!  A ziggurat!
-        case  2: right_factor = 100ULL; break;
-        case  3: right_factor = 1000ULL; break;
-        case  4: right_factor = 10000ULL; break;
-        case  5: right_factor = 100000ULL; break;
-        case  6: right_factor = 1000000ULL; break;
-        case  7: right_factor = 10000000ULL; break;
-        case  8: right_factor = 100000000ULL; break;
-        case  9: right_factor = 1000000000ULL; break;
-        case 10: right_factor = 10000000000ULL; break;
-        case 11: right_factor = 100000000000ULL; break;
-        case 12: right_factor = 1000000000000ULL; break;
-        case 13: right_factor = 10000000000000ULL; break;
-        case 14: right_factor = 100000000000000ULL; break;
-        case 15: right_factor = 1000000000000000ULL; break;
-        case 16: right_factor = 10000000000000000ULL; break;
-        case 17: right_factor = 100000000000000000ULL; break;
-        case 18: right_factor = 1000000000000000000ULL; break;
-        case 19: right_factor = 10000000000000000000ULL; break;
-        }
+      int64_t right_factor = pots[nright];
       tree term_a = gg_multiply(num_disp_dive(location,
                                               nleft,
                                               signable,
@@ -893,6 +899,149 @@ num_disp_dive(tree location,  // UCHAR_P to first digit
       gg_assign(retval, gg_add(term_a, term_b));
       break;
       }
+    }
+
+  return retval;
+  }
+
+static tree
+pd_dive(tree location, int nbytes, bool signable)
+  {
+  tree type;
+  int digits = nbytes * 2;
+  if( digits < 10 )
+    {
+    type = signable ? INT : UINT;
+    }
+  else if(digits < 20 )
+    {
+    type = signable ? LONG : ULONG;
+    }
+  else
+    {
+    type = signable ? INT128 : UINT128;
+    }
+  tree retval = gg_define_variable(type);
+
+  tree ten2 = build_int_cst_type(type, 100);
+  tree ten4 = build_int_cst_type(type, 10000);
+  tree ten6 = build_int_cst_type(type, 1000000);
+
+  tree t1 = integer_one_node;
+  tree t2 = build_int_cst_type(INT, 2);
+  tree t3 = build_int_cst_type(INT, 3);
+
+  switch(nbytes)
+    {
+    case 0:
+      retval =   integer_zero_node;
+      break;
+    case 1:
+      gg_assign(retval,
+                gg_cast(type,
+                        gg_array_value(var_decl_dp2bin,
+                                       gg_indirect(location))));
+      break;
+    case 2:
+      {
+      tree A = gg_multiply(gg_cast(type,
+                                   gg_array_value(var_decl_dp2bin,
+                                                  gg_indirect(location))),
+                           ten2);
+      tree B = gg_cast(type,
+                       gg_array_value(var_decl_dp2bin,
+                                      gg_indirect(location, t1)));
+      gg_assign(retval, gg_add(A, B));
+      break;
+      }
+    case 3:
+      {
+      tree A = gg_multiply(gg_cast(type,
+                           gg_array_value(var_decl_dp2bin,
+                                          gg_indirect(location))),
+                           ten4);
+      tree B = gg_multiply(gg_cast(type,
+                        gg_array_value(var_decl_dp2bin,
+                                       gg_indirect(location, t1))),
+                           ten2);
+      tree C = gg_cast(type,
+                       gg_array_value(var_decl_dp2bin,
+                                      gg_indirect(location, t2)));
+      gg_assign(retval, gg_add(A, gg_add(B, C)));
+      break;
+      }
+    case 4:
+      {
+      tree A = gg_multiply(gg_cast(type,
+                           gg_array_value(var_decl_dp2bin,
+                                          gg_indirect(location))),
+                           ten6);
+      tree B = gg_multiply(gg_cast(type,
+                        gg_array_value(var_decl_dp2bin,
+                                       gg_indirect(location, t1))),
+                           ten4);
+      tree C = gg_multiply(gg_cast(type,
+                        gg_array_value(var_decl_dp2bin,
+                                       gg_indirect(location, t2))),
+                           ten2);
+      tree D = gg_cast(type,
+                       gg_array_value(var_decl_dp2bin,
+                                      gg_indirect(location, t3)));
+      gg_assign(retval, gg_add(A, gg_add(B, gg_add(C, D))));
+      break;
+      }
+    default:
+      {
+      int nright = nbytes/2;
+      int nleft  = nbytes - nright;
+      tree A = gg_multiply( gg_cast(type, pd_dive(location, nleft, signable)),
+                            build_int_cst_type(type, pots[nright*2]));
+      tree B = gg_cast(type, pd_dive(gg_add(location,
+                                            build_int_cst_type(SIZE_T, nleft)),
+                                     nright,
+                                     signable));
+      gg_assign(retval, gg_add(A, B));
+      break;
+      }
+    }
+
+  return retval;
+  }
+
+static tree
+get_pd_value(tree return_type, cbl_field_t *field, tree location)
+  {
+  tree retval = gg_define_variable(return_type);
+  bool has_sign_nybble =  !(field->attr & separate_e);
+  bool signable        = !!(field->attr & signable_e);
+  int nbytes = field->data.capacity();
+
+  gg_assign(retval,
+            gg_cast(return_type,
+                    pd_dive(location,
+                            has_sign_nybble ? nbytes - 1 : nbytes,
+                            signable)));
+  if( has_sign_nybble )
+    {
+    gg_assign(retval,
+              gg_add(gg_multiply(retval,
+                                 build_int_cst_type(return_type, 10)),
+                     gg_cast(return_type,
+                             gg_rshift(gg_indirect(location,
+                                       build_int_cst_type(SIZE_T, nbytes-1)),
+                                       build_int_cst_type(SIZE_T, 4)))));
+
+    IF( gg_bitwise_and(gg_indirect(location, build_int_cst_type(SIZE_T, nbytes-1)),
+                                   build_int_cst_type(UCHAR, 0x0F)),
+        eq_op,
+        build_int_cst_type(UCHAR, 0x0D) )
+      {
+      gg_assign(retval, gg_negate(retval));
+      }
+    ELSE
+      {
+      }
+    ENDIF
     }
 
   return retval;
@@ -1185,16 +1334,10 @@ get_binary_value_tree(tree return_type,
                   build_int_cst_type( TREE_TYPE(rdigits),
                                       get_scaled_rdigits(field)));
         }
-      tree value = gg_define_variable(return_type);
-      gg_assign(value, gg_cast(return_type,
-                                    gg_call_expr(INT128,
-                                    "__gg__packed_to_binary",
-                                    get_data_address( field,
-                                                      field_offset),
-                                    build_int_cst_type(INT,
-                                                      field->data.capacity()),
-                                    NULL_TREE)));
-      retval = value;
+      gg_assign(retval,
+                get_pd_value(return_type,
+                             field,
+                             get_data_address( field, field_offset)));
       break;
       }
 
@@ -2412,27 +2555,6 @@ binary_from_FldNumericBinary(tree &value, const cbl_refer_t &refer, tree type)
 
   return retval;
   }
-
-static const unsigned long pots[17] =
-  {
-  1ULL,                       // 00
-  10ULL,                      // 01
-  100ULL,                     // 02
-  1000ULL,                    // 03
-  10000ULL,                   // 04
-  100000ULL,                  // 05
-  1000000ULL,                 // 06
-  10000000ULL,                // 07
-  100000000ULL,               // 08
-  1000000000ULL,              // 09
-  10000000000ULL,             // 10
-  100000000000ULL,            // 11
-  1000000000000ULL,           // 12
-  10000000000000ULL,          // 13
-  100000000000000ULL,         // 14
-  1000000000000000ULL,        // 15
-  10000000000000000ULL,       // 16
-  };
 
 static void
 d_and_q_num_disp( tree  &retval,   // We define this return value
