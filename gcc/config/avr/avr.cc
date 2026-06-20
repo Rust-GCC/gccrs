@@ -11898,11 +11898,7 @@ avr_progmem_p (tree decl, tree attributes)
       != lookup_attribute ("progmem", attributes))
     return -1;
 
-  tree a = decl;
-
-  do
-    a = TREE_TYPE (a);
-  while (TREE_CODE (a) == ARRAY_TYPE);
+  tree a = strip_array_types (TREE_TYPE (decl));
 
   if (a == error_mark_node)
     return 0;
@@ -11933,8 +11929,7 @@ avr_decl_absdata_p (tree decl, tree attributes)
 static addr_space_t
 avr_nonconst_pointer_addrspace (tree typ)
 {
-  while (ARRAY_TYPE == TREE_CODE (typ))
-    typ = TREE_TYPE (typ);
+  typ = strip_array_types (typ);
 
   if (POINTER_TYPE_P (typ))
     {
@@ -11947,8 +11942,7 @@ avr_nonconst_pointer_addrspace (tree typ)
 
       /* "Ordinary" pointers... */
 
-      while (TREE_CODE (target) == ARRAY_TYPE)
-	target = TREE_TYPE (target);
+      target = strip_array_types (target);
 
       /* Pointers to non-generic address space must be const.  */
 
@@ -12171,14 +12165,10 @@ avr_insert_attributes (tree node, tree *attributes)
       && (TREE_STATIC (node) || DECL_EXTERNAL (node))
       && avr_progmem_p (node, *attributes))
     {
-      tree node0 = node;
-
       /* For C++, we have to peel arrays in order to get correct
 	 determination of readonlyness.  */
 
-      do
-	node0 = TREE_TYPE (node0);
-      while (TREE_CODE (node0) == ARRAY_TYPE);
+      tree node0 = strip_array_types (TREE_TYPE (node));
 
       if (error_mark_node == node0)
 	return;
@@ -12452,9 +12442,7 @@ avr_decl_maybe_lds_p (tree node)
 
   // C++ requires peeling arrays.
 
-  do
-    node = TREE_TYPE (node);
-  while (ARRAY_TYPE == TREE_CODE (node));
+  node = strip_array_types (TREE_TYPE (node));
 
   return (node != error_mark_node
 	  && !TYPE_READONLY (node));
