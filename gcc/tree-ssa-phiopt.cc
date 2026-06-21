@@ -3191,13 +3191,7 @@ cond_store_replacement (basic_block middle_bb, basic_block join_bb, edge e0,
 
   /* 4) Insert that PHI node.  */
   gsi = gsi_after_labels (join_bb);
-  if (gsi_end_p (gsi))
-    {
-      gsi = gsi_last_bb (join_bb);
-      gsi_insert_after (&gsi, new_stmt, GSI_NEW_STMT);
-    }
-  else
-    gsi_insert_before (&gsi, new_stmt, GSI_NEW_STMT);
+  gsi_insert_before (&gsi, new_stmt, GSI_NEW_STMT);
 
   if (dump_file && (dump_flags & TDF_DETAILS))
     {
@@ -3337,13 +3331,7 @@ cond_if_else_store_replacement_1 (basic_block then_bb, basic_block else_bb,
 
   /* 3) Insert that new store.  */
   gsi = gsi_after_labels (join_bb);
-  if (gsi_end_p (gsi))
-    {
-      gsi = gsi_last_bb (join_bb);
-      gsi_insert_after (&gsi, new_stmt, GSI_NEW_STMT);
-    }
-  else
-    gsi_insert_before (&gsi, new_stmt, GSI_NEW_STMT);
+  gsi_insert_before (&gsi, new_stmt, GSI_NEW_STMT);
 
   statistics_counter_event (cfun, "if-then-else store replacement", 1);
 
