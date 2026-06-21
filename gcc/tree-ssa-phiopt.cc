@@ -3713,8 +3713,11 @@ factor_out_conditional_load (edge e0, edge e1, basic_block merge, gphi *phi,
 	  || gimple_vuse (load1) != gimple_phi_arg_def (vphi, e1->dest_idx))
 	return false;
     }
-  else
-    gcc_assert (gimple_vuse (load0) == gimple_vuse (load1));
+  /* Sometimes due to not removing dead statements,
+     a virtual phi does not show up going into an infinite loop
+     so just reject that case.  */
+  else if (gimple_vuse (load0) != gimple_vuse (load1))
+    return false;
 
   tree ref0 = gimple_assign_rhs1 (load0);
   tree ref1 = gimple_assign_rhs1 (load1);
