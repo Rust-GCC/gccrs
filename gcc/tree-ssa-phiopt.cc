@@ -3167,9 +3167,12 @@ cond_store_replacement (basic_block middle_bb, basic_block join_bb, edge e0,
 
   /* 2) Insert a load from the memory of the store to the temporary
         on the edge which did not contain the store.  */
+  gphi *vphi = get_virtual_phi (join_bb);
   name = make_temp_ssa_name (TREE_TYPE (lhs), NULL, "cstore");
   new_stmt = gimple_build_assign (name, lhs);
   gimple_set_location (new_stmt, locus);
+  /* Set the vuse for the new load.  */
+  gimple_set_vuse (new_stmt, gimple_phi_arg_def (vphi, e1->dest_idx));
   lhs = unshare_expr (lhs);
   {
     /* Set the no-warning bit on the rhs of the load to avoid uninit
@@ -3188,6 +3191,15 @@ cond_store_replacement (basic_block middle_bb, basic_block join_bb, edge e0,
   add_phi_arg (newphi, name, e1, locus);
 
   new_stmt = gimple_build_assign (lhs, gimple_phi_result (newphi));
+
+  /* Update the vdef for the new store statement. */
+  tree newvphilhs = make_ssa_name (gimple_vop (cfun));
+  tree vdef = gimple_phi_result (vphi);
+  gimple_set_vuse (new_stmt, newvphilhs);
+  gimple_set_vdef (new_stmt, vdef);
+  gimple_phi_set_result (vphi, newvphilhs);
+  SSA_NAME_DEF_STMT (vdef) = new_stmt;
+  update_stmt (vphi);
 
   /* 4) Insert that PHI node.  */
   gsi = gsi_after_labels (join_bb);
