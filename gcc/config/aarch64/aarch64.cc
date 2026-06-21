@@ -17191,9 +17191,13 @@ aarch64_sched_variable_issue (FILE *, int, rtx_insn *insn, int more)
 static int
 aarch64_sched_first_cycle_multipass_dfa_lookahead (void)
 {
-  int issue_rate = aarch64_sched_issue_rate ();
+  /* Do not use DFA lookahead during sched_fusion or when dispatch
+     scheduling is enabled.  */
+  if (sched_fusion || aarch64_sched_dispatch (NULL, IS_DISPATCH_ON))
+    return 0;
 
-  return issue_rate > 1 && !sched_fusion ? issue_rate : 0;
+  int issue_rate = aarch64_sched_issue_rate ();
+  return issue_rate > 1 ? issue_rate : 0;
 }
 
 
