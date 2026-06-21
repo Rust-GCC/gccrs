@@ -1,3 +1,34 @@
+2026-06-20  Gerald Pfeifer  <gerald@pfeifer.com>
+
+	* doc/extend.texi (Integer Overflow Builtins): Spell compile time
+	without dash when a noun.
+	* doc/invoke.texi (Warning Options): Ditto.
+	* doc/passes.texi (Tree SSA passes): Ditto.
+	* doc/rtl.texi (Conversions): Ditto.
+
+2026-06-20  Georg-Johann Lay  <avr@gjlay.de>
+
+	* config/avr/avr.cc (avr_progmem_p): Use strip_array_types to
+	peel off ARRAY_TYPEs.
+	(avr_nonconst_pointer_addrspace): Same.
+	(avr_insert_attributes): Same.
+	(avr_decl_maybe_lds_p): Same.
+
+2026-06-20  Roger Sayle  <roger@nextmovesoftware.com>
+	    Hongtao Liu  <hongtao.liu@intel.com>
+
+	* config/i386/i386-features.cc (scalar_chain::convert_op): Check
+	if the (DImode) SUBREG being converted by STV has an original mode
+	that's tieable to the vector mode (V2DImode), if not (e.g. DDmode)
+	emit this "conversion" as a separate move for reload to handle.
+
+2026-06-20  Georg-Johann Lay  <avr@gjlay.de>
+
+	* config/avr/avr.cc (avr_init_builtins): Use XALLOCAVEC
+	instead of alloca to locally alloc char[].
+	* config/avr/avr-c.cc (avr_cpu_cpp_builtins): Same.
+	* config/avr/avr-log.cc (avr_log_set_avr_log): Same.
+
 2026-06-19  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
 
 	PR tree-optimization/125857

@@ -1,3 +1,20 @@
+2026-06-20  Robert Dubner  <rdubner@symas.com>
+
+	* charmaps.cc: Eliminate rt_encoding_t.
+	* libgcobol.cc (console_init): Change how __gg__console_encoding is
+	established.
+	(initialize_program_state): Likewise.
+	(get_binary_value_local): Use new conversion algorithms.
+	(__gg__move): Likewise.
+	* stringbin.cc (__gg__numeric_display_to_binary):  Likewise.
+	(digit_rt): Likewise.
+	(num_disp_dive_rt): Likewise.
+	(pd_dive_rt): Likewise.
+	(__gg__packed_to_binary): Likewise.
+	* stringbin.h (STRINGBIN_H_): Declaration for __gg__dp2bin.
+	(__gg__numeric_display_to_binary): Use new algorithms.
+	(__gg__packed_to_binary): Likewise.
+
 2026-06-16  Robert Dubner  <rdubner@symas.com>
 
 	* gmath.cc (multiply_int256_by_int64): Comment.

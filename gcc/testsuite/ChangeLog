@@ -1,3 +1,18 @@
+2026-06-20  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* gcc.dg/debug/dwarf2/dwarf2-macro.c: Skip for Darwin23+.
+	* gcc.dg/debug/dwarf2/dwarf2-macro2.c: Likewise.
+
+2026-06-20  Iain Sandoe  <iain@sandoe.co.uk>
+
+	PR testsuite/112728
+	* lib/scanasm.exp (remove_lto_sections): New.
+
+2026-06-20  Tamar Christina  <tamar.christina@arm.com>
+
+	PR testsuite/125871
+	* gcc.dg/vect/vect-early-break_144-pr125804.c: New test.
+
 2026-06-19  Kees Cook  <kees@kernel.org>
 
 	PR c/125604

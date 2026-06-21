@@ -1,3 +1,17 @@
+2026-06-20  Robert Dubner  <rdubner@symas.com>
+
+	* genapi.cc (parser_enter_file): Establish a var_decl for the
+	common packed-decimal to binary conversion table.
+	* genutil.cc (digit): Divide-and conquer numeric-display converter.
+	(num_disp_dive): Likewise.
+	(pd_dive): Divide-and-conqure packed-decimal converter.
+	(get_pd_value): Likewise.
+	(get_binary_value_tree): Use the new routines.
+	(binary_from_FldNumericBinary):  Divide-and conquer numeric-display
+	converter.
+	* genutil.h: Declaration for var_decl_dp2bin.
+	* move.cc (mh_little_endian): Allow FldPacked as a source.
+
 2026-06-18  Robert Dubner  <rdubner@symas.com>
 
 	* cbldiag.h (current_program_index): Suppress cppcheck warning.
