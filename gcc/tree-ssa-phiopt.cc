@@ -3110,8 +3110,9 @@ cond_store_replacement (basic_block middle_bb, basic_block join_bb, edge e0,
      whose value is not available readily, which we want to avoid.  */
   if (nontrap->contains (lhs))
     {
-      /* Make sure there is no load in the middle bb,
-	 this invalidates nontrap.
+      /* For local non-addressable variables, a load in the same bb
+	 (though before) will cause the lhs to be in the nontrap hashset.
+	 So need to check if there are no other loads in the middle bb.
 	 FIXME: this is over conserative, this check could be made to
 	 allow loads unrelated to lhs.  */
       tree vuse = gimple_vuse (assign);
