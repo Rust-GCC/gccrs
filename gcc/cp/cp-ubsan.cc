@@ -69,10 +69,7 @@ cp_ubsan_instrument_vptr (location_t loc, tree op, tree type, bool is_addr,
   if (!is_addr)
     op = build_fold_addr_expr_loc (loc, op);
   op = save_expr (op);
-  tree vptr = fold_build3_loc (loc, COMPONENT_REF,
-			       TREE_TYPE (TYPE_VFIELD (type)),
-			       build_fold_indirect_ref_loc (loc, op),
-			       TYPE_VFIELD (type), NULL_TREE);
+  tree vptr = build_vfield_ref (build_fold_indirect_ref_loc (loc, op), type);
   vptr = fold_convert_loc (loc, pointer_sized_int_node, vptr);
   vptr = fold_convert_loc (loc, uint64_type_node, vptr);
   if (ckind == UBSAN_DOWNCAST_POINTER)
