@@ -9719,6 +9719,357 @@ check_omp_clauses_dupl_syms (gfc_code *code, gfc_omp_clauses *omp_clauses,
     }
 }
 
+/* OpenMP/OpenACC: Resolve the list item of a MAP, TO, FROM, CACHE, AFFINITY
+   or DEPEND clause.  */
+
+static void
+resolve_omp_clauses_aff_dep_map_cache (gfc_code *code,
+				       gfc_omp_namelist *n,
+				       const char *name,
+				       enum gfc_omp_list_type list,
+				       gfc_omp_clauses *omp_clauses,
+				       bool openacc)
+{
+  gcc_checking_assert (list == OMP_LIST_AFFINITY || list == OMP_LIST_DEPEND
+		       || list == OMP_LIST_MAP || list == OMP_LIST_TO
+		       || list == OMP_LIST_FROM || list == OMP_LIST_CACHE);
+
+  if (list != OMP_LIST_CACHE && n->u2.ns && !n->u2.ns->resolved)
+    {
+      n->u2.ns->resolved = 1;
+      for (gfc_symbol *sym = n->u2.ns->omp_affinity_iterators;
+	   sym; sym = sym->tlink)
+	{
+	  gfc_constructor *c;
+	  c = gfc_constructor_first (sym->value->value.constructor);
+	  if (!gfc_resolve_expr (c->expr)
+	      || c->expr->ts.type != BT_INTEGER
+	      || c->expr->rank != 0)
+	    gfc_error ("Scalar integer expression for range begin expected "
+		       "at %L", &c->expr->where);
+	  c = gfc_constructor_next (c);
+	  if (!gfc_resolve_expr (c->expr)
+	      || c->expr->ts.type != BT_INTEGER
+	      || c->expr->rank != 0)
+	    gfc_error ("Scalar integer expression for range end expected at %L",
+		       &c->expr->where);
+	  c = gfc_constructor_next (c);
+	  if (c && (!gfc_resolve_expr (c->expr)
+		    || c->expr->ts.type != BT_INTEGER
+		    || c->expr->rank != 0))
+	    gfc_error ("Scalar integer expression for range step expected "
+		       "at %L", &c->expr->where);
+	  else if (c
+		   && c->expr->expr_type == EXPR_CONSTANT
+		   && mpz_cmp_si (c->expr->value.integer, 0) == 0)
+	    gfc_error ("Nonzero range step expected at %L", &c->expr->where);
+	}
+    }
+  if (list == OMP_LIST_DEPEND)
+    {
+      if (n->u.depend_doacross_op == OMP_DEPEND_SINK_FIRST
+	  || n->u.depend_doacross_op == OMP_DOACROSS_SINK_FIRST
+	  || n->u.depend_doacross_op == OMP_DOACROSS_SINK)
+	{
+	  if (omp_clauses->doacross_source)
+	    {
+	      gfc_error ("Dependence-type SINK used together with SOURCE on "
+			 "the same construct at %L", &n->where);
+	      omp_clauses->doacross_source = false;
+	    }
+	  else if (n->expr)
+	    {
+	      if (!gfc_resolve_expr (n->expr)
+		  || n->expr->ts.type != BT_INTEGER
+		  || n->expr->rank != 0)
+		gfc_error ("SINK addend not a constant integer at %L",
+			   &n->where);
+	    }
+	  if (n->sym == NULL
+	      && (n->expr == NULL
+		  || mpz_cmp_si (n->expr->value.integer, -1) != 0))
+	    gfc_error ("omp_cur_iteration at %L requires %<-1%> as "
+		       "logical offset", &n->where);
+	  return;
+	}
+      if (n->u.depend_doacross_op == OMP_DEPEND_DEPOBJ
+	  && !n->expr
+	  && (n->sym->ts.type != BT_INTEGER
+	      || n->sym->ts.kind != 2 * gfc_index_integer_kind
+	      || n->sym->attr.dimension))
+	gfc_error ("Locator %qs at %L in DEPEND clause of depobj type shall be "
+		   "a scalar integer of OMP_DEPEND_KIND kind",
+		   n->sym->name, &n->where);
+      else if (n->u.depend_doacross_op == OMP_DEPEND_DEPOBJ
+	       && n->expr
+	       && (!gfc_resolve_expr (n->expr)
+		   || n->expr->ts.type != BT_INTEGER
+		   || n->expr->ts.kind != 2 * gfc_index_integer_kind
+		   || n->expr->rank != 0))
+	gfc_error ("Locator at %L in DEPEND clause of depobj type shall be a "
+		   "scalar integer of OMP_DEPEND_KIND kind", &n->expr->where);
+    }
+  gfc_ref *lastref = NULL, *lastslice = NULL;
+  bool resolved = false;
+  if (n->expr)
+    {
+      lastref = n->expr->ref;
+      resolved = gfc_resolve_expr (n->expr);
+
+      /* Look through component refs to find last array reference.  */
+      if (resolved)
+	{
+	  for (gfc_ref *ref = n->expr->ref; ref; ref = ref->next)
+	    if (ref->type == REF_COMPONENT
+		|| ref->type == REF_SUBSTRING
+		|| ref->type == REF_INQUIRY)
+	      lastref = ref;
+	    else if (ref->type == REF_ARRAY)
+	      {
+		for (int i = 0; i < ref->u.ar.dimen; i++)
+		  if (ref->u.ar.dimen_type[i] == DIMEN_RANGE)
+		    lastslice = ref;
+		lastref = ref;
+	      }
+
+	  /* The "!$acc cache" directive allows rectangular subarrays to be
+	      specified, with some restrictions on the form of bounds (not
+	      implemented).  Only raise an error here if we're really sure the
+	      array isn't contiguous.  An expression such as arr(-n:n,-n:n)
+	      could be contiguous even if it looks like it may not be.  */
+	  if (code
+	      && code->op != EXEC_OACC_UPDATE
+	      && list != OMP_LIST_CACHE
+	      && list != OMP_LIST_DEPEND
+	      && !gfc_is_simply_contiguous (n->expr, false, true)
+	      && gfc_is_not_contiguous (n->expr)
+	      && !(lastslice && (lastslice->next
+				 || lastslice->type != REF_ARRAY)))
+	    gfc_error ("Array is not contiguous at %L", &n->where);
+	}
+    }
+  if (list == OMP_LIST_MAP
+      && (n->sym->attr.omp_groupprivate
+	  || n->sym->attr.omp_declare_target_local))
+    gfc_error ("%qs argument to MAP clause at %L must not be a device-local "
+	       "variable, including GROUPPRIVATE", n->sym->name, &n->where);
+  if (openacc
+      && list == OMP_LIST_MAP
+      && (n->u.map.op == OMP_MAP_ATTACH || n->u.map.op == OMP_MAP_DETACH))
+    {
+      symbol_attribute attr;
+      if (n->expr)
+	attr = gfc_expr_attr (n->expr);
+      else
+	attr = n->sym->attr;
+      if (!attr.pointer && !attr.allocatable)
+	gfc_error ("%qs clause argument must be ALLOCATABLE or a POINTER at %L",
+		   (n->u.map.op == OMP_MAP_ATTACH) ? "attach" : "detach",
+		   &n->where);
+    }
+  if (lastref
+      || (n->expr && (!resolved || n->expr->expr_type != EXPR_VARIABLE)))
+    {
+      if (!lastslice && lastref && lastref->type == REF_SUBSTRING)
+	gfc_error ("Unexpected substring reference in %s clause at %L",
+		   name, &n->where);
+      else if (!lastslice && lastref && lastref->type == REF_INQUIRY)
+	{
+	  gcc_assert (lastref->u.i == INQUIRY_RE || lastref->u.i == INQUIRY_IM);
+	  gfc_error ("Unexpected complex-parts designator reference in %s "
+		     "clause at %L", name, &n->where);
+	}
+      else if (!resolved
+	       || n->expr->expr_type != EXPR_VARIABLE
+	       || (lastslice
+		   && (lastslice->next || lastslice->type != REF_ARRAY)))
+	gfc_error ("%qs in %s clause at %L is not a proper array section",
+		       n->sym->name, name, &n->where);
+      else if (lastslice)
+	{
+	  int i;
+	  gfc_array_ref *ar = &lastslice->u.ar;
+	  for (i = 0; i < ar->dimen; i++)
+	    if (ar->stride[i] && code && code->op != EXEC_OACC_UPDATE)
+	      {
+		gfc_error ("Stride should not be specified for array section "
+			   "in %s clause at %L", name, &n->where);
+		break;
+	      }
+	    else if (ar->dimen_type[i] != DIMEN_ELEMENT
+			 && ar->dimen_type[i] != DIMEN_RANGE)
+	      {
+		gfc_error ("%qs in %s clause at %L is not a proper array "
+			   "section", n->sym->name, name, &n->where);
+		break;
+	      }
+	    else if ((list == OMP_LIST_DEPEND || list == OMP_LIST_AFFINITY)
+		     && ar->start[i]
+		     && ar->start[i]->expr_type == EXPR_CONSTANT
+		     && ar->end[i]
+		     && ar->end[i]->expr_type == EXPR_CONSTANT
+		     && mpz_cmp (ar->start[i]->value.integer,
+				 ar->end[i]->value.integer) > 0)
+	      {
+		gfc_error ("%qs in %s clause at %L is a zero size array "
+			   "section", n->sym->name,
+			   list == OMP_LIST_DEPEND ? "DEPEND" : "AFFINITY",
+			   &n->where);
+		break;
+	      }
+	}
+    }
+  else if (openacc)
+    {
+      if (list == OMP_LIST_MAP && n->u.map.op == OMP_MAP_FORCE_DEVICEPTR)
+	resolve_oacc_deviceptr_clause (n->sym, n->where, name);
+      else
+	resolve_oacc_data_clauses (n->sym, n->where, name);
+    }
+  else if (list != OMP_LIST_DEPEND
+	       && n->sym->as
+	       && n->sym->as->type == AS_ASSUMED_SIZE)
+    gfc_error ("Assumed size array %qs in %s clause at %L",
+		   n->sym->name, name, &n->where);
+  if (code && list == OMP_LIST_MAP && !openacc)
+    switch (code->op)
+      {
+      case EXEC_OMP_TARGET:
+      case EXEC_OMP_TARGET_PARALLEL:
+      case EXEC_OMP_TARGET_PARALLEL_DO:
+      case EXEC_OMP_TARGET_PARALLEL_DO_SIMD:
+      case EXEC_OMP_TARGET_PARALLEL_LOOP:
+      case EXEC_OMP_TARGET_SIMD:
+      case EXEC_OMP_TARGET_TEAMS:
+      case EXEC_OMP_TARGET_TEAMS_DISTRIBUTE:
+      case EXEC_OMP_TARGET_TEAMS_DISTRIBUTE_PARALLEL_DO:
+      case EXEC_OMP_TARGET_TEAMS_DISTRIBUTE_PARALLEL_DO_SIMD:
+      case EXEC_OMP_TARGET_TEAMS_DISTRIBUTE_SIMD:
+      case EXEC_OMP_TARGET_TEAMS_LOOP:
+      case EXEC_OMP_TARGET_DATA:
+	    switch (n->u.map.op)
+	      {
+	      case OMP_MAP_TO:
+	      case OMP_MAP_ALWAYS_TO:
+	      case OMP_MAP_PRESENT_TO:
+	      case OMP_MAP_ALWAYS_PRESENT_TO:
+	      case OMP_MAP_FROM:
+	      case OMP_MAP_ALWAYS_FROM:
+	      case OMP_MAP_PRESENT_FROM:
+	      case OMP_MAP_ALWAYS_PRESENT_FROM:
+	      case OMP_MAP_TOFROM:
+	      case OMP_MAP_ALWAYS_TOFROM:
+	      case OMP_MAP_PRESENT_TOFROM:
+	      case OMP_MAP_ALWAYS_PRESENT_TOFROM:
+	      case OMP_MAP_ALLOC:
+	      case OMP_MAP_PRESENT_ALLOC:
+			  break;
+	      default:
+			  gfc_error ("TARGET%s with map-type other than TO, "
+				     "FROM, TOFROM, or ALLOC on MAP clause "
+				     "at %L",
+				     code->op == EXEC_OMP_TARGET_DATA
+				     ? " DATA" : "", &n->where);
+			  break;
+	      }
+	    break;
+      case EXEC_OMP_TARGET_ENTER_DATA:
+	    switch (n->u.map.op)
+	      {
+	      case OMP_MAP_TO:
+	      case OMP_MAP_ALWAYS_TO:
+	      case OMP_MAP_PRESENT_TO:
+	      case OMP_MAP_ALWAYS_PRESENT_TO:
+	      case OMP_MAP_ALLOC:
+	      case OMP_MAP_PRESENT_ALLOC:
+			  break;
+	      case OMP_MAP_TOFROM:
+			  n->u.map.op = OMP_MAP_TO;
+			  break;
+	      case OMP_MAP_ALWAYS_TOFROM:
+			  n->u.map.op = OMP_MAP_ALWAYS_TO;
+			  break;
+	      case OMP_MAP_PRESENT_TOFROM:
+			  n->u.map.op = OMP_MAP_PRESENT_TO;
+			  break;
+	      case OMP_MAP_ALWAYS_PRESENT_TOFROM:
+			  n->u.map.op = OMP_MAP_ALWAYS_PRESENT_TO;
+			  break;
+	      default:
+			  gfc_error ("TARGET ENTER DATA with map-type other "
+				     "than TO, TOFROM or ALLOC on MAP clause "
+				     "at %L", &n->where);
+			  break;
+	      }
+	    break;
+      case EXEC_OMP_TARGET_EXIT_DATA:
+	    switch (n->u.map.op)
+	      {
+	      case OMP_MAP_FROM:
+	      case OMP_MAP_ALWAYS_FROM:
+	      case OMP_MAP_PRESENT_FROM:
+	      case OMP_MAP_ALWAYS_PRESENT_FROM:
+	      case OMP_MAP_RELEASE:
+	      case OMP_MAP_DELETE:
+			  break;
+	      case OMP_MAP_TOFROM:
+			  n->u.map.op = OMP_MAP_FROM;
+			  break;
+	      case OMP_MAP_ALWAYS_TOFROM:
+			  n->u.map.op = OMP_MAP_ALWAYS_FROM;
+			  break;
+	      case OMP_MAP_PRESENT_TOFROM:
+			  n->u.map.op = OMP_MAP_PRESENT_FROM;
+			  break;
+	      case OMP_MAP_ALWAYS_PRESENT_TOFROM:
+			  n->u.map.op = OMP_MAP_ALWAYS_PRESENT_FROM;
+			  break;
+	      default:
+			  gfc_error ("TARGET EXIT DATA with map-type other "
+				     "than FROM, TOFROM, RELEASE, or DELETE on "
+				     "MAP clause at %L", &n->where);
+			  break;
+	      }
+	    break;
+      default:
+	    break;
+      }
+  if (list == OMP_LIST_MAP || list == OMP_LIST_TO || list == OMP_LIST_FROM)
+    {
+      gfc_typespec *ts = n->expr ? &n->expr->ts : &n->sym->ts;
+
+      if (ts->type == BT_DERIVED || ts->type == BT_CLASS)
+	{
+	  const char *mapper_id = (n->u3.udm
+				   ? n->u3.udm->requested_mapper_id : "");
+	  gfc_omp_udm *udm = gfc_find_omp_udm (gfc_current_ns, mapper_id, ts);
+	  if (mapper_id[0] != '\0' && !udm)
+	    gfc_error ("User-defined mapper %qs not found at %L",
+		       mapper_id, &n->where);
+	  else if (udm)
+	    {
+	      if (!n->u3.udm)
+		{
+		  gcc_assert (mapper_id[0] == '\0');
+		  n->u3.udm = gfc_get_omp_namelist_udm ();
+		  n->u3.udm->requested_mapper_id = mapper_id;
+		}
+	      n->u3.udm->resolved_udm = udm;
+	    }
+	}
+    }
+
+  if (list != OMP_LIST_DEPEND)
+    {
+      n->sym->attr.referenced = 1;
+      if (n->sym->attr.threadprivate)
+	gfc_error ("THREADPRIVATE object %qs in %s clause at %L",
+		   n->sym->name, name, &n->where);
+      if (n->sym->attr.cray_pointee)
+	gfc_error ("Cray pointee %qs in %s clause at %L",
+		   n->sym->name, name, &n->where);
+    }
+}
 
 /* OpenMP directive resolving routines.  */
 
@@ -10198,382 +10549,8 @@ resolve_omp_clauses (gfc_code *code, gfc_omp_clauses *omp_clauses,
 	  case OMP_LIST_FROM:
 	  case OMP_LIST_CACHE:
 	    for (; n != NULL; n = n->next)
-	      {
-		if ((list == OMP_LIST_DEPEND || list == OMP_LIST_AFFINITY
-		     || list == OMP_LIST_MAP
-		     || list == OMP_LIST_TO || list == OMP_LIST_FROM)
-		    && n->u2.ns && !n->u2.ns->resolved)
-		  {
-		    n->u2.ns->resolved = 1;
-		    for (gfc_symbol *sym = n->u2.ns->omp_affinity_iterators;
-			 sym; sym = sym->tlink)
-		      {
-			gfc_constructor *c;
-			c = gfc_constructor_first (sym->value->value.constructor);
-			if (!gfc_resolve_expr (c->expr)
-			    || c->expr->ts.type != BT_INTEGER
-			    || c->expr->rank != 0)
-			  gfc_error ("Scalar integer expression for range begin"
-				     " expected at %L", &c->expr->where);
-			c = gfc_constructor_next (c);
-			if (!gfc_resolve_expr (c->expr)
-			    || c->expr->ts.type != BT_INTEGER
-			    || c->expr->rank != 0)
-			  gfc_error ("Scalar integer expression for range end "
-				     "expected at %L", &c->expr->where);
-			c = gfc_constructor_next (c);
-			if (c && (!gfc_resolve_expr (c->expr)
-				  || c->expr->ts.type != BT_INTEGER
-				  || c->expr->rank != 0))
-			  gfc_error ("Scalar integer expression for range step "
-				     "expected at %L", &c->expr->where);
-			else if (c
-				 && c->expr->expr_type == EXPR_CONSTANT
-				 && mpz_cmp_si (c->expr->value.integer, 0) == 0)
-			  gfc_error ("Nonzero range step expected at %L",
-				     &c->expr->where);
-		      }
-		  }
-
-		if (list == OMP_LIST_DEPEND)
-		  {
-		    if (n->u.depend_doacross_op == OMP_DEPEND_SINK_FIRST
-			|| n->u.depend_doacross_op == OMP_DOACROSS_SINK_FIRST
-			|| n->u.depend_doacross_op == OMP_DOACROSS_SINK)
-		      {
-			if (omp_clauses->doacross_source)
-			  {
-			    gfc_error ("Dependence-type SINK used together with"
-				       " SOURCE on the same construct at %L",
-				       &n->where);
-			    omp_clauses->doacross_source = false;
-			  }
-			else if (n->expr)
-			  {
-			    if (!gfc_resolve_expr (n->expr)
-				|| n->expr->ts.type != BT_INTEGER
-				|| n->expr->rank != 0)
-			      gfc_error ("SINK addend not a constant integer "
-					 "at %L", &n->where);
-			  }
-			if (n->sym == NULL
-			    && (n->expr == NULL
-				|| mpz_cmp_si (n->expr->value.integer, -1) != 0))
-			  gfc_error ("omp_cur_iteration at %L requires %<-1%> "
-				     "as logical offset", &n->where);
-			continue;
-		      }
-		    else if (n->u.depend_doacross_op == OMP_DEPEND_DEPOBJ
-			     && !n->expr
-			     && (n->sym->ts.type != BT_INTEGER
-				 || n->sym->ts.kind
-				    != 2 * gfc_index_integer_kind
-				 || n->sym->attr.dimension))
-		      gfc_error ("Locator %qs at %L in DEPEND clause of depobj "
-				 "type shall be a scalar integer of "
-				 "OMP_DEPEND_KIND kind", n->sym->name,
-				 &n->where);
-		    else if (n->u.depend_doacross_op == OMP_DEPEND_DEPOBJ
-			     && n->expr
-			     && (!gfc_resolve_expr (n->expr)
-				 || n->expr->ts.type != BT_INTEGER
-				 || n->expr->ts.kind
-				    != 2 * gfc_index_integer_kind
-				 || n->expr->rank != 0))
-		      gfc_error ("Locator at %L in DEPEND clause of depobj "
-				 "type shall be a scalar integer of "
-				 "OMP_DEPEND_KIND kind", &n->expr->where);
-		  }
-		gfc_ref *lastref = NULL, *lastslice = NULL;
-		bool resolved = false;
-		if (n->expr)
-		  {
-		    lastref = n->expr->ref;
-		    resolved = gfc_resolve_expr (n->expr);
-
-		    /* Look through component refs to find last array
-		       reference.  */
-		    if (resolved)
-		      {
-			for (gfc_ref *ref = n->expr->ref; ref; ref = ref->next)
-			  if (ref->type == REF_COMPONENT
-			      || ref->type == REF_SUBSTRING
-			      || ref->type == REF_INQUIRY)
-			    lastref = ref;
-			  else if (ref->type == REF_ARRAY)
-			    {
-			      for (int i = 0; i < ref->u.ar.dimen; i++)
-				if (ref->u.ar.dimen_type[i] == DIMEN_RANGE)
-				  lastslice = ref;
-
-			      lastref = ref;
-			    }
-
-			/* The "!$acc cache" directive allows rectangular
-			   subarrays to be specified, with some restrictions
-			   on the form of bounds (not implemented).
-			   Only raise an error here if we're really sure the
-			   array isn't contiguous.  An expression such as
-			   arr(-n:n,-n:n) could be contiguous even if it looks
-			   like it may not be.  */
-			if (code
-			    && code->op != EXEC_OACC_UPDATE
-			    && list != OMP_LIST_CACHE
-			    && list != OMP_LIST_DEPEND
-			    && !gfc_is_simply_contiguous (n->expr, false, true)
-			    && gfc_is_not_contiguous (n->expr)
-			    && !(lastslice
-				 && (lastslice->next
-				     || lastslice->type != REF_ARRAY)))
-			  gfc_error ("Array is not contiguous at %L",
-				     &n->where);
-		      }
-		  }
-		if (list == OMP_LIST_MAP
-		    && (n->sym->attr.omp_groupprivate
-			|| n->sym->attr.omp_declare_target_local))
-		  gfc_error ("%qs argument to MAP clause at %L must not be a "
-			     "device-local variable, including GROUPPRIVATE",
-			     n->sym->name, &n->where);
-		if (openacc
-		    && list == OMP_LIST_MAP
-		    && (n->u.map.op == OMP_MAP_ATTACH
-			|| n->u.map.op == OMP_MAP_DETACH))
-		  {
-		    symbol_attribute attr;
-		    if (n->expr)
-		      attr = gfc_expr_attr (n->expr);
-		    else
-		      attr = n->sym->attr;
-		    if (!attr.pointer && !attr.allocatable)
-		      gfc_error ("%qs clause argument must be ALLOCATABLE or "
-				 "a POINTER at %L",
-				 (n->u.map.op == OMP_MAP_ATTACH) ? "attach"
-				 : "detach", &n->where);
-		  }
-		if (lastref
-		    || (n->expr
-			&& (!resolved || n->expr->expr_type != EXPR_VARIABLE)))
-		  {
-		    if (!lastslice
-			&& lastref
-			&& lastref->type == REF_SUBSTRING)
-		      gfc_error ("Unexpected substring reference in %s clause "
-				 "at %L", name, &n->where);
-		    else if (!lastslice
-			     && lastref
-			     && lastref->type == REF_INQUIRY)
-		      {
-			gcc_assert (lastref->u.i == INQUIRY_RE
-				    || lastref->u.i == INQUIRY_IM);
-			gfc_error ("Unexpected complex-parts designator "
-				   "reference in %s clause at %L",
-				   name, &n->where);
-		      }
-		    else if (!resolved
-			     || n->expr->expr_type != EXPR_VARIABLE
-			     || (lastslice
-				 && (lastslice->next
-				     || lastslice->type != REF_ARRAY)))
-		      gfc_error ("%qs in %s clause at %L is not a proper "
-				 "array section", n->sym->name, name,
-				 &n->where);
-		    else if (lastslice)
-		      {
-			int i;
-			gfc_array_ref *ar = &lastslice->u.ar;
-			for (i = 0; i < ar->dimen; i++)
-			  if (ar->stride[i]
-			      && code
-			      && code->op != EXEC_OACC_UPDATE)
-			    {
-			      gfc_error ("Stride should not be specified for "
-					 "array section in %s clause at %L",
-					 name, &n->where);
-			      break;
-			    }
-			  else if (ar->dimen_type[i] != DIMEN_ELEMENT
-				   && ar->dimen_type[i] != DIMEN_RANGE)
-			    {
-			      gfc_error ("%qs in %s clause at %L is not a "
-					 "proper array section",
-					 n->sym->name, name, &n->where);
-			      break;
-			    }
-			  else if ((list == OMP_LIST_DEPEND
-				    || list == OMP_LIST_AFFINITY)
-				   && ar->start[i]
-				   && ar->start[i]->expr_type == EXPR_CONSTANT
-				   && ar->end[i]
-				   && ar->end[i]->expr_type == EXPR_CONSTANT
-				   && mpz_cmp (ar->start[i]->value.integer,
-					       ar->end[i]->value.integer) > 0)
-			    {
-			      gfc_error ("%qs in %s clause at %L is a "
-					 "zero size array section",
-					 n->sym->name,
-					 list == OMP_LIST_DEPEND
-					 ? "DEPEND" : "AFFINITY", &n->where);
-			      break;
-			    }
-		      }
-		  }
-		else if (openacc)
-		  {
-		    if (list == OMP_LIST_MAP
-			&& n->u.map.op == OMP_MAP_FORCE_DEVICEPTR)
-		      resolve_oacc_deviceptr_clause (n->sym, n->where, name);
-		    else
-		      resolve_oacc_data_clauses (n->sym, n->where, name);
-		  }
-		else if (list != OMP_LIST_DEPEND
-			 && n->sym->as
-			 && n->sym->as->type == AS_ASSUMED_SIZE)
-		  gfc_error ("Assumed size array %qs in %s clause at %L",
-			     n->sym->name, name, &n->where);
-		if (code && list == OMP_LIST_MAP && !openacc)
-		  switch (code->op)
-		    {
-		    case EXEC_OMP_TARGET:
-		    case EXEC_OMP_TARGET_PARALLEL:
-		    case EXEC_OMP_TARGET_PARALLEL_DO:
-		    case EXEC_OMP_TARGET_PARALLEL_DO_SIMD:
-		    case EXEC_OMP_TARGET_PARALLEL_LOOP:
-		    case EXEC_OMP_TARGET_SIMD:
-		    case EXEC_OMP_TARGET_TEAMS:
-		    case EXEC_OMP_TARGET_TEAMS_DISTRIBUTE:
-		    case EXEC_OMP_TARGET_TEAMS_DISTRIBUTE_PARALLEL_DO:
-		    case EXEC_OMP_TARGET_TEAMS_DISTRIBUTE_PARALLEL_DO_SIMD:
-		    case EXEC_OMP_TARGET_TEAMS_DISTRIBUTE_SIMD:
-		    case EXEC_OMP_TARGET_TEAMS_LOOP:
-		    case EXEC_OMP_TARGET_DATA:
-		      switch (n->u.map.op)
-			{
-			case OMP_MAP_TO:
-			case OMP_MAP_ALWAYS_TO:
-			case OMP_MAP_PRESENT_TO:
-			case OMP_MAP_ALWAYS_PRESENT_TO:
-			case OMP_MAP_FROM:
-			case OMP_MAP_ALWAYS_FROM:
-			case OMP_MAP_PRESENT_FROM:
-			case OMP_MAP_ALWAYS_PRESENT_FROM:
-			case OMP_MAP_TOFROM:
-			case OMP_MAP_ALWAYS_TOFROM:
-			case OMP_MAP_PRESENT_TOFROM:
-			case OMP_MAP_ALWAYS_PRESENT_TOFROM:
-			case OMP_MAP_ALLOC:
-			case OMP_MAP_PRESENT_ALLOC:
-			  break;
-			default:
-			  gfc_error ("TARGET%s with map-type other than TO, "
-				     "FROM, TOFROM, or ALLOC on MAP clause "
-				     "at %L",
-				     code->op == EXEC_OMP_TARGET_DATA
-				     ? " DATA" : "", &n->where);
-			  break;
-			}
-		      break;
-		    case EXEC_OMP_TARGET_ENTER_DATA:
-		      switch (n->u.map.op)
-			{
-			case OMP_MAP_TO:
-			case OMP_MAP_ALWAYS_TO:
-			case OMP_MAP_PRESENT_TO:
-			case OMP_MAP_ALWAYS_PRESENT_TO:
-			case OMP_MAP_ALLOC:
-			case OMP_MAP_PRESENT_ALLOC:
-			  break;
-			case OMP_MAP_TOFROM:
-			  n->u.map.op = OMP_MAP_TO;
-			  break;
-			case OMP_MAP_ALWAYS_TOFROM:
-			  n->u.map.op = OMP_MAP_ALWAYS_TO;
-			  break;
-			case OMP_MAP_PRESENT_TOFROM:
-			  n->u.map.op = OMP_MAP_PRESENT_TO;
-			  break;
-			case OMP_MAP_ALWAYS_PRESENT_TOFROM:
-			  n->u.map.op = OMP_MAP_ALWAYS_PRESENT_TO;
-			  break;
-			default:
-			  gfc_error ("TARGET ENTER DATA with map-type other "
-				     "than TO, TOFROM or ALLOC on MAP clause "
-				     "at %L", &n->where);
-			  break;
-			}
-		      break;
-		    case EXEC_OMP_TARGET_EXIT_DATA:
-		      switch (n->u.map.op)
-			{
-			case OMP_MAP_FROM:
-			case OMP_MAP_ALWAYS_FROM:
-			case OMP_MAP_PRESENT_FROM:
-			case OMP_MAP_ALWAYS_PRESENT_FROM:
-			case OMP_MAP_RELEASE:
-			case OMP_MAP_DELETE:
-			  break;
-			case OMP_MAP_TOFROM:
-			  n->u.map.op = OMP_MAP_FROM;
-			  break;
-			case OMP_MAP_ALWAYS_TOFROM:
-			  n->u.map.op = OMP_MAP_ALWAYS_FROM;
-			  break;
-			case OMP_MAP_PRESENT_TOFROM:
-			  n->u.map.op = OMP_MAP_PRESENT_FROM;
-			  break;
-			case OMP_MAP_ALWAYS_PRESENT_TOFROM:
-			  n->u.map.op = OMP_MAP_ALWAYS_PRESENT_FROM;
-			  break;
-			default:
-			  gfc_error ("TARGET EXIT DATA with map-type other "
-				     "than FROM, TOFROM, RELEASE, or DELETE on "
-				     "MAP clause at %L", &n->where);
-			  break;
-			}
-		      break;
-		    default:
-		      break;
-		    }
-		if (list == OMP_LIST_MAP
-		    || list == OMP_LIST_TO
-		    || list == OMP_LIST_FROM)
-		  {
-		    gfc_typespec *ts = n->expr ? &n->expr->ts : &n->sym->ts;
-
-		    if (ts->type == BT_DERIVED || ts->type == BT_CLASS)
-		      {
-			const char *mapper_id
-			   = (n->u3.udm ? n->u3.udm->requested_mapper_id : "");
-			gfc_omp_udm *udm = gfc_find_omp_udm (gfc_current_ns,
-							     mapper_id, ts);
-			if (mapper_id[0] != '\0' && !udm)
-			  gfc_error ("User-defined mapper %qs not found at %L",
-				     mapper_id, &n->where);
-			else if (udm)
-			  {
-			    if (!n->u3.udm)
-			      {
-				gcc_assert (mapper_id[0] == '\0');
-				n->u3.udm = gfc_get_omp_namelist_udm ();
-				n->u3.udm->requested_mapper_id = mapper_id;
-			      }
-			    n->u3.udm->resolved_udm = udm;
-			  }
-		      }
-		  }
-	      }
-
-	    if (list != OMP_LIST_DEPEND)
-	      for (n = omp_clauses->lists[list]; n != NULL; n = n->next)
-		{
-		  n->sym->attr.referenced = 1;
-		  if (n->sym->attr.threadprivate)
-		    gfc_error ("THREADPRIVATE object %qs in %s clause at %L",
-			       n->sym->name, name, &n->where);
-		  if (n->sym->attr.cray_pointee)
-		    gfc_error ("Cray pointee %qs in %s clause at %L",
-			       n->sym->name, name, &n->where);
-		}
+	      resolve_omp_clauses_aff_dep_map_cache (code, n, name, list,
+						     omp_clauses, openacc);
 	    break;
 	  case OMP_LIST_IS_DEVICE_PTR:
 	    last = NULL;
