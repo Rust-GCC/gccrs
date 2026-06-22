@@ -565,10 +565,23 @@ TypeCheckImplItemWithTrait::visit (HIR::TypeAlias &type)
     = resolved_trait_item.get_raw_item ()->get_hir_trait_item ();
   merge_attributes (type.get_outer_attrs (), *hir_trait_item);
 
+  // unwrap a ProjectionType that already wraps a concrete
+  if (auto *p = lookup->try_as<TyTy::ProjectionType> ())
+    if (!p->is_trait_position () && p->get () != nullptr
+	&& p->get ()->get_kind () != TyTy::TypeKind::PROJECTION)
+      lookup = p->get ();
+
+  // The impl alias is itself a projection so the substitution machinery has a
+  // handle to bind the impl's generic arguments to the alias body.
+  auto projection
+    = new TyTy::ProjectionType (type.get_mappings ().get_hirid (), lookup, tref,
+				raw_trait_item->get_mappings ().get_defid (),
+				substitutions, self);
+
   // check the types are compatible
   auto trait_item_type = resolved_trait_item.get_tyty_for_receiver (self);
   if (!types_compatable (TyTy::TyWithLocation (trait_item_type),
-			 TyTy::TyWithLocation (lookup), type.get_locus (),
+			 TyTy::TyWithLocation (projection), type.get_locus (),
 			 true /*emit_errors*/))
     {
       rich_location r (line_table, type.get_locus ());
@@ -579,15 +592,7 @@ TypeCheckImplItemWithTrait::visit (HIR::TypeAlias &type)
 		     trait_reference.get_name ().c_str ());
     }
 
-  // its actually a projection, since we need a way to actually bind the
-  // generic substitutions to the type itself
-  TyTy::ProjectionType *projection
-    = new TyTy::ProjectionType (type.get_mappings ().get_hirid (), lookup, tref,
-				raw_trait_item->get_mappings ().get_defid (),
-				substitutions);
-
   context->insert_type (type.get_mappings (), projection);
-  raw_trait_item->associated_type_set (projection);
 }
 
 void

@@ -156,6 +156,35 @@ SubstitutionParamMapping::fill_param_ty (
     return true;
 
   TyTy::BaseType &type = *arg.get_tyty ();
+  std::pair<HirId, HirId> subst_key (param->get_ref (), type.get_ref ());
+  static std::vector<std::pair<HirId, HirId>> active_substs;
+  bool is_recursive_subst
+    = Resolver::ScopedPush<std::pair<HirId, HirId>>::contains (active_substs,
+							       subst_key);
+  bool skip_recursive_bounds
+    = is_recursive_subst && type.get_kind () == TyTy::TypeKind::INFER;
+  if (skip_recursive_bounds)
+    {
+      type.append_reference (param->get_ref ());
+      type.append_reference (param->get_ty_ref ());
+      for (auto ref : param->get_combined_refs ())
+	type.append_reference (ref);
+      if (param->can_resolve ())
+	{
+	  TyTy::BaseType *resolved = param->resolve ();
+	  type.append_reference (resolved->get_ref ());
+	  type.append_reference (resolved->get_ty_ref ());
+	  for (auto ref : resolved->get_combined_refs ())
+	    type.append_reference (ref);
+	  if (resolved->get_kind () != TyTy::TypeKind::PARAM
+	      && resolved->get_kind () != TyTy::TypeKind::INFER)
+	    return true;
+	}
+    }
+
+  Resolver::ScopedPush<std::pair<HirId, HirId>> guard (active_substs, subst_key,
+						       !is_recursive_subst);
+
   if (type.get_kind () == TyTy::TypeKind::INFER)
     {
       type.inherit_bounds (*param);
@@ -182,15 +211,17 @@ SubstitutionParamMapping::fill_param_ty (
       rust_debug_loc (locus,
 		      "fill_param_ty bounds_compatible: param %s type %s",
 		      param->get_name ().c_str (), type.get_name ().c_str ());
-      if (needs_bounds_check && !p.is_implicit_self_trait ())
+      if (!skip_recursive_bounds && needs_bounds_check
+	  && !p.is_implicit_self_trait ())
 	{
 	  if (!param->bounds_compatible (type, locus, true))
 	    return false;
 	}
 
       // recursively pass this down to all HRTB's
-      for (auto &bound : param->get_specified_bounds ())
-	bound.handle_substitions (subst_mappings);
+      if (!skip_recursive_bounds)
+	for (auto &bound : param->get_specified_bounds ())
+	  bound.handle_substitions (subst_mappings);
 
       param->set_ty_ref (type.get_ref ());
       subst_mappings.on_param_subst (p, arg);
@@ -712,7 +743,8 @@ SubstitutionRef::get_mappings_from_generic_args (
     = args.get_type_args ().size () + args.get_const_args ().size ();
   if (total_arguments < substitutions.size ())
     {
-      offs = used_arguments.size ();
+      offs = used_arguments.get_mappings ().empty () ? get_outer_param_count ()
+						     : used_arguments.size ();
       total_arguments += offs;
     }
 
@@ -1072,20 +1104,6 @@ SubstitutionRef::solve_mappings_from_receiver_for_self (
 				       mappings.get_locus ());
 }
 
-void
-SubstitutionRef::prepare_higher_ranked_bounds ()
-{
-  for (const auto &subst : get_substs ())
-    {
-      const auto pty = subst.get_param_ty ();
-      for (const auto &bound : pty->get_specified_bounds ())
-	{
-	  const auto ref = bound.get ();
-	  ref->clear_associated_type_projections ();
-	}
-    }
-}
-
 bool
 SubstitutionRef::monomorphize ()
 {
@@ -1099,6 +1117,19 @@ SubstitutionRef::monomorphize ()
       if (binding->get_kind () == TyTy::TypeKind::PARAM)
 	continue;
 
+      // For each where-clause bound on this fn-substitution param, find the
+      // impl block that satisfies the bound for binding and unify
+      // its signature against binding + bound. This pins inference
+      // variables that should be constrained
+      //
+      //   fn into_iter<I: Iterator> with binding = Range<{integer}>
+      //
+      // the only matching
+      //
+      //   <A: Step> Iterator for Range<A>
+      //
+      // Step for usize impl together force {integer} = usize instead of
+      // letting it default.
       for (const auto &bound : pty->get_specified_bounds ())
 	{
 	  bool ambigious = false;
@@ -1106,7 +1137,7 @@ SubstitutionRef::monomorphize ()
 	    = Resolver::lookup_associated_impl_block (bound, binding,
 						      &ambigious);
 	  if (associated != nullptr)
-	    associated->setup_associated_types (binding, bound);
+	    associated->bind_impl_for_bound (binding, bound, UNKNOWN_LOCATION);
 	}
     }
 

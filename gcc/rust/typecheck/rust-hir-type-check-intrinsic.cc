@@ -480,7 +480,7 @@ IntrinsicChecker::check_type (const TyTy::BaseType *actual,
 	return ref->get_base ()->get_kind () == TyTy::TypeKind::STR;
       }
     case IRT::AssocTypePlaceholder:
-      return actual->get_kind () == TyTy::TypeKind::PLACEHOLDER;
+      return true;
 
     case IRT::TupleFirstGenericAndBool:
       {
