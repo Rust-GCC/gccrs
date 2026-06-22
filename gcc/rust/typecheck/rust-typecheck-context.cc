@@ -171,6 +171,27 @@ TypeCheckContext::peek_context ()
   return return_type_stack.back ().first;
 }
 
+void
+TypeCheckContext::push_expected_type (TyTy::BaseType *expected)
+{
+  expected_type_stack.push_back (expected);
+}
+
+void
+TypeCheckContext::pop_expected_type ()
+{
+  rust_assert (!expected_type_stack.empty ());
+  expected_type_stack.pop_back ();
+}
+
+TyTy::BaseType *
+TypeCheckContext::peek_expected_type () const
+{
+  if (expected_type_stack.empty ())
+    return nullptr;
+  return expected_type_stack.back ();
+}
+
 StackedContexts<TypeCheckBlockContextItem> &
 TypeCheckContext::block_context ()
 {

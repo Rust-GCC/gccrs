@@ -220,6 +220,10 @@ public:
 			 TyTy::BaseType *return_type);
   void pop_return_type ();
 
+  void push_expected_type (TyTy::BaseType *expected);
+  void pop_expected_type ();
+  TyTy::BaseType *peek_expected_type () const;
+
   StackedContexts<TypeCheckBlockContextItem> &block_context ();
 
   void iterate (std::function<bool (HirId, TyTy::BaseType *)> cb);
@@ -319,6 +323,7 @@ private:
   std::vector<std::unique_ptr<TyTy::BaseType>> builtins;
   std::vector<std::pair<TypeCheckContextItem, TyTy::BaseType *>>
     return_type_stack;
+  std::vector<TyTy::BaseType *> expected_type_stack;
   std::vector<TyTy::BaseType *> loop_type_stack;
   StackedContexts<TypeCheckBlockContextItem> block_stack;
   std::map<DefId, TraitReference> trait_context;
