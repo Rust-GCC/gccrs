@@ -26514,8 +26514,15 @@ ix86_vector_costs::add_stmt_cost (int count, vect_cost_for_stmt kind,
 	  break;
 
 	default:
-	  if (truth_value_p (subcode))
+	  if (TREE_CODE_CLASS (subcode) == tcc_comparison)
 	    {
+	      tree op_type;
+	      if (kind == vector_stmt)
+		op_type = SLP_TREE_VECTYPE (SLP_TREE_CHILDREN (node)[0]);
+	      else
+		op_type = vect_comparison_type (stmt_info);
+	      mode = TYPE_MODE (op_type);
+
 	      if (SSE_FLOAT_MODE_SSEMATH_OR_HFBF_P (mode))
 		/* CMPccS? insructions are cheap, so use sse_op.  While they
 		   produce a mask which may need to be turned to 0/1 by and,
