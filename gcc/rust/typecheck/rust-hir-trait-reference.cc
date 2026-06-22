@@ -17,6 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-hir-trait-reference.h"
+#include "rust-hir-type-check.h"
 
 namespace Rust {
 namespace Resolver {
@@ -344,37 +345,13 @@ TraitReference::on_resolved ()
     {
       if (item.get_trait_item_type ()
 	  == TraitItemReference::TraitItemType::TYPE)
-	item.on_resolved ();
+	item.on_resolved (this);
     }
   for (auto &item : item_refs)
     {
       if (item.get_trait_item_type ()
 	  != TraitItemReference::TraitItemType::TYPE)
-	item.on_resolved ();
-    }
-}
-
-void
-TraitReference::clear_associated_types () const
-{
-  for (const auto &item : item_refs)
-    {
-      bool is_assoc_type = item.get_trait_item_type ()
-			   == TraitItemReference::TraitItemType::TYPE;
-      if (is_assoc_type)
-	item.associated_type_reset (false);
-    }
-}
-
-void
-TraitReference::clear_associated_type_projections () const
-{
-  for (const auto &item : item_refs)
-    {
-      bool is_assoc_type = item.get_trait_item_type ()
-			   == TraitItemReference::TraitItemType::TYPE;
-      if (is_assoc_type)
-	item.associated_type_reset (true);
+	item.on_resolved (this);
     }
 }
 
@@ -463,9 +440,9 @@ AssociatedImplTrait::AssociatedImplTrait (TraitReference *trait,
 					  TyTy::TypeBoundPredicate predicate,
 					  HIR::ImplBlock *impl,
 					  TyTy::BaseType *self,
-					  Resolver::TypeCheckContext *context)
+					  ImplTraitContextFrame frame)
   : trait (trait), predicate (predicate), impl (impl), self (self),
-    context (context)
+    context (TypeCheckContext::get ()), frame (frame)
 {}
 
 TyTy::TypeBoundPredicate &
@@ -490,6 +467,12 @@ const TyTy::BaseType *
 AssociatedImplTrait::get_self () const
 {
   return self;
+}
+
+ImplTraitContextFrame
+AssociatedImplTrait::get_frame () const
+{
+  return frame;
 }
 
 } // namespace Resolver

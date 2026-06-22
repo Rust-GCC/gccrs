@@ -94,8 +94,6 @@ TypeCheckExpr::visit (HIR::QualifiedPathInExpression &expr)
     = lookup_associated_impl_block (specified_bound, root);
   if (associated_impl_trait != nullptr)
     {
-      associated_impl_trait->setup_associated_types (root, specified_bound);
-
       for (auto &i :
 	   associated_impl_trait->get_impl_block ()->get_impl_items ())
 	{
@@ -480,22 +478,13 @@ TypeCheckExpr::resolve_segments (NodeId root_resolved_node_id,
 
       if (associated_impl_block != nullptr && !receiver_is_dyn)
 	{
-	  // associated types
-	  HirId impl_block_id
-	    = associated_impl_block->get_mappings ().get_hirid ();
-
-	  AssociatedImplTrait *associated = nullptr;
-	  bool found_impl_trait
-	    = context->lookup_associated_trait_impl (impl_block_id,
-						     &associated);
-
+	  // unify the segments receiver against the impls self so
+	  // infer vars on either side get pinned
 	  auto mappings = TyTy::SubstitutionArgumentMappings::error ();
 	  TyTy::BaseType *impl_block_ty
 	    = TypeCheckItem::ResolveImplBlockSelfWithInference (
 	      *associated_impl_block, seg.get_locus (), &mappings);
 
-	  // we need to apply the arguments to the segment type so they get
-	  // unified properly
 	  if (!mappings.is_error ())
 	    tyseg = SubstMapperInternal::Resolve (tyseg, mappings);
 
@@ -503,24 +492,8 @@ TypeCheckExpr::resolve_segments (NodeId root_resolved_node_id,
 				     TyTy::TyWithLocation (prev_segment),
 				     TyTy::TyWithLocation (impl_block_ty),
 				     seg.get_locus ());
-	  bool ok = prev_segment->get_kind () != TyTy::TypeKind::ERROR;
-	  if (!ok)
+	  if (prev_segment->get_kind () == TyTy::TypeKind::ERROR)
 	    return;
-
-	  if (found_impl_trait)
-	    {
-	      // we need to setup with apropriate bounds
-	      HIR::TypePath &bound_path
-		= associated->get_impl_block ()->get_trait_ref ();
-	      const auto &trait_ref = *TraitResolver::Resolve (bound_path);
-	      rust_assert (!trait_ref.is_error ());
-
-	      const auto &predicate
-		= impl_block_ty->lookup_predicate (trait_ref.get_defid ());
-	      if (!predicate.is_error ())
-		associated->setup_associated_types (prev_segment, predicate,
-						    nullptr, false);
-	    }
 	}
 
       if (seg.has_generic_args ())

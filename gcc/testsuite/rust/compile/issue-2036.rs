@@ -29,7 +29,6 @@ impl<H: StreamHasher> Hash<H> for u8 {
     fn hash2(&self, hasher: &H) -> u64 {
         let mut stream = hasher.stream();
         self.input_stream(&mut stream);
-        // { dg-error "type annotations needed" "" { target *-*-* } .-1 }
         Stream::result(&stream)
     }
 }

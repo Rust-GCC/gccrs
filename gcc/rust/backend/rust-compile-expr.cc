@@ -2681,8 +2681,8 @@ CompileExpr::generate_closure_fntype (HIR::ClosureExpr &expr,
   const TyTy::TypeBoundPredicate &predicate
     = *closure_tyty.get_specified_bounds ().begin ();
 
-  // ensure the fn_once_output associated type is set
-  closure_tyty.setup_fn_once_output ();
+  // FnOnce::Output is normalized on demand by normalize_projection's closure
+  // special-case
 
   // the function signature is based on the trait bound that the closure
   // implements which is determined at the type resolution time
