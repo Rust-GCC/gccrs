@@ -4357,7 +4357,11 @@ get_c_type_name (gfc_typespec *ts, gfc_array_spec *as, const char **pre,
   *post = "";
   *type_name = "<error>";
 
-  if (as && (as->type == AS_ASSUMED_RANK || as->type == AS_ASSUMED_SHAPE))
+  if ((as && (as->type == AS_ASSUMED_RANK
+	      || as->type == AS_ASSUMED_SHAPE
+	      || as->type == AS_DEFERRED))
+      || (ts->type == BT_CHARACTER
+	  && (ts->deferred || ts->u.cl->length == NULL)))
     {
       *asterisk = true;
       *post = "";
