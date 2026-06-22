@@ -1,4 +1,4 @@
-/* Handle parameterized types (templates) for GNU -*- C++ -*-.
+/* Handle parameterized types (templates) for GNU C++.
    Copyright (C) 1992-2026 Free Software Foundation, Inc.
    Written by Ken Raeburn (raeburn@cygnus.com) while at Watchmaker Computing.
    Rewritten by Jason Merrill (jason@cygnus.com).

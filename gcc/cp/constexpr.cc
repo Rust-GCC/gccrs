@@ -1,4 +1,4 @@
-/* Perform -*- C++ -*- constant expression evaluation, including calls to
+/* Perform C++ constant expression evaluation, including calls to
    constexpr functions.  These routines are used both during actual parsing
    and during the instantiation of template functions.
 

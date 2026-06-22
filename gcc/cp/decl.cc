@@ -1,4 +1,4 @@
-/* Process declarations and variables for -*- C++ -*- compiler.
+/* Process declarations and variables for the C++ compiler.
    Copyright (C) 1988-2026 Free Software Foundation, Inc.
    Contributed by Michael Tiemann (tiemann@cygnus.com)
 

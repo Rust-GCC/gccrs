@@ -1,4 +1,4 @@
-/* Name mangling for the 3.0 -*- C++ -*- ABI.
+/* Name mangling for the 3.0 C++ ABI.
    Copyright (C) 2000-2026 Free Software Foundation, Inc.
    Written by Alex Samuel <samuel@codesourcery.com>
 

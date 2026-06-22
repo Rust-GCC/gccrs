@@ -1,4 +1,4 @@
-/* -*- C++ -*- Parser.
+/* C++ Parser.
    Copyright (C) 2000-2026 Free Software Foundation, Inc.
    Written by Mark Mitchell <mark@codesourcery.com>.
 

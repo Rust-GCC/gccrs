@@ -1,4 +1,4 @@
-// Implementation of basic-block-related functions for RTL SSA      -*- C++ -*-
+// Implementation of basic-block-related functions for RTL SSA.
 // Copyright (C) 2020-2026 Free Software Foundation, Inc.
 //
 // This file is part of GCC.

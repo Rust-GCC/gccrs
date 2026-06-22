@@ -1,4 +1,4 @@
-// Implementation of function-related RTL SSA functions             -*- C++ -*-
+// Implementation of function-related RTL SSA functions.
 // Copyright (C) 2020-2026 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
