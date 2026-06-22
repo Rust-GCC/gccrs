@@ -244,8 +244,13 @@ PrivacyReporter::check_base_type_privacy (Analysis::NodeMapping &node_mappings,
 	return recursive_check (p->resolve ());
       }
     case TyTy::PROJECTION:
-      return recursive_check (
-	static_cast<const TyTy::ProjectionType *> (ty)->get ());
+      {
+	auto p = static_cast<const TyTy::ProjectionType *> (ty);
+	if (p->is_trait_position ())
+	  return;
+	return recursive_check (
+	  static_cast<const TyTy::ProjectionType *> (ty)->get ());
+      }
     case TyTy::CLOSURE:
       rust_sorry_at (locus, "privacy pass for closures is not handled yet");
       break;
