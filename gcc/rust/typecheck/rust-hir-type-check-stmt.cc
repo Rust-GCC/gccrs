@@ -82,25 +82,42 @@ TypeCheckStmt::visit (HIR::LetStmt &stmt)
   infered = TyTy::TupleType::get_unit_type ();
 
   auto &stmt_pattern = stmt.get_pattern ();
+
+  // Resolve the type annotation before the init expression so the normal
+  // coercion site below can check the init against the declared type.
+  TyTy::BaseType *specified_ty = nullptr;
+  location_t specified_ty_locus = UNKNOWN_LOCATION;
+  if (stmt.has_type ())
+    {
+      specified_ty = TypeCheckType::Resolve (stmt.get_type ());
+      specified_ty_locus = stmt.get_type ().get_locus ();
+    }
+
   TyTy::BaseType *init_expr_ty = nullptr;
   location_t init_expr_locus = UNKNOWN_LOCATION;
   if (stmt.has_init_expr ())
     {
       init_expr_locus = stmt.get_init_expr ().get_locus ();
+
+      // Try blocks have a block whose tail expression is:
+      //
+      //     Try::from_ok(tail)
+      //
+      // We can forward the annotated let type to block initializers so
+      // the block can pass it to its tail expression
+      bool push_expected = specified_ty != nullptr
+			   && stmt.get_init_expr ().get_expression_type ()
+				== HIR::Expr::ExprType::Block;
+      if (push_expected)
+	context->push_expected_type (specified_ty);
       init_expr_ty = TypeCheckExpr::Resolve (stmt.get_init_expr ());
+      if (push_expected)
+	context->pop_expected_type ();
       if (init_expr_ty->get_kind () == TyTy::TypeKind::ERROR)
 	return;
 
       init_expr_ty->append_reference (
 	stmt_pattern.get_mappings ().get_hirid ());
-    }
-
-  TyTy::BaseType *specified_ty = nullptr;
-  location_t specified_ty_locus;
-  if (stmt.has_type ())
-    {
-      specified_ty = TypeCheckType::Resolve (stmt.get_type ());
-      specified_ty_locus = stmt.get_type ().get_locus ();
     }
 
   // let x:i32 = 123;
