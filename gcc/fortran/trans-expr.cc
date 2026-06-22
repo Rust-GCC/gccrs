@@ -4058,6 +4058,26 @@ gfc_conv_power_op (gfc_se * se, gfc_expr * expr)
 
 	case BT_REAL:
 	  /* Use builtins for real ** int4.  */
+
+	  if (real_minus_onep (lse.expr))
+	    {
+	      /* (-1.0)**n is (real) (1 - ((n & 1) << 1)), see the integer case
+		 above.  */
+
+	      tree lhs_type, rhs_type;
+	      tree tmp;
+	      lhs_type = TREE_TYPE (lse.expr);
+	      rhs_type = TREE_TYPE (rse.expr);
+	      tmp = fold_build2_loc (input_location, BIT_AND_EXPR, rhs_type,
+				     rse.expr, build_int_cst (rhs_type, 1));
+	      tmp = fold_build2_loc (input_location, LSHIFT_EXPR, rhs_type,
+				     tmp, build_int_cst (rhs_type, 1));
+	      tmp = fold_build2_loc (input_location, MINUS_EXPR, rhs_type,
+				     build_int_cst (rhs_type, 1), tmp);
+	      se->expr = fold_convert (lhs_type, tmp);
+	      return;
+	    }
+
 	  if (ikind == 0)
 	    {
 	      switch (kind)
