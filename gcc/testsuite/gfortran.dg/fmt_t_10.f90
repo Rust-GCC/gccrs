@@ -10,6 +10,6 @@ program fmt_t_10
    character(21) :: output1, output2
    write (output1, fmt1) 'RADIX', radix(pi)
    write (output2, fmt2) 'RADIX', radix(pi)
-   if (output1 /= 'RADIX.............. 2') stop 1
+   if (output1 /= 'RADIX ............. 2') stop 1
    if (output2 /= 'RADIX ............. 2') stop 2
 end program fmt_t_10

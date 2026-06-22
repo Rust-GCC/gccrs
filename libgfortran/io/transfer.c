@@ -2423,10 +2423,11 @@ formatted_transfer_scalar_write (st_parameter_dt *dtp, bt type, void *p, int kin
 	  if (dtp->u.p.pending_spaces < 0 && dtp->u.p.skips > 0)
 	    {
 	      /* The advance falls within already-written content (e.g. after
-		 a backward tab).  Advance the position without overwriting
-		 the existing characters.  */
+		 a backward tab).  FMT_X sets positions to blank per the
+		 standard; FMT_TR skips without overwriting existing characters.  */
 	      gfc_offset new_max;
-	      write_x (dtp, dtp->u.p.skips, 0);
+	      int nspaces = f->format == FMT_X ? dtp->u.p.skips : 0;
+	      write_x (dtp, dtp->u.p.skips, nspaces);
 
 	      /* Adjust the max position depending on the type of write.  */
 	      if (is_stream_io (dtp))
