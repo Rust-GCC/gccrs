@@ -30,7 +30,7 @@ along with this program; see the file COPYING3.  If not see
    It also has options at his own:
    -debug: Print the command line used to run lto-wrapper.
    -nop: Instead of running lto-wrapper, pass the original to the plugin. This
-   only works if the input files are hybrid. 
+   only works if the input files are hybrid.
    -linker-output-known: Do not determine linker output
    -linker-output-auto-nolto-rel: Switch from rel to nolto-rel mode without
    warning.  This is used on systems like VxWorks (kernel) where the link is
@@ -102,7 +102,7 @@ startswith (const char *str, const char *prefix)
 
 /* The part of the symbol table the plugin has to keep track of. Note that we
    must keep SYMS until all_symbols_read is called to give the linker time to
-   copy the symbol information. 
+   copy the symbol information.
    The id must be 64bit to minimize collisions. */
 
 struct sym_aux
@@ -264,7 +264,7 @@ check_1 (int gate, enum ld_plugin_level level, const char *text)
    Returns the address of the next entry. */
 
 static char *
-parse_table_entry (char *p, struct ld_plugin_symbol *entry, 
+parse_table_entry (char *p, struct ld_plugin_symbol *entry,
 		   struct sym_aux *aux)
 {
   unsigned char t;
@@ -380,16 +380,16 @@ translate (char *data, char *end, struct plugin_symtab *out)
   struct ld_plugin_symbol *syms = NULL;
   int n, len;
 
-  /* This overestimates the output buffer sizes, but at least 
+  /* This overestimates the output buffer sizes, but at least
      the algorithm is O(1) now. */
 
   len = (end - data)/8 + out->nsyms + 1;
   syms = xrealloc (out->syms, len * sizeof (struct ld_plugin_symbol));
   aux = xrealloc (out->aux, len * sizeof (struct sym_aux));
-  
-  for (n = out->nsyms; data < end; n++) 
-    { 
-      aux[n].id = out->id; 
+
+  for (n = out->nsyms; data < end; n++)
+    {
+      aux[n].id = out->id;
       data = parse_table_entry (data, &syms[n], &aux[n]);
     }
 
@@ -497,12 +497,12 @@ dump_symtab (FILE *f, struct plugin_symtab *symtab)
     {
       uint32_t slot = symtab->aux[j].slot;
       unsigned int resolution = symtab->syms[j].resolution;
-      
+
       assert (resolution != LDPR_UNKNOWN);
 
       fprintf (f, "%u %" PRI_LL "x %s %s\n",
                (unsigned int) slot, symtab->aux[j].id,
-	       lto_resolution_str[resolution], 
+	       lto_resolution_str[resolution],
 	       symtab->syms[j].name);
     }
 }
@@ -511,7 +511,7 @@ dump_symtab (FILE *f, struct plugin_symtab *symtab)
    the original symbols */
 
 static void
-finish_conflict_resolution (struct plugin_symtab *symtab, 
+finish_conflict_resolution (struct plugin_symtab *symtab,
 			   struct plugin_symtab *conflicts)
 {
   int i, j;
@@ -520,17 +520,17 @@ finish_conflict_resolution (struct plugin_symtab *symtab,
     return;
 
   for (i = 0; i < symtab->nsyms; i++)
-    { 
+    {
       char resolution = LDPR_UNKNOWN;
 
       if (symtab->aux[i].next_conflict == -1)
 	continue;
 
-      switch (symtab->syms[i].def) 
+      switch (symtab->syms[i].def)
 	{
 	case LDPK_DEF:
 	case LDPK_COMMON: /* ??? */
-	  resolution = LDPR_RESOLVED_IR; 
+	  resolution = LDPR_RESOLVED_IR;
 	  break;
 	case LDPK_WEAKDEF:
 	  resolution = LDPR_PREEMPTED_IR;
@@ -545,8 +545,8 @@ finish_conflict_resolution (struct plugin_symtab *symtab,
 
       assert (resolution != LDPR_UNKNOWN);
 
-      for (j = symtab->aux[i].next_conflict; 
-	   j != -1; 
+      for (j = symtab->aux[i].next_conflict;
+	   j != -1;
 	   j = conflicts->aux[j].next_conflict)
 	conflicts->syms[j].resolution = resolution;
     }
@@ -987,8 +987,8 @@ static hashval_t hash_sym (const void *a)
 
 static int symbol_strength (struct ld_plugin_symbol *s)
 {
-  switch (s->def) 
-    { 
+  switch (s->def)
+    {
     case LDPK_UNDEF:
     case LDPK_WEAKUNDEF:
       return 0;
@@ -1014,7 +1014,7 @@ static int symbol_strength (struct ld_plugin_symbol *s)
    originals.
 
    Then when writing out the resolution file readd the dropped symbols.
-   
+
    XXX how to handle common? */
 
 static void
@@ -1031,7 +1031,7 @@ resolve_conflicts (struct plugin_symtab *t, struct plugin_symtab *conflicts)
 
   /* Move all duplicate symbols into the auxiliary conflicts table. */
   out = 0;
-  for (i = 0; i < t->nsyms; i++) 
+  for (i = 0; i < t->nsyms; i++)
     {
       struct ld_plugin_symbol *s = &t->syms[i];
       struct sym_aux *aux = &t->aux[i];
@@ -1045,13 +1045,13 @@ resolve_conflicts (struct plugin_symtab *t, struct plugin_symtab *conflicts)
 	  struct sym_aux *orig_aux = &t->aux[orig - t->syms];
 
 	  /* Always let the linker resolve the strongest symbol */
-	  if (symbol_strength (orig) < symbol_strength (s)) 
+	  if (symbol_strength (orig) < symbol_strength (s))
 	    {
 	      SWAP (struct ld_plugin_symbol, *orig, *s);
 	      SWAP (uint32_t, orig_aux->slot, aux->slot);
 	      SWAP (unsigned long long, orig_aux->id, aux->id);
 	      /* Don't swap conflict chain pointer */
-	    } 
+	    }
 
 	  /* Move current symbol into the conflicts table */
 	  cnf = conflicts->nsyms++;
@@ -1080,14 +1080,14 @@ resolve_conflicts (struct plugin_symtab *t, struct plugin_symtab *conflicts)
 
   assert (conflicts->nsyms <= outlen);
   assert (conflicts->nsyms + out == t->nsyms);
-  
+
   t->nsyms = out;
   htab_delete (symtab);
 }
 
 /* Process one section of an object file.  */
 
-static int 
+static int
 process_symtab (void *data, const char *name, off_t offset, off_t length)
 {
   struct plugin_objfile *obj = (struct plugin_objfile *)data;
