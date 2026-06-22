@@ -200,9 +200,23 @@ TypeCheckExpr::visit (HIR::ReturnExpr &expr)
 			    ? expr.get_expr ().get_locus ()
 			    : expr.get_locus ();
 
-  TyTy::BaseType *expr_ty = expr.has_return_expr ()
-			      ? TypeCheckExpr::Resolve (expr.get_expr ())
-			      : TyTy::TupleType::get_unit_type ();
+  // Push expected type so the resolver of the return expression
+  // inference before checking its arguments which is needed
+  // for things like:
+  //
+  //    return Try::from_error(...)
+  //
+  // Where Self has to bind from the fn return type before the param
+  // projection can be normalized.
+  TyTy::BaseType *expr_ty;
+  if (expr.has_return_expr ())
+    {
+      context->push_expected_type (fn_return_tyty);
+      expr_ty = TypeCheckExpr::Resolve (expr.get_expr ());
+      context->pop_expected_type ();
+    }
+  else
+    expr_ty = TyTy::TupleType::get_unit_type ();
 
   coercion_site (expr.get_mappings ().get_hirid (),
 		 TyTy::TyWithLocation (fn_return_tyty),
@@ -624,6 +638,10 @@ TypeCheckExpr::visit (HIR::BlockExpr &expr)
     context->push_new_loop_context (expr.get_mappings ().get_hirid (),
 				    expr.get_locus ());
 
+  // Forward the caller's expected type to the block's tail expression only
+  TyTy::BaseType *outer_expected = context->peek_expected_type ();
+  context->push_expected_type (nullptr);
+
   for (auto &s : expr.get_statements ())
     {
       if (!s->is_item ())
@@ -641,6 +659,7 @@ TypeCheckExpr::visit (HIR::BlockExpr &expr)
       if (resolved == nullptr)
 	{
 	  rust_error_at (s->get_locus (), "failure to resolve type");
+	  context->pop_expected_type ();
 	  return;
 	}
 
@@ -653,8 +672,14 @@ TypeCheckExpr::visit (HIR::BlockExpr &expr)
 	}
     }
 
+  context->pop_expected_type ();
+
   if (expr.has_expr ())
-    infered = TypeCheckExpr::Resolve (expr.get_final_expr ())->clone ();
+    {
+      context->push_expected_type (outer_expected);
+      infered = TypeCheckExpr::Resolve (expr.get_final_expr ())->clone ();
+      context->pop_expected_type ();
+    }
   else if (expr.is_tail_reachable ())
     infered = TyTy::TupleType::get_unit_type ();
   else if (expr.has_label ())
@@ -1869,7 +1894,7 @@ TypeCheckExpr::visit (HIR::ClosureExpr &expr)
   TyTy::TyVar result_type
     = expr.has_return_type ()
 	? TyTy::TyVar (
-	  TypeCheckType::Resolve (expr.get_return_type ())->get_ref ())
+	    TypeCheckType::Resolve (expr.get_return_type ())->get_ref ())
 	: TyTy::TyVar::get_implicit_infer_var (expr.get_locus ());
 
   // resolve the block
