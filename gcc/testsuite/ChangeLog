@@ -1,3 +1,28 @@
+2026-06-21  Jason Merrill  <jason@redhat.com>
+
+	PR c++/125408
+	* g++.dg/cpp2a/lambda-targ34.C: New test.
+
+2026-06-21  Jason Merrill  <jason@redhat.com>
+
+	PR c++/125408
+	* g++.dg/cpp2a/lambda-targ33.C: New test.
+
+2026-06-21  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* lib/target-supports.exp: Add a check for Mach-O object file
+	format.
+
+2026-06-21  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/125883
+	* gcc.target/i386/pr125883.c: New test.
+
+2026-06-21  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/82086
+	* gfortran.dg/namelist_103.f90: New test.
+
 2026-06-20  Iain Sandoe  <iain@sandoe.co.uk>
 
 	* gcc.dg/debug/dwarf2/dwarf2-macro.c: Skip for Darwin23+.

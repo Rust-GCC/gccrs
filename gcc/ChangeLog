@@ -1,3 +1,19 @@
+2026-06-21  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* doc/sourcebuild.texi: Document object file checks.
+
+2026-06-21  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* config/aarch64/aarch64-builtins.cc
+	(aarch64_expand_prefetch_range_builtin): Use LLONG_MAX instead
+	of LONG_LONG_MAX.
+
+2026-06-21  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/125883
+	* config/i386/i386-features.cc (ix86_broadcast_inner): Skip JUMP
+	from asm goto.
+
 2026-06-20  Gerald Pfeifer  <gerald@pfeifer.com>
 
 	* doc/extend.texi (Integer Overflow Builtins): Spell compile time

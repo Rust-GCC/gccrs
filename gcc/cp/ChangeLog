@@ -1,3 +1,14 @@
+2026-06-21  Jason Merrill  <jason@redhat.com>
+
+	PR c++/125408
+	* expr.cc (mark_use): Fix condition for changing rvalue to lvalue.
+
+2026-06-21  Jason Merrill  <jason@redhat.com>
+
+	PR c++/125408
+	* tree.cc (cp_walk_subtrees): Walk into the DECL_ORIGINAL_TYPE of a
+	typedef DECL_EXPR.
+
 2026-06-18  Marek Polacek  <polacek@redhat.com>
 
 	* decl.cc (check_initializer): Don't call
