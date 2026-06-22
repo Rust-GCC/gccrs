@@ -4643,10 +4643,8 @@ pass_cselim::execute (function *)
   /* If the CFG has changed, we should cleanup the CFG.  */
   if (cfgchanged)
     {
-      /* In cond-store replacement we have added some loads on edges
-	  and new VOPS (as we moved the store, and created a load).  */
       gsi_commit_edge_inserts ();
-      todo = TODO_cleanup_cfg | TODO_update_ssa_only_virtuals;
+      todo = TODO_cleanup_cfg;
     }
   scev_finalize ();
   loop_optimizer_finalize ();
