@@ -1091,7 +1091,7 @@ static int
 process_symtab (void *data, const char *name, off_t offset, off_t length)
 {
   struct plugin_objfile *obj = (struct plugin_objfile *)data;
-  char *s;
+  const char *s;
   char *secdatastart, *secdata;
 
   if (!startswith (name, ".gnu.lto_.symtab"))
@@ -1143,7 +1143,7 @@ process_symtab_extension (void *data, const char *name, off_t offset,
 			  off_t length)
 {
   struct plugin_objfile *obj = (struct plugin_objfile *)data;
-  char *s;
+  const char *s;
   char *secdatastart, *secdata;
 
   if (!startswith (name, ".gnu.lto_.ext_symtab"))
