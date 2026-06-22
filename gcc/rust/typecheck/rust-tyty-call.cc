@@ -140,6 +140,7 @@ TypeCheckCallExpr::visit (FnType &type)
   // with the fn's return type before checking arguments. This lets the callee
   // result constrain inference variables that may appear in parameter
   // projections.
+
   auto *ctx = Resolver::TypeCheckContext::get ();
   TyTy::BaseType *expected = ctx->peek_expected_type ();
   const TyTy::BaseType *return_infer
@@ -278,7 +279,9 @@ TypeCheckCallExpr::visit (FnType &type)
     }
 
   type.monomorphize ();
-  resolved = type.get_return_type ()->monomorphized_clone ();
+  Resolver::rebind_projection_self_from_fn (type, type.get_return_type ());
+
+  resolved = type.get_return_type ();
 }
 
 void

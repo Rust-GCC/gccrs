@@ -567,22 +567,8 @@ TypeBoundPredicate::apply_argument_mappings (
 			   substs_need_bounds_check);
     }
 
-  // associated argument mappings
-  for (auto &it : subst_mappings.get_binding_args ())
-    {
-      std::string identifier = it.first;
-      TyTy::BaseType *type = it.second;
-
-      tl::optional<TypeBoundPredicateItem> item
-	= lookup_associated_item (identifier);
-
-      if (!item.has_value ())
-	continue;
-
-      const auto item_ref = item->get_raw_item ();
-      item_ref->associated_type_set (type);
-    }
-
+  // Associated type binding args (Iterator<Item = i32>) are consumed
+  // by BaseType::satisfies_bound at check time
   for (auto &super_trait : super_traits)
     {
       auto adjusted
@@ -667,20 +653,31 @@ TypeBoundPredicate::lookup_associated_item (
 BaseType *
 TypeBoundPredicateItem::get_tyty_for_receiver (const TyTy::BaseType *receiver)
 {
+  auto ctx = Resolver::TypeCheckContext::get ();
+
   TyTy::BaseType *trait_item_tyty = get_raw_item ()->get_tyty ();
   if (parent.get_substitution_arguments ().is_empty ())
-    return trait_item_tyty;
-
-  const Resolver::TraitItemReference *tref = get_raw_item ();
-  bool is_associated_type = tref->get_trait_item_type ();
-  if (is_associated_type)
     return trait_item_tyty;
 
   // set up the self mapping
   SubstitutionArgumentMappings gargs = parent.get_substitution_arguments ();
   rust_assert (!gargs.is_empty ());
 
-  // setup the adjusted mappings
+  // The associated-type projection we are rebasing is stored in trait
+  // coordinates
+  //
+  //   Self/X for trait SliceIndex<X>
+  //
+  // The predicate's own  SubstitutionParamMappings may have already been
+  // mutated by SubstitutionParamMapping::fill_param_ty when the bound is a
+  // where-clause like I: SliceIndex<[T]>: substituting Self with the
+  // ParamType I rebinds the predicate's first param from Self to I.
+  // Building adjusted_mappings from those renamed mappings would make
+  // name-based lookup (get_argument_for_symbol) miss the trait's Self/X
+  // symbols inside the projection.
+  const auto &trait_substs = parent.get ()->get_trait_substs ();
+  rust_assert (gargs.get_mappings ().size () <= trait_substs.size ());
+
   std::vector<SubstitutionArg> adjusted_mappings;
   for (size_t i = 0; i < gargs.get_mappings ().size (); i++)
     {
@@ -690,7 +687,7 @@ TypeBoundPredicateItem::get_tyty_for_receiver (const TyTy::BaseType *receiver)
       TyTy::BaseType *argument
 	= is_implicit_self ? receiver->clone () : mapping.get_tyty ();
 
-      adjusted_mappings.emplace_back (mapping.get_param_mapping (), argument);
+      adjusted_mappings.emplace_back (&trait_substs.at (i), argument);
     }
 
   SubstitutionArgumentMappings adjusted (adjusted_mappings, {},
@@ -698,7 +695,19 @@ TypeBoundPredicateItem::get_tyty_for_receiver (const TyTy::BaseType *receiver)
 					 gargs.get_locus (),
 					 gargs.get_subst_cb (),
 					 true /* trait-mode-flag */);
-  return Resolver::SubstMapperInternal::Resolve (trait_item_tyty, adjusted);
+  TyTy::BaseType *res
+    = Resolver::SubstMapperInternal::Resolve (trait_item_tyty, adjusted);
+
+  if (res != trait_item_tyty)
+    {
+      auto &mappings = Analysis::Mappings::get ();
+      HirId fresh = mappings.get_next_hir_id ();
+      res->set_ref (fresh);
+      res->set_ty_ref (fresh);
+      ctx->insert_implicit_type (fresh, res);
+    }
+
+  return res;
 }
 bool
 TypeBoundPredicate::is_error () const
@@ -725,21 +734,6 @@ TypeBoundPredicate::handle_substitions (
       BaseType *s = Resolver::SubstMapperInternal::Resolve (r, subst_mappings);
 
       p->set_ty_ref (s->get_ty_ref ());
-    }
-
-  // associated argument mappings
-  for (auto &it : subst_mappings.get_binding_args ())
-    {
-      std::string identifier = it.first;
-      TyTy::BaseType *type = it.second;
-
-      tl::optional<TypeBoundPredicateItem> item
-	= lookup_associated_item (identifier);
-      if (item.has_value ())
-	{
-	  const auto item_ref = item->get_raw_item ();
-	  item_ref->associated_type_set (type);
-	}
     }
 
   // FIXME more error handling at some point

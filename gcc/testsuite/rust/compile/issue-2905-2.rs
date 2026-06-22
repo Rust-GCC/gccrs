@@ -76,17 +76,13 @@ pub mod core {
 
         impl<T> Foo for Weird<T> {}
 
-        // impl<T> core::iter::Iterator for Iter<T> {
-        //     type Item = &T;
+        impl<T> crate::core::iter::Iterator for Weird<T> {
+            type Item = &T;
 
-        //     fn next(&mut self) -> Option<&T> {
-        //         if self.is_empty() {
-        //             Option::None
-        //         } else {
-        //             Option::Some(&*self.next_unchecked())
-        //         }
-        //     }
-        // }
+            fn next(&mut self) -> Option<&T> {
+                Option::None
+            }
+        }
 
         union Repr<T> {
             pub(crate) rust: *const [T],
