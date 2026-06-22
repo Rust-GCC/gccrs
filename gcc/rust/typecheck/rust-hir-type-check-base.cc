@@ -46,6 +46,17 @@ TypeCheckBase::ResolveGenericParams (
 			      substitutions, is_foreign, abi);
 }
 
+TyTy::TypeBoundPredicate
+TypeCheckBase::ResolvePredicateFromBound (
+  HIR::TypePath &path,
+  tl::optional<std::reference_wrapper<HIR::Type>> associated_self,
+  BoundPolarity polarity, bool is_qualified_type, bool is_super_trait)
+{
+  TypeCheckBase ctx;
+  return ctx.get_predicate_from_bound (path, associated_self, polarity,
+				       is_qualified_type, is_super_trait);
+}
+
 static void
 walk_types_to_constrain (std::set<HirId> &constrained_symbols,
 			 const TyTy::SubstitutionArgumentMappings &constraints)
