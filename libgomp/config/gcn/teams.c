@@ -45,11 +45,29 @@ omp_get_num_teams (void)
 }
 
 int
+omp_get_num_teams_dim (int dim)
+{
+  if (dim == 0)
+    return omp_get_num_teams ();
+  return 1;
+}
+
+int
 omp_get_team_num (void)
 {
   int __lds *gomp_team_num = (int __lds *) GOMP_TEAM_NUM;
   return *gomp_team_num;
 }
 
+int
+omp_get_team_num_dim (int dim)
+{
+  if (dim == 0)
+    return omp_get_team_num ();
+  return 0;
+}
+
 ialias (omp_get_num_teams)
+ialias (omp_get_num_teams_dim)
 ialias (omp_get_team_num)
+ialias (omp_get_team_num_dim)

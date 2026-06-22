@@ -1264,6 +1264,7 @@ limit_worker_threads (int threads)
   /* FIXME Do something more intelligent here.
      GCN can always run 4 threads within a Compute Unit, but
      more than that depends on register usage.  */
+  /* Keep in sync with GOMP_OFFLOAD_supported_threads_dim.  */
   if (threads > 16)
     threads = 16;
   return threads;
@@ -3771,6 +3772,31 @@ GOMP_OFFLOAD_get_numa_node (int ord)
 
   agent->numa_node = numa_node >= 0 ? numa_node + 1 : numa_node;
   return numa_node;
+}
+
+/* Number of teams supported (by dimension) as reported by OpenMP.
+   For dim < 0 (invalid) and for dim > supported dims, return 1. */
+
+int
+GOMP_OFFLOAD_supported_teams_dim (int ord, int dim)
+{
+  if (dim > 0 /* max supported dims */ || dim < 0)
+    return 1;
+  struct agent_info *agent = get_agent_info (ord);
+  return limit_teams (__INT_MAX__, agent);
+}
+
+/* Number of threads supported (by dimension) as reported by OpenMP.
+   For dim < 0 (invalid) and for dim > supported dims, return 1. */
+
+int
+GOMP_OFFLOAD_supported_threads_dim (int ord, int dim)
+{
+  (void) ord;
+  if (dim > 0 /* max supported dims */ || dim < 0)
+    return 1;
+
+  return limit_worker_threads (__INT_MAX__);
 }
 
 /* Return the specific capabilities the HSA accelerator have.  */

@@ -701,6 +701,7 @@ specification in version 5.2.
 * Thread Team Routines::
 * Thread Affinity Routines::
 * Teams Region Routines::
+* Multidimensional Support Routines::
 * Tasking Routines::
 * Resource Relinquishing Routines::
 * Device Information Routines::
@@ -784,7 +785,7 @@ the program @code{omp_get_num_threads} returns 1.
 
 The default team size may be initialized at startup by the
 @env{OMP_NUM_THREADS} environment variable.  At runtime, the size
-of the current team may be set either by the @code{NUM_THREADS}
+of the current team may be set either by the @code{num_threads}
 clause or by @code{omp_set_num_threads}.  If none of the above were
 used to define a specific value and @env{OMP_DYNAMIC} is disabled,
 one thread per CPU online is used.
@@ -800,7 +801,8 @@ one thread per CPU online is used.
 @end multitable
 
 @item @emph{See also}:
-@ref{omp_get_max_threads}, @ref{omp_set_num_threads}, @ref{OMP_NUM_THREADS}
+@ref{omp_get_max_threads}, @ref{omp_set_num_threads},
+@ref{omp_get_num_threads_dim}, @ref{OMP_NUM_THREADS}
 
 @item @emph{Reference}:
 @uref{https://www.openmp.org, OpenMP specification v4.5}, Section 3.2.2.
@@ -855,7 +857,8 @@ value of the primary thread of a team is always 0.
 @end multitable
 
 @item @emph{See also}:
-@ref{omp_get_num_threads}, @ref{omp_get_ancestor_thread_num}
+@ref{omp_get_thread_num_dim}, @ref{omp_get_num_threads},
+@ref{omp_get_ancestor_thread_num}
 
 @item @emph{Reference}:
 @uref{https://www.openmp.org, OpenMP specification v4.5}, Section 3.2.4.
@@ -1421,6 +1424,9 @@ Returns the number of teams in the current team region.
 @item @emph{Interface}: @tab @code{integer function omp_get_num_teams()}
 @end multitable
 
+@item @emph{See also}:
+@ref{omp_get_num_teams_dim}, @ref{OMP_NUM_TEAMS}, @ref{omp_get_team_num}
+
 @item @emph{Reference}:
 @uref{https://www.openmp.org, OpenMP specification v4.5}, Section 3.2.32.
 @end table
@@ -1442,6 +1448,9 @@ Returns the team number of the calling thread.
 @multitable @columnfractions .20 .80
 @item @emph{Interface}: @tab @code{integer function omp_get_team_num()}
 @end multitable
+
+@item @emph{See also}:
+@ref{omp_get_num_teams_dim}, @ref{OMP_NUM_TEAMS}, @ref{omp_get_num_teams}
 
 @item @emph{Reference}:
 @uref{https://www.openmp.org, OpenMP specification v4.5}, Section 3.2.33.
@@ -1536,7 +1545,9 @@ for each team created by the teams construct which does not specify a
 @subsection @code{omp_get_thread_limit} -- Maximum number of threads
 @table @asis
 @item @emph{Description}:
-Return the maximum number of threads of the program.
+Return the maximal number of threads that are available in the current
+contention group to execute tasks, i.e. the unidimenional value of
+the @var{thread-limit-var} ICV.
 
 @item @emph{C/C++}:
 @multitable @columnfractions .20 .80
@@ -1549,10 +1560,380 @@ Return the maximum number of threads of the program.
 @end multitable
 
 @item @emph{See also}:
-@ref{omp_get_max_threads}, @ref{OMP_THREAD_LIMIT}
+@ref{omp_get_thread_limit_dim}, @ref{omp_get_max_threads}, @ref{OMP_THREAD_LIMIT}
 
 @item @emph{Reference}:
 @uref{https://www.openmp.org, OpenMP specification v4.5}, Section 3.2.14.
+@end table
+
+
+
+@node Multidimensional Support Routines
+@section Multidimensional Support Routines
+
+Routines that retrieve information about the execution environment with
+multiple spatial dimensions.  They have C linkage and do not throw exceptions.
+
+The dimensional space is unidimensional, if the number of active spaces
+is one.  To create a multidimensional space, the @code{dim} modifier must
+be specified with a dimension greater than one in the @code{num_teams},
+@code{num_thread_limits}, or @code{num_threads} clause.
+
+The relation between the unidimensional and the spatial values is as
+follows: For the size, the unidimensional size is the product of the
+spatial sizes.  For the thread or team number, the unidimensional number
+is the respective index of dimension 0 plus the index of dimension 1
+times the size of dimension 0 plus the index of dimension 2 times the
+size of dimension 1 times the size of dimension 0 etc.  If the active
+spatial dimensions is one, the spatial dimensional result for dimension
+zero is the same as returned by the respective unidimensional routine.
+
+Note that there is no means to obtain the number of active dimensions in
+the general case as the size of an inactive spatial dimension is one,
+which is also a permitted size for an active spatial dimension.
+
+@menu
+* omp_get_num_threads_dim::       Size of a dimension of the active team
+* omp_get_thread_num_dim::        Dimensional ID of the current thread
+* omp_get_num_teams_dim::         Number of teams along a dimension
+* omp_get_team_num_dim::          Get team number in a dimension
+* omp_get_thread_limit_dim::      Maximum number of threads in a dimension
+* omp_get_supported_active_team_dims::   Number of supported team dimensions
+* omp_get_supported_active_league_dims:: Number of supported thread dimensions
+* omp_get_supported_threads_dim:: Get upper limit of threads in a dimension
+* omp_get_supported_teams_dim::   Get upper limit of teams in a dimension
+@end menu
+
+
+@node omp_get_num_threads_dim
+@subsection @code{omp_get_num_threads_dim} -- Size of a dimension of the active team
+@table @asis
+Returns the size in dimension @var{DIM} of threads in the current team and,
+therefore, of the parallel region that binds to that team, i.e. the value
+of the @var{team-size-var} ICV in dimension @var{dim}.  For inactive spatial
+dimensions, the routine returns 1.  The dimension argument @var{DIM} must be
+non-negative.
+
+Fortran note: In GCC, this routine does not support passing default-kind integer
+arguments with @code{-fdefault-integer-8}.
+
+@item @emph{C/C++}:
+@multitable @columnfractions .20 .80
+@item @emph{Prototype}: @tab @code{int omp_get_num_threads_dim(int dim)}
+@end multitable
+
+@item @emph{Fortran}:
+@multitable @columnfractions .20 .80
+@item @emph{Interface}: @tab @code{integer function omp_get_num_threads_dim(dim)}
+@item                   @tab @code{integer :: dim}
+@end multitable
+
+@item @emph{See also}:
+@ref{omp_get_num_threads}, @ref{omp_get_thread_num_dim},
+@ref{omp_get_thread_limit_dim}, @ref{omp_get_max_threads},
+@ref{omp_set_num_threads}, @ref{OMP_NUM_THREADS},
+@ref{omp_get_supported_active_league_dims}
+
+@item @emph{Reference}:
+@c TODO: Update once OpenMP 6.1 is released
+@uref{https://www.openmp.org, OpenMP Technical Report 15}, Section 29.1
+@end table
+
+
+
+@node omp_get_thread_num_dim
+@subsection @code{omp_get_thread_num_dim} -- Dimensional ID of the current thread
+@table @asis
+@item @emph{Description}:
+Returns the value of dimension @var{dim} of the multidimensional thread
+identification number for the invoking thread in the current team, i.e. the
+value of the @var{thread-num-var} ICV in dimension @var{dim}.  For inactive
+spatial dimensions, the routine returns 0.  The dimension argument @var{DIM}
+must be non-negative.
+
+The returned value is between zero and one less than the value returned by
+@code{omp_get_num_threads} for the dimension @var{dim}.
+
+Fortran note: In GCC, this routine does not support passing default-kind integer
+arguments with @code{-fdefault-integer-8}.
+
+@item @emph{C/C++}:
+@multitable @columnfractions .20 .80
+@item @emph{Prototype}: @tab @code{int omp_get_thread_num(int dim)}
+@item                   @tab @code{integer :: dim}
+@end multitable
+
+@item @emph{Fortran}:
+@multitable @columnfractions .20 .80
+@item @emph{Interface}: @tab @code{integer function omp_get_thread_num(dim)}
+@end multitable
+
+@item @emph{See also}:
+@ref{omp_get_thread_num}, @ref{omp_get_num_threads_dim}
+
+@item @emph{Reference}:
+@c TODO: Update once OpenMP 6.1 is released
+@uref{https://www.openmp.org, OpenMP Technical Report 15}, Section 29.2
+@end table
+
+
+
+@node omp_get_num_teams_dim
+@subsection @code{omp_get_num_teams_dim} -- Number of teams along a dimension
+@table @asis
+@item @emph{description}:
+Returns the size in dimension @var{DIM} of the number of initial teams, i.e.
+the value of the @var{league-size-var} ICV in dimension @var{dim}.  For inactive
+spatial dimensions, the routine returns 1.  The dimension argument @var{DIM}
+must be non-negative.
+
+Fortran note: In GCC, this routine does not support passing default-kind integer
+arguments with @code{-fdefault-integer-8}.
+
+@item @emph{c/c++}:
+@multitable @columnfractions .20 .80
+@item @emph{prototype}: @tab @code{int omp_get_num_teams(int dim)}
+@end multitable
+
+@item @emph{fortran}:
+@multitable @columnfractions .20 .80
+@item @emph{interface}: @tab @code{integer function omp_get_num_teams(dim)}
+@item                   @tab @code{integer :: dim}
+@end multitable
+
+@item @emph{See also}:
+@ref{omp_get_num_teams}, @ref{OMP_NUM_TEAMS}, @ref{omp_get_team_num_dim}
+@ref{omp_get_supported_active_team_dims}
+
+
+@item @emph{reference}:
+@c TODO: Update once OpenMP 6.1 is released
+@uref{https://www.openmp.org, OpenMP Technical Report 15}, Section 29.3
+@end table
+
+
+
+@node omp_get_team_num_dim
+@subsection @code{omp_get_team_num_dim} -- Get team number in a dimension
+@table @asis
+@item @emph{description}:
+Returns the value of dimension @var{dim} of the multidimensional team
+identification number in the current team, i.e.  the value of the
+@var{team-num-var} ICV in dimension @var{dim}.  For inactive spatial
+dimensions, the routine returns 0.  The dimension argument @var{DIM}
+must be non-negative.
+
+The returned value is between zero and one less than the value returned by
+@code{omp_get_num_teams_dim} for the dimension @var{dim}.
+
+Fortran note: In GCC, this routine does not support passing default-kind integer
+arguments with @code{-fdefault-integer-8}.
+
+@item @emph{c/c++}:
+@multitable @columnfractions .20 .80
+@item @emph{prototype}: @tab @code{int omp_get_team_num_dim(int dim);}
+@end multitable
+
+@item @emph{fortran}:
+@multitable @columnfractions .20 .80
+@item @emph{interface}: @tab @code{integer function omp_get_team_num_dim(dim)}
+@item                   @tab @code{integer :: dim}
+@end multitable
+
+@item @emph{See also}:
+@ref{omp_get_team_num_dim}, @ref{OMP_NUM_TEAMS}, @ref{omp_get_num_teams_dim}
+
+@item @emph{reference}:
+@c TODO: Update once OpenMP 6.1 is released
+@uref{https://www.openmp.org, OpenMP Technical Report 15}, Section 29.4
+@end table
+
+
+
+@node omp_get_thread_limit_dim
+@subsection @code{omp_get_thread_limit_dim} -- Maximum number of threads in a dimension
+@table @asis
+@item @emph{Description}:
+Return the maximal number of threads in dimension @var{dim} that are available
+in the current contention group in that dimension, i.e. the value of the
+@var{thread-limit-var} ICV in dimension @var{dim}.  The routine returns one if
+the dimension @var{dim} exceeds the number of dimensions for which values have
+been specified in the @var{thread-limit-var} ICV.  The dimension argument
+@var{DIM} must be non-negative.
+
+Fortran note: In GCC, this routine does not support passing default-kind integer
+arguments with @code{-fdefault-integer-8}.
+
+@item @emph{C/C++}:
+@multitable @columnfractions .20 .80
+@item @emph{Prototype}: @tab @code{int omp_get_thread_limit_dim(int dim)}
+@end multitable
+
+@item @emph{Fortran}:
+@multitable @columnfractions .20 .80
+@item @emph{Interface}: @tab @code{integer function omp_get_thread_limit_dim(dim)}
+@end multitable
+
+@item @emph{See also}:
+@ref{omp_get_thread_limit}, @ref{omp_get_thread_limit_dim},
+@ref{omp_get_max_threads}, @ref{OMP_THREAD_LIMIT}
+
+@item @emph{Reference}:
+@c TODO: Update once OpenMP 6.1 is released
+@uref{https://www.openmp.org, OpenMP Technical Report 15}, Section 29.5
+@end table
+
+
+
+@node omp_get_supported_active_team_dims
+@subsection @code{omp_get_supported_active_team_dims} -- Number of supported team dimensions
+@table @asis
+@item @emph{Description}:
+The routine returns the number of active spatial dimensions that the device with
+@var{device_num} supports for teams.  If @var{native_support} is set to true, it
+returns the maximal number active spatial dimensions that are natively supported
+by the device.
+
+The effect when the routine is invoked from within a @code{target} region is unspecified.
+
+Fortran note: In GCC, this routine does not support passing default-kind integer
+arguments with @code{-fdefault-integer-8}.
+
+@item @emph{C/C++}:
+@multitable @columnfractions .20 .80
+@item @emph{Prototype}: @tab @code{int omp_get_supported_active_team_dims(int device_num, int native_support)}
+@end multitable
+
+@item @emph{Fortran}:
+@multitable @columnfractions .20 .80
+@item @emph{Interface}: @tab @code{integer function omp_get_supported_active_team_dims(device_num, native_support)}
+@item                   @tab @code{integer :: device_num}
+@item                   @tab @code{logical :: native_support}
+@end multitable
+
+@item @emph{See also}:
+@ref{omp_get_supported_teams_dim}, @ref{omp_get_num_teams_dim}, @ref{OMP_NUM_TEAMS}
+
+@item @emph{Reference}:
+@c TODO: Update once OpenMP 6.1 is released
+@uref{https://www.openmp.org, OpenMP Technical Report 15}, Section 29.6
+@end table
+
+
+
+@node omp_get_supported_active_league_dims
+@subsection @code{omp_get_supported_active_league_dims} -- Number of supported thread dimensions
+@table @asis
+@item @emph{Description}:
+The routine returns the number of active spatial dimensions that the device with
+@var{device_num} supports for league spaces, i.e. the number of threads available
+to each team in the league.  If @var{native_support} is set to true, it returns
+the maximal number active spatial dimensions that are natively supported by the
+device.
+
+The effect when the routine is invoked from within a @code{target} region is unspecified.
+
+Fortran note: In GCC, this routine does not support passing default-kind integer
+arguments with @code{-fdefault-integer-8}.
+
+@item @emph{C/C++}:
+@multitable @columnfractions .20 .80
+@item @emph{Prototype}: @tab @code{int omp_get_supported_active_league_dims(int device_num, int native_support)}
+@end multitable
+
+@item @emph{Fortran}:
+@multitable @columnfractions .20 .80
+@item @emph{Interface}: @tab @code{integer function omp_get_supported_active_league_dims(device_num, native_support)}
+@item                   @tab @code{integer :: device_num}
+@item                   @tab @code{logical :: native_support}
+@end multitable
+
+@item @emph{See also}:
+@ref{omp_get_supported_threads_dim}, @ref{omp_get_thread_limit_dim},
+@ref{omp_get_num_teams_dim}, @ref{OMP_THREAD_LIMIT}
+
+@item @emph{Reference}:
+@c TODO: Update once OpenMP 6.1 is released
+@uref{https://www.openmp.org, OpenMP Technical Report 15}, Section 29.7
+@end table
+
+
+
+@node omp_get_supported_threads_dim
+@subsection @code{omp_get_supported_threads_dim} -- Get upper limit of threads in a dimension
+@table @asis
+@item @emph{Description}:
+The routine returns an upper bound for the number of threads supported in
+dimension @var{dim} on device @var{device_num}.  If @var{dim} specifies a number
+that exceeds the number of supported active spatial dimensions for threads, the
+routine returns one.
+
+Note: The actually supported number of threads by dimension might be lower,
+depending on used number of threads in other dimensions, the number of
+teams, and other parameters like the register use of the code to be executed.
+
+The effect when the routine is invoked from within a @code{target} region is unspecified.
+
+Fortran note: In GCC, this routine does not support passing default-kind integer
+arguments with @code{-fdefault-integer-8}.
+
+@item @emph{C/C++}:
+@multitable @columnfractions .20 .80
+@item @emph{Prototype}: @tab @code{int omp_get_supported_threads_dim(int device_num, int dim)}
+@end multitable
+
+@item @emph{Fortran}:
+@multitable @columnfractions .20 .80
+@item @emph{Interface}: @tab @code{integer function omp_get_supported_threads_dim(device_num, dim)}
+@item                   @tab @code{integer :: device_num, dim}
+@end multitable
+
+@item @emph{See also}:
+@ref{omp_get_supported_active_league_dims}, @ref{omp_get_thread_limit_dim},
+@ref{omp_get_max_threads}, @ref{omp_get_num_teams_dim}, @ref{OMP_THREAD_LIMIT}
+
+
+@item @emph{Reference}:
+@c TODO: Update once OpenMP 6.1 is released
+@uref{https://www.openmp.org, OpenMP Technical Report 15}, Section 29.8
+@end table
+
+
+
+@node omp_get_supported_teams_dim
+@subsection @code{omp_get_supported_teams_dim} -- Get upper limit of teams in a dimension
+@table @asis
+@item @emph{Description}:
+The routine returns an upper bound for the number of teams supported in
+dimension @var{dim} on device @var{device_num}.  If @var{dim} specifies a number
+that exceeds the number of supported active spatial dimensions for teams, the
+routine returns one.
+
+Note: The actually supported number of teams by dimension might be lower,
+depending on used number of teams in other dimensions and other parameters.
+
+The effect when the routine is invoked from within a @code{target} region is unspecified.
+
+Fortran note: In GCC, this routine does not support passing default-kind integer
+arguments with @code{-fdefault-integer-8}.
+
+@item @emph{C/C++}:
+@multitable @columnfractions .20 .80
+@item @emph{Prototype}: @tab @code{int omp_get_supported_teams_dim(int device_num, int dim)}
+@end multitable
+
+@item @emph{Fortran}:
+@multitable @columnfractions .20 .80
+@item @emph{Interface}: @tab @code{integer function omp_get_supported_teams_dim(device_num, dim)}
+@item                   @tab @code{integer :: device_num, dim}
+@end multitable
+
+@item @emph{See also}:
+@ref{omp_get_supported_active_team_dims}, @ref{omp_get_num_teams_dim}, @ref{OMP_NUM_TEAMS}
+
+@item @emph{Reference}:
+@c TODO: Update once OpenMP 6.1 is released
+@uref{https://www.openmp.org, OpenMP Technical Report 15}, Section 29.9
 @end table
 
 
@@ -2064,7 +2445,7 @@ arguments with @code{-fdefault-integer-8}.
 
 @item @emph{Reference}:
 @c TODO: Update once OpenMP 6.1 is released
-@uref{https://www.openmp.org, OpenMP specification Technical Report 15}, Section 3.16
+@uref{https://www.openmp.org, OpenMP Technical Report 15}, Section 31.16
 @end table
 
 

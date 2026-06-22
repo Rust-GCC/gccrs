@@ -104,6 +104,8 @@ ialias_redirect (omp_get_interop_name)
 ialias_redirect (omp_get_interop_type_desc)
 ialias_redirect (omp_get_interop_rc_desc)
 ialias_redirect (omp_control_tool)
+ialias_redirect (omp_get_supported_active_team_dims)
+ialias_redirect (omp_get_supported_active_league_dims)
 #endif
 
 #ifndef LIBGOMP_GNU_SYMBOL_VERSIONING
@@ -860,6 +862,18 @@ omp_get_uid_from_device_8_ (const char **res, size_t *res_len,
 }
 
 #ifndef LIBGOMP_OFFLOADED_ONLY
+
+int
+omp_get_supported_active_team_dims_ (int *device_num, int *native_support)
+{
+  return omp_get_supported_active_team_dims (*device_num, *native_support);
+}
+
+int
+omp_get_supported_active_league_dims_ (int *device_num, int *native_support)
+{
+  return omp_get_supported_active_league_dims (*device_num, *native_support);
+}
 
 void
 omp_display_env_ (const int32_t *verbose)

@@ -3959,16 +3959,25 @@ omp_runtime_api_procname (const char *name)
   static const char *omp_runtime_apis[] =
     {
       /* This array has 3 sections.  First omp_* calls that don't
-	 have any suffixes.  */
+	 have any suffixes; this implies bind(C) either in the
+	 specification or implementation choice.  */
       "aligned_alloc",
       "aligned_calloc",
       "alloc",
       "calloc",
       "free",
+      "get_device_distances",
       "get_interop_int",
       "get_interop_ptr",
       "get_mapped_ptr",
       "get_num_interop_properties",
+      "get_num_teams_dim",
+      "get_num_threads_dim",
+      "get_supported_teams_dim",
+      "get_supported_threads_dim",
+      "get_team_num_dim",
+      "get_thread_limit_dim",
+      "get_thread_num_dim",
       "realloc",
       "target_alloc",
       "target_associate_ptr",
@@ -4016,7 +4025,9 @@ omp_runtime_api_procname (const char *name)
       "get_partition_num_places",
       "get_place_num",
       "get_proc_bind",
+      "get_supported_active_league_dims",
       "get_supported_active_levels",
+      "get_supported_active_team_dims",
       "get_team_num",
       "get_teams_thread_limit",
       "get_thread_limit",
@@ -4059,7 +4070,8 @@ omp_runtime_api_procname (const char *name)
       "set_num_teams",
       "set_num_threads",
       "set_schedule",
-      "set_teams_thread_limit"
+      "set_teams_thread_limit",
+      "target_memset"
     };
 
   int mode = 0;

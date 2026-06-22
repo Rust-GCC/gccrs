@@ -1383,6 +1383,49 @@ GOMP_OFFLOAD_get_numa_node (int ord)
   return numa_node;
 }
 
+/* Number of teams supported (by dimension) as reported by OpenMP.
+   For dim < 0 (invalid) and for dim > supported dims, return 1. */
+
+int
+GOMP_OFFLOAD_supported_teams_dim (int ord, int dim)
+{
+  if (dim > 0 /* max supported dims */ || dim < 0)
+    return 1;
+
+  struct ptx_device *ptx_dev = ptx_devices[ord];
+
+  /* Keep in sync with nvptx_adjust_launch_bounds; assume 1 for the
+     following as upper bound.  */
+  int num_threads = 1, regs_per_thread = 1;
+
+  int regs_per_block = regs_per_thread * 32 * num_threads;
+
+  int max_blocks = ptx_dev->regs_per_sm / regs_per_block * ptx_dev->num_sms;
+  /* This is an estimate of how many blocks the device can host simultaneously.
+     Actual limit, which may be lower, can be queried with "occupancy control"
+     driver interface (since CUDA 6.0).  */
+  return max_blocks;
+}
+
+/* Number of threads supported (by dimension) as reported by OpenMP.
+   For dim < 0 (invalid) and for dim > supported dims, return 1. */
+
+int
+GOMP_OFFLOAD_supported_threads_dim (int ord, int dim)
+{
+  if (dim > 0 /* max supported dims */ || dim < 0)
+    return 1;
+
+  /* Keep in sync with nvptx_adjust_launch_bounds.  */
+  struct ptx_device *ptx_dev = ptx_devices[ord];
+
+  int max_warps_block = ptx_dev->max_threads_per_block / 32;
+  /* Maximum 32 warps per block is an implementation limit in NVPTX backend
+     and libgcc, which matches documented limit of all GPUs as of 2015.  */
+
+  return max_warps_block;
+}
+
 unsigned int
 GOMP_OFFLOAD_get_caps (void)
 {
@@ -2644,7 +2687,9 @@ GOMP_OFFLOAD_openacc_get_property (int n, enum goacc_property prop)
 
 /* Adjust launch dimensions: pick good values for number of blocks and warps
    and ensure that number of warps does not exceed CUDA limits as well as GCC's
-   own limits.  */
+   own limits.
+   Keep in sync with GOMP_OFFLOAD_supported_teams_dims and
+   GOMP_OFFLOAD_supported_threads_dim.  */
 
 static void
 nvptx_adjust_launch_bounds (struct targ_fn_descriptor *fn,

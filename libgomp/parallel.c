@@ -281,9 +281,25 @@ omp_get_num_threads (void)
 }
 
 int
+omp_get_num_threads_dim (int dim)
+{
+  if (dim == 0)
+    return omp_get_num_threads ();
+  return 1;
+}
+
+int
 omp_get_thread_num (void)
 {
   return gomp_thread ()->ts.team_id;
+}
+
+int
+omp_get_thread_num_dim (int dim)
+{
+  if (dim == 0)
+    return omp_get_thread_num ();
+  return 0;
 }
 
 /* This wasn't right for OpenMP 2.5.  Active region used to be non-zero
@@ -334,7 +350,9 @@ omp_get_active_level (void)
 }
 
 ialias (omp_get_num_threads)
+ialias (omp_get_num_threads_dim)
 ialias (omp_get_thread_num)
+ialias (omp_get_thread_num_dim)
 ialias (omp_in_parallel)
 ialias (omp_get_level)
 ialias (omp_get_ancestor_thread_num)

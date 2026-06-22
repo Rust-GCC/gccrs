@@ -4168,9 +4168,17 @@ scan_omp_1_stmt (gimple_stmt_iterator *gsi, bool *handled_ops_p,
 		      || strcmp (IDENTIFIER_POINTER (DECL_NAME (fndecl)),
 				 "omp_get_num_teams") != 0)
 		  && ((IDENTIFIER_LENGTH (DECL_NAME (fndecl))
+		       != strlen ("omp_get_num_teams_dim"))
+		      || strcmp (IDENTIFIER_POINTER (DECL_NAME (fndecl)),
+				 "omp_get_num_teams_dim") != 0)
+		  && ((IDENTIFIER_LENGTH (DECL_NAME (fndecl))
 		       != strlen ("omp_get_team_num"))
 		      || strcmp (IDENTIFIER_POINTER (DECL_NAME (fndecl)),
-				 "omp_get_team_num") != 0))
+				 "omp_get_team_num") != 0)
+		  && ((IDENTIFIER_LENGTH (DECL_NAME (fndecl))
+		       != strlen ("omp_get_team_num_dim"))
+		      || strcmp (IDENTIFIER_POINTER (DECL_NAME (fndecl)),
+				 "omp_get_team_num_dim") != 0))
 		{
 		  remove = true;
 		  error_at (gimple_location (stmt),

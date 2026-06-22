@@ -6032,6 +6032,54 @@ GOMP_interop (int device_num, int n_init, struct interop_obj_t ***init,
     }
 }
 
+/* Query device-related data.  */
+
+int
+omp_get_supported_active_team_dims (int device_num, int native_support)
+{
+  (void) device_num;
+  (void) native_support;
+  return 1;
+}
+
+int
+omp_get_supported_active_league_dims (int device_num, int native_support)
+{
+  (void) device_num;
+  (void) native_support;
+  return 1;
+}
+
+int
+omp_get_supported_teams_dim (int device_num, int dim)
+{
+  if (device_num == omp_default_device)
+    device_num = gomp_get_default_device ();
+  if (device_num == omp_initial_device
+      || device_num == gomp_get_num_devices ())
+    return dim == 0 ? INT_MAX : 1;
+
+  struct gomp_device_descr *devicep = resolve_device (device_num, false);
+  if (devicep == NULL || !devicep->supported_teams_dim_func)
+    return -1;
+  return devicep->supported_teams_dim_func (devicep->target_id, dim);
+}
+
+int
+omp_get_supported_threads_dim (int device_num, int dim)
+{
+  if (device_num == omp_default_device)
+    device_num = gomp_get_default_device ();
+  if (device_num == omp_initial_device
+      || device_num == gomp_get_num_devices ())
+    return dim == 0 ? INT_MAX : 1;
+
+  struct gomp_device_descr *devicep = resolve_device (device_num, false);
+  if (devicep == NULL || !devicep->supported_threads_dim_func)
+    return -1;
+  return devicep->supported_threads_dim_func (devicep->target_id, dim);
+}
+
 static const char *
 gomp_get_uid_for_device (struct gomp_device_descr *devicep, int device_num)
 {
@@ -6136,6 +6184,10 @@ omp_get_device_distances (int ndevs, const int *devs, int *distances)
     }
 }
 
+ialias (omp_get_supported_active_team_dims)
+ialias (omp_get_supported_active_league_dims)
+ialias (omp_get_supported_threads_dim)
+ialias (omp_get_supported_teams_dim)
 ialias (omp_get_uid_from_device)
 ialias (omp_get_device_from_uid)
 ialias (omp_get_device_distances)
@@ -6184,6 +6236,8 @@ gomp_load_plugin_for_device (struct gomp_device_descr *device,
   DLSYM (get_name);
   DLSYM_OPT (get_uid, get_uid);
   DLSYM_OPT (get_numa_node, get_numa_node);
+  DLSYM_OPT (supported_threads_dim, supported_threads_dim);
+  DLSYM_OPT (supported_teams_dim, supported_teams_dim);
   DLSYM (get_caps);
   DLSYM (get_type);
   DLSYM (get_num_devices);

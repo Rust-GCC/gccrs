@@ -250,6 +250,17 @@ OMP_6.0 {
 OMP_6.1 {
   global:
 	omp_get_device_distances;
+	omp_get_num_teams_dim;
+	omp_get_num_threads_dim;
+	omp_get_supported_active_league_dims;
+	omp_get_supported_active_league_dims_;
+	omp_get_supported_active_team_dims;
+	omp_get_supported_active_team_dims_;
+	omp_get_supported_teams_dim;
+	omp_get_supported_threads_dim;
+	omp_get_team_num_dim;
+	omp_get_thread_limit_dim;
+	omp_get_thread_num_dim;
 } OMP_6.0;
 
 GOMP_1.0 {

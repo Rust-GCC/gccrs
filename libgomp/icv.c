@@ -118,6 +118,14 @@ omp_get_thread_limit (void)
   return icv->thread_limit_var > INT_MAX ? INT_MAX : icv->thread_limit_var;
 }
 
+int
+omp_get_thread_limit_dim (int dim)
+{
+  if (dim == 0)
+    return omp_get_thread_limit ();
+  return 1;
+}
+
 void
 omp_set_max_active_levels (int max_levels)
 {
@@ -239,6 +247,7 @@ ialias (omp_set_schedule)
 ialias (omp_get_schedule)
 ialias (omp_get_max_threads)
 ialias (omp_get_thread_limit)
+ialias (omp_get_thread_limit_dim)
 ialias (omp_set_max_active_levels)
 ialias (omp_get_max_active_levels)
 ialias (omp_get_supported_active_levels)
