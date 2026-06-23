@@ -28315,7 +28315,7 @@ ix86_expand_lcp_stall_peephole (rtx_insn *insn, rtx *operands,
 
 		  /* Reject DEST if a register is not wide enough to
 		     supply MODE or invalid for QImode.  */
-		  if (!REG_P (dest)
+		  if (!GENERAL_REG_P (dest)
 		      || (GET_MODE_SIZE (GET_MODE (dest))
 			  < GET_MODE_SIZE (mode))
 		      || (mode == QImode
