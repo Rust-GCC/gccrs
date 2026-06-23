@@ -315,6 +315,10 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
       def_or_undef (parse_in, "__c86_4g_m7");
       def_or_undef (parse_in, "__c86_4g_m7__");
       break;
+    case PROCESSOR_C86_4G_M8:
+      def_or_undef (parse_in, "__c86_4g_m8");
+      def_or_undef (parse_in, "__c86_4g_m8__");
+      break;
     /* use PROCESSOR_max to not set/unset the arch macro.  */
     case PROCESSOR_max:
       break;
@@ -531,6 +535,9 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
       break;
     case PROCESSOR_C86_4G_M7:
       def_or_undef (parse_in, "__tune_c86_4g_m7__");
+      break;
+    case PROCESSOR_C86_4G_M8:
+      def_or_undef (parse_in, "__tune_c86_4g_m8__");
       break;
     case PROCESSOR_INTEL:
     case PROCESSOR_GENERIC:
