@@ -5381,7 +5381,7 @@ namespace __format
 // instantiates formatters for types stored in basic_format_arg, we can
 // support only single encoding, in this case unicode. This should cover
 // most common use cases.
-#if __cplusplus <= 202002L && _GLIBCXX_EXTERN_TEMPLATE > 0
+#if __cplusplus <= 202002L && _GLIBCXX_EXTERN_TEMPLATE
     extern template _Sink_iter<char>
       __do_vformat_to<char, 1>(_Sink_iter<char>, string_view,
 			       format_context&);
