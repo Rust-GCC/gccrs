@@ -1380,9 +1380,6 @@ gfc_typenode_for_spec (gfc_typespec * spec, int codim)
     case BT_CLASS:
       basetype = gfc_get_derived_type (spec->u.derived, codim);
 
-      if (spec->type == BT_CLASS)
-	GFC_CLASS_TYPE_P (basetype) = 1;
-
       /* If we're dealing with either C_PTR or C_FUNPTR, we modified the
          type and kind to fit a (void *) and the basetype returned was a
          ptr_type_node.  We need to pass up this new information to the
@@ -2970,6 +2967,8 @@ gfc_get_derived_type (gfc_symbol * derived, int codimen)
       TYPE_NAME (typenode) = get_identifier (derived->name);
       TYPE_PACKED (typenode) = flag_pack_derived;
       derived->backend_decl = typenode;
+      if (derived->attr.is_class)
+	GFC_CLASS_TYPE_P (typenode) = 1;
     }
 
   if (derived->components
@@ -3132,15 +3131,6 @@ gfc_get_derived_type (gfc_symbol * derived, int codimen)
 	  field_type = build_pointer_type_for_mode (TREE_TYPE (field_type),
 						    ptr_mode, true);
 
-      /* Ensure that the CLASS language specific flag is set.  */
-      if (c->ts.type == BT_CLASS)
-	{
-	  if (POINTER_TYPE_P (field_type))
-	    GFC_CLASS_TYPE_P (TREE_TYPE (field_type)) = 1;
-	  else
-	    GFC_CLASS_TYPE_P (field_type) = 1;
-	}
-
       field = gfc_add_field_to_struct (typenode,
 				       get_identifier (c->name),
 				       field_type, &chain);
@@ -3212,6 +3202,9 @@ copy_derived_types:
       if (dt->dt_next == gfc_derived_types)
 	break;
     }
+
+  if (derived->attr.is_class)
+    GFC_CLASS_TYPE_P (derived->backend_decl) = 1;
 
   return derived->backend_decl;
 }

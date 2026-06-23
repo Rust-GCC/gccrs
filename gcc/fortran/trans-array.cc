@@ -4493,7 +4493,18 @@ build_array_ref (tree desc, tree offset, tree decl, tree vptr)
       type = TREE_TYPE (TREE_OPERAND (cdesc, 0));
       if (TYPE_CANONICAL (type)
 	  && GFC_CLASS_TYPE_P (TYPE_CANONICAL (type)))
-	vptr = gfc_class_vptr_get (TREE_OPERAND (cdesc, 0));
+	{
+	  vptr = gfc_class_vptr_get (TREE_OPERAND (cdesc, 0));
+	  /* Pass the class container as decl so that gfc_build_array_ref can
+	     correct the element size for an unlimited polymorphic character
+	     payload (the _len field), which the vptr size alone omits.  Only do
+	     this for a genuine array element reference; a scalar coarray has
+	     nothing to span-correct and gfc_build_array_ref asserts decl is null
+	     for it.  */
+	  if (decl == NULL_TREE
+	      && GFC_TYPE_ARRAY_RANK (TREE_TYPE (cdesc)) > 0)
+	    decl = TREE_OPERAND (cdesc, 0);
+	}
     }
 
   tmp = gfc_conv_array_data (desc);
