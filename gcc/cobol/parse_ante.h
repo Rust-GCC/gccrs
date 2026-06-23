@@ -621,6 +621,9 @@ struct arith_t {
 static cbl_refer_t * ast_op( const cbl_loc_t& loc,
                              cbl_refer_t *lhs, char op, cbl_refer_t *rhs );
 
+static void ast_relop( const cbl_loc_t& loc, cbl_field_t *tgt,
+                       cbl_refer_t lhs, relop_t relop, cbl_refer_t rhs );
+
 static void ast_add( arith_t *arith );
 static bool ast_subtract( arith_t *arith );
 static bool ast_multiply( arith_t *arith );
@@ -691,7 +694,7 @@ class eval_subject_t {
 
   // compare sets result
   cbl_field_t * compare( int token );
-  cbl_field_t * compare( relop_t op,
+  cbl_field_t * compare( const cbl_loc_t& loc, relop_t op,
                          const cbl_refer_t& object, bool deciding = false);
   cbl_field_t * compare( const cbl_refer_t& object,
                          const cbl_refer_t& object2 = nullptr);
@@ -745,7 +748,7 @@ class eval_subject_t {
     if( pcol == columns.end() ) return false;
     dbgmsg("%s() if not %s goto %s", __func__, result->name, when()->name);
 
-    if( compare(op, object, true) ) {
+    if( compare(cbl_loc_t(), op, object, true) ) {
       if( invert ) {
         parser_logop( result, NULL, not_op, result );
       }

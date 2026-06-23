@@ -6597,7 +6597,7 @@ simple_cond:    kind_of_name
                   lhs.addr_of = true;
                   auto rhs = cbl_field_of(symbol_field(0,0, "NULLS"));
                   $$ = new_reference(new_temporary(FldConditional));
-                  parser_relop($$->field, lhs, eq_op, rhs);
+                  ast_relop(@$, $$->field, lhs, eq_op, rhs);
                 }
         |       expr /* IS */ NOT OMITTED
 	        { // IS captured by lexer
@@ -6605,7 +6605,7 @@ simple_cond:    kind_of_name
                   lhs.addr_of = true;
                   auto rhs = cbl_field_of(symbol_field(0,0, "NULLS"));
                   $$ = new_reference(new_temporary(FldConditional));
-                  parser_relop($$->field, lhs, ne_op, rhs);
+                  ast_relop(@$, $$->field, lhs, ne_op, rhs);
                 }
         |       expr posneg[op] {
                   $$ = new_reference(new_temporary(FldConditional));
@@ -6617,7 +6617,7 @@ simple_cond:    kind_of_name
                               cbl_field_type_name($1->field->type));
                     YYERROR;
                   }
-                  parser_relop($$->cond(), *$1, op, zero);
+                  ast_relop(@$, $$->cond(), *$1, op, zero);
                 }
         |       scalar88 {
                   // copy the subscripts and set the parent field
@@ -6719,7 +6719,7 @@ rel_expr:	rel_lhs rel_term[rhs]
                     YYERROR;
                   }
 		  auto cond = new_temporary(FldConditional);
-		  parser_relop( cond, *ante.operand, op, *$rhs.term );
+		  ast_relop( @$, cond, *ante.operand, op, *$rhs.term );
 		  $$ = cond;
                 }
 	|	rel_lhs[lhs] '(' rel_abbrs ')' {
@@ -6775,7 +6775,7 @@ rel_abbr:	rel_term {
                                             ante.operand, ante.relop, $rel_term.term) ){
                     YYERROR;
                   }
-		  parser_relop(cond, *ante.operand, ante.relop, *$rel_term.term);
+		  ast_relop(@$, cond, *ante.operand, ante.relop, *$rel_term.term);
 		  $$ = cond;
 		}
 	|	relop rel_term {
@@ -6798,7 +6798,7 @@ rel_abbr:	rel_term {
                     YYERROR;
                   }
 		  auto cond = new_temporary(FldConditional);
-		  parser_relop(cond, *ante.operand, ante.relop, *$rel_term.term);
+		  ast_relop(@$, cond, *ante.operand, ante.relop, *$rel_term.term);
 		  $$ = cond;
 		}
 		;
@@ -7145,7 +7145,7 @@ eval_abbrs:	rel_term[a] {
                   cbl_refer_t lhs( ev.subject() );
                   // on pointer error, emit message and continue parsing 
                   valid_pointer_relop(@1, @1, @2, &lhs, relop_of($relop), $a.term);
-		  auto result = ev.compare(relop, *$a.term);
+		  auto result = ev.compare(@$, relop, *$a.term);
 		  if( ! result ) YYERROR;
 		  if( $a.invert ) {
 		    parser_logop(result, nullptr, not_op, result);
@@ -7182,7 +7182,7 @@ eval_abbr:	rel_term[a] {
                   cbl_refer_t lhs(subj);
                   // on pointer error, emit message and continue parsing 
                   valid_pointer_relop(@1, @1, @1, &lhs, relop, $a.term);
-		  $$ = ev.compare(relop, *$a.term);
+		  $$ = ev.compare(@$, relop, *$a.term);
 		  if( $a.invert ) {
 		    parser_logop($$, nullptr, not_op, $$);
 		  }
@@ -7195,7 +7195,7 @@ eval_abbr:	rel_term[a] {
                   cbl_refer_t lhs( ev.subject() );
                   // on pointer error, emit message and continue parsing 
                   valid_pointer_relop(@1, @1, @2, &lhs, relop_of($relop), $a.term);
-		  $$ = ev.compare(relop, *$a.term);
+		  $$ = ev.compare(@$, relop, *$a.term);
 		  if( $a.invert ) {
 		    parser_logop($$, nullptr, not_op, $$);
 		  }
@@ -13399,6 +13399,26 @@ ast_op( const cbl_loc_t& loc, cbl_refer_t *lhs, char op, cbl_refer_t *rhs ) {
   return tgt;
 }
 
+/*
+ * Verify that any field being compared can be moved.  If it cannot, and one
+ * operand is not numeric, ensure the other is not FldFloat.
+ */
+static void
+ast_relop( const cbl_loc_t& loc, cbl_field_t *tgt,
+           cbl_refer_t lhs, relop_t op, cbl_refer_t rhs ) {
+  if( ! (valid_move(lhs.field, rhs.field) && valid_move(rhs.field, lhs.field)) ) {
+    if( is_numeric(lhs.field) != is_numeric(rhs.field) ) {
+      if( (lhs.field->type == FldFloat) || (rhs.field->type == FldFloat) ) {
+        error_msg(loc, "cannot compare %s to %s",
+                  cbl_field_type_name(lhs.field->type),
+                  cbl_field_type_name(rhs.field->type));
+        return;
+      }
+    }
+  }
+  parser_relop(tgt, lhs, op, rhs);
+}
+
 static void
 ast_add( arith_t *arith ) {
   size_t nC = arith->tgts.size(), nA = arith->A.size();
@@ -14777,12 +14797,13 @@ eval_subject_t::compare( int token ) {
 }
 
 cbl_field_t *
-eval_subject_t::compare( relop_t op, const cbl_refer_t& object, bool deciding ) {
+eval_subject_t::compare( const cbl_loc_t& loc, 
+                         relop_t op, const cbl_refer_t& object, bool deciding ) {
   auto subject(*pcol);
   if( compatible(object.field) ) {
     if( ! is_conditional(subject.field) ) {
       auto result = deciding? this->result : new_temporary(FldConditional);
-      parser_relop(result, subject, op, object);
+      ast_relop(loc, result, subject, op, object);
       return result;
       }
     }
