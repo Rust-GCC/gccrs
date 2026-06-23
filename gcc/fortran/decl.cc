@@ -2546,6 +2546,24 @@ build_struct (const char *name, gfc_charlen *cl, gfc_expr **init,
 
   gfc_apply_init (&c->ts, &c->attr, c->initializer);
 
+  /* Convert a class, PDT component of a non-derived type to a specific instance
+     before gfc_build_class_symbol gets to work on it.  */
+  if (c->ts.type == BT_CLASS
+      && !(gfc_current_block ()->attr.pdt_template
+	   || gfc_current_block ()->attr.pdt_type)
+      && c->ts.u.derived->attr.pdt_template)
+    {
+      match m = gfc_get_pdt_instance (decl_type_param_list, &c->ts.u.derived, NULL);
+      if (m != MATCH_YES)
+	{
+	  if (!gfc_error_check ())
+	    gfc_error ("Parameterized component of a non-parameterized "
+		       "derived type at %C could not be converted to a valid "
+		       "instance");
+	  return false;
+	}
+    }
+
   /* Check array components.  */
   if (!c->attr.dimension)
     goto scalar;
