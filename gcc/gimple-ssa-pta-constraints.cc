@@ -1464,9 +1464,9 @@ handle_call_arg (gcall *stmt, tree arg, vec<ce_s> *results, int flags,
     }
 }
 
-/* For non-IPA mode, generate constraints necessary for a call on the
-   RHS and collect return value constraint to RESULTS to be used later in
-   handle_lhs_call.
+/* For non-IPA mode or for a function with body not available.
+   Generate constraints necessary for a call on the RHS and collect return
+   value constraint to RESULTS to be used later in handle_lhs_call.
 
    IMPLICIT_EAF_FLAGS are added to each function argument.  If
    WRITES_GLOBAL_MEMORY is true function is assumed to possibly write to global
