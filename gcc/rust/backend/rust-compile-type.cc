@@ -828,22 +828,30 @@ TyTyResolveCompile::visit (const TyTy::OpaqueType &type)
 tree
 TyTyResolveCompile::create_dyn_obj_record (const TyTy::DynamicObjectType &type)
 {
+  location_t locus = ctx->get_mappings ().lookup_location (type.get_ty_ref ());
   // create implicit struct
-  auto items = type.get_object_items ();
   std::vector<Backend::typed_identifier> fields;
 
-  tree uint = Backend::integer_type (true, Backend::get_pointer_size ());
-  tree uintptr_ty = build_pointer_type (uint);
+  tree voidptr_ty = build_pointer_type (void_type_node);
 
-  fields.emplace_back ("pointer", uintptr_ty,
-		       ctx->get_mappings ().lookup_location (
-			 type.get_ty_ref ()));
+  fields.emplace_back ("data", voidptr_ty, locus);
 
-  tree vtable_size = build_int_cst (size_type_node, items.size ());
-  tree vtable_type = Backend::array_type (uintptr_ty, vtable_size);
-  fields.emplace_back ("vtable", vtable_type,
-		       ctx->get_mappings ().lookup_location (
-			 type.get_ty_ref ()));
+  std::vector<Backend::typed_identifier> vtable_fields;
+
+  // drop_in_place is not implemented yet!
+  vtable_fields.emplace_back ("__drop_in_place", voidptr_ty, locus);
+  vtable_fields.emplace_back ("__size", size_type_node, locus);
+  vtable_fields.emplace_back ("__align", size_type_node, locus);
+
+  size_t items_size = type.get_object_items ().size ();
+  for (size_t method_idx = 0; method_idx < items_size; method_idx++)
+    vtable_fields.emplace_back ("__method_" + std::to_string (method_idx),
+				voidptr_ty, locus);
+
+  tree vtable_record = Backend::struct_type (vtable_fields);
+  tree vtable_ptr_ty = build_pointer_type (vtable_record);
+
+  fields.emplace_back ("vtable", vtable_ptr_ty, locus);
 
   tree record = Backend::struct_type (fields);
   RS_DST_FLAG (record) = 1;
