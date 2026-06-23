@@ -1429,8 +1429,6 @@ inline bool
 prange::zero_p () const
 {
   bool ret = m_kind == VR_RANGE && m_min == 0 && m_max == 0;
-  // if zero_p is true, there should be no points to info.
-  gcc_checking_assert (!ret || pt_unknown_p ());
   return ret;
 }
 
@@ -1486,6 +1484,10 @@ prange::fits_p (const vrange &) const
 inline void
 prange::set_pt (const prange &r)
 {
+  // Do not set points-to info if this is zero or undefined.
+  if (!r.pt_unknown_p () && (undefined_p () || zero_p()))
+    return;
+
   m_pt = r.m_pt;
   m_points_to_p = r.m_points_to_p;
 

@@ -539,6 +539,10 @@ prange::set_pt (tree expr, bool points_to_p)
   m_pt = NULL_TREE;
   m_points_to_p = false;
 
+  // A zero range means no points-to info.
+  if (zero_p ())
+    return;
+
   // No points to initially may make this VARYING.
   if (varying_compatible_p ())
     set_varying (type ());
@@ -825,6 +829,10 @@ prange::intersect (const vrange &v)
 	set_pt (r);
     }
 
+  //  If this evolves to zero, clear all points-to info.
+  if (zero_p () && !pt_unknown_p ())
+    set_pt_unknown ();
+
   if (varying_compatible_p ())
     {
       set_varying (type ());
@@ -931,6 +939,12 @@ prange::verify_range () const
     }
   gcc_checking_assert (!varying_compatible_p ());
   gcc_checking_assert (m_kind == VR_RANGE);
+  if (!pt_unknown_p ())
+    {
+      gcc_checking_assert (!varying_p ());
+      gcc_checking_assert (!undefined_p ());
+      gcc_checking_assert (!zero_p ());
+    }
 }
 
 void
