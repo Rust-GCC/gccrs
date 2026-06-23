@@ -1746,11 +1746,13 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 		    wi::max_value (TYPE_PRECISION (TREE_TYPE (@0)), SIGNED)))
    (resop @2 { build_zero_cst (TREE_TYPE (@2)); }))))
 
-/* X % Y is smaller than Y.  */
-(for cmp (lt ge)
+/* X % Y < Y -> Y >= 0
+   X % Y >= Y -> Y < 0  */
+(for ltge (lt ge)
+     gelt (ge lt)
  (simplify
-  (cmp:c (trunc_mod tree_expr_nonnegative_p@0 tree_expr_nonnegative_p@1) @1)
-  { constant_boolean_node (cmp == LT_EXPR, type); }))
+  (ltge:c (trunc_mod @0 @1) @1)
+  (gelt @1 { build_zero_cst (TREE_TYPE (@1)); })))
 
 /* x | ~0 -> ~0  */
 (simplify
