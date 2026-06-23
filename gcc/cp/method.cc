@@ -1902,7 +1902,9 @@ maybe_synthesize_method (tree fndecl)
 tree
 build_stub_type (tree type, int quals, bool rvalue)
 {
-  tree argtype = cp_build_qualified_type (type, quals);
+  tree argtype
+    = cp_build_qualified_type (type, quals,
+			       tf_warning_or_error | tf_ignore_bad_quals);
   return cp_build_reference_type (argtype, rvalue);
 }
 

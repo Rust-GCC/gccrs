@@ -4915,8 +4915,7 @@ bool
 trivially_copy_constructible_p (tree t)
 {
   tree arg = make_tree_vec (1);
-  TREE_VEC_ELT (arg, 0)
-    = build_stub_type (t, cp_type_quals (t) | TYPE_QUAL_CONST, false);
+  TREE_VEC_ELT (arg, 0) = build_const_lref (t);
   return is_trivially_xible (INIT_EXPR, t, arg);
 }
 
@@ -5982,9 +5981,7 @@ handle_annotation_attribute (tree *node, tree ARG_UNUSED (name),
     {
       tree arg = make_tree_vec (1);
       tree type = TREE_TYPE (TREE_VALUE (args));
-      TREE_VEC_ELT (arg, 0)
-	= build_stub_type (type, cp_type_quals (type) | TYPE_QUAL_CONST,
-			   /*rvalue=*/false);
+      TREE_VEC_ELT (arg, 0) = build_const_lref (type);
       if (!is_xible (INIT_EXPR, type, arg))
 	{
 	  auto_diagnostic_group d;

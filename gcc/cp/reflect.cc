@@ -324,6 +324,15 @@ maybe_update_function_parm (tree parm)
   return ret;
 }
 
+/* Build up const T &.  */
+
+tree
+build_const_lref (tree t)
+{
+  return build_stub_type (t, cp_type_quals (t) | TYPE_QUAL_CONST,
+			  /*rval=*/false);
+}
+
 /* Return true if DECL comes from std::meta.  */
 
 static bool
@@ -587,10 +596,7 @@ get_range_elts (location_t loc, const constexpr_ctx *ctx, tree call, int n,
 	      *non_constant_p = true;
 	      return NULL_TREE;
 	    }
-	  TREE_VEC_ELT (args, 0)
-	    = build_stub_type (valuete,
-			       cp_type_quals (valuete) | TYPE_QUAL_CONST,
-			       false);
+	  TREE_VEC_ELT (args, 0) = build_const_lref (valuete);
 	  if (!is_xible (INIT_EXPR, valuete, args))
 	    {
 	      if (!cxx_constexpr_quiet_p (ctx))
@@ -4570,8 +4576,7 @@ static tree
 eval_is_copy_constructible_type (tree type)
 {
   tree arg = make_tree_vec (1);
-  TREE_VEC_ELT (arg, 0)
-    = build_stub_type (type, cp_type_quals (type) | TYPE_QUAL_CONST, false);
+  TREE_VEC_ELT (arg, 0) = build_const_lref (type);
   if (is_xible (INIT_EXPR, type, arg))
     return boolean_true_node;
   else
@@ -4605,8 +4610,7 @@ static tree
 eval_is_copy_assignable_type (tree type)
 {
   tree type1 = cp_build_reference_type (type, /*rval=*/false);
-  tree type2 = build_stub_type (type, cp_type_quals (type) | TYPE_QUAL_CONST,
-				false);
+  tree type2 = build_const_lref (type);
   if (is_xible (MODIFY_EXPR, type1, type2))
     return boolean_true_node;
   else
@@ -4694,8 +4698,7 @@ static tree
 eval_is_trivially_copy_assignable_type (tree type)
 {
   tree type1 = cp_build_reference_type (type, /*rval=*/false);
-  tree type2 = build_stub_type (type, cp_type_quals (type) | TYPE_QUAL_CONST,
-				false);
+  tree type2 = build_const_lref (type);
   if (is_trivially_xible (MODIFY_EXPR, type1, type2))
     return boolean_true_node;
   else
@@ -4751,8 +4754,7 @@ static tree
 eval_is_nothrow_copy_constructible_type (tree type)
 {
   tree arg = make_tree_vec (1);
-  TREE_VEC_ELT (arg, 0)
-    = build_stub_type (type, cp_type_quals (type) | TYPE_QUAL_CONST, false);
+  TREE_VEC_ELT (arg, 0) = build_const_lref (type);
   if (is_nothrow_xible (INIT_EXPR, type, arg))
     return boolean_true_node;
   else
@@ -4786,8 +4788,7 @@ static tree
 eval_is_nothrow_copy_assignable_type (tree type)
 {
   tree type1 = cp_build_reference_type (type, /*rval=*/false);
-  tree type2 = build_stub_type (type, cp_type_quals (type) | TYPE_QUAL_CONST,
-				false);
+  tree type2 = build_const_lref (type);
   if (is_nothrow_xible (MODIFY_EXPR, type1, type2))
     return boolean_true_node;
   else
