@@ -304,6 +304,7 @@
      [r , m  ; load_4           , *    ] ldr<size>\t%w0, %1
      [w , w  ; neon_logic       , simd ] mov\t%0.8b, %1.8b
      [w , m  ; neon_load1_1reg  , simd ] ldr\t%<vstype>0, %1
+     [?w, r  ; f_mcr            , *    ] #
      [w , Dz ; neon_move        , simd ] movi\t%0.2d, #0
      [m , rZ ; store_4          , *    ] str<size>\t%w1, %0
      [m , w  ; neon_store1_1reg , simd ] str\t%<vstype>1, %0
