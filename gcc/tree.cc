@@ -2201,23 +2201,20 @@ build_vector_from_ctor (tree type, const vec<constructor_elt, va_gc> *v)
   if (vec_safe_length (v) == 0)
     return build_zero_cst (type);
 
-  unsigned HOST_WIDE_INT idx, nelts, step = 1;
+  unsigned HOST_WIDE_INT idx, npatterns, nelts_per_pattern;
   tree value;
 
   /* If the vector is a VLA, build a VLA constant vector.  */
-  if (!TYPE_VECTOR_SUBPARTS (type).is_constant (&nelts))
-    {
-      nelts = constant_lower_bound (TYPE_VECTOR_SUBPARTS (type));
-      gcc_assert (vec_safe_length (v) <= nelts);
-      step = 2;
-    }
+  npatterns = constant_lower_bound (TYPE_VECTOR_SUBPARTS (type));
+  nelts_per_pattern = TYPE_VECTOR_SUBPARTS (type).is_constant () ? 1 : 2;
+  gcc_assert (vec_safe_length (v) <= npatterns);
 
-  tree_vector_builder vec (type, nelts, step);
+  tree_vector_builder vec (type, npatterns, nelts_per_pattern);
   FOR_EACH_CONSTRUCTOR_VALUE (v, idx, value)
     {
       if (TREE_CODE (value) == VECTOR_CST)
 	{
-	  /* If NELTS is constant then this must be too.  */
+	  /* If NPATTERNS is constant then this must be too.  */
 	  unsigned int sub_nelts = VECTOR_CST_NELTS (value).to_constant ();
 	  for (unsigned i = 0; i < sub_nelts; ++i)
 	    vec.quick_push (VECTOR_CST_ELT (value, i));
@@ -2225,7 +2222,7 @@ build_vector_from_ctor (tree type, const vec<constructor_elt, va_gc> *v)
       else
 	vec.quick_push (value);
     }
-  while (vec.length () < nelts * step)
+  while (vec.length () < npatterns * nelts_per_pattern)
     vec.quick_push (build_zero_cst (TREE_TYPE (type)));
 
   return vec.build ();
