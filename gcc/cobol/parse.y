@@ -1685,7 +1685,14 @@ dot:            %empty
         |       '.'
                 ;
 program_as:     %empty     { static const literal_t empty {}; $$ = empty; }
-        |       AS LITERAL { $$ = $2; }
+        |       AS LITERAL
+                { // program-id not yet parsed, so top-level is 0
+                  if( 0 != current.program_level() ) {
+                    error_msg(@$, "AS %qs valid only for top-level programs",
+                              $LITERAL.data);
+                  }
+                  $$ = $2;
+                }
                 ;
 
 function_id:    FUNCTION dot  NAME program_as program_attrs[attr] '.'

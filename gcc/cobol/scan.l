@@ -205,7 +205,7 @@ LINE_DIRECTIVE ^[#]line{SPC}[[:alnum:]]+{SPC}[""''].+\n
 
 %option debug noyywrap stack yylineno case-insensitive
 %%
-   /* CDF */
+  /* CDF */
 <bool_state>{
   [''""]/[01]
   [01]+/[''""]		{ if( copy_state == YY_START ) {
@@ -1376,6 +1376,24 @@ USE({SPC}FOR)?		{ return USE; }
   [=]{2}                { yy_push_state(quoteq); }
 }
 
+<date_state>{
+  ^[[:blank:]]+
+  {BLANK_EOL}
+
+  DATE                { pop_return DATE; }
+  DAY                 { pop_return DAY; }
+  DATE/[[:blank:]]+Y  {                 return DATE; }
+  DAY/[[:blank:]]+Y   {                 return DAY; }
+  TIME                { pop_return TIME; }
+
+  YYYYMMDD            { yy_pop_state();
+                        yylval.string = xstrdup(yytext); return YYYYMMDD; }
+  YYYYDDD             { yy_pop_state();
+                        yylval.string = xstrdup(yytext); return YYYYDDD; }
+  DAY-OF-WEEK         { yy_pop_state();
+                        yylval.string = xstrdup(yytext); return DAY_OF_WEEK; }
+}
+
 <quoteq>{
   [^=]+[=]/[^=]       { tmpstring_append(yyleng); }
   [^=]+/[=]{2}        { yylval.string = xstrdup(tmpstring_append(yyleng));
@@ -1417,6 +1435,302 @@ USE({SPC}FOR)?		{ return USE; }
                         ydflval.string = yylval.literal.data;
 			update_location_col(yylval.literal.data, -2);
                         tmpstring = NULL; pop_return LITERAL; }
+}
+
+    /* ISO Reserved Words */
+<*>{
+  ACCEPT	{ return ACCEPT; }
+  ACCESS	{ return ACCESS; }
+  ADD		{ return ADD; }
+  ADDRESS	{ return ADDRESS; }
+  ADVANCING	{ return ADVANCING; }
+  AFTER		{ return AFTER; }
+  ALL		{ return ALL; }
+  ALLOCATE	{ return ALLOCATE; }
+  ALPHABET	{ return ALPHABET; }
+  ALPHABETIC	{ return ALPHABETIC; }
+  ALPHABETIC-LOWER	{ return ALPHABETIC_LOWER; }
+  ALPHABETIC-UPPER	{ return ALPHABETIC_UPPER; }
+  ALPHANUMERIC		{ return ALPHANUMERIC; }
+  ALPHANUMERIC-EDITED	{ return ALPHANUMERIC_EDITED; }
+  ALSO		{ return ALSO; }
+  ALTERNATE	{ return ALTERNATE; }
+  AND		{ return AND; }
+  ANY		{ return ANY; }
+  ANYCASE	{ return ANYCASE; }
+  ARE		{ return ARE; }
+  AREA		{ return AREA; }
+  AREAS		{ return AREAS; }
+  AS		{ return AS; }
+  ASCENDING	{ return ASCENDING; }
+  ASSIGN		{ return ASSIGN; }
+  AT		{ return AT; }
+  BASED		{ return BASED; }
+  BEFORE	{ return BEFORE; }
+  BINARY	{ return BINARY; }
+  BIT		{ return BIT; }
+  BLANK		{ return BLANK; }
+  BLOCK		{ return BLOCK_kw; }
+  BOTTOM	{ return BOTTOM; }
+  BY		{ return BY; }
+  CALL		{ return CALL; }
+  CANCEL	{ return CANCEL; }
+  CF		{ return CF; }
+  CH		{ return CH; }
+  CHARACTER	{ return CHARACTER; }
+  CHARACTERS	{ return CHARACTERS; }
+  CLASS		{ return CLASS; }
+  CLOSE		{ return CLOSE; }
+  CODE		{ return CODE; }
+  COMMA		{ return COMMA; }
+  COMMIT	{ return COMMIT; }
+  COMMON	{ return COMMON; }
+  COMPUTE	{ return COMPUTE; }
+  CONDITION	{ return CONDITION; }
+  CONSTANT	{ return CONSTANT; }
+  CONTAINS	{ return CONTAINS; }
+  CONTENT	{ return CONTENT; }
+  CONTINUE	{ return CONTINUE; }
+  CONTROL	{ return CONTROL; }
+  CONTROLS	{ return CONTROLS; }
+  CONVERTING	{ return CONVERTING; }
+  COPY		{ return COPY; }
+  COUNT		{ return COUNT; }
+  CURRENCY	{ return CURRENCY; }
+  DATA		{ return DATA; }
+  DATE		{ return DATE; }
+  DAY		{ return DAY; }
+  DAY-OF-WEEK	{ return DAY_OF_WEEK; }
+  DE		{ return DE; }
+  DECIMAL-POINT	{ return DECIMAL_POINT; }
+  DECLARATIVES	{ return DECLARATIVES; }
+  DEFAULT	{ yylval.number = 'D'; return DEFAULT; }
+  DELETE	{ return DELETE; }
+  DELIMITED	{ return DELIMITED; }
+  DELIMITER	{ return DELIMITER; }
+  DEPENDING	{ return DEPENDING; }
+  DESCENDING	{ return DESCENDING; }
+  DETAIL	{ return DETAIL; }
+  DISPLAY	{ return DISPLAY; }
+  DIVIDE	{ return DIVIDE; }
+  DOWN		{ return DOWN; }
+  DUPLICATES	{ return DUPLICATES; }
+  DYNAMIC	{ return DYNAMIC; }
+  EC		{ return EC; }
+  ELSE		{ return ELSE; }
+  END		{ return END; }
+  END-ACCEPT	{ return END_ACCEPT; }
+  END-ADD	{ return END_ADD; }
+  END-CALL	{ return END_CALL; }
+  END-DELETE	{ return END_DELETE; }
+  END-DISPLAY	{ return END_DISPLAY; }
+  END-DIVIDE	{ return END_DIVIDE; }
+  END-EVALUATE	{ return END_EVALUATE; }
+  END-IF	{ return END_IF; }
+  END-MULTIPLY	{ return END_MULTIPLY; }
+  END-PERFORM	{ return END_PERFORM; }
+  END-READ	{ return END_READ; }
+  END-RETURN	{ return END_RETURN; }
+  END-REWRITE	{ return END_REWRITE; }
+  END-SEARCH	{ return END_SEARCH; }
+  END-SUBTRACT	{ return END_SUBTRACT; }
+  END-WRITE	{ return END_WRITE; }
+  ENVIRONMENT	{ return ENVIRONMENT; }
+  EQUAL		{ ydflval.string = yylval.string = xstrdup(yytext);
+		  return EQ; }
+  ERROR		{ return ERROR; }
+  EVALUATE	{ return EVALUATE; }
+  /* EXCEPTION	special handling */
+  EXIT		{ return EXIT; }
+  EXTEND	{ return EXTEND; }
+  EXTERNAL	{ return EXTERNAL; }
+
+  FD		{ return FD; }
+  FINAL		{ return FINAL; }
+  FINALLY	{ return FINALLY; }
+  FIRST		{ return FIRST; }
+  FOOTING	{ return FOOTING; }
+  FOR		{ return FOR; }
+  FREE		{ return FREE; }
+  FROM		{ return FROM; }
+  /* FUNCTION	special handling */
+  GENERATE	{ return GENERATE; }
+  GIVING	{ return GIVING; }
+  GLOBAL	{ return GLOBAL; }
+  GO		{ return GO; }
+  GOBACK	{ return GOBACK; }
+  GROUP		{ return GROUP; }
+  HEADING	{ return HEADING; }
+  IF		{ return IF; }
+  IN		{ return IN; }
+  INDEX		{ return INDEX; }
+  INDEXED	{ return INDEXED; }
+  INDICATE	{ return INDICATE; }
+  INITIAL	{ return INITIAL_kw; }
+  INITIALIZE	{ return INITIALIZE; }
+  INITIATE	{ return INITIATE; }
+  INPUT		{ return INPUT; }
+  INSPECT	{ return INSPECT; }
+  INTERFACE	{ return INTERFACE; }
+  INTO		{ return INTO; }
+  INVOKE	{ return INVOKE; }
+  IS		{ return IS; }
+  KEY		{ return KEY; }
+  LAST		{ return LAST; }
+  LEADING	{ return LEADING; }
+  LEFT		{ return LEFT; }
+  LENGTH	{ return LENGTH; }
+  LIMIT		{ return LIMIT; }
+  LIMITS	{ return LIMITS; }
+  LINAGE	{ return LINAGE; }
+  LINE		{ return LINE; }
+  LINE-COUNTER	{ return LINE_COUNTER; }
+  LINES		{ return LINES; }
+  LINKAGE	{ return LINKAGE; }
+  LOCAL-STORAGE	{ return LOCAL_STORAGE; }
+  LOCALE	{ return LOCALE; }
+  LOCATION	{ return LOCATION; }
+  LOCK		{ return LOCK; }
+  MERGE		{ return MERGE; }
+  MODE		{ return MODE; }
+  MOVE		{ return MOVE; }
+  MULTIPLY	{ return MULTIPLY; }
+  NATIONAL	{ return NATIONAL; }
+  NATIONAL-EDITED	{ return NATIONAL_EDITED; }
+  NATIVE	{ return NATIVE; }
+  NEGATIVE	{ return NEGATIVE; }
+  NESTED	{ return NESTED; }
+  NEXT		{ return NEXT; }
+  NO		{ return NO; }
+  NOT		{ return NOT; }
+  NUMBER	{ return NUMBER; }
+  NUMERIC	{ return NUMERIC; }
+  NUMERIC-EDITED	{ return NUMERIC_EDITED; }
+  OCCURS	{ return OCCURS; }
+  OF		{ return OF; }
+  OFF		{ return OFF; }
+  OMITTED	{ return OMITTED; }
+  ON		{ return ON; }
+  OPEN		{ return OPEN; }
+  OPTIONAL	{ return OPTIONAL; }
+  OPTIONS	{ return OPTIONS; }
+  OR		{ return OR; }
+  ORDER		{ return ORDER; }
+  ORGANI[SZ]ATION	{ return ORGANIZATION; }
+  OTHER		{ return OTHER; }
+  OUTPUT	{ return OUTPUT; }
+  /* OVERFLOW	special handling */
+  OVERRIDE	{ return OVERRIDE; }
+  PACKED-DECIMAL	{ return PACKED_DECIMAL; }
+  PAGE		{ return PAGE; }
+  PAGE-COUNTER	{ return PAGE_COUNTER; }
+  PERFORM	{ return PERFORM; }
+  PF		{ return PF; }
+  PH		{ return PH; }
+  PIC		{ return PIC; }
+  PICTURE	{ return PICTURE; }
+  PLUS		{ return PLUS; }
+  POINTER	{ return POINTER; }
+  POSITIVE	{ return POSITIVE; }
+  PROCEDURE	{ return PROCEDURE; }
+  PROGRAM	{ return PROGRAM_kw; }
+  PROGRAM-ID	{ return PROGRAM_ID; }
+  PROPERTY	{ return PROPERTY; }
+  PROTOTYPE	{ return PROTOTYPE; }
+  QUOTES	{ return QUOTES; }
+  RAISE		{ return RAISE; }
+  RAISING	{ return RAISING; }
+  /* RANDOM	special handling */
+  RD		{ return RD; }
+  READ		{ return READ; }
+  RECORD	{ return RECORD; }
+  RECORDS	{ return RECORDS; }
+  REDEFINES	{ return REDEFINES; }
+  REEL		{ return REEL; }
+  REFERENCE	{ return REFERENCE; }
+  RELATIVE	{ return RELATIVE; }
+  RELEASE	{ return RELEASE; }
+  REMAINDER	{ return REMAINDER; }
+  REMOVAL	{ return REMOVAL; }
+  RENAMES	{ return RENAMES; }
+  REPLACE	{ return REPLACE; }
+  REPLACING	{ return REPLACING; }
+  REPORT	{ return REPORT; }
+  REPORTING	{ return REPORTING; }
+  REPORTS	{ return REPORTS; }
+  REPOSITORY	{ return REPOSITORY; }
+  RESERVE	{ return RESERVE; }
+  RESET		{ return RESET; }
+  RESUME	{ return RESUME; }
+  RETURN	{ return RETURN; }
+  RETURNING	{ return RETURNING; }
+  REWIND	{ return REWIND; }
+  REWRITE	{ return REWRITE; }
+  RF		{ return RF; }
+  RH		{ return RH; }
+  RIGHT		{ return RIGHT; }
+  ROUNDED	{ return ROUNDED; }
+  RUN		{ return RUN; }
+  SAME		{ return SAME; }
+  SCREEN	{ return SCREEN; }
+  SD		{ return SD; }
+  SEARCH	{ return SEARCH; }
+  SECTION	{ yylval.string = NULL; return SECTION; }
+  SELECT	{ return SELECT; }
+  SENTENCE	{ return SENTENCE; }
+  SEPARATE	{ return SEPARATE; }
+  SEQUENCE	{ return SEQUENCE; }
+  SEQUENTIAL	{ return SEQUENTIAL; }
+  SET		{ return SET; }
+  SHARING	{ return SHARING; }
+  SIGN		{ return SIGN; }
+  SIZE		{ return SIZE; }
+  SORT		{ return SORT; }
+  SORT-MERGE	{ return SORT_MERGE; }
+  SOURCE	{ return SOURCE; }
+  SPACE		{ return SPACE; }
+  SPACES	{ return SPACES; }
+  SPECIAL-NAMES	{ return SPECIAL_NAMES; }
+  STANDARD	{ return STANDARD; }
+  STANDARD-1	{ return STANDARD_1; }
+  START		{ return START; }
+  STATUS	{ return STATUS; }
+  STOP		{ return STOP; }
+  SUBTRACT	{ return SUBTRACT; }
+  SUM		{ return SUM; }
+  SUPPRESS	{ return SUPPRESS; }
+  SYMBOLIC	{ return SYMBOLIC; }
+  TALLYING	{ return TALLYING; }
+  TERMINATE	{ return TERMINATE; }
+  TEST		{ return TEST; }
+  THAN		{ return THAN; }
+  THEN		{ return THEN; }
+  THRU		{ return THRU; }
+  TIME		{ return TIME; }
+  TIMES		{ return TIMES; }
+  TO		{ return TO; }
+  TOP		{ return TOP; }
+  TRAILING	{ return TRAILING; }
+
+  TYPE		{ return TYPE; }
+  TYPEDEF	{ return TYPEDEF; }
+  UNIT		{ return UNIT; }
+  UNTIL		{ return UNTIL; }
+  UP		{ return UP; }
+  UPON		{ return UPON; }
+  USAGE		{ return USAGE; }
+  USE		{ return USE; }
+  USING		{ return USING; }
+  VALUE		{ return VALUE; }
+  VARYING	{ return VARYING; }
+  WHEN		{ return WHEN; }
+  WITH		{ return WITH; }
+  WORKING-STORAGE	{ return WORKING_STORAGE; }
+  WRITE		{ return WRITE; }
+
+  ZERO	|
+  ZEROES	|
+  ZEROS		{ return ZERO; }
 }
 
 <*>{
@@ -1490,24 +1804,6 @@ USE({SPC}FOR)?		{ return USE; }
   [[:blank:]]*[.]+			{ pop_return '.'; }
 }
 
-<date_state>{
-  ^[[:blank:]]+
-  {BLANK_EOL}
-
-  DATE                { pop_return DATE; }
-  DAY                 { pop_return DAY; }
-  DATE/[[:blank:]]+Y  {                 return DATE; }
-  DAY/[[:blank:]]+Y   {                 return DAY; }
-  TIME                { pop_return TIME; }
-
-  YYYYMMDD            { yy_pop_state();
-                        yylval.string = xstrdup(yytext); return YYYYMMDD; }
-  YYYYDDD             { yy_pop_state();
-                        yylval.string = xstrdup(yytext); return YYYYDDD; }
-  DAY-OF-WEEK         { yy_pop_state();
-                        yylval.string = xstrdup(yytext); return DAY_OF_WEEK; }
-}
-
 <INITIAL,procedure_div,copy_state>{
   NOT{SPC}B/{boolseq}	{ is_not = true;  yy_push_state(bool_state); }
     B/{boolseq}			{ is_not = false; yy_push_state(bool_state); }
@@ -1557,8 +1853,9 @@ USE({SPC}FOR)?		{ return USE; }
                                  *p = '\0';
                                  myless(p - s);
                                }
-                               numstr_of(s); free(s);
-                               pop_return NUMSTR;
+                               int token = numstr_of(s);
+			       free(s);
+                               pop_return token;
 			     }
 }
 
@@ -2208,300 +2505,6 @@ BASIS		{ yy_push_state(basis); return BASIS; }
   {COMMA}
   ^{SKIP}
   ^{TITLE}
-}
-
-<*>{
-  ACCEPT	{ return ACCEPT; }
-  ACCESS	{ return ACCESS; }
-  ADD		{ return ADD; }
-  ADDRESS	{ return ADDRESS; }
-  ADVANCING	{ return ADVANCING; }
-  AFTER		{ return AFTER; }
-  ALL		{ return ALL; }
-  ALLOCATE	{ return ALLOCATE; }
-  ALPHABET	{ return ALPHABET; }
-  ALPHABETIC	{ return ALPHABETIC; }
-  ALPHABETIC-LOWER	{ return ALPHABETIC_LOWER; }
-  ALPHABETIC-UPPER	{ return ALPHABETIC_UPPER; }
-  ALPHANUMERIC		{ return ALPHANUMERIC; }
-  ALPHANUMERIC-EDITED	{ return ALPHANUMERIC_EDITED; }
-  ALSO		{ return ALSO; }
-  ALTERNATE	{ return ALTERNATE; }
-  AND		{ return AND; }
-  ANY		{ return ANY; }
-  ANYCASE	{ return ANYCASE; }
-  ARE		{ return ARE; }
-  AREA		{ return AREA; }
-  AREAS		{ return AREAS; }
-  AS		{ return AS; }
-  ASCENDING	{ return ASCENDING; }
-  ASSIGN		{ return ASSIGN; }
-  AT		{ return AT; }
-  BASED		{ return BASED; }
-  BEFORE	{ return BEFORE; }
-  BINARY	{ return BINARY; }
-  BIT		{ return BIT; }
-  BLANK		{ return BLANK; }
-  BLOCK		{ return BLOCK_kw; }
-  BOTTOM	{ return BOTTOM; }
-  BY		{ return BY; }
-  CALL		{ return CALL; }
-  CANCEL	{ return CANCEL; }
-  CF		{ return CF; }
-  CH		{ return CH; }
-  CHARACTER	{ return CHARACTER; }
-  CHARACTERS	{ return CHARACTERS; }
-  CLASS		{ return CLASS; }
-  CLOSE		{ return CLOSE; }
-  CODE		{ return CODE; }
-  COMMA		{ return COMMA; }
-  COMMIT	{ return COMMIT; }
-  COMMON	{ return COMMON; }
-  CONDITION	{ return CONDITION; }
-  CONSTANT	{ return CONSTANT; }
-  CONTAINS	{ return CONTAINS; }
-  CONTENT	{ return CONTENT; }
-  CONTINUE	{ return CONTINUE; }
-  CONTROL	{ return CONTROL; }
-  CONTROLS	{ return CONTROLS; }
-  CONVERTING	{ return CONVERTING; }
-  COPY		{ return COPY; }
-  COUNT		{ return COUNT; }
-  CURRENCY	{ return CURRENCY; }
-  DATA		{ return DATA; }
-  DATE		{ return DATE; }
-  DAY		{ return DAY; }
-  DAY-OF-WEEK	{ return DAY_OF_WEEK; }
-  DE		{ return DE; }
-  DECIMAL-POINT	{ return DECIMAL_POINT; }
-  DECLARATIVES	{ return DECLARATIVES; }
-  DEFAULT	{ yylval.number = 'D'; return DEFAULT; }
-  DELETE	{ return DELETE; }
-  DELIMITED	{ return DELIMITED; }
-  DELIMITER	{ return DELIMITER; }
-  DEPENDING	{ return DEPENDING; }
-  DESCENDING	{ return DESCENDING; }
-  DETAIL	{ return DETAIL; }
-  DISPLAY	{ return DISPLAY; }
-  DIVIDE	{ return DIVIDE; }
-  DOWN		{ return DOWN; }
-  DUPLICATES	{ return DUPLICATES; }
-  DYNAMIC	{ return DYNAMIC; }
-  EC		{ return EC; }
-  ELSE		{ return ELSE; }
-  END		{ return END; }
-  END-ACCEPT	{ return END_ACCEPT; }
-  END-ADD	{ return END_ADD; }
-  END-CALL	{ return END_CALL; }
-  END-DELETE	{ return END_DELETE; }
-  END-DISPLAY	{ return END_DISPLAY; }
-  END-DIVIDE	{ return END_DIVIDE; }
-  END-EVALUATE	{ return END_EVALUATE; }
-  END-IF	{ return END_IF; }
-  END-MULTIPLY	{ return END_MULTIPLY; }
-  END-PERFORM	{ return END_PERFORM; }
-  END-READ	{ return END_READ; }
-  END-RETURN	{ return END_RETURN; }
-  END-REWRITE	{ return END_REWRITE; }
-  END-SEARCH	{ return END_SEARCH; }
-  END-SUBTRACT	{ return END_SUBTRACT; }
-  END-WRITE	{ return END_WRITE; }
-  ENVIRONMENT	{ return ENVIRONMENT; }
-  EQUAL		{ ydflval.string = yylval.string = xstrdup(yytext);
-		  return EQ; }
-  ERROR		{ return ERROR; }
-  EVALUATE	{ return EVALUATE; }
-  EXCEPTION	{ return EXCEPTION; }
-  EXIT		{ return EXIT; }
-  EXTEND	{ return EXTEND; }
-  EXTERNAL	{ return EXTERNAL; }
-
-  FD		{ return FD; }
-  FINAL		{ return FINAL; }
-  FINALLY	{ return FINALLY; }
-  FIRST		{ return FIRST; }
-  FOOTING	{ return FOOTING; }
-  FOR		{ return FOR; }
-  FREE		{ return FREE; }
-  FROM		{ return FROM; }
-  FUNCTION	{ return FUNCTION; }
-  GENERATE	{ return GENERATE; }
-  GIVING	{ return GIVING; }
-  GLOBAL	{ return GLOBAL; }
-  GO		{ return GO; }
-  GOBACK	{ return GOBACK; }
-  GROUP		{ return GROUP; }
-  HEADING	{ return HEADING; }
-  IF		{ return IF; }
-  IN		{ return IN; }
-  INDEX		{ return INDEX; }
-  INDEXED	{ return INDEXED; }
-  INDICATE	{ return INDICATE; }
-  INITIAL	{ return INITIAL; }
-  INITIALIZE	{ return INITIALIZE; }
-  INITIATE	{ return INITIATE; }
-  INPUT		{ return INPUT; }
-  INSPECT	{ return INSPECT; }
-  INTERFACE	{ return INTERFACE; }
-  INTO		{ return INTO; }
-  INVOKE	{ return INVOKE; }
-  IS		{ return IS; }
-  KEY		{ return KEY; }
-  LAST		{ return LAST; }
-  LEADING	{ return LEADING; }
-  LEFT		{ return LEFT; }
-  LENGTH	{ return LENGTH; }
-  LIMIT		{ return LIMIT; }
-  LIMITS	{ return LIMITS; }
-  LINAGE	{ return LINAGE; }
-  LINE		{ return LINE; }
-  LINE-COUNTER	{ return LINE_COUNTER; }
-  LINES		{ return LINES; }
-  LINKAGE	{ return LINKAGE; }
-  LOCAL-STORAGE	{ return LOCAL_STORAGE; }
-  LOCALE	{ return LOCALE; }
-  LOCATION	{ return LOCATION; }
-  LOCK		{ return LOCK; }
-  MERGE		{ return MERGE; }
-  MODE		{ return MODE; }
-  MOVE		{ return MOVE; }
-  MULTIPLY	{ return MULTIPLY; }
-  NATIONAL	{ return NATIONAL; }
-  NATIONAL-EDITED	{ return NATIONAL_EDITED; }
-  NATIVE	{ return NATIVE; }
-  NEGATIVE	{ return NEGATIVE; }
-  NESTED	{ return NESTED; }
-  NEXT		{ return NEXT; }
-  NO		{ return NO; }
-  NOT		{ return NOT; }
-  NUMBER	{ return NUMBER; }
-  NUMERIC	{ return NUMERIC; }
-  NUMERIC-EDITED	{ return NUMERIC_EDITED; }
-  OCCURS	{ return OCCURS; }
-  OF		{ return OF; }
-  OFF		{ return OFF; }
-  OMITTED	{ return OMITTED; }
-  ON		{ return ON; }
-  OPEN		{ return OPEN; }
-  OPTIONAL	{ return OPTIONAL; }
-  OPTIONS	{ return OPTIONS; }
-  OR		{ return OR; }
-  ORDER		{ return ORDER; }
-  ORGANI[SZ]ATION	{ return ORGANIZATION; }
-  OTHER		{ return OTHER; }
-  OUTPUT	{ return OUTPUT; }
-  OVERFLOW	{ return OVERFLOW_kw; }
-  OVERRIDE	{ return OVERRIDE; }
-  PACKED-DECIMAL	{ return PACKED_DECIMAL; }
-  PAGE		{ return PAGE; }
-  PAGE-COUNTER	{ return PAGE_COUNTER; }
-  PERFORM	{ return PERFORM; }
-  PF		{ return PF; }
-  PH		{ return PH; }
-  PIC		{ return PIC; }
-  PICTURE	{ return PICTURE; }
-  PLUS		{ return PLUS; }
-  POINTER	{ return POINTER; }
-  POSITIVE	{ return POSITIVE; }
-  PROCEDURE	{ return PROCEDURE; }
-  PROGRAM	{ return PROGRAM_kw; }
-  PROGRAM-ID	{ return PROGRAM_ID; }
-  PROPERTY	{ return PROPERTY; }
-  PROTOTYPE	{ return PROTOTYPE; }
-  QUOTES	{ return QUOTES; }
-  RAISE		{ return RAISE; }
-  RAISING	{ return RAISING; }
-  RANDOM	{ return RANDOM; }
-  RD		{ return RD; }
-  READ		{ return READ; }
-  RECORD	{ return RECORD; }
-  RECORDS	{ return RECORDS; }
-  REDEFINES	{ return REDEFINES; }
-  REEL		{ return REEL; }
-  REFERENCE	{ return REFERENCE; }
-  RELATIVE	{ return RELATIVE; }
-  RELEASE	{ return RELEASE; }
-  REMAINDER	{ return REMAINDER; }
-  REMOVAL	{ return REMOVAL; }
-  RENAMES	{ return RENAMES; }
-  REPLACE	{ return REPLACE; }
-  REPLACING	{ return REPLACING; }
-  REPORT	{ return REPORT; }
-  REPORTING	{ return REPORTING; }
-  REPORTS	{ return REPORTS; }
-  REPOSITORY	{ return REPOSITORY; }
-  RESERVE	{ return RESERVE; }
-  RESET		{ return RESET; }
-  RESUME	{ return RESUME; }
-  RETURN	{ return RETURN; }
-  RETURNING	{ return RETURNING; }
-  REWIND	{ return REWIND; }
-  REWRITE	{ return REWRITE; }
-  RF		{ return RF; }
-  RH		{ return RH; }
-  RIGHT		{ return RIGHT; }
-  ROUNDED	{ return ROUNDED; }
-  RUN		{ return RUN; }
-  SAME		{ return SAME; }
-  SCREEN	{ return SCREEN; }
-  SD		{ return SD; }
-  SEARCH	{ return SEARCH; }
-  SECTION	{ yylval.string = NULL; return SECTION; }
-  SELECT	{ return SELECT; }
-  SENTENCE	{ return SENTENCE; }
-  SEPARATE	{ return SEPARATE; }
-  SEQUENCE	{ return SEQUENCE; }
-  SEQUENTIAL	{ return SEQUENTIAL; }
-  SET		{ return SET; }
-  SHARING	{ return SHARING; }
-  SIGN		{ return SIGN; }
-  SIZE		{ return SIZE; }
-  SORT		{ return SORT; }
-  SORT-MERGE	{ return SORT_MERGE; }
-  SOURCE	{ return SOURCE; }
-  SPACE		{ return SPACE; }
-  SPACES	{ return SPACES; }
-  SPECIAL-NAMES	{ return SPECIAL_NAMES; }
-  STANDARD	{ return STANDARD; }
-  STANDARD-1	{ return STANDARD_1; }
-  START		{ return START; }
-  STATUS	{ return STATUS; }
-  STOP		{ return STOP; }
-  SUBTRACT	{ return SUBTRACT; }
-  SUM		{ return SUM; }
-  SUPPRESS	{ return SUPPRESS; }
-  SYMBOLIC	{ return SYMBOLIC; }
-  TALLYING	{ return TALLYING; }
-  TERMINATE	{ return TERMINATE; }
-  TEST		{ return TEST; }
-  THAN		{ return THAN; }
-  THEN		{ return THEN; }
-  THRU		{ return THRU; }
-  TIME		{ return TIME; }
-  TIMES		{ return TIMES; }
-  TO		{ return TO; }
-  TOP		{ return TOP; }
-  TRAILING	{ return TRAILING; }
-
-  TYPE		{ return TYPE; }
-  TYPEDEF	{ return TYPEDEF; }
-  UNIT		{ return UNIT; }
-  UNTIL		{ return UNTIL; }
-  UP		{ return UP; }
-  UPON		{ return UPON; }
-  USAGE		{ return USAGE; }
-  USE		{ return USE; }
-  USING		{ return USING; }
-  VALUE		{ return VALUE; }
-  VARYING	{ return VARYING; }
-  WHEN		{ return WHEN; }
-  WITH		{ return WITH; }
-  WORKING-STORAGE	{ return WORKING_STORAGE; }
-  WRITE		{ return WRITE; }
-
-  ZERO	|
-  ZEROES	|
-  ZEROS		{ return ZERO; }
 }
 
 <*>{
