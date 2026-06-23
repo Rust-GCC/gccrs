@@ -1,3 +1,47 @@
+2026-06-22  Tobias Burnus  <tburnus@baylibre.com>
+
+	* config/gcn/teams.c (omp_get_num_teams_dim,
+	omp_get_team_num_dim): New functions.
+	* config/nvptx/teams.c (omp_get_num_teams_dim,
+	omp_get_team_num_dim): Likewise.
+	* fortran.c (omp_get_supported_active_team_dims_,
+	omp_get_supported_active_league_dims_): Likewise.
+	* icv.c (omp_get_thread_limit_dim): Likewise.
+	* libgomp-plugin.h (GOMP_OFFLOAD_get_numa_node): Remove spurious
+	const of 'const int' function return type.
+	(GOMP_OFFLOAD_supported_teams_dim,
+	GOMP_OFFLOAD_supported_threads_dim): Declare.
+	* libgomp.h (struct gomp_device_descr): Add supported_teams_dim_func
+	and supported_threads_dim_func members.
+	* libgomp.map (OMP_6.1): Add new OpenMP routines.
+	* libgomp.texi (Multidimensional Support Routines): Add new section.
+	(omp_get_device_distances): Fix chapter of spec reference.
+	* omp.h.in (omp_get_num_threads_dim, omp_get_thread_num_dim,
+	omp_get_thread_limit_dim, omp_get_supported_active_team_dims,
+	omp_get_supported_active_league_dims, omp_get_supported_teams_dim,
+	omp_get_supported_threads_dim, omp_get_num_teams_dim,
+	omp_get_team_num_dim, omp_get_device_distances): Declare.
+	* omp_lib.f90.in: Likewise.
+	* omp_lib.h.in: Likewise.
+	* parallel.c (omp_get_num_threads_dim,
+	omp_get_thread_num_dim): New functions.
+	* plugin/plugin-gcn.c (limit_worker_threads): Add comment.
+	(GOMP_OFFLOAD_supported_teams_dim,
+	GOMP_OFFLOAD_supported_threads_dim): New functions.
+	* plugin/plugin-nvptx.c (GOMP_OFFLOAD_supported_teams_dim,
+	GOMP_OFFLOAD_supported_threads_dim): New functions.
+	(nvptx_adjust_launch_bounds): Add comment.
+	* target.c (omp_get_supported_active_team_dims,
+	omp_get_supported_active_league_dims,
+	omp_get_supported_teams_dim,
+	omp_get_supported_threads_dim): New functions.
+	(gomp_load_plugin_for_device): dlsym added functions.
+	* teams.c (omp_get_num_teams_dim,
+	omp_get_team_num_dim): New functions.
+	* testsuite/libgomp.c/multi-dim-routines.c: New test.
+	* testsuite/libgomp.fortran/multi-dim-routines-2.F90: New test.
+	* testsuite/libgomp.fortran/multi-dim-routines.F90: New test.
+
 2026-06-19  Tobias Burnus  <tburnus@baylibre.com>
 
 	PR libgomp/125877

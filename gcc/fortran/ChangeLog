@@ -1,3 +1,31 @@
+2026-06-22  Tobias Burnus  <tburnus@baylibre.com>
+
+	* openmp.cc (resolve_omp_clauses_aff_dep_map_cache): Split off
+	from ...
+	(resolve_omp_clauses): ... here. Call it.
+
+2026-06-22  Tobias Burnus  <tburnus@baylibre.com>
+
+	* openmp.cc (resolve_omp_clauses): Avoid ICE when called
+	by gfc_resolve_omp_udm.
+
+2026-06-22  Tobias Burnus  <tburnus@baylibre.com>
+
+	* openmp.cc (check_omp_clauses_dupl_syms): New; moved code from ...
+	(resolve_omp_clauses): ... here. Call new function.
+
+2026-06-22  Tobias Burnus  <tburnus@baylibre.com>
+
+	* openmp.cc (resolve_omp_allocate_clauses): New function for
+	resolving 'allocate' clauses, splitt-off from ...
+	(resolve_omp_clauses): ... here. Call the new function.
+
+2026-06-22  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/125914
+	* trans-expr.cc (gfc_conv_power_op): Rewrite (-1.0)**n into
+	(real) (1 - ((n & 1) << 1)).
+
 2026-06-19  Léo Hardt  <leom.hardt@inf.ufrgs.br>
 
 	* trans-intrinsic.cc: Removed orphaned comment from 69f293c

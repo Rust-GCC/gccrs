@@ -1,3 +1,8 @@
+2026-06-22  Kanishka Solanki  <kanishkasolanki456s@gmail.com>
+
+	* a68-lang.cc (a68_get_alias_set): New function.
+	(LANG_HOOKS_GET_ALIAS_SET): Define to a68_get_alias_set.
+
 2026-06-19  Kanishka Solanki  <kanishkasolanki456s@gmail.com>
 
 	* a68-low-clauses.cc (a68_lower_collateral_clause): Do not check

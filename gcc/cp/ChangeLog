@@ -1,3 +1,29 @@
+2026-06-22  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125697
+	* cp-tree.h (trivially_copy_constructible_p): Declare.
+	* parser.cc (warn_for_range_copy): Use it.
+	* reflect.cc (eval_is_trivially_copy_constructible_type): Use it.
+	* tree.cc (trivially_copy_constructible_p): New.
+
+2026-06-22  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125889
+	* reflect.cc (class_members_of): Also append LAMBDA_FUNCTION_P
+	from the implicitly_declared vector.
+
+2026-06-22  Georg-Johann Lay  <avr@gjlay.de>
+
+	* call.cc: Remove -*- C++ -*- tags for Emacs.
+	* class.cc: Same.
+	* constexpr.cc: Same.
+	* decl.cc: Same.
+	* init.cc: Same.
+	* mangle.cc: Same.
+	* mapper-resolver.cc: Same.
+	* parser.cc: Same.
+	* pt.cc: Same.
+
 2026-06-21  Jason Merrill  <jason@redhat.com>
 
 	PR c++/125408

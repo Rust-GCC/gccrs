@@ -1,3 +1,18 @@
+2026-06-22  Filip Kastl  <fkastl@suse.cz>
+
+	* lto-plugin.c (process_symtab): char *s -> const char *s.
+	(process_symtab_extension): Ditto.
+
+2026-06-22  Filip Kastl  <fkastl@suse.cz>
+
+	* lto-plugin.c (startswith): Remove trailing whitespace.
+	(parse_table_entry): Ditto.
+	(translate): Ditto.
+	(dump_symtab): Ditto.
+	(finish_conflict_resolution): Ditto.
+	(symbol_strength): Ditto.
+	(resolve_conflicts): Ditto.
+
 2026-06-13  Sunil Dora  <sunilkumar.dora@windriver.com>
 
 	PR driver/111527

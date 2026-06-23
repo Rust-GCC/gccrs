@@ -1,3 +1,10 @@
+2026-06-22  Xavier Del Campo Romero  <xdelcampo@symas.com>
+
+	* gcobol.1: Document -B.
+	* lang-specs.h: Remove %I spec.
+	* lang.opt: Remove options injected by %I.
+	* lang.opt.urls: Likewise.
+
 2026-06-20  Robert Dubner  <rdubner@symas.com>
 
 	* genapi.cc (parser_enter_file): Establish a var_decl for the

@@ -1,3 +1,10 @@
+2026-06-22  Filip Kastl  <fkastl@suse.cz>
+
+	* fixincl.c (cksum_test): Remove trailing whitespace.
+	(quoted_file_exists): Remove trailing whitespace.
+	(extract_quoted_files): const char * -> char *.
+	(fix_with_system): Remove trailing whitespace.
+
 2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* README: Fix typos.

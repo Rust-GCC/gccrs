@@ -1,3 +1,80 @@
+2026-06-22  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125697
+	* doc/invoke.texi: Clarify -Wrange-loop-construct description.
+
+2026-06-22  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/125923
+	* tree-ssa-phiopt.cc (factor_out_conditional_load): Change
+	assert of the vuse being the same to rejecting if they are
+	different without a virtual phi.
+
+2026-06-22  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* tree-ssa-phiopt.cc (cond_store_replacement): Fix comment
+	on no load for nontrapping.
+
+2026-06-22  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	* tree-ssa-phiopt.cc (cond_store_replacement): Update
+	the vuse on the new load and the vuse/vdef on the new
+	store.
+
+2026-06-22  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/125917
+	* tree-ssa-phiopt.cc (cond_store_replacement): Just call
+	gsi_insert_before instead of checking gsi_end_p.
+	(cond_if_else_store_replacement_1): Likewise.
+
+2026-06-22  Georg-Johann Lay  <avr@gjlay.de>
+
+	* splay-tree-utils.cc: Remove -*- C++ -*- tags for Emacs.
+	* rtl-ssa/accesses.cc: Same.
+	* rtl-ssa/blocks.cc: Same.
+	* rtl-ssa/changes.cc: Same.
+	* rtl-ssa/functions.cc: Same.
+	* rtl-ssa/insns.cc: Same.
+
+2026-06-22  Tobias Burnus  <tburnus@baylibre.com>
+
+	* omp-general.cc (omp_runtime_api_procname): Update for added
+	functions and older additions.
+	* omp-low.cc (scan_omp_1_stmt): Update for added _dim function.
+
+2026-06-22  Zhongjie Guo  <guozhongjie@hygon.cn>
+	    Richard Biener  <rguenther@suse.de>
+
+	* config/i386/i386.cc (ix86_vector_costs::add_stmt_cost): Cost
+	comparisons using the comparison operand mode.
+
+2026-06-22  Georg-Johann Lay  <avr@gjlay.de>
+
+	* config/avr/avr-protos.h (avr_log_t) <insert_attributes>: New field.
+	* config/avr/avr-log.cc (avr_log_node): New static function.
+	(avr_log_vadump) [%N]: Call it.
+	(avr_log_set_avr_log) <insert_attributes>: New SET_DUMP_DETAIL.
+	* config/avr/avr.cc (avr_pgm_check_var_decl): Don't call avr_edump.
+	(avr_insert_attributes) [avr_log.insert_attributes]: Call avr_edump.
+
+2026-06-22  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/125895
+	* config/i386/i386-features.cc (pass_x86_cse::x86_cse): Use
+	integer CONST_VECTOR to load FP CONST_VECTOR converted from
+	const_int.
+
+2026-06-22  Pan Li  <pan2.li@intel.com>
+
+	* match-sat-alu.pd: Add fits check before call to
+	tree_to_uhwi.
+
+2026-06-22  Pan Li  <pan2.li@intel.com>
+
+	* match-sat-alu.pd: Add pattern for unsigned scalar
+	SAT_MUL form 13.
+
 2026-06-21  Iain Sandoe  <iain@sandoe.co.uk>
 
 	* doc/sourcebuild.texi: Document object file checks.

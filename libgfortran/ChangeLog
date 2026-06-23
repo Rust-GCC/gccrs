@@ -1,3 +1,16 @@
+2026-06-22  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR libfortran/118774
+	* io/transfer.c (formatted_transfer_scalar_write): Set nspaces
+	to number of skips for FMT_X.
+
+2026-06-22  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR libfortran/114618
+	* io/transfer.c (formatted_transfer_scalar_write): Determine
+	possible new max_pos based on file I/O method and adjust
+	accordingly
+
 2026-06-21  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
 
 	PR fortran/82086

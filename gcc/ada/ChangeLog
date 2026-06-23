@@ -1,3 +1,58 @@
+2026-06-22  Javier Miranda  <miranda@adacore.com>
+
+	* par-ch6.adb (P_Subprogram): Add missing support for direct
+	attribute definition in abstract subprogram declarations.
+	* sem_attr.adb (Check_Hidden_Abstract_Constructor_Call): New
+	local subprogram of Analyze_Attribute.
+	(Analyze_Attribute) <Attribute_Make>: Add calls to the new local
+	subprogram to detect and report wrong calls to abstract constructors;
+	minor code restructure.
+	* sem_ch3.adb (Process_Full_View): Propagate Needs_Construction from
+	the partial view to the full view.
+	* sem_ch4.adb (Extended_Primitive_Ops): Add callable constructors to
+	the extended primitive operations when available; otherwise, add
+	abstract constructors so that we can diagnose wrong calls to them.
+	* sem_ch6.adb (Analyze_Direct_Attribute_Definition) <Name_Constructor>:
+	add missing support for abstract constructors. Report an error on
+	abstract constructors not declared in the visible part of a package.
+	(New_Overloaded_Entity): Add support for a private constructor to
+	complete a public abstract constructor and link them with the
+	Overridden_Operation attribute.
+	* sem_ch7.adb (Inspect_Abstract_Constructors_Completion): New subprogram
+	that checks if every abstract constructor in the visible part of the
+	package has a matching counterpart constructor in its private part.
+	(Analyze_Package_Specification): After analysing private declarations,
+	call Inspect_Abstract_Constructors_Completion.
+	* sem_util.ads (Collect_Constructors): New subprogram that collects
+	all non-hidden constructors into two lists: Callable (non-abstract)
+	constructors, and abstract constructors.
+	* sem_util.adb (Collect_Constructors): Ditto.
+
+2026-06-22  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* accessibility.adb (Accessibility_Level): Deal with the associated
+	entity created during expansion for 'Old attribute references.
+	* exp_ch4.ads (Tagged_Membership): New declaration from...
+	* exp_ch4.adb (Tagged_Membership): ...here.  Retrieve the designated
+	types first, if any.  Do not retrieve the root type of a CW type for
+	the left operand, instead compute a full type for this operand.  Do
+	not generate a tag equality test in the direct case if both left and
+	right operands are of specific tagged type.
+	(Expand_N_In): In the anonymous access type case, pass the left
+	operand directly to the Accessibility_Level routine.
+	* exp_ch6.adb: Add clauses for SCIL_LL package.
+	(Expand_Simple_Function_Return): Use an indirect membership test to
+	implement the tag check for an anonymous access return designating
+	a specific tagged type.
+	* sem_ch4.adb (Analyze_Membership_Op): Deal specifically with a
+	right operand that denotes a tagged type.
+	* sem_res.ads (Valid_Tagged_Conversion): New declaration from...
+	* sem_res.adb (Valid_Tagged_Conversion): ...here.
+	(Resolve_Membership_Op): Deal specifically with a right operand that
+	denotes a tagged type and remove obsolete special case.
+	(Valid_Conversion): Adjust calls to Valid_Tagged_Conversion.
+	* sem_type.adb (Intersect_Types): Minor tweaks.
+
 2026-06-19  Eric Botcazou  <ebotcazou@adacore.com>
 
 	* exp_ch4.adb (Expand_N_Expression_With_Actions): Create a temporary

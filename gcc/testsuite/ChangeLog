@@ -1,3 +1,85 @@
+2026-06-22  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125697
+	* g++.dg/warn/Wrange-loop-construct4.C: New test.
+
+2026-06-22  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125889
+	* g++.dg/reflect/members_of16.C: New test.
+
+2026-06-22  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/125923
+	* gcc.dg/torture/pr125923-1.c: New test.
+
+2026-06-22  Tobias Burnus  <tburnus@baylibre.com>
+
+	* c-c++-common/gomp/declare-mapper-2.c: New test.
+	* gfortran.dg/gomp/declare-mapper-8.f90: New test.
+
+2026-06-22  Zhongjie Guo  <guozhongjie@hygon.cn>
+	    Richard Biener  <rguenther@suse.de>
+
+	* gcc.target/i386/vect-compare-cost.c: New test.
+
+2026-06-22  Avinash Jayakar  <avinashd@ibm.com>
+
+	* gcc.dg/spaceship_mixed_variants.c: Split long long arg tests
+	in a different file.
+	* gcc.dg/spaceship_mixed_variants_ll.c: New test.
+
+2026-06-22  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/125895
+	* gcc.target/i386/pr125895.c: New test.
+
+2026-06-22  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/125914
+	* gfortran.dg/power_6.f90: Remove scans for powi.
+	* gfortran.dg/power_10.f90: New test.
+
+2026-06-22  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR libfortran/118774
+	* gfortran.dg/fmt_t_10.f90: Adjust the test case results
+	check.
+
+2026-06-22  Pan Li  <pan2.li@intel.com>
+
+	* gcc.target/riscv/sat/sat_arith.h: Add test helper macros
+	* gcc.target/riscv/sat/sat_u_mul-14-u16-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-14-u16-from-u32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-14-u16-from-u64.rv32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-14-u16-from-u64.rv64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-14-u32-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-14-u32-from-u64.rv32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-14-u32-from-u64.rv64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-14-u64-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-14-u8-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-14-u8-from-u16.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-14-u8-from-u32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-14-u8-from-u64.rv32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-14-u8-from-u64.rv64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-14-u16-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-14-u16-from-u32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-14-u16-from-u64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-14-u32-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-14-u32-from-u64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-14-u64-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-14-u8-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-14-u8-from-u16.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-14-u8-from-u32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-14-u8-from-u64.c: New test.
+
+2026-06-22  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR libfortran/114618
+	* gfortran.dg/pr114618.f90: Move to...
+	* gfortran.dg/fmt_t_10.f90: ...here.
+	* gfortran.dg/fmt_t_11.f90: New test.
+
 2026-06-21  Jason Merrill  <jason@redhat.com>
 
 	PR c++/125408
