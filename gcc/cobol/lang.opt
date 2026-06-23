@@ -228,6 +228,11 @@ Wnllanginfo-error
 Cobol Warning Var(nllanginfo_error, 1) Init(1)
 Warn if nlanglanginfo(3) fails.
 
+; IbmCdf
+Wibm-cdf
+Cobol Warning Var(cobol_ibmcdf, 1) Init(1)
+Warn if IBM-specific CDF directives are used.
+
 ; IbmLengthOf
 Wlength-of
 Cobol Warning Var(cobol_length_of, 1) Init(1)

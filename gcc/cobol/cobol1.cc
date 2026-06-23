@@ -733,6 +733,10 @@ cobol_langhook_handle_option (size_t scode,
           cobol_warning(IbmEjectE, cobol_eject, warning_as_error);
           return true;
 
+        case OPT_Wibm_cdf:
+          cobol_warning(IbmCdf, cobol_ibmcdf, warning_as_error);
+          return true;
+
         case OPT_Woperator_space:
           cobol_warning(LexSeparatorE, operator_space, warning_as_error);
           return true;

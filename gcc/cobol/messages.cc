@@ -122,6 +122,7 @@ std::set<cbl_diag_t> cbl_diagnostics {
 
   { EcUnknownW, "-Wec-unknown", diagnostics::kind::warning },
 
+  { IbmCdf, "-Wibm-cdf", diagnostics::kind::error, dialect_ibm_e },
   { IbmEjectE, "-Wcobol-eject", diagnostics::kind::error, dialect_ibm_e },
   { IbmLengthOf, "-Wlength-of", diagnostics::kind::error, dialect_ibm_mf_gnu },
   { IbmEqualAssignE, "-Wequal-assign", diagnostics::kind::error, dialect_ibm_e },
@@ -250,6 +251,9 @@ cobol_warning_suppress( cbl_dialect_t dialect ) {
   for( auto diag : cbl_diagnostics ) {
     if( diag.dialect & dialect ) {
       switch(diag.id) {
+      case IbmCdf:
+        diag.kind = diagnostics::kind::warning;
+        break;
       case IbmSectionNegE:
       case IbmSectionRangeE:
       case IbmSectionSegmentW:

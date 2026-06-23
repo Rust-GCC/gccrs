@@ -158,10 +158,11 @@ enum cbl_diag_id_t : uint64_t {
   LexReplaceE,
   LexSeparatorE,
 
+  IbmCdf,
   IbmEjectE,
   IbmEqualAssignE,
   IbmLengthOf, 
-  IbmProcedurePointer, 
+  IbmProcedurePointer,
   IbmSectionNegE,
   IbmSectionRangeE,
   IbmSectionSegmentW,

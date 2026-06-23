@@ -67,6 +67,7 @@
 	"%{Wno-copybook-found} "
 	"%{Wno-ec-unknown} "
 	"%{Wno-entry-convention} "
+	"%{Wno-ibm-cdf} "
 	"%{Wno-iconv-error} "
 	"%{Wno-include-file-found} "
 	"%{Wno-include-file-not-found} "

@@ -2288,9 +2288,13 @@ USE({SPC}FOR)?		{ return USE; }
 [*]CBL		{ return STAR_CBL; }
 [*]CONTROL	{ return STAR_CBL; }
 
-^[ ]*[*](PROCESS\b|CBL\b).*$ {
-		  auto p = std::find(yytext, yytext + yyleng, '*');
-		  not_implemented("CDF '%s' was ignored", p);
+(PROCESS|CBL)({BLANK}.*)?/{EOL} {
+		  yylval.string = xstrdup(yytext);
+                  for(char *p = yylval.string + strlen(yylval.string) - 1;
+                      *p == 0x20; p-- ) {
+                      *p = '\0';
+                  }
+		  return PROCESS;
 		}
 ^[ ]*[@]OPTIONS.+$ {
 		  auto p = std::find(yytext, yytext + yyleng, '@');

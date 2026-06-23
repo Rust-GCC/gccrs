@@ -274,7 +274,7 @@ apply_cdf_turn( const exception_turn_t& turn ) {
 %type	<cdfarg>	namelit name_any name_one
 %type	<string>	name subscript subscripts inof
 %token <boolean>  BOOL
-%token <number>  FEATURE 367  NUMBER 304  EXCEPTION_NAME 280    "EXCEPTION NAME"
+%token <number>  FEATURE 368  NUMBER 304  EXCEPTION_NAME 280    "EXCEPTION NAME"
 
 %type	<cdfval>	cdf_expr
 %type	<cdfval>	cdf_relexpr cdf_reloper cdf_and cdf_bool_expr
@@ -286,47 +286,47 @@ apply_cdf_turn( const exception_turn_t& turn ) {
 
 %type   <number>        cdf_stackable
 
-%token BY 488
-%token COPY 364
-%token CDF_DISPLAY 386    ">>DISPLAY"
-%token IN 606
+%token BY 489
+%token COPY 365
+%token CDF_DISPLAY 387    ">>DISPLAY"
+%token IN 607
 %token NAME 286
 %token NUMSTR 306    "numeric literal"
-%token OF 687
+%token OF 688
 %token PSEUDOTEXT 723
 %token REPLACING 745
 %token LITERAL 299
-%token SUPPRESS 378
+%token SUPPRESS 379
 
-%token LSUB 369    "("
-%token SUBSCRIPT 377  RSUB 374    ")"
+%token LSUB 370    "("
+%token SUBSCRIPT 378  RSUB 375    ")"
 
-%token CDF_DEFINE 385    ">>DEFINE"
-%token CDF_IF 387    ">>IF"
-%token CDF_ELSE 388    ">>ELSE"
-%token CDF_END_IF 389    ">>END-IF"
-%token CDF_EVALUATE 390    ">>EVALUATE"
-%token CDF_WHEN 391    ">>WHEN"
-%token CDF_END_EVALUATE 392    ">>END-EVALUATE"
+%token CDF_DEFINE 386    ">>DEFINE"
+%token CDF_IF 388    ">>IF"
+%token CDF_ELSE 389    ">>ELSE"
+%token CDF_END_IF 390    ">>END-IF"
+%token CDF_EVALUATE 391    ">>EVALUATE"
+%token CDF_WHEN 392    ">>WHEN"
+%token CDF_END_EVALUATE 393    ">>END-EVALUATE"
 
-%token ALL 452
-%token CALL_CONVENTION 393    ">>CALL-CONVENTION"
-%token COBOL_WORDS 382    ">>COBOL-WORDS"
-%token CDF_PUSH 396    ">>PUSH"
-%token CDF_POP 397    ">>POP"
-%token SOURCE_FORMAT 398    ">>SOURCE FORMAT"
+%token ALL 453
+%token CALL_CONVENTION 394    ">>CALL-CONVENTION"
+%token COBOL_WORDS 383    ">>COBOL-WORDS"
+%token CDF_PUSH 397    ">>PUSH"
+%token CDF_POP 398    ">>POP"
+%token SOURCE_FORMAT 399    ">>SOURCE FORMAT"
 
-%token AS 470  CONSTANT 363  DEFINED 365
+%token AS 471  CONSTANT 364  DEFINED 366
 %type	<boolean>	     DEFINED
-%token OTHER 699  PARAMETER_kw 370    "PARAMETER"
-%token OFF 688  OVERRIDE 371
+%token OTHER 700  PARAMETER_kw 371    "PARAMETER"
+%token OFF 689  OVERRIDE 372
 %token THRU 950
 %token TRUE_kw 815    "True"
 
-%token CALL_COBOL 394    "CALL"
-%token CALL_VERBATIM 395    "CALL (as C)"
+%token CALL_COBOL 395    "CALL"
+%token CALL_VERBATIM 396    "CALL (as C)"
 
-%token TURN 817  CHECKING 498  LOCATION 650  ON 690  WITH 844
+%token TURN 817  CHECKING 499  LOCATION 651  ON 691  WITH 844
 
 %left OR 951
 %left AND 952

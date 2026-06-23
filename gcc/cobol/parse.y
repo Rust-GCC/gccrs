@@ -403,7 +403,7 @@ class locale_tgt_t {
 %token  <boolean>       PERFORM BACKWARD
 %token  <number>        POSITIVE
 %token  <field_attr>	POINTER
-%token  <string>        SECTION
+%token  <string>        PROCESS SECTION
 %token  <number>        STANDARD_ALPHABET "STANDARD ALPHABET"
 %token  <string>        SWITCH
 %token  <string>        UPSI 
@@ -596,7 +596,7 @@ class locale_tgt_t {
 			PAGE_COUNTER "PAGE-COUNTER"
 			PF PH PI PIC PICTURE
 			PLUS PRESENT_VALUE PRINT_SWITCH
-			PROCEDURE PROCEDURES PROCEED PROCESS PROCESSING
+			PROCEDURE PROCEDURES PROCEED PROCESSING
 			PROGRAM_ID "PROGRAM-ID"
 			PROGRAM_kw "Program" PROPERTY PROTOTYPE PSEUDOTEXT
 
@@ -1284,7 +1284,7 @@ class locale_tgt_t {
 			PAGE_COUNTER
                         PF PH PI PIC PICTURE PIC_P
                         PLUS POINTER POSITIVE PRESENT_VALUE PRINT_SWITCH
-                        PROCEDURE PROCEDURES PROCEED PROCESS
+                        PROCEDURE PROCEDURES PROCEED 
                         PROGRAM_ID
 			PROGRAM_kw PROPERTY PROTOTYPE PSEUDOTEXT
 
@@ -1631,6 +1631,9 @@ cobol_words1:	COBOL_WORDS EQUATE NAME[keyword] WITH NAME[name] {
 	|	COBOL_WORDS RESERVE NAME[name] {
 		  if( ! cdf_tokens.reserve(@name, $name) ) { YYERROR; }
 		}
+        |       PROCESS {
+                  cbl_message(@1, IbmCdf, "%qs", $1);
+                }
 		;
 
 program_id:     PROGRAM_ID dot namestr[name] program_as program_attrs[attr] dot
@@ -3718,45 +3721,6 @@ field:          cdf
                     }
                   }
                   field_done();
-
-#if 0
-                  const auto& field(*$data_descr);
-
-                  // Format data.initial per picture
-                  if( 0 == pristine_values.count(field.data.initial) ) {
-                    if( field.data.digits > 0 && !field.is_zero() ) {
-                      char *initial;
-                      int rdigits = field.data.rdigits < 0?
-                                    1 : field.data.rdigits + 1;
-
-                      if( field.has_attr(scaled_e) ) {
-                        if( field.data.rdigits > 0 ) {
-                          rdigits = field.data.digits + field.data.rdigits;
-                        } else {
-                          rdigits = 0;
-                        }
-                      }
-                      initial = string_of(field.data.value_of());
-                      if( !initial ) {
-                        error_msg(@1, "could not convert value to string");
-                        YYERROR;
-                      }
-                      char decimal = symbol_decimal_point();
-                      std::replace(initial, initial + strlen(initial), '.', decimal);
-                      free(const_cast<char*>($data_descr->data.initial));
-                      $data_descr->data.initial = initial;
-                      if( yydebug ) {
-                        const char *value_str = string_of(field.data.value_of());
-                        dbgmsg("%s::data.initial is (%%%d.%d) %s ==> '%s'",
-			       field.name,
-			       field.data.digits,
-			       rdigits,
-			       value_str? value_str : "",
-			       field.data.initial);
-                      }
-                    }
-                  }
-#endif
                 }
                 ;
 

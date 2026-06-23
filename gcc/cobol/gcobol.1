@@ -57,6 +57,7 @@
 .Op Fl Wno-copybook-found
 .Op Fl Wno-ec-unknown
 .Op Fl Wno-entry-convention
+.Op Fl Wno-ibm-cdf
 .Op Fl Wno-iconv-error
 .Op Fl Wno-include-file-found
 .Op Fl Wno-include-file-not-found
@@ -673,6 +674,14 @@ Warn if SET ... TO LOCALE is used.
 .
 `.\" convert errors to warnings
 Warn if a line directive is malformed (instead of error).
+.It Fl Wibm-cdf
+Warn if IBM-specific CDF directives are used (instead of error).
+With
+.Fl dialect Sy ibm
+some potentially important directives produce a warning.
+This option allows the warning to be defeated or, with
+.Fl Werror ,
+converted to an error.
 .It Fl Wno-iconv-error
 Warn if iconv(3) cannot convert between encodings (instead of error).
 .It Fl Wno-include-file-not-found
