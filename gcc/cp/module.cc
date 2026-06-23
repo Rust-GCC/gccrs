@@ -9434,6 +9434,11 @@ trees_out::decl_node (tree decl, walk_kind ref)
     case TYPE_DECL:
       if (DECL_TINFO_P (decl))
 	goto tinfo;
+      /* c++/125768: For an imported typedef, also mark the original type
+	 reachable in case it was instantiated here.  */
+      if (!streaming_p () && DECL_ORIGINAL_TYPE (decl)
+	  && (DECL_LANG_SPECIFIC (decl) && DECL_MODULE_IMPORT_P (decl)))
+	tree_node (DECL_ORIGINAL_TYPE (decl));
       break;
     }
 
