@@ -298,6 +298,21 @@ public:
     return true;
   }
 
+  void insert_vtable (std::pair<size_t, size_t> pair, ::Bvariable *vtable)
+  {
+    compiled_vtables[pair] = vtable;
+  }
+
+  bool lookup_vtable (std::pair<size_t, size_t> pair, ::Bvariable **vtable)
+  {
+    auto it = compiled_vtables.find (pair);
+    if (it == compiled_vtables.end ())
+      return false;
+
+    *vtable = it->second;
+    return true;
+  }
+
   void push_fn (tree fn, ::Bvariable *ret_addr, TyTy::BaseType *retty)
   {
     fn_stack.emplace_back (fn, ret_addr, retty);
@@ -434,6 +449,7 @@ private:
   std::map<HirId, tree> compiled_fn_map;
   std::map<HirId, tree> compiled_consts;
   std::map<HirId, tree> compiled_labels;
+  std::map<std::pair<size_t, size_t>, ::Bvariable *> compiled_vtables;
   std::vector<::std::vector<tree>> statements;
   std::vector<tree> scope_stack;
   std::vector<::std::vector<DropCandidate>> block_drop_candidates;

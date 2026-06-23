@@ -17,6 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-compile.h"
+#include "fold-const.h"
 #include "rust-compile-item.h"
 #include "rust-compile-implitem.h"
 #include "rust-hir-type-bounds.h"
@@ -193,39 +194,81 @@ HIRCompileBase::coerce_to_dyn_object (tree compiled_ref, TyTy::BaseType *actual,
 
   tree dynamic_object = TyTyResolveCompile::compile (ctx, &r);
   tree dynamic_object_fields = TYPE_FIELDS (dynamic_object);
-  tree vtable_field = DECL_CHAIN (dynamic_object_fields);
-  rust_assert (TREE_CODE (TREE_TYPE (vtable_field)) == ARRAY_TYPE);
+  tree vtableptr_field = DECL_CHAIN (dynamic_object_fields);
+  rust_assert (TREE_CODE (TREE_TYPE (vtableptr_field)) == POINTER_TYPE);
+  rust_assert (TREE_CODE (TREE_TYPE (TREE_TYPE (vtableptr_field))));
 
   //' this assumes ordering and current the structure is
   // __trait_object_ptr
-  // [list of function ptrs]
+  // __trait_vtable_ptr
 
   auto probed_bounds_for_receiver = Resolver::TypeBoundsProbe::Probe (actual);
   tree address_of_compiled_ref = null_pointer_node;
   if (!actual->is_unit ())
     address_of_compiled_ref = address_expression (compiled_ref, locus);
 
-  std::vector<tree> vtable_ctor_elems;
-  std::vector<unsigned long> vtable_ctor_idx;
-  unsigned long i = 0;
-  for (auto &bound : ty->get_object_items ())
-    {
-      const Resolver::TraitItemReference *item = bound.first;
-      const TyTy::TypeBoundPredicate *predicate = bound.second;
+  size_t dyn_obj_ty_hash = TYPE_HASH (dynamic_object);
+  size_t compiled_ref_ty_hash = TYPE_HASH (TREE_TYPE (compiled_ref));
+  auto pair = std::make_pair (compiled_ref_ty_hash, dyn_obj_ty_hash);
 
-      auto address = compute_address_for_trait_item (item, predicate,
-						     probed_bounds_for_receiver,
-						     actual, actual, locus);
-      vtable_ctor_elems.push_back (address);
-      vtable_ctor_idx.push_back (i++);
+  tree vtable_decl = NULL_TREE;
+  Bvariable *cached_vtable = nullptr;
+  if (ctx->lookup_vtable (pair, &cached_vtable))
+    {
+      vtable_decl = Backend::var_expression (cached_vtable, locus);
+    }
+  else
+    {
+      tree compiled_ref_ty = TREE_TYPE (compiled_ref);
+      // drop_in_place is not implemented yet!
+      tree drop_in_place = null_pointer_node;
+      tree size = TYPE_SIZE_UNIT (compiled_ref_ty);
+      tree align
+	= build_int_cst (size_type_node, TYPE_ALIGN_UNIT (compiled_ref_ty));
+
+      std::vector<tree> vtable_ctor_elems;
+      vtable_ctor_elems.emplace_back (drop_in_place);
+      vtable_ctor_elems.emplace_back (size);
+      vtable_ctor_elems.emplace_back (align);
+
+      for (auto &bound : ty->get_object_items ())
+	{
+	  const Resolver::TraitItemReference *item = bound.first;
+	  const TyTy::TypeBoundPredicate *predicate = bound.second;
+
+	  auto address
+	    = compute_address_for_trait_item (item, predicate,
+					      probed_bounds_for_receiver,
+					      actual, actual, locus);
+	  vtable_ctor_elems.push_back (address);
+	}
+      tree vtable_ctor
+	= Backend::constructor_expression (TREE_TYPE (
+					     TREE_TYPE (vtableptr_field)),
+					   false, vtable_ctor_elems, -1, locus);
+
+      std::string vtable_name = "__R_vtable_"
+				+ std::to_string (compiled_ref_ty_hash) + "_"
+				+ std::to_string (dyn_obj_ty_hash);
+
+      // https://github.com/rust-lang/rust/blob/e1884a8e3c3e813aada8254edfa120e85bf5ffca/compiler/rustc_mir/src/interpret/traits.rs#L17
+      Bvariable *vtable_bvar
+	= Backend::global_variable (vtable_name, vtable_name,
+				    TREE_TYPE (vtable_ctor), false, true, true,
+				    locus);
+      Backend::global_variable_set_init (vtable_bvar, vtable_ctor);
+      ctx->push_var (vtable_bvar);
+      ctx->insert_vtable (pair, vtable_bvar);
+
+      vtable_decl = Backend::var_expression (vtable_bvar, locus);
+
+      DECL_ARTIFICIAL (vtable_decl) = 1;
+      TREE_READONLY (vtable_decl) = 1;
+      DECL_IGNORED_P (vtable_decl) = 1;
     }
 
-  tree vtable_ctor
-    = Backend::array_constructor_expression (TREE_TYPE (vtable_field),
-					     vtable_ctor_idx, vtable_ctor_elems,
-					     locus);
-
-  std::vector<tree> dyn_ctor = {address_of_compiled_ref, vtable_ctor};
+  tree address_of_vtable = build_fold_addr_expr_loc (locus, vtable_decl);
+  std::vector<tree> dyn_ctor = {address_of_compiled_ref, address_of_vtable};
   return Backend::constructor_expression (dynamic_object, false, dyn_ctor, -1,
 					  locus);
 }
