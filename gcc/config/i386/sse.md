@@ -13810,18 +13810,20 @@
    (set_attr "mode" "V2DF,V2DF,V1DF,V1DF,V1DF")])
 
 (define_insn "avx512f_movddup512<mask_name>"
-  [(set (match_operand:V8DF 0 "register_operand" "=v")
+  [(set (match_operand:V8DF 0 "register_operand" "=v,v")
 	(vec_select:V8DF
 	  (vec_concat:V16DF
-	    (match_operand:V8DF 1 "nonimmediate_operand" "m")
+	    (match_operand:V8DF 1 "nonimmediate_operand" "v,m")
 	    (match_dup 1))
 	  (parallel [(const_int 0) (const_int 8)
 		     (const_int 2) (const_int 10)
 		     (const_int 4) (const_int 12)
 		     (const_int 6) (const_int 14)])))]
   "TARGET_AVX512F"
-  "vmovddup\t{%1, %0<mask_operand2>|%0<mask_operand2>, %1}"
-  [(set_attr "type" "ssemov")
+  "@
+   vunpcklpd\t{%1, %1, %0<mask_operand2>|%0<mask_operand2>, %1, %1}
+   vmovddup\t{%1, %0<mask_operand2>|%0<mask_operand2>, %1}"
+  [(set_attr "type" "sselog1,ssemov")
    (set_attr "prefix" "evex")
    (set_attr "mode" "V8DF")])
 
@@ -13843,16 +13845,18 @@
 
 ;; Recall that the 256-bit unpck insns only shuffle within their lanes.
 (define_insn "avx_movddup256<mask_name>"
-  [(set (match_operand:V4DF 0 "register_operand" "=v")
+  [(set (match_operand:V4DF 0 "register_operand" "=v,v")
 	(vec_select:V4DF
 	  (vec_concat:V8DF
-	    (match_operand:V4DF 1 "nonimmediate_operand" "m")
+	    (match_operand:V4DF 1 "nonimmediate_operand" "v,m")
 	    (match_dup 1))
 	  (parallel [(const_int 0) (const_int 4)
 		     (const_int 2) (const_int 6)])))]
   "TARGET_AVX && <mask_avx512vl_condition>"
-  "vmovddup\t{%1, %0<mask_operand2>|%0<mask_operand2>, %1}"
-  [(set_attr "type" "ssemov")
+  "@
+   vunpcklpd\t{%1, %1, %0<mask_operand2>|%0<mask_operand2>, %1, %1}
+   vmovddup\t{%1, %0<mask_operand2>|%0<mask_operand2>, %1}"
+  [(set_attr "type" "sselog1,ssemov")
    (set_attr "prefix" "<mask_prefix>")
    (set_attr "mode" "V4DF")])
 
