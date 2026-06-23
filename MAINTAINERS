@@ -100,7 +100,6 @@ mn10300 port            Jeff Law                <jeffreyalaw@gmail.com>
 mn10300 port            Alexandre Oliva         <aoliva@gcc.gnu.org>
 moxie port              Anthony Green           <green@moxielogic.com>
 msp430 port             Nick Clifton            <nickc@redhat.com>
-nds32 port              Shiva Chen              <shiva0217@gmail.com>
 nds32 port              Chung-Ju Wu             <jasonwucj@gmail.com>
 nvptx port              Thomas Schwinge         <tschwinge@baylibre.com>
 nvptx port              Tom de Vries            <tdevries@suse.de>
@@ -463,6 +462,7 @@ Dimitar Dimitrov                dimitar         <dimitar@dinux.eu>
 Benoit Dupont de Dinechin       bd3             <benoit.dupont-de-dinechin@st.com>
 Lehua Ding                      lhtin           <lehua.ding@rivai.ai>
 Ulrich Drepper                  drepper         <drepper@gmail.com>
+Robert Dubner                   rdubner         <rdubner@symas.com>
 François Dumont                 fdumont         <fdumont@gcc.gnu.org>
 Zdenek Dvorak                   rakdver         <ook@ucw.cz>
 Michael Eager                   eager           <eager@eagercon.com>
@@ -609,6 +609,7 @@ Thomas König                    tkoenig         <tkoenig@gcc.gnu.org>
 Paul Koning                     pkoning         <ni1d@arrl.net>
 Bruce Korb                      korbb           <bkorb@gnu.org>
 Dave Korn                       davek           <dave.korn.cygwin@gmail.com>
+Benjamin De Kosnik              bkoz            <bkoz@gnu.org>
 Julia Koval                     jkoval          <julia.koval@intel.com>
 Matt Kraai                      kraai           <kraai@ftbfs.org>
 Daniel Kraft                    domob           <d@domob.eu>
@@ -658,6 +659,7 @@ Matthieu Longo                  mlongo          <matthieu.longo@arm.com>
 Sandra Loosemore                sandra          <sloosemore@baylibre.com>
 Manuel López-Ibáñez             manu            <manu@gcc.gnu.org>
 Carl Love                       carll           <cel@linux.ibm.com>
+James K. Lowden                 jklowden        <jklowden@cobolworx.com>
 Martin v. Löwis                 loewis          <loewis@informatik.hu-berlin.de>
 Edwin Lu                        ewlu            <ewlu@rivosinc.com>
 H.J. Lu                         hjl             <hjl.tools@gmail.com>
@@ -818,6 +820,7 @@ Senthil Kumar Selvaraj          saaadhu         <saaadhu@gcc.gnu.org>
 Kostya Serebryany               kcc             <kcc@google.com>
 Thiemo Seufer                   ths             <ths@networkno.de>
 Bill Seurer                     seurer          <seurer@linux.vnet.ibm.com>
+Yunhai Shang                    shangyunhai     <yunhai@linux.alibaba.com>
 Nathaniel Shead                 nshead          <nathanieloshead@gmail.com>
 Tim Shen                        timshen         <timshen@google.com>
 Joel Sherrill                   joel            <joel@oarcorp.com>
@@ -897,6 +900,7 @@ Feng Wang                       fengwang        <fengwang@nudt.edu.cn>
 Feng Wang                       fengwang1792    <wangfeng@eswincomputing.com>
 Hongyu Wang                     hongyuw         <hongyu.wang@intel.com>
 Jiong Wang                      jiwang          <jiong.wang@arm.com>
+Andrew Waterman                 aswaterman      <andrew@sifive.com>
 Stephen M. Webb                 smw             <stephen.webb@bregmasoft.com>
 John Wehle                      wehle           <john@feith.com>
 Ulrich Weigand                  uweigand        <uweigand@de.ibm.com>
