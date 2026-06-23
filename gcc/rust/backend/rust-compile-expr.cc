@@ -1646,12 +1646,19 @@ CompileExpr::get_fn_addr_from_dyn (const TyTy::DynamicObjectType *dyn,
 
   tree vtable_ptr
     = Backend::struct_field_expression (receiver_ref, 1, expr_locus);
-  tree vtable_array_access
-    = build4_loc (expr_locus, ARRAY_REF, TREE_TYPE (TREE_TYPE (vtable_ptr)),
-		  vtable_ptr, idx, NULL_TREE, NULL_TREE);
+  tree vtable_struct_type = TREE_TYPE (TREE_TYPE (vtable_ptr));
+  rust_assert (TREE_CODE (vtable_struct_type) == RECORD_TYPE);
+  tree vtable_field = TYPE_FIELDS (vtable_struct_type);
+  for (size_t i = 0; i < offs + 3; i++) // drop, size, align, [methods]
+    vtable_field = DECL_CHAIN (vtable_field);
+  rust_assert (vtable_field != NULL_TREE);
+  tree vtable = build_fold_indirect_ref_loc (expr_locus, vtable_ptr);
+  tree vtable_field_access
+    = build3_loc (expr_locus, COMPONENT_REF, TREE_TYPE (vtable_field), vtable,
+		  vtable_field, NULL_TREE);
 
   tree vcall = build3_loc (expr_locus, OBJ_TYPE_REF, expected_fntype,
-			   vtable_array_access, receiver_ref, idx);
+			   vtable_field_access, receiver_ref, idx);
 
   return vcall;
 }
