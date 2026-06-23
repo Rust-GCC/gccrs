@@ -15730,7 +15730,9 @@ depset::hash::find_dependencies (module_state *module)
 		      tree lookup = lookup_arg_dependent (info.name, NULL_TREE,
 							  info.args, true);
 		      for (tree fn : lkp_range (lookup))
-			add_dependency (make_dependency (fn, EK_DECL));
+			/* We don't need to add_dependency, just have
+			   make_dependency build an ADL binding.  */
+			make_dependency (fn, EK_DECL);
 
 		      if (info.rewrite)
 			{
@@ -15738,7 +15740,7 @@ depset::hash::find_dependencies (module_state *module)
 			  lookup = lookup_arg_dependent (rewrite_name, NULL_TREE,
 							 info.args, true);
 			  for (tree fn : lkp_range (lookup))
-			    add_dependency (make_dependency (fn, EK_DECL));
+			    make_dependency (fn, EK_DECL);
 			}
 		      release_tree_vector (info.args);
 		    }
