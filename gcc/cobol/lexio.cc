@@ -1695,21 +1695,22 @@ bool lexio_dialect_mf();
 static const char *
 valid_sequence_area( const char *data, const char *eodata ) {
 
-  for( const char *p = data;
+  for( const char *p = data; // find every 'P' to try Program-ID
        (p = std::find_if(p, eodata, is_p)) != eodata;
        p++ )
   {
     auto eol = std::find(p, eodata, '\n');
-    if( p == data || ISSPACE(p[-1]) ) {
-      if( is_program_id(p, eol) ) {  // found program-id token
+    if( p == data || ISSPACE(p[-1]) ) { // start-of-buffer or preceded by space. 
+      if( is_program_id(p, eol) ) {     // found program-id token
 	const char *bol = p;
 	for( ; data <= bol-1 && bol[-1] != '\n'; --bol )
 	  ;
-	if( 6 < p - bol ) {
-	  if( std::all_of(bol, bol+6, ::isdigit) ) {
-	    return bol;
-	  }
-	  if( std::all_of(bol, bol+6, ::isblank) ) {
+	if( 6 < p - bol ) {             // Program-ID is at least in column 7 (?)
+	  bool ok = std::all_of( bol, bol+6,
+                                 []( char ch ) {
+                                   return ISDIGIT(ch) || ISBLANK(ch);
+                                 } );
+          if( ok ) {                    // sequence area is all digits or blanks
 	    return bol;
 	  }
 	  break;
