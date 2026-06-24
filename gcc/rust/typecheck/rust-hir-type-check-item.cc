@@ -723,11 +723,7 @@ TypeCheckItem::visit (HIR::Function &function)
     {
       auto resolved = TypeCheckType::Resolve (function.get_return_type ());
       if (resolved->get_kind () == TyTy::TypeKind::ERROR)
-	{
-	  rust_error_at (function.get_locus (),
-			 "failed to resolve return type");
-	  return;
-	}
+	return;
 
       ret_type = resolved->clone ();
       ret_type->set_ref (
