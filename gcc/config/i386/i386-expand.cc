@@ -10630,7 +10630,12 @@ ix86_expand_set_or_movmem (rtx operands[], bool iscpymem, bool issetmem)
 	probable_max_size = INTVAL (probable_max_size_exp);
       if (CONST_INT_P (expected_size_exp))
 	expected_size = INTVAL (expected_size_exp);
-     }
+
+      /* NB: This assert may fail without the fixes for
+	 https://gcc.gnu.org/bugzilla/show_bug.cgi?id=125977
+       */
+      gcc_assert (min_size != max_size);
+    }
 
   /* Make sure we don't need to care about overflow later on.  */
   if (count > (HOST_WIDE_INT_1U << 30))
@@ -10759,9 +10764,9 @@ ix86_expand_set_or_movmem (rtx operands[], bool iscpymem, bool issetmem)
 			     nullptr, count_mode, 1,
 			     more_2x_vec_label);
 
-  if (min_size == 0 || min_size <= 2 * move_max)
+  if (max_size != 1 && (min_size == 0 || min_size <= 2 * move_max))
     {
-      /* Size >= MOVE_MAX and size <= 2 * MOVE_MAX.  */
+      /* Max size != 1, size >= MOVE_MAX and size <= 2 * MOVE_MAX.  */
       ix86_expand_n_overlapping_move_set_or_movmem (dst, src,
 						    memset_vals_p,
 						    destreg, srcreg,
