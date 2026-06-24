@@ -26826,6 +26826,105 @@ int vec_any_le (vector signed __int128, vector signed __int128);
 int vec_any_le (vector unsigned __int128, vector unsigned __int128);
 @end smallexample
 
+@subsubheading PowerPC Elliptic Curve Cryptography Assist Built-in-Functions
+
+The following additional built-in functions may be available for the
+PowerPC family of processors, on Future ISA.
+These instructions provide hardware acceleration for Elliptic Curve
+Cryptography (ECC) operations, specifically optimized for P-256 and P-384
+elliptic curves.
+
+The ECC built-in functions are organized into five categories:
+multiply-multiply operations, scaled multiply-sum operations,
+quadword add/subtract operations, merge operations and rebase operations.
+
+@smallexample
+vector unsigned __int128
+__builtin_vsx_xxmulmul (vector unsigned long long ,
+                        vector unsigned long long ,
+                        const int);
+vector unsigned __int128
+__builtin_vsx_xxmulmulhiadd (vector unsigned __int128 ,
+                             vector unsigned long long ,
+                             vector unsigned long long ,
+                             const int ,
+                             const int ,
+                             const int);
+vector unsigned __int128
+__builtin_vsx_xxmulmulloadd (vector unsigned __int128 ,
+                             vector unsigned long long ,
+                             vector unsigned long long ,
+                             const int ,
+                             const int);
+vector unsigned __int128
+__builtin_vsx_xxssumudm (vector unsigned __int128 ,
+                         vector unsigned long long ,
+                         vector unsigned long long ,
+                         const int);
+vector unsigned __int128
+__builtin_vsx_xxssumudmc (vector unsigned __int128 ,
+                          vector unsigned long long ,
+                          vector unsigned long long ,
+                          const int);
+vector unsigned __int128
+__builtin_vsx_xxssumudmcext (vector unsigned long long ,
+                             vector unsigned long long ,
+                             vector unsigned __int128 ,
+                             const int);
+vector unsigned __int128
+__builtin_vsx_xsaddadduqm (vector unsigned __int128 ,
+                           vector unsigned __int128 ,
+                           vector unsigned __int128);
+vector unsigned __int128
+__builtin_vsx_xsaddaddsuqm (vector unsigned __int128 ,
+                            vector unsigned __int128 ,
+                            vector unsigned __int128);
+vector unsigned __int128
+__builtin_vsx_xsaddsubuqm (vector unsigned __int128 ,
+                           vector unsigned __int128 ,
+                           vector unsigned __int128);
+vector unsigned __int128
+__builtin_vsx_xsaddsubsuqm (vector unsigned __int128 ,
+                            vector unsigned __int128 ,
+                            vector unsigned __int128);
+vector unsigned __int128
+__builtin_vsx_xsmerge2t1uqm (vector unsigned __int128 ,
+                             vector unsigned __int128);
+vector unsigned __int128
+__builtin_vsx_xsmerge2t2uqm (vector unsigned __int128 ,
+                             vector unsigned __int128);
+vector unsigned __int128
+__builtin_vsx_xsmerge2t3uqm (vector unsigned __int128 ,
+                             vector unsigned __int128);
+vector unsigned __int128
+__builtin_vsx_xsmerge3t1uqm (vector unsigned __int128 ,
+                             vector unsigned __int128 ,
+                             vector unsigned __int128);
+vector unsigned __int128
+__builtin_vsx_xsrebase2t1uqm (vector unsigned __int128 ,
+                              vector unsigned __int128);
+vector unsigned __int128
+__builtin_vsx_xsrebase2t2uqm (vector unsigned __int128 ,
+                              vector unsigned __int128);
+vector unsigned __int128
+__builtin_vsx_xsrebase2t3uqm (vector unsigned __int128 ,
+                              vector unsigned __int128);
+vector unsigned __int128
+__builtin_vsx_xsrebase2t4uqm (vector unsigned __int128 ,
+                              vector unsigned __int128);
+vector unsigned __int128
+__builtin_vsx_xsrebase3t1uqm (vector unsigned __int128 ,
+                              vector unsigned __int128 ,
+                              vector unsigned __int128);
+vector unsigned __int128
+__builtin_vsx_xsrebase3t2uqm (vector unsigned __int128 ,
+                              vector unsigned __int128 ,
+                              vector unsigned __int128);
+vector unsigned __int128
+__builtin_vsx_xsrebase3t3uqm (vector unsigned __int128 ,
+                              vector unsigned __int128 ,
+                              vector unsigned __int128);
+@end smallexample
 
 The following instances are extension of the existing overloaded built-ins
 @code{vec_sld}, @code{vec_sldw}, @code{vec_slo}, @code{vec_sro}, @code{vec_srl}

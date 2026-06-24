@@ -369,6 +369,27 @@
    UNSPEC_XXSPLTI32DX
    UNSPEC_XXBLEND
    UNSPEC_XXPERMX
+   UNSPEC_XXMULMUL
+   UNSPEC_XXMULMULHIADD
+   UNSPEC_XXMULMULLOADD
+   UNSPEC_XXSSUMUDM
+   UNSPEC_XXSSUMUDMC
+   UNSPEC_XXSSUMUDMCEXT
+   UNSPEC_XSADDADDUQM
+   UNSPEC_XSADDADDSUQM
+   UNSPEC_XSADDSUBUQM
+   UNSPEC_XSADDSUBSUQM
+   UNSPEC_XSMERGE2T1UQM
+   UNSPEC_XSMERGE2T2UQM
+   UNSPEC_XSMERGE2T3UQM
+   UNSPEC_XSMERGE3T1UQM
+   UNSPEC_XSREBASE2T1UQM
+   UNSPEC_XSREBASE2T2UQM
+   UNSPEC_XSREBASE2T3UQM
+   UNSPEC_XSREBASE2T4UQM
+   UNSPEC_XSREBASE3T1UQM
+   UNSPEC_XSREBASE3T2UQM
+   UNSPEC_XSREBASE3T3UQM
   ])
 
 (define_int_iterator XVCVBF16	[UNSPEC_VSX_XVCVSPBF16
@@ -6851,3 +6872,218 @@
   emit_insn (gen_vsx_extract_v2di (dest_op1, src_op, const1_rtx));
   DONE;
 })
+
+
+;; ECC (Elliptic Curve Cryptography) acceleration instructions for Power future
+;; These instructions support P-256 and P-384 elliptic curve operations
+
+;; xxmulmul - Multiply-Multiply with scaling
+(define_insn "vsx_xxmulmul"
+  [(set (match_operand:V1TI 0 "vsx_register_operand" "=wa")
+	(unspec:V1TI [(match_operand:V2DI 1 "vsx_register_operand" "wa")
+		      (match_operand:V2DI 2 "vsx_register_operand" "wa")
+		      (match_operand:QI 3 "const_0_to_6_operand" "n")]
+		     UNSPEC_XXMULMUL))]
+  "TARGET_FUTURE"
+  "xxmulmul %x0,%x1,%x2,%3")
+
+;; xxmulmulhiadd - Multiply-Multiply with high add and accumulator
+(define_insn "vsx_xxmulmulhiadd"
+  [(set (match_operand:V1TI 0 "vsx_register_operand" "=wa")
+	(unspec:V1TI [(match_operand:V1TI 1 "vsx_register_operand" "0")
+		      (match_operand:V2DI 2 "vsx_register_operand" "wa")
+		      (match_operand:V2DI 3 "vsx_register_operand" "wa")
+		      (match_operand:QI 4 "const_0_to_1_operand" "n")
+		      (match_operand:QI 5 "const_0_to_1_operand" "n")
+		      (match_operand:QI 6 "const_0_to_1_operand" "n")]
+		     UNSPEC_XXMULMULHIADD))]
+  "TARGET_FUTURE"
+  "xxmulmulhiadd %x0,%x2,%x3,%4,%5,%6")
+
+;; xxmulmulloadd - Multiply-Multiply low add with accumulator
+(define_insn "vsx_xxmulmulloadd"
+  [(set (match_operand:V1TI 0 "vsx_register_operand" "=wa")
+	(unspec:V1TI [(match_operand:V1TI 1 "vsx_register_operand" "0")
+		      (match_operand:V2DI 2 "vsx_register_operand" "wa")
+		      (match_operand:V2DI 3 "vsx_register_operand" "wa")
+		      (match_operand:QI 4 "const_0_to_1_operand" "n")
+		      (match_operand:QI 5 "const_0_to_1_operand" "n")]
+		     UNSPEC_XXMULMULLOADD))]
+  "TARGET_FUTURE"
+  "xxmulmulloadd %x0,%x2,%x3,%4,%5")
+
+;; xxssumudm - Scaled sum unsigned doubleword modulo
+(define_insn "vsx_xxssumudm"
+  [(set (match_operand:V1TI 0 "vsx_register_operand" "=wa")
+	(unspec:V1TI [(match_operand:V1TI 1 "vsx_register_operand" "0")
+		      (match_operand:V2DI 2 "vsx_register_operand" "wa")
+		      (match_operand:V2DI 3 "vsx_register_operand" "wa")
+		      (match_operand:QI 4 "const_0_to_1_operand" "n")]
+		     UNSPEC_XXSSUMUDM))]
+  "TARGET_FUTURE"
+  "xxssumudm %x0,%x2,%x3,%4")
+
+;; xxssumudmc - Scaled sum unsigned doubleword modulo carry
+(define_insn "vsx_xxssumudmc"
+  [(set (match_operand:V1TI 0 "vsx_register_operand" "=wa")
+	(unspec:V1TI [(match_operand:V1TI 1 "vsx_register_operand" "0")
+		      (match_operand:V2DI 2 "vsx_register_operand" "wa")
+		      (match_operand:V2DI 3 "vsx_register_operand" "wa")
+		      (match_operand:QI 4 "const_0_to_1_operand" "n")]
+		     UNSPEC_XXSSUMUDMC))]
+  "TARGET_FUTURE"
+  "xxssumudmc %x0,%x2,%x3,%4")
+
+;; xxssumudmcext - Scaled sum unsigned doubleword modulo carry extended (prefixed)
+(define_insn "vsx_xxssumudmcext"
+  [(set (match_operand:V1TI 0 "vsx_register_operand" "=wa")
+	(unspec:V1TI [(match_operand:V2DI 1 "vsx_register_operand" "wa")
+		      (match_operand:V2DI 2 "vsx_register_operand" "wa")
+		      (match_operand:V1TI 3 "vsx_register_operand" "wa")
+		      (match_operand:QI 4 "const_0_to_1_operand" "n")]
+		     UNSPEC_XXSSUMUDMCEXT))]
+  "TARGET_FUTURE"
+  "xxssumudmcext %x0,%x1,%x2,%x3,%4")
+
+;; xsaddadduqm - Add add unsigned quadword modulo
+(define_insn "vsx_xsaddadduqm"
+  [(set (match_operand:V1TI 0 "vsx_register_operand" "=wa")
+	(unspec:V1TI [(match_operand:V1TI 1 "vsx_register_operand" "0")
+		      (match_operand:V1TI 2 "vsx_register_operand" "wa")
+		      (match_operand:V1TI 3 "vsx_register_operand" "wa")]
+		     UNSPEC_XSADDADDUQM))]
+  "TARGET_FUTURE"
+  "xsaddadduqm %x0,%x2,%x3")
+
+;; xsaddaddsuqm - Add add scaled unsigned quadword modulo
+(define_insn "vsx_xsaddaddsuqm"
+  [(set (match_operand:V1TI 0 "vsx_register_operand" "=wa")
+	(unspec:V1TI [(match_operand:V1TI 1 "vsx_register_operand" "0")
+		      (match_operand:V1TI 2 "vsx_register_operand" "wa")
+		      (match_operand:V1TI 3 "vsx_register_operand" "wa")]
+		     UNSPEC_XSADDADDSUQM))]
+  "TARGET_FUTURE"
+  "xsaddaddsuqm %x0,%x2,%x3")
+
+;; xsaddsubuqm - Add subtract unsigned quadword modulo
+(define_insn "vsx_xsaddsubuqm"
+  [(set (match_operand:V1TI 0 "vsx_register_operand" "=wa")
+	(unspec:V1TI [(match_operand:V1TI 1 "vsx_register_operand" "0")
+		      (match_operand:V1TI 2 "vsx_register_operand" "wa")
+		      (match_operand:V1TI 3 "vsx_register_operand" "wa")]
+		     UNSPEC_XSADDSUBUQM))]
+  "TARGET_FUTURE"
+  "xsaddsubuqm %x0,%x2,%x3")
+
+;; xsaddsubsuqm - Add subtract scaled unsigned quadword modulo
+(define_insn "vsx_xsaddsubsuqm"
+  [(set (match_operand:V1TI 0 "vsx_register_operand" "=wa")
+	(unspec:V1TI [(match_operand:V1TI 1 "vsx_register_operand" "0")
+		      (match_operand:V1TI 2 "vsx_register_operand" "wa")
+		      (match_operand:V1TI 3 "vsx_register_operand" "wa")]
+		     UNSPEC_XSADDSUBSUQM))]
+  "TARGET_FUTURE"
+  "xsaddsubsuqm %x0,%x2,%x3")
+
+;; xsmerge2t1uqm - Merge type 1 (2-operand)
+(define_insn "vsx_xsmerge2t1uqm"
+  [(set (match_operand:V1TI 0 "vsx_register_operand" "=wa")
+	(unspec:V1TI [(match_operand:V1TI 1 "vsx_register_operand" "wa")
+		      (match_operand:V1TI 2 "vsx_register_operand" "wa")]
+		     UNSPEC_XSMERGE2T1UQM))]
+  "TARGET_FUTURE"
+  "xsmerge2t1uqm %x0,%x1,%x2")
+
+;; xsmerge2t2uqm - Merge type 2 (2-operand)
+(define_insn "vsx_xsmerge2t2uqm"
+  [(set (match_operand:V1TI 0 "vsx_register_operand" "=wa")
+	(unspec:V1TI [(match_operand:V1TI 1 "vsx_register_operand" "wa")
+		      (match_operand:V1TI 2 "vsx_register_operand" "wa")]
+		     UNSPEC_XSMERGE2T2UQM))]
+  "TARGET_FUTURE"
+  "xsmerge2t2uqm %x0,%x1,%x2")
+
+;; xsmerge2t3uqm - Merge type 3 (2-operand)
+(define_insn "vsx_xsmerge2t3uqm"
+  [(set (match_operand:V1TI 0 "vsx_register_operand" "=wa")
+	(unspec:V1TI [(match_operand:V1TI 1 "vsx_register_operand" "wa")
+		      (match_operand:V1TI 2 "vsx_register_operand" "wa")]
+		     UNSPEC_XSMERGE2T3UQM))]
+  "TARGET_FUTURE"
+  "xsmerge2t3uqm %x0,%x1,%x2")
+
+;; xsmerge3t1uqm - Merge type 1 (3-operand with accumulator)
+(define_insn "vsx_xsmerge3t1uqm"
+  [(set (match_operand:V1TI 0 "vsx_register_operand" "=wa")
+	(unspec:V1TI [(match_operand:V1TI 1 "vsx_register_operand" "0")
+		      (match_operand:V1TI 2 "vsx_register_operand" "wa")
+		      (match_operand:V1TI 3 "vsx_register_operand" "wa")]
+		     UNSPEC_XSMERGE3T1UQM))]
+  "TARGET_FUTURE"
+  "xsmerge3t1uqm %x0,%x2,%x3")
+
+;; xsrebase2t1uqm - Rebase type 1 (2-operand)
+(define_insn "vsx_xsrebase2t1uqm"
+  [(set (match_operand:V1TI 0 "vsx_register_operand" "=wa")
+	(unspec:V1TI [(match_operand:V1TI 1 "vsx_register_operand" "wa")
+		      (match_operand:V1TI 2 "vsx_register_operand" "wa")]
+		     UNSPEC_XSREBASE2T1UQM))]
+  "TARGET_FUTURE"
+  "xsrebase2t1uqm %x0,%x1,%x2")
+
+;; xsrebase2t2uqm - Rebase type 2 (2-operand)
+(define_insn "vsx_xsrebase2t2uqm"
+  [(set (match_operand:V1TI 0 "vsx_register_operand" "=wa")
+	(unspec:V1TI [(match_operand:V1TI 1 "vsx_register_operand" "wa")
+		      (match_operand:V1TI 2 "vsx_register_operand" "wa")]
+		     UNSPEC_XSREBASE2T2UQM))]
+  "TARGET_FUTURE"
+  "xsrebase2t2uqm %x0,%x1,%x2")
+
+;; xsrebase2t3uqm - Rebase type 3 (2-operand)
+(define_insn "vsx_xsrebase2t3uqm"
+  [(set (match_operand:V1TI 0 "vsx_register_operand" "=wa")
+	(unspec:V1TI [(match_operand:V1TI 1 "vsx_register_operand" "wa")
+		      (match_operand:V1TI 2 "vsx_register_operand" "wa")]
+		     UNSPEC_XSREBASE2T3UQM))]
+  "TARGET_FUTURE"
+  "xsrebase2t3uqm %x0,%x1,%x2")
+
+;; xsrebase2t4uqm - Rebase type 4 (2-operand)
+(define_insn "vsx_xsrebase2t4uqm"
+  [(set (match_operand:V1TI 0 "vsx_register_operand" "=wa")
+	(unspec:V1TI [(match_operand:V1TI 1 "vsx_register_operand" "wa")
+		      (match_operand:V1TI 2 "vsx_register_operand" "wa")]
+		     UNSPEC_XSREBASE2T4UQM))]
+  "TARGET_FUTURE"
+  "xsrebase2t4uqm %x0,%x1,%x2")
+
+;; xsrebase3t1uqm - Rebase type 1 (3-operand with accumulator)
+(define_insn "vsx_xsrebase3t1uqm"
+  [(set (match_operand:V1TI 0 "vsx_register_operand" "=wa")
+	(unspec:V1TI [(match_operand:V1TI 1 "vsx_register_operand" "0")
+		      (match_operand:V1TI 2 "vsx_register_operand" "wa")
+		      (match_operand:V1TI 3 "vsx_register_operand" "wa")]
+		     UNSPEC_XSREBASE3T1UQM))]
+  "TARGET_FUTURE"
+  "xsrebase3t1uqm %x0,%x2,%x3")
+
+;; xsrebase3t2uqm - Rebase type 2 (3-operand with accumulator)
+(define_insn "vsx_xsrebase3t2uqm"
+  [(set (match_operand:V1TI 0 "vsx_register_operand" "=wa")
+	(unspec:V1TI [(match_operand:V1TI 1 "vsx_register_operand" "0")
+		      (match_operand:V1TI 2 "vsx_register_operand" "wa")
+		      (match_operand:V1TI 3 "vsx_register_operand" "wa")]
+		     UNSPEC_XSREBASE3T2UQM))]
+  "TARGET_FUTURE"
+  "xsrebase3t2uqm %x0,%x2,%x3")
+
+;; xsrebase3t3uqm - Rebase type 3 (3-operand with accumulator)
+(define_insn "vsx_xsrebase3t3uqm"
+  [(set (match_operand:V1TI 0 "vsx_register_operand" "=wa")
+	(unspec:V1TI [(match_operand:V1TI 1 "vsx_register_operand" "0")
+		      (match_operand:V1TI 2 "vsx_register_operand" "wa")
+		      (match_operand:V1TI 3 "vsx_register_operand" "wa")]
+		     UNSPEC_XSREBASE3T3UQM))]
+  "TARGET_FUTURE"
+  "xsrebase3t3uqm %x0,%x2,%x3")

@@ -3977,3 +3977,68 @@
 
   const vss __builtin_vsx_xvmulhsh (vss, vss);
     XVMULHSH smulv8hi3_highpart {}
+
+  const vuq __builtin_vsx_xxmulmul (vull, vull, const int<0,6>);
+    XXMULMUL vsx_xxmulmul {}
+
+  const vuq __builtin_vsx_xxmulmulhiadd (vuq, vull, vull, const int<1>, \
+                                          const int<1>, const int<1>);
+    XXMULMULHIADD vsx_xxmulmulhiadd {}
+
+  const vuq __builtin_vsx_xxmulmulloadd (vuq, vull, vull, const int<1>, \
+                                          const int<1>);
+    XXMULMULLOADD vsx_xxmulmulloadd {}
+
+  const vuq __builtin_vsx_xxssumudm (vuq, vull, vull, const int<1>);
+    XXSSUMUDM vsx_xxssumudm {}
+
+  const vuq __builtin_vsx_xxssumudmc (vuq, vull, vull, const int<1>);
+    XXSSUMUDMC vsx_xxssumudmc {}
+
+  const vuq __builtin_vsx_xxssumudmcext (vull, vull, vuq, const int<1>);
+    XXSSUMUDMCEXT vsx_xxssumudmcext {}
+
+  const vuq __builtin_vsx_xsaddadduqm (vuq, vuq, vuq);
+    XSADDADDUQM vsx_xsaddadduqm {}
+
+  const vuq __builtin_vsx_xsaddaddsuqm (vuq, vuq, vuq);
+    XSADDADDSUQM vsx_xsaddaddsuqm {}
+
+  const vuq __builtin_vsx_xsaddsubuqm (vuq, vuq, vuq);
+    XSADDSUBUQM vsx_xsaddsubuqm {}
+
+  const vuq __builtin_vsx_xsaddsubsuqm (vuq, vuq, vuq);
+    XSADDSUBSUQM vsx_xsaddsubsuqm {}
+
+  const vuq __builtin_vsx_xsmerge2t1uqm (vuq, vuq);
+    XSMERGE2T1UQM vsx_xsmerge2t1uqm {}
+
+  const vuq __builtin_vsx_xsmerge2t2uqm (vuq, vuq);
+    XSMERGE2T2UQM vsx_xsmerge2t2uqm {}
+
+  const vuq __builtin_vsx_xsmerge2t3uqm (vuq, vuq);
+    XSMERGE2T3UQM vsx_xsmerge2t3uqm {}
+
+  const vuq __builtin_vsx_xsmerge3t1uqm (vuq, vuq, vuq);
+    XSMERGE3T1UQM vsx_xsmerge3t1uqm {}
+
+  const vuq __builtin_vsx_xsrebase2t1uqm (vuq, vuq);
+    XSREBASE2T1UQM vsx_xsrebase2t1uqm {}
+
+  const vuq __builtin_vsx_xsrebase2t2uqm (vuq, vuq);
+    XSREBASE2T2UQM vsx_xsrebase2t2uqm {}
+
+  const vuq __builtin_vsx_xsrebase2t3uqm (vuq, vuq);
+    XSREBASE2T3UQM vsx_xsrebase2t3uqm {}
+
+  const vuq __builtin_vsx_xsrebase2t4uqm (vuq, vuq);
+    XSREBASE2T4UQM vsx_xsrebase2t4uqm {}
+
+  const vuq __builtin_vsx_xsrebase3t1uqm (vuq, vuq, vuq);
+    XSREBASE3T1UQM vsx_xsrebase3t1uqm {}
+
+  const vuq __builtin_vsx_xsrebase3t2uqm (vuq, vuq, vuq);
+    XSREBASE3T2UQM vsx_xsrebase3t2uqm {}
+
+  const vuq __builtin_vsx_xsrebase3t3uqm (vuq, vuq, vuq);
+    XSREBASE3T3UQM vsx_xsrebase3t3uqm {}
