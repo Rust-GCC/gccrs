@@ -1106,7 +1106,8 @@ symbol_function_token( const char name[] ) {
   return 0;
 }
 
-bool in_procedure_division(void );
+bool in_procedure_division(void);
+bool in_environment_division(void );
 
 static symbol_elem_t *
 symbol_exists( const char name[] ) {
@@ -1174,6 +1175,14 @@ typed_name( const char name[] ) {
 
   struct symbol_elem_t *e = symbol_special( PROGRAM, name );
   if( e ) return  cbl_special_name_of(e)->token;
+
+  // If we're in the configuration section, Data Division is still empty.
+  // Give priority to intrinsic functions names.
+  if( in_environment_division() ) {
+    token = keyword_tok(yytext, true);
+    auto name = intrinsic_function_name(token);
+    if( name ) return token;
+  }
 
   if( (token = redefined_token(name)) ) { return token; }
 

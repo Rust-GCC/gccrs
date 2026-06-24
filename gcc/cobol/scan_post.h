@@ -322,8 +322,6 @@ static int next_token() {
   return token;
 }
 
-bool in_procedure_division(void);
-
 // act on CDF tokens
 int
 prelex() {

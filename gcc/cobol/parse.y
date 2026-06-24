@@ -311,6 +311,7 @@ class locale_tgt_t {
   struct file_list_t;
   struct cbl_label_t;
   typedef struct Elem_list_t<cbl_label_t*> Label_list_t;
+  typedef struct Elem_list_t<int> token_list_t;
 
   struct cbl_file_key_t;
   typedef struct Elem_list_t<cbl_file_key_t*> key_list_t;
@@ -922,6 +923,8 @@ class locale_tgt_t {
 
 %type   <nameloc>       repo_func_name                        
 %type   <namelocs>      repo_func_names
+%type   <tokens>        repo_intrinsics
+%type   <number>        repo_intrinsic
 %type   <codeset>       codeset_name
 %type   <locale_phrase> locale_phrase
 %type   <number>        convert_hex convert_nat convert_alpha // convert_fmt
@@ -969,6 +972,7 @@ class locale_tgt_t {
     struct perform_t *perf;
     struct cbl_perform_tgt_t *tgt;
            Label_list_t *labels;
+           token_list_t *tokens;
            key_list_t *file_keys;
            cbl_file_mode_t io_mode;
     struct cbl_file_key_t *file_key;
@@ -2604,8 +2608,21 @@ repo_func:      FUNCTION repo_func_names[namelocs] INTRINSIC {
                 {
                   current.repository_add_all();
                 }
+        |       FUNCTION repo_intrinsics INTRINSIC
+                {
+                  for( int token : $repo_intrinsics->elems ) {
+                    if( token != 0 ) {
+                      current.repository_add(keyword_str(token));
+                    }
+                  }
+                }
+        |       FUNCTION repo_intrinsics error {
+                  const char *func = $repo_intrinsics->elems.empty() ?
+                    "" : keyword_str($repo_intrinsics->elems.front());
+                  error_msg(@repo_intrinsics,
+                          "intrinsic function %qs requires INTRINSIC", func);
+                }
         |       FUNCTION repo_func_names[namelocs] {
-		  // We allow multiple names because GnuCOBOL does.  ISO says 1.
                   for( const auto& nameloc : *$namelocs ) {
                     if( 0 != intrinsic_token_of(nameloc.name) ) {
                       error_msg(nameloc.loc,
@@ -2643,6 +2660,121 @@ repo_func_name: NAME repo_as {
                   }
                   $$ = new cbl_nameloc_t(@NAME, $NAME);
                 }
+                ;
+
+repo_intrinsics:
+                repo_intrinsic { $$ = new token_list_t($1); }
+        |       repo_intrinsics repo_intrinsic {
+                  $$ = $1;
+                  $$->elems.push_back($repo_intrinsic);
+                }
+                ;
+ 
+repo_intrinsic: ABS { $$ = ABS; }
+        |       ACOS { $$ = ACOS; }
+        |       ANNUITY { $$ = ANNUITY; }
+        |       ASIN { $$ = ASIN; }
+        |       ATAN { $$ = ATAN; }
+        |       BASECONVERT { $$ = BASECONVERT; }
+        |       BIT_OF { $$ = BIT_OF; }
+        |       BIT_TO_CHAR { $$ = BIT_TO_CHAR; }
+        |       BOOLEAN_OF_INTEGER { $$ = BOOLEAN_OF_INTEGER; }
+        |       BYTE_LENGTH { $$ = BYTE_LENGTH; }
+        |       CHAR { $$ = CHAR; }
+        |       CHAR_NATIONAL { $$ = CHAR_NATIONAL; }
+        |       COMBINED_DATETIME { $$ = COMBINED_DATETIME; }
+        |       CONCAT { $$ = CONCAT; }
+        |       CONVERT { $$ = CONVERT; }
+        |       COS { $$ = COS; }
+        |       CURRENT_DATE { $$ = CURRENT_DATE; }
+        |       DATE_OF_INTEGER { $$ = DATE_OF_INTEGER; }
+        |       DATE_TO_YYYYMMDD { $$ = DATE_TO_YYYYMMDD; }
+        |       DAY_OF_INTEGER { $$ = DAY_OF_INTEGER; }
+        |       DAY_TO_YYYYDDD { $$ = DAY_TO_YYYYDDD; }
+        |       DISPLAY_OF { $$ = DISPLAY_OF; }
+        |       E { $$ = E; }
+        |       EXCEPTION_FILE { $$ = EXCEPTION_FILE; }
+        |       EXCEPTION_FILE_N { $$ = EXCEPTION_FILE_N; }
+        |       EXCEPTION_LOCATION { $$ = EXCEPTION_LOCATION; }
+        |       EXCEPTION_LOCATION_N { $$ = EXCEPTION_LOCATION_N; }
+        |       EXCEPTION_STATEMENT { $$ = EXCEPTION_STATEMENT; }
+        |       EXCEPTION_STATUS { $$ = EXCEPTION_STATUS; }
+        |       EXP { $$ = EXP; }
+        |       EXP10 { $$ = EXP10; }
+        |       FACTORIAL { $$ = FACTORIAL; }
+        |       FIND_STRING { $$ = FIND_STRING; }
+        |       FORMATTED_CURRENT_DATE { $$ = FORMATTED_CURRENT_DATE; }
+        |       FORMATTED_DATE { $$ = FORMATTED_DATE; }
+        |       FORMATTED_DATETIME { $$ = FORMATTED_DATETIME; }
+        |       FORMATTED_TIME { $$ = FORMATTED_TIME; }
+        |       FRACTION_PART { $$ = FRACTION_PART; }
+        |       HEX_OF { $$ = HEX_OF; }
+        |       HEX_TO_CHAR { $$ = HEX_TO_CHAR; }
+        |       HIGHEST_ALGEBRAIC { $$ = HIGHEST_ALGEBRAIC; }
+        |       INTEGER { $$ = INTEGER; }
+        |       INTEGER_OF_BOOLEAN { $$ = INTEGER_OF_BOOLEAN; }
+        |       INTEGER_OF_DATE { $$ = INTEGER_OF_DATE; }
+        |       INTEGER_OF_DAY { $$ = INTEGER_OF_DAY; }
+        |       INTEGER_OF_FORMATTED_DATE { $$ = INTEGER_OF_FORMATTED_DATE; }
+        |       INTEGER_PART { $$ = INTEGER_PART; }
+        |       LENGTH { $$ = LENGTH; }
+        |       LOCALE_COMPARE { $$ = LOCALE_COMPARE; }
+        |       LOCALE_DATE { $$ = LOCALE_DATE; }
+        |       LOCALE_TIME { $$ = LOCALE_TIME; }
+        |       LOCALE_TIME_FROM_SECONDS { $$ = LOCALE_TIME_FROM_SECONDS; }
+        |       LOG { $$ = LOG; }
+        |       LOG10 { $$ = LOG10; }
+        |       LOWER_CASE { $$ = LOWER_CASE; }
+        |       LOWEST_ALGEBRAIC { $$ = LOWEST_ALGEBRAIC; }
+        |       MAXX { $$ = MAXX; }
+        |       MEAN { $$ = MEAN; }
+        |       MEDIAN { $$ = MEDIAN; }
+        |       MIDRANGE { $$ = MIDRANGE; }
+        |       MINN { $$ = MINN; }
+        |       MOD { $$ = MOD; }
+        |       MODULE_NAME { $$ = MODULE_NAME; }
+        |       NATIONAL_OF { $$ = NATIONAL_OF; }
+        |       NUMVAL { $$ = NUMVAL; }
+        |       NUMVAL_C { $$ = NUMVAL_C; }
+        |       NUMVAL_F { $$ = NUMVAL_F; }
+        |       ORD { $$ = ORD; }
+        |       ORD_MAX { $$ = ORD_MAX; }
+        |       ORD_MIN { $$ = ORD_MIN; }
+        |       PI { $$ = PI; }
+        |       PRESENT_VALUE { $$ = PRESENT_VALUE; }
+        |       RANDOM { $$ = RANDOM; }
+        |       RANGE { $$ = RANGE; }
+        |       REM { $$ = REM; }
+        |       REVERSE { $$ = REVERSE; }
+        |       SECONDS_FROM_FORMATTED_TIME { $$ = SECONDS_FROM_FORMATTED_TIME; }
+        |       SECONDS_PAST_MIDNIGHT { $$ = SECONDS_PAST_MIDNIGHT; }
+        |       SIGN { $$ = SIGN; }
+        |       SIN { $$ = SIN; }
+        |       SMALLEST_ALGEBRAIC { $$ = SMALLEST_ALGEBRAIC; }
+        |       SQRT { $$ = SQRT; }
+        |       STANDARD_COMPARE { $$ = STANDARD_COMPARE; }
+        |       STANDARD_DEVIATION { $$ = STANDARD_DEVIATION; }
+        |       SUBSTITUTE { $$ = SUBSTITUTE; }
+        |       SUM { $$ = SUM; }
+        |       TAN { $$ = TAN; }
+        |       TEST_DATE_YYYYMMDD { $$ = TEST_DATE_YYYYMMDD; }
+        |       TEST_DAY_YYYYDDD { $$ = TEST_DAY_YYYYDDD; }
+        |       TEST_FORMATTED_DATETIME { $$ = TEST_FORMATTED_DATETIME; }
+        |       TEST_NUMVAL { $$ = TEST_NUMVAL; }
+        |       TEST_NUMVAL_C { $$ = TEST_NUMVAL_C; }
+        |       TEST_NUMVAL_F { $$ = TEST_NUMVAL_F; }
+        |       TRIM { $$ = TRIM; }
+        |       ULENGTH { $$ = ULENGTH; }
+        |       UPOS { $$ = UPOS; }
+        |       UPPER_CASE { $$ = UPPER_CASE; }
+        |       USUBSTR { $$ = USUBSTR; }
+        |       USUPPLEMENTARY { $$ = USUPPLEMENTARY; }
+        |       UUID4 { $$ = UUID4; }
+        |       UVALID { $$ = UVALID; }
+        |       UWIDTH { $$ = UWIDTH; }
+        |       VARIANCE { $$ = VARIANCE; }
+        |       WHEN_COMPILED { $$ = WHEN_COMPILED; }
+        |       YEAR_TO_YYYY { $$ = YEAR_TO_YYYY; }
                 ;
 
 repo_program:   PROGRAM_kw NAME repo_as
@@ -5553,6 +5685,10 @@ sentence:       statements  '.'
                   }
                   if( ! successful_parse() ) YYABORT;
                   YYACCEPT;
+                }
+        |       statements end_program1 {
+                  error_msg(@1, "missing %qs before END PROGRAM", ".");
+                  YYERROR;
                 }
         |       program END_SUBPROGRAM namestr[name] '.'
                 { // a contained program (no prior END PROGRAM) is a "sentence"

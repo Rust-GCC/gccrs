@@ -247,8 +247,12 @@ is_cobol_charset( const char name[] ) {
 }
 
 bool
-in_procedure_division(void) {
+in_procedure_division() {
   return current_division == procedure_div_e;
+}
+bool
+in_environment_division() {
+  return current_division == environment_div_e;
 }
 
 static inline bool
