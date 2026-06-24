@@ -47,34 +47,36 @@ inline tree unchecked_op (Context *ctx, TyTy::FnType *fntype, tree_code op);
 
 } // namespace inner
 
-using HandlerBuilder = std::function<tree (Context *, TyTy::FnType *)>;
+using HandlerBuilder
+  = std::function<tree (Context *, TyTy::FnType *, location_t)>;
 
 const HandlerBuilder op_with_overflow (tree_code op);
 
-tree rotate_left (Context *ctx, TyTy::FnType *fntype);
-tree rotate_right (Context *ctx, TyTy::FnType *fntype);
+tree rotate_left (Context *ctx, TyTy::FnType *fntype, location_t expr_locus);
+tree rotate_right (Context *ctx, TyTy::FnType *fntype, location_t expr_locus);
 
 const HandlerBuilder wrapping_op (tree_code op);
-tree offset (Context *ctx, TyTy::FnType *fntype);
-tree sizeof_handler (Context *ctx, TyTy::FnType *fntype);
-tree min_align_of_handler (Context *ctx, TyTy::FnType *fntype);
-tree transmute (Context *ctx, TyTy::FnType *fntype);
+tree offset (Context *ctx, TyTy::FnType *fntype, location_t expr_locus);
+tree sizeof_handler (Context *ctx, TyTy::FnType *fntype, location_t expr_locus);
+tree min_align_of_handler (Context *ctx, TyTy::FnType *fntype,
+			   location_t expr_locus);
+tree transmute (Context *ctx, TyTy::FnType *fntype, location_t expr_locus);
 tree rotate (Context *ctx, TyTy::FnType *fntype, tree_code op);
-tree uninit (Context *ctx, TyTy::FnType *fntype);
-tree move_val_init (Context *ctx, TyTy::FnType *fntype);
-tree assume (Context *ctx, TyTy::FnType *fntype);
-tree discriminant_value (Context *ctx, TyTy::FnType *fntype);
-tree variant_count (Context *ctx, TyTy::FnType *fntype);
-tree bswap_handler (Context *ctx, TyTy::FnType *fntype);
-tree ctlz_handler (Context *ctx, TyTy::FnType *fntype);
-tree ctlz_nonzero_handler (Context *ctx, TyTy::FnType *fntype);
-tree cttz_handler (Context *ctx, TyTy::FnType *fntype);
-tree cttz_nonzero_handler (Context *ctx, TyTy::FnType *fntype);
+tree uninit (Context *ctx, TyTy::FnType *fntype, location_t expr_locus);
+tree move_val_init (Context *ctx, TyTy::FnType *fntype, location_t expr_locus);
+tree assume (Context *ctx, TyTy::FnType *fntype, location_t expr_locus);
+tree discriminant_value (Context *ctx, TyTy::FnType *fntype,
+			 location_t expr_locus);
+tree variant_count (Context *ctx, TyTy::FnType *fntype, location_t expr_locus);
+tree bswap_handler (Context *ctx, TyTy::FnType *fntype, location_t expr_locus);
+tree ctlz_handler (Context *ctx, TyTy::FnType *fntype, location_t expr_locus);
+tree ctlz_nonzero_handler (Context *ctx, TyTy::FnType *fntype,
+			   location_t expr_locus);
+tree cttz_handler (Context *ctx, TyTy::FnType *fntype, location_t expr_locus);
+tree cttz_nonzero_handler (Context *ctx, TyTy::FnType *fntype,
+			   location_t expr_locus);
 
 tree prefetch_data (Context *ctx, TyTy::FnType *fntype, Prefetch kind);
-
-const std::function<tree (Context *, TyTy::FnType *)>
-wrapping_op (tree_code op);
 
 HandlerBuilder atomic_store (int ordering);
 
@@ -88,9 +90,11 @@ const HandlerBuilder expect (bool likely);
 
 const HandlerBuilder try_handler (bool is_new_api);
 
-tree prefetch_read_data (Context *ctx, TyTy::FnType *fntype);
-tree prefetch_write_data (Context *ctx, TyTy::FnType *fntype);
-tree sorry (Context *ctx, TyTy::FnType *fntype);
+tree prefetch_read_data (Context *ctx, TyTy::FnType *fntype,
+			 location_t expr_locus);
+tree prefetch_write_data (Context *ctx, TyTy::FnType *fntype,
+			  location_t expr_locus);
+tree sorry (Context *ctx, TyTy::FnType *fntype, location_t expr_locus);
 
 } // namespace handlers
 
