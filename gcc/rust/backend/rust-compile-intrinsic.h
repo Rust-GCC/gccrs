@@ -18,7 +18,6 @@
 #define RUST_COMPILE_INTRINSIC
 
 #include "rust-compile-context.h"
-#include "langhooks.h"
 
 namespace Rust {
 namespace Compile {
@@ -28,7 +27,7 @@ class Intrinsics
 public:
   Intrinsics (Context *ctx);
 
-  tree compile (TyTy::FnType *fntype);
+  tree compile (TyTy::FnType *fntype, location_t expr_locus);
 
 private:
   Context *ctx;

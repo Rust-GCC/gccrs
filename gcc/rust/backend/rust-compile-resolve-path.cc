@@ -182,7 +182,7 @@ ResolvePathRef::resolve_with_node_id (
       else if (fntype->get_abi () == ABI::INTRINSIC)
 	{
 	  Intrinsics compile (ctx);
-	  fn = compile.compile (fntype);
+	  fn = compile.compile (fntype, expr_locus);
 	  TREE_USED (fn) = 1;
 	  return address_expression (fn, expr_locus);
 	}

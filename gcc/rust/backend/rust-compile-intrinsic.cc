@@ -86,7 +86,7 @@ Intrinsics::Intrinsics (Context *ctx) : ctx (ctx) {}
  * compiler
  */
 tree
-Intrinsics::compile (TyTy::FnType *fntype)
+Intrinsics::compile (TyTy::FnType *fntype, location_t expr_locus)
 {
   rust_assert (fntype->get_abi () == ABI::INTRINSIC);
 
@@ -99,7 +99,7 @@ Intrinsics::compile (TyTy::FnType *fntype)
   // is it an generic builtin?
   auto it = generic_intrinsics.find (fntype->get_identifier ());
   if (it != generic_intrinsics.end ())
-    return it->second (ctx, fntype);
+    return it->second (ctx, fntype, expr_locus);
 
   location_t locus = ctx->get_mappings ().lookup_location (fntype->get_ref ());
   rust_error_at (locus, ErrorCode::E0093,

@@ -118,7 +118,7 @@ public:
     if (fntype->get_abi () == ABI::INTRINSIC)
       {
 	Intrinsics compile (ctx);
-	tree fndecl = compile.compile (fntype);
+	tree fndecl = compile.compile (fntype, ref_locus);
 	ctx->insert_function_decl (fntype, fndecl);
 	return;
       }
