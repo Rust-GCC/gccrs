@@ -180,7 +180,9 @@ CompileItem::visit (HIR::Function &function)
 				    TyTy::TyWithLocation (concrete),
 				    function.get_locus ());
 
-	  rust_assert (resolved->is<TyTy::FnType> ());
+	  if (!resolved->is<TyTy::FnType> ())
+	    return;
+
 	  fntype = resolved->as<TyTy::FnType> ();
 	}
 
