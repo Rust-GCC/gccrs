@@ -24,6 +24,7 @@
 #include "rust-compile-pattern.h"
 #include "rust-compile-resolve-path.h"
 #include "rust-compile-block.h"
+#include "rust-compile-drop.h"
 #include "rust-compile-implitem.h"
 #include "rust-constexpr.h"
 #include "rust-compile-type.h"
@@ -269,6 +270,30 @@ CompileExpr::visit (HIR::ReturnExpr &expr)
       return_value = coercion_site (id, return_value, actual, expected,
 				    lvalue_locus, rvalue_locus);
     }
+
+  if (fncontext.retty->is_unit ())
+    {
+      if (expr.has_return_expr ())
+	{
+	  ctx->add_statement (return_value);
+	  return_value = unit_expression (expr.get_locus ());
+	}
+    }
+  else if (expr.has_return_expr ())
+    {
+      tree result_reference
+	= Backend::var_expression (fncontext.ret_addr, expr.get_locus ());
+
+      tree assignment
+	= Backend::assignment_statement (result_reference, return_value,
+					 expr.get_locus ());
+
+      ctx->add_statement (assignment);
+      return_value
+	= Backend::var_expression (fncontext.ret_addr, expr.get_locus ());
+    }
+
+  CompileDrop (ctx).emit_return_scope_drop_calls ();
 
   tree return_stmt = Backend::return_statement (fncontext.fndecl, return_value,
 						expr.get_locus ());
