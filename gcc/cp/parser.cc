@@ -10147,8 +10147,13 @@ cp_parser_reflect_expression (cp_parser *parser)
   cp_parser_parse_tentatively (parser);
 
   bool type_alias_p;
-  t = cp_parser_type_id_1 (parser, CP_PARSER_FLAGS_NONE, false, false,
-			   nullptr, &type_alias_p);
+  {
+    auto tdfm =
+      make_temp_override (parser->type_definition_forbidden_message,
+			  G_("types may not be defined in %<^^%> expression"));
+    t = cp_parser_type_id_1 (parser, CP_PARSER_FLAGS_NONE, false, false,
+			     nullptr, &type_alias_p);
+  }
   if (cp_parser_parse_definitely (parser))
     {
       /* With using A = int; ^^A is a type alias but ^^const A or ^^A & or
