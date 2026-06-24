@@ -768,13 +768,16 @@ maybe_warn_operand (ao_ref &ref, gimple *stmt, tree lhs, tree rhs,
       && single_imm_use (lhs, &luse_p, &use_stmt))
     {
       gassign *use_ass = dyn_cast <gassign *> (use_stmt);
-      for (int i = 0; i < 2; ++i)
+      for (int i = 0; i < 4; ++i)
 	if (use_ass
 	    && (gimple_assign_rhs_code (use_ass) == BIT_AND_EXPR
-		|| gimple_assign_rhs_code (use_ass) == BIT_IOR_EXPR)
+		|| gimple_assign_rhs_code (use_ass) == BIT_IOR_EXPR
+		|| gimple_assign_rhs_code (use_ass) == VIEW_CONVERT_EXPR)
 	    && single_imm_use (gimple_assign_lhs (use_ass), &luse_p,
 			       &use_stmt))
 	  use_ass = dyn_cast <gassign *> (use_stmt);
+	else
+	  break;
       if (use_ass
 	  && gimple_vdef (use_ass)
 	  && operand_equal_p (gimple_assign_rhs1 (stmt),
