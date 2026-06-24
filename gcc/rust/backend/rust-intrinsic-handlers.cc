@@ -1029,19 +1029,19 @@ cttz_handler (Context *ctx, TyTy::FnType *fntype, bool nonzero)
 const HandlerBuilder
 op_with_overflow (tree_code op)
 {
-  return [op] (Context *ctx, TyTy::FnType *fntype) {
+  return [op] (Context *ctx, TyTy::FnType *fntype, location_t) {
     return inner::op_with_overflow (ctx, fntype, op);
   };
 }
 
 tree
-rotate_left (Context *ctx, TyTy::FnType *fntype)
+rotate_left (Context *ctx, TyTy::FnType *fntype, location_t)
 {
   return handlers::rotate (ctx, fntype, LROTATE_EXPR);
 }
 
 tree
-rotate_right (Context *ctx, TyTy::FnType *fntype)
+rotate_right (Context *ctx, TyTy::FnType *fntype, location_t)
 {
   return handlers::rotate (ctx, fntype, RROTATE_EXPR);
 }
@@ -1049,7 +1049,7 @@ rotate_right (Context *ctx, TyTy::FnType *fntype)
 const HandlerBuilder
 wrapping_op (tree_code op)
 {
-  return [op] (Context *ctx, TyTy::FnType *fntype) {
+  return [op] (Context *ctx, TyTy::FnType *fntype, location_t) {
     return inner::wrapping_op (ctx, fntype, op);
   };
 }
@@ -1057,7 +1057,7 @@ wrapping_op (tree_code op)
 HandlerBuilder
 atomic_store (int ordering)
 {
-  return [ordering] (Context *ctx, TyTy::FnType *fntype) {
+  return [ordering] (Context *ctx, TyTy::FnType *fntype, location_t) {
     return inner::atomic_store (ctx, fntype, ordering);
   };
 }
@@ -1065,7 +1065,7 @@ atomic_store (int ordering)
 HandlerBuilder
 atomic_load (int ordering)
 {
-  return [ordering] (Context *ctx, TyTy::FnType *fntype) {
+  return [ordering] (Context *ctx, TyTy::FnType *fntype, location_t) {
     return inner::atomic_load (ctx, fntype, ordering);
   };
 }
@@ -1073,7 +1073,7 @@ atomic_load (int ordering)
 const HandlerBuilder
 unchecked_op (tree_code op)
 {
-  return [op] (Context *ctx, TyTy::FnType *fntype) {
+  return [op] (Context *ctx, TyTy::FnType *fntype, location_t) {
     return inner::unchecked_op (ctx, fntype, op);
   };
 }
@@ -1081,7 +1081,7 @@ unchecked_op (tree_code op)
 const HandlerBuilder
 copy (bool overlaps)
 {
-  return [overlaps] (Context *ctx, TyTy::FnType *fntype) {
+  return [overlaps] (Context *ctx, TyTy::FnType *fntype, location_t) {
     return inner::copy (ctx, fntype, overlaps);
   };
 }
@@ -1089,7 +1089,7 @@ copy (bool overlaps)
 const HandlerBuilder
 expect (bool likely)
 {
-  return [likely] (Context *ctx, TyTy::FnType *fntype) {
+  return [likely] (Context *ctx, TyTy::FnType *fntype, location_t) {
     return inner::expect (ctx, fntype, likely);
   };
 }
@@ -1097,13 +1097,13 @@ expect (bool likely)
 const HandlerBuilder
 try_handler (bool is_new_api)
 {
-  return [is_new_api] (Context *ctx, TyTy::FnType *fntype) {
+  return [is_new_api] (Context *ctx, TyTy::FnType *fntype, location_t) {
     return inner::try_handler (ctx, fntype, is_new_api);
   };
 }
 
 tree
-sorry (Context *ctx, TyTy::FnType *fntype)
+sorry (Context *ctx, TyTy::FnType *fntype, location_t)
 {
   rust_sorry_at (fntype->get_locus (), "intrinsic %qs is not yet implemented",
 		 fntype->get_identifier ().c_str ());
@@ -1112,7 +1112,7 @@ sorry (Context *ctx, TyTy::FnType *fntype)
 }
 
 tree
-assume (Context *ctx, TyTy::FnType *fntype)
+assume (Context *ctx, TyTy::FnType *fntype, location_t)
 {
   // TODO: make sure this is actually helping the compiler optimize
 
@@ -1157,7 +1157,7 @@ assume (Context *ctx, TyTy::FnType *fntype)
 }
 
 tree
-discriminant_value (Context *ctx, TyTy::FnType *fntype)
+discriminant_value (Context *ctx, TyTy::FnType *fntype, location_t)
 {
   rust_assert (fntype->get_params ().size () == 1);
   rust_assert (fntype->has_substitutions ());
@@ -1218,7 +1218,7 @@ discriminant_value (Context *ctx, TyTy::FnType *fntype)
 }
 
 tree
-variant_count (Context *ctx, TyTy::FnType *fntype)
+variant_count (Context *ctx, TyTy::FnType *fntype, location_t)
 {
   rust_assert (fntype->get_num_type_params () == 1);
   auto &mapping = fntype->get_substs ().at (0);
@@ -1269,7 +1269,7 @@ variant_count (Context *ctx, TyTy::FnType *fntype)
 }
 
 tree
-move_val_init (Context *ctx, TyTy::FnType *fntype)
+move_val_init (Context *ctx, TyTy::FnType *fntype, location_t)
 {
   rust_assert (fntype->get_params ().size () == 2);
 
@@ -1323,7 +1323,7 @@ move_val_init (Context *ctx, TyTy::FnType *fntype)
 }
 
 tree
-uninit (Context *ctx, TyTy::FnType *fntype)
+uninit (Context *ctx, TyTy::FnType *fntype, location_t)
 {
   // uninit has _zero_ parameters its parameter is the generic one
   rust_assert (fntype->get_params ().size () == 0);
@@ -1389,12 +1389,12 @@ uninit (Context *ctx, TyTy::FnType *fntype)
 }
 
 tree
-prefetch_read_data (Context *ctx, TyTy::FnType *fntype)
+prefetch_read_data (Context *ctx, TyTy::FnType *fntype, location_t)
 {
   return prefetch_data (ctx, fntype, Prefetch::Read);
 }
 tree
-prefetch_write_data (Context *ctx, TyTy::FnType *fntype)
+prefetch_write_data (Context *ctx, TyTy::FnType *fntype, location_t)
 {
   return prefetch_data (ctx, fntype, Prefetch::Write);
 }
@@ -1502,7 +1502,7 @@ rotate (Context *ctx, TyTy::FnType *fntype, tree_code op)
 }
 
 tree
-transmute (Context *ctx, TyTy::FnType *fntype)
+transmute (Context *ctx, TyTy::FnType *fntype, location_t)
 {
   // transmute intrinsic has one parameter
   rust_assert (fntype->get_params ().size () == 1);
@@ -1576,7 +1576,7 @@ transmute (Context *ctx, TyTy::FnType *fntype)
 }
 
 tree
-sizeof_handler (Context *ctx, TyTy::FnType *fntype)
+sizeof_handler (Context *ctx, TyTy::FnType *fntype, location_t)
 {
   // size_of has _zero_ parameters its parameter is the generic one
   rust_assert (fntype->get_params ().size () == 0);
@@ -1613,7 +1613,7 @@ sizeof_handler (Context *ctx, TyTy::FnType *fntype)
  * pub fn min_align_of<T>() -> usize;
  */
 tree
-min_align_of_handler (Context *ctx, TyTy::FnType *fntype)
+min_align_of_handler (Context *ctx, TyTy::FnType *fntype, location_t)
 {
   // min_align_of has _zero_ parameters its parameter is the generic one
   rust_assert (fntype->get_params ().size () == 0);
@@ -1649,7 +1649,7 @@ min_align_of_handler (Context *ctx, TyTy::FnType *fntype)
 }
 
 tree
-offset (Context *ctx, TyTy::FnType *fntype)
+offset (Context *ctx, TyTy::FnType *fntype, location_t expr_locus)
 {
   // offset intrinsic has two params dst pointer and offset isize
   rust_assert (fntype->get_params ().size () == 2);
@@ -1670,8 +1670,7 @@ offset (Context *ctx, TyTy::FnType *fntype)
   // BUILTIN offset FN BODY BEGIN
   tree dst = Backend::var_expression (dst_param, UNDEF_LOCATION);
   tree size = Backend::var_expression (size_param, UNDEF_LOCATION);
-  tree pointer_offset_expr
-    = pointer_offset_expression (dst, size, BUILTINS_LOCATION);
+  tree pointer_offset_expr = pointer_offset_expression (dst, size, expr_locus);
   auto return_statement
     = Backend::return_statement (fndecl, pointer_offset_expr, UNDEF_LOCATION);
   ctx->add_statement (return_statement);
@@ -1686,7 +1685,7 @@ offset (Context *ctx, TyTy::FnType *fntype)
  * pub const fn bswap<T: Copy>(x: T) -> T;
  */
 tree
-bswap_handler (Context *ctx, TyTy::FnType *fntype)
+bswap_handler (Context *ctx, TyTy::FnType *fntype, location_t)
 {
   rust_assert (fntype->get_params ().size () == 1);
 
@@ -1843,25 +1842,25 @@ bswap_handler (Context *ctx, TyTy::FnType *fntype)
 }
 
 tree
-ctlz_handler (Context *ctx, TyTy::FnType *fntype)
+ctlz_handler (Context *ctx, TyTy::FnType *fntype, location_t)
 {
   return inner::ctlz_handler (ctx, fntype, false);
 }
 
 tree
-ctlz_nonzero_handler (Context *ctx, TyTy::FnType *fntype)
+ctlz_nonzero_handler (Context *ctx, TyTy::FnType *fntype, location_t)
 {
   return inner::ctlz_handler (ctx, fntype, true);
 }
 
 tree
-cttz_handler (Context *ctx, TyTy::FnType *fntype)
+cttz_handler (Context *ctx, TyTy::FnType *fntype, location_t)
 {
   return inner::cttz_handler (ctx, fntype, false);
 }
 
 tree
-cttz_nonzero_handler (Context *ctx, TyTy::FnType *fntype)
+cttz_nonzero_handler (Context *ctx, TyTy::FnType *fntype, location_t)
 {
   return inner::cttz_handler (ctx, fntype, true);
 }

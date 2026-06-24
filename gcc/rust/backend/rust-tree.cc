@@ -688,10 +688,15 @@ get_fndecl_from_callee (tree fn)
 tree
 pointer_offset_expression (tree base_tree, tree index_tree, location_t location)
 {
-  tree element_type_tree = TREE_TYPE (TREE_TYPE (base_tree));
+  tree base_type_tree = TREE_TYPE (base_tree);
+  tree element_type_tree
+    = TREE_TYPE (base_type_tree) ? TREE_TYPE (base_type_tree) : error_mark_node;
   if (base_tree == error_mark_node || TREE_TYPE (base_tree) == error_mark_node
       || index_tree == error_mark_node || element_type_tree == error_mark_node)
-    return error_mark_node;
+    {
+      error_at (location, "unknown element size type for %qT", base_type_tree);
+      return error_mark_node;
+    }
 
   tree element_size = TYPE_SIZE_UNIT (element_type_tree);
   index_tree = fold_convert_loc (location, sizetype, index_tree);
