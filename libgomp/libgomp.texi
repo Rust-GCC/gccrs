@@ -8023,9 +8023,17 @@ presented by libgomp.  Only maintainers should need them.
 @section Implementing MASKED and MASTER construct
 
 @smallexample
-if (omp_get_thread_num () == thread_num)
+if (GOMP_has_masked_thread_num(thread_num))
   block
 @end smallexample
+
+@code{GOMP_has_masked_thread_num} encapsulates the following check, so that OMPT
+can distinguish the compiler-generated code from user-level thread-number
+queries:
+
+@smallexample
+omp_get_thread_num() == @var{thread_num}
+@end
 
 Hereby, @var{thread_num} has the value of the argument to the @code{filter}
 clause or zero if not specified.
@@ -8070,12 +8078,16 @@ The target should implement the @code{__sync} builtins.
 Failing that we could add
 
 @smallexample
-  void GOMP_atomic_enter (void)
-  void GOMP_atomic_exit (void)
+  void GOMP_atomic_start (void)
+  void GOMP_atomic_end (void)
 @end smallexample
 
 which reuses the regular lock code, but with yet another lock
 object private to the library.
+
+Those two functions are used exclusively for explicit @code{atomic} constructs;
+reductions use @code{GOMP_reduction_start} and @code{GOMP_reduction_end} instead
+(see @ref{Implementing REDUCTION clause}).
 
 
 
@@ -8090,8 +8102,19 @@ Expands to the @code{__sync_synchronize} builtin.
 @section Implementing BARRIER construct
 
 @smallexample
-  void GOMP_barrier (void)
+  void GOMP_barrier_ext (int kind)
+  void GOMP_barrier_cancel_ext (int kind)
 @end smallexample
+
+@var{kind} should be @code{GOMP_BARRIER_EXPLICIT}. Other values are for implicit
+barriers resulting from parallel or work-sharing constructs.
+
+@code{GOMP_barrier} and @code{GOMP_barrier_cancel} are kept for backward
+compatibility but new code only calls the @code{_ext} variants.
+
+@code{GOMP_barrier_cancel_ext} should be used when the barrier happens within
+a cancellable construct.
+
 
 
 @node Implementing THREADPRIVATE construct
@@ -8170,6 +8193,17 @@ a pointer to an array of the type of the variable, indexed by the
 thread's @var{team_id}.  The thread stores its final value into the 
 array, and after the barrier, the primary thread iterates over the
 array to collect the values.
+
+In cases where an atomic update cannot be used (e.g. for a reduction involving
+more than one scalar), a critical section is required. Dedicated entry points
+are used rather than @code{GOMP_atomic_start} and @code{GOMP_atomic_end} so that
+OMPT can distinguish reduction critical sections from user-level atomic
+constructs. The section is bracketed by:
+
+@smallexample
+  void GOMP_reduction_start (void)
+  void GOMP_reduction_end (void)
+@end smallexample
 
 
 @node Implementing PARALLEL construct
@@ -8281,11 +8315,23 @@ variables.  So the expression should remain evaluable in the
 subfunction.  We can also pull it into a local variable if we like,
 but since its supposed to remain unchanged, we can also not if we like.
 
-If we have SCHEDULE(STATIC), and no ORDERED, then we ought to be
-able to get away with no work-sharing context at all, since we can
-simply perform the arithmetic directly in each thread to divide up
-the iterations.  Which would mean that we wouldn't need to call any
-of these routines.
+For @code{schedule(static)} without @code{ordered}, the compiler uses:
+
+@smallexample
+  _Complex int GOMP_loop_static_worksharing (void)
+@end
+
+which returns the thread id in the real part and the thread count in the imaginary
+part as a single value, avoiding separate @code{omp_get_thread_num} /
+@code{omp_get_num_threads} calls that OMPT cannot distinguish from user queries.
+
+Similarly, for @code{distribute} constructs:
+
+@smallexample
+  _Complex int GOMP_distribute_static_worksharing (void)
+@end
+
+returns the team id and team count.
 
 There are separate routines for handling loops with an ORDERED
 clause.  Bookkeeping for that is non-trivial...
