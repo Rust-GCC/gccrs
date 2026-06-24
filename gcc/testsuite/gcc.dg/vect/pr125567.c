@@ -1,5 +1,6 @@
 /* { dg-do compile } */
 /* { dg-require-effective-target vect_int } */
+/* { dg-require-effective-target vect_hw_misalign } */
 /* { dg-additional-options "-O3 -ftree-vectorize -fdump-tree-slp1-details" } */
 
 typedef short i16;
