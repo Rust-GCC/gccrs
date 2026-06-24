@@ -2530,6 +2530,10 @@
     VMULEUD
 
 [VEC_MULH, vec_mulh, __builtin_vec_mulh]
+  vss __builtin_vec_mulh (vss, vss);
+    XVMULHSH
+  vus __builtin_vec_mulh (vus, vus);
+    XVMULHUH
   vsi __builtin_vec_mulh (vsi, vsi);
     VMULHSW
   vui __builtin_vec_mulh (vui, vui);

@@ -3970,3 +3970,10 @@
 
   const vuc __builtin_galois_field_mult_xts (vuc, vuc);
     XXGFMUL128XTS xxgfmul128xts {}
+
+[future-vsx]
+  const vus __builtin_vsx_xvmulhuh (vus, vus);
+    XVMULHUH umulv8hi3_highpart {}
+
+  const vss __builtin_vsx_xvmulhsh (vss, vss);
+    XVMULHSH smulv8hi3_highpart {}

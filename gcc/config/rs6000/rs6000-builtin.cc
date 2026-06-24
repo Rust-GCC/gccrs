@@ -146,6 +146,10 @@ rs6000_invalid_builtin (enum rs6000_gen_builtins fncode)
       error ("%qs requires the %qs and %qs options", name, "-mcpu=future",
 	     "-maltivec");
       break;
+    case ENB_FUTURE_VSX:
+      error ("%qs requires the %qs and %qs options", name, "-mcpu=future",
+	     "-mvsx");
+      break;
     default:
     case ENB_ALWAYS:
       gcc_unreachable ();
@@ -205,6 +209,8 @@ rs6000_builtin_is_supported (enum rs6000_gen_builtins fncode)
       return TARGET_FUTURE;
     case ENB_FUTURE_ALTIVEC:
       return TARGET_FUTURE && TARGET_ALTIVEC;
+    case ENB_FUTURE_VSX:
+      return TARGET_FUTURE && TARGET_VSX;
     default:
       gcc_unreachable ();
     }

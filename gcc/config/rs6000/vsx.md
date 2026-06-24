@@ -418,6 +418,9 @@
 (define_int_attr vczlsbb_char [(UNSPEC_VCLZLSBB "l")
 			       (UNSPEC_VCTZLSBB "t")])
 
+;; Vector integer arithmetic modes
+(define_mode_iterator VIArith [V8HI V4SI])
+
 ;; VSX moves
 
 ;; TImode memory to memory move optimization on LE with p8vector
@@ -1710,6 +1713,13 @@
   "VECTOR_UNIT_VSX_P (<MODE>mode)"
   "xvsub<sd>p %x0,%x1,%x2"
   [(set_attr "type" "<VStype_simple>")])
+
+(define_insn "vsx_mul<mode>3"
+  [(set (match_operand:VIArith 0 "vsx_register_operand" "=wa")
+        (mult:VIArith (match_operand:VIArith 1 "vsx_register_operand" "wa")
+                      (match_operand:VIArith 2 "vsx_register_operand" "wa")))]
+  "TARGET_FUTURE && TARGET_VSX"
+  "xvmulu<wd>m %x0,%x1,%x2")
 
 (define_insn "*vsx_mul<mode>3"
   [(set (match_operand:VSX_F 0 "vsx_register_operand" "=wa")
@@ -6546,22 +6556,62 @@
   [(set_attr "type" "vecdiv")
    (set_attr "size" "<bits>")])
 
-(define_insn "smul<mode>3_highpart"
-  [(set (match_operand:VIlong 0 "altivec_register_operand" "=v")
-	(smul_highpart:VIlong
-	  (match_operand:VIlong 1 "altivec_register_operand" "v")
-	  (match_operand:VIlong 2 "altivec_register_operand" "v")))]
+(define_insn "smulv8hi3_highpart"
+  [(set (match_operand:V8HI 0 "vsx_register_operand" "=wa")
+        (smul_highpart:V8HI
+          (match_operand:V8HI 1 "vsx_register_operand" "wa")
+          (match_operand:V8HI 2 "vsx_register_operand" "wa")))]
+  "TARGET_FUTURE && TARGET_VSX"
+  "xvmulhsh %x0,%x1,%x2")
+
+(define_insn "smulv4si3_highpart"
+  [(set (match_operand:V4SI 0 "register_operand" "=wa,v")
+        (smul_highpart:V4SI
+          (match_operand:V4SI 1 "register_operand" "wa,v")
+          (match_operand:V4SI 2 "register_operand" "wa,v")))]
   "TARGET_POWER10"
-  "vmulhs<wd> %0,%1,%2"
+  "@
+   xvmulhsw %x0,%x1,%x2
+   vmulhsw %0,%1,%2"
+  [(set_attr "type" "veccomplex")
+   (set_attr "isa" "future,p10")])
+
+(define_insn "smulv2di3_highpart"
+  [(set (match_operand:V2DI 0 "altivec_register_operand" "=v")
+        (smul_highpart:V2DI
+          (match_operand:V2DI 1 "altivec_register_operand" "v")
+          (match_operand:V2DI 2 "altivec_register_operand" "v")))]
+  "TARGET_POWER10"
+  "vmulhsd %0,%1,%2"
   [(set_attr "type" "veccomplex")])
 
-(define_insn "umul<mode>3_highpart"
-  [(set (match_operand:VIlong 0 "altivec_register_operand" "=v")
-	(umul_highpart:VIlong
-	  (match_operand:VIlong 1 "altivec_register_operand" "v")
-	  (match_operand:VIlong 2 "altivec_register_operand" "v")))]
+(define_insn "umulv8hi3_highpart"
+  [(set (match_operand:V8HI 0 "vsx_register_operand" "=wa")
+        (umul_highpart:V8HI
+          (match_operand:V8HI 1 "vsx_register_operand" "wa")
+          (match_operand:V8HI 2 "vsx_register_operand" "wa")))]
+  "TARGET_FUTURE && TARGET_VSX"
+  "xvmulhuh %x0,%x1,%x2")
+
+(define_insn "umulv4si3_highpart"
+  [(set (match_operand:V4SI 0 "register_operand" "=wa,v")
+        (umul_highpart:V4SI
+          (match_operand:V4SI 1 "register_operand" "wa,v")
+          (match_operand:V4SI 2 "register_operand" "wa,v")))]
   "TARGET_POWER10"
-  "vmulhu<wd> %0,%1,%2"
+  "@
+   xvmulhuw %x0,%x1,%x2
+   vmulhuw %0,%1,%2"
+  [(set_attr "type" "veccomplex")
+   (set_attr "isa" "future,p10")])
+
+(define_insn "umulv2di3_highpart"
+  [(set (match_operand:V2DI 0 "altivec_register_operand" "=v")
+        (umul_highpart:V2DI
+          (match_operand:V2DI 1 "altivec_register_operand" "v")
+          (match_operand:V2DI 2 "altivec_register_operand" "v")))]
+  "TARGET_POWER10"
+  "vmulhud %0,%1,%2"
   [(set_attr "type" "veccomplex")])
 
 ;; Vector multiply low double word

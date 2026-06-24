@@ -26846,6 +26846,24 @@ vec_t __builtin_galois_field_mult_gcm (vec_t, vec_t);
 vec_t __builtin_galois_field_mult_xts (vec_t, vec_t);
 @end smallexample
 
+@subsubheading PowerPC Vector Integer Multiply High Built-in Functions
+
+Future PowerPC processors may add new instructions for vector integer
+multiply high for halfword. GCC provides support for these instructions through
+the following built-in functions.
+
+@findex vec_mulh
+@smallexample
+@exdent vector signed short
+@exdent vec_mulh (vector signed short @var{a}, vector signed short @var{b});
+@exdent vector unsigned short
+@exdent vec_mulh (vector unsigned short @var{a}, vector unsigned short @var{b});
+@end smallexample
+
+For each integer value @code{i} from 0 to 7, do the following. The integer
+value in halfword element @code{i} of @var{a} is multiplied by the integer
+value in halfword element @code{i} of @var{b}. The high-order 16 bits of the
+32-bit product are placed into halfword element @code{i} of the vector returned.
 
 @node PowerPC Hardware Transactional Memory Built-in Functions
 @subsection PowerPC Hardware Transactional Memory Built-in Functions

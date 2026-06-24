@@ -238,6 +238,8 @@
 ;; Vector negate
 (define_mode_iterator VNEG [V4SI V2DI])
 
+(define_mode_iterator V16QI_V2DI [V16QI V2DI])
+
 ;; Vector move instructions.
 (define_insn "*altivec_mov<mode>"
   [(set (match_operand:VM2 0 "nonimmediate_operand" "=Z,v,v,?Y,?*r,?*r,v,v,?*r")
@@ -505,12 +507,23 @@
 
 ;; add
 (define_insn "add<mode>3"
-  [(set (match_operand:VI2 0 "register_operand" "=v")
-        (plus:VI2 (match_operand:VI2 1 "register_operand" "v")
-		  (match_operand:VI2 2 "register_operand" "v")))]
+  [(set (match_operand:V16QI_V2DI 0 "register_operand" "=v")
+        (plus:V16QI_V2DI (match_operand:V16QI_V2DI 1 "register_operand" "v")
+                         (match_operand:V16QI_V2DI 2 "register_operand" "v")))]
   "<VI_unit>"
   "vaddu<VI_char>m %0,%1,%2"
   [(set_attr "type" "vecsimple")])
+
+(define_insn "add<mode>3"
+  [(set (match_operand:VIArith 0 "register_operand" "=wa,v")
+        (plus:VIArith (match_operand:VIArith 1 "register_operand" "wa,v")
+                      (match_operand:VIArith 2 "register_operand" "wa,v")))]
+  "<VI_unit>"
+  "@
+   xvaddu<VI_char>m %x0,%x1,%x2
+   vaddu<VI_char>m %0,%1,%2"
+  [(set_attr "type" "vecsimple")
+   (set_attr "isa" "future,*")])
 
 (define_insn "*altivec_addv4sf3"
   [(set (match_operand:V4SF 0 "register_operand" "=v")
@@ -549,12 +562,23 @@
 
 ;; sub
 (define_insn "sub<mode>3"
-  [(set (match_operand:VI2 0 "register_operand" "=v")
-        (minus:VI2 (match_operand:VI2 1 "register_operand" "v")
-		   (match_operand:VI2 2 "register_operand" "v")))]
+  [(set (match_operand:V16QI_V2DI 0 "register_operand" "=v")
+        (minus:V16QI_V2DI (match_operand:V16QI_V2DI 1 "register_operand" "v")
+                          (match_operand:V16QI_V2DI 2 "register_operand" "v")))]
   "<VI_unit>"
   "vsubu<VI_char>m %0,%1,%2"
   [(set_attr "type" "vecsimple")])
+
+(define_insn "sub<mode>3"
+  [(set (match_operand:VIArith 0 "register_operand" "=wa,v")
+        (minus:VIArith (match_operand:VIArith 1 "register_operand" "wa,v")
+                       (match_operand:VIArith 2 "register_operand" "wa,v")))]
+  "<VI_unit>"
+  "@
+   xvsubu<VI_char>m %x0,%x1,%x2
+   vsubu<VI_char>m %0,%1,%2"
+  [(set_attr "type" "vecsimple")
+   (set_attr "isa" "future,*")])
 
 (define_insn "*altivec_subv4sf3"
   [(set (match_operand:V4SF 0 "register_operand" "=v")
