@@ -5438,15 +5438,12 @@ vect_recog_divmod_pattern (vec_info *vinfo,
       int pow = wi::exact_log2 (wcst + 1);
       if (pow == prec / 2)
 	{
-	  gimple *stmt = SSA_NAME_DEF_STMT (oprnd0);
-
-	  gimple_ranger ranger;
-	  int_range_max r;
-
 	  /* Check that no overflow will occur.  If we don't have range
 	     information we can't perform the optimization.  */
 
-	  if (ranger.range_of_expr (r, oprnd0, stmt) && !r.undefined_p ())
+	  int_range_max r;
+	  if (get_range_query (cfun)->range_of_expr (r, oprnd0, last_stmt)
+	      && !r.undefined_p ())
 	    {
 	      wide_int max = r.upper_bound ();
 	      wide_int one = wi::shwi (1, prec);
