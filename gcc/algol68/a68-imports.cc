@@ -846,8 +846,7 @@ complete_encoded_mode (encoded_modes_map_t &encoded_modes, uint64_t offset)
       pack = NO_PACK;
       for (uint8_t i = 0; i < em->data.union_.nmodes; i++)
 	{
-	  /* Union alternatives are internally stored in reverse order in the
-	     pack.  */
+	  /* The order of union alternatives is irrelevant.  */
 	  uint16_t index = i;
 	  MOID_T *united_moid = complete_encoded_mode (encoded_modes,
 						       em->data.union_.modes[index]);
