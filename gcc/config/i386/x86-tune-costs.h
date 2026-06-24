@@ -4274,7 +4274,7 @@ struct processor_costs generic_cost = {
   "16",					/* Func alignment.  */
   4,					/* Small unroll limit.  */
   2,					/* Small unroll factor.  */
-  COSTS_N_INSNS (2),			/* Branch mispredict scale.  */
+  COSTS_N_INSNS (2) + 3,		/* Branch mispredict scale.  */
 };
 
 /* core_cost should produce code tuned for Core family of CPUs.  */
