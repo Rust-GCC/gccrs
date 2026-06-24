@@ -1,3 +1,32 @@
+2026-06-23  Jason Merrill  <jason@redhat.com>
+
+	PR c++/125334
+	* module.cc (depset::hash::find_dependencies): Don't add_dependency
+	dependent ADL functions.
+
+2026-06-23  Jason Merrill  <jason@redhat.com>
+
+	PR c++/125768
+	* module.cc (trees_out::decl_node): When not streaming,
+	recurse into DECL_ORIGINAL_TYPE of an imported typedef.
+
+2026-06-23  Kwok Cheung Yeung  <kcyeung@baylibre.com>
+	    Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* parser.cc (cp_parser_omp_iterators): Use iterator constructors
+	and macros for accessing iterator elements.
+	(cp_parser_omp_clause_affinity): Likewise.
+	(cp_parser_omp_clause_depend): Likewise.
+	(cp_parser_omp_clause_from_to): Likewise.
+	(cp_parser_omp_clause_map): Likewise.
+	* pt.cc (tsubst_omp_clause_decl): Likewise.
+	* semantics.cc (cp_omp_finish_iterators): Likewise.
+
+2026-06-23  Jason Merrill  <jason@redhat.com>
+
+	PR c++/125745
+	* cp-ubsan.cc (cp_ubsan_instrument_vptr): Use build_vfield_ref.
+
 2026-06-22  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/125697

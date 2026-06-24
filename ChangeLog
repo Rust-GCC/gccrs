@@ -1,3 +1,9 @@
+2026-06-23  Richard Earnshaw  <rearnsha@arm.com>
+
+	* MAINTAINERS (Write After): Add details for Robert Dubner,
+	Ben Kosnik, James Lowden, Yunhai Shang and Andrew Waterman.
+	(CPU Ports, nds32): Remove Shiva Chen - stepped down.
+
 2026-06-10  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
 
 	* MAINTAINERS (Write After Approval): Add myself.

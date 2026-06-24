@@ -1,3 +1,26 @@
+2026-06-23  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/125684
+	* src/c++11/random.cc (bad_seed, which_source): Change void*
+	parameters to const void *.
+
+2026-06-23  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/chrono.h (std::chrono_literals): Fix typo in
+	comment.
+
+2026-06-23  Jonathan Wakely  <jwakely@redhat.com>
+
+	* doc/xml/manual/debug_mode.xml: Remove 404 link to stlport
+	website and modernise some text about debug modes in other
+	implementations.
+	* doc/html/manual/debug_mode_design.html: Regenerate.
+
+2026-06-23  Nathan Myers  <ncm@cantrip.org>
+
+	PR libstdc++/125890
+	* testsuite/20_util/polymorphic_allocator/at_least.cc: New test.
+
 2026-06-17  Marek Polacek  <polacek@redhat.com>
 
 	* src/c++17/string-inst.cc (basic_string::data): Remove noexcept.

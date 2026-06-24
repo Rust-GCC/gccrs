@@ -1,3 +1,21 @@
+2026-06-23  James K. Lowden  <jklowden@cobolworx.com>
+
+	* cbldiag.h (enum cbl_diag_id_t): Add IbmCdf.
+	* cdf.y: Renumber tokens.
+	* cobol1.cc (cobol_langhook_handle_option): Accept -Wibm-cdf.
+	* gcobol.1: Document Wibm-cdf
+	* lang-specs.h: Add Wno-ibm-cdf to spec string.
+	* lang.opt: Add Wibm-cdf.
+	* messages.cc (cobol_warning_suppress): Add IbmCdf to cbl_diagnostics.
+	* parse.y: Handle PROCESS token.
+	* scan.l: Return PROCESS token.
+	* token_names.h: Update.
+
+2026-06-23  James K. Lowden  <jklowden@cobolworx.com>
+
+	* parse.y: Restrict Program-ID as name to top-level.
+	* scan.l: Elevate keyword priority in lexer.
+
 2026-06-22  Xavier Del Campo Romero  <xdelcampo@symas.com>
 
 	* gcobol.1: Document -B.

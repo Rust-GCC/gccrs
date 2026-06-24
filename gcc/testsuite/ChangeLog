@@ -1,3 +1,97 @@
+2026-06-23  Jason Merrill  <jason@redhat.com>
+
+	PR c++/125334
+	* g++.dg/modules/adl-12_b.C: Check for lazy loading.
+
+2026-06-23  Jason Merrill  <jason@redhat.com>
+
+	PR c++/125768
+	* g++.dg/modules/alias-3_a.C: New test.
+	* g++.dg/modules/alias-3_b.C: New test.
+	* g++.dg/modules/alias-3_c.C: New test.
+
+2026-06-23  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/121972
+	* gfortran.dg/class_array_15.f03: Adjust expected free count.
+	* gfortran.dg/derived_constructor_comps_6.f90: Adjust expected free count.
+	* gfortran.dg/asan/structure_constructor_alloc_comp_leak_1.f90: New test.
+
+2026-06-23  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/125902
+	* gfortran.dg/c-prototypes_1.F90: New test.
+
+2026-06-23  Robin Dapp  <robin.dapp@oss.qualcomm.com>
+
+	* gcc.target/riscv/rvv/base/pr112431-4.c: Un-xfail.
+	* gcc.target/riscv/rvv/base/pr112431-5.c: Ditto.
+	* gcc.target/riscv/rvv/base/pr112431-6.c: Ditto.
+
+2026-06-23  Jason Merrill  <jason@redhat.com>
+
+	PR c++/125745
+	* g++.dg/ubsan/vptr-19.C: New test.
+
+2026-06-23  Zhongyao Chen  <chen.zhongyao@zte.com.cn>
+	    Yuke Tang  <tang.yuke@zte.com.cn>
+
+	* gcc.target/riscv/rvv/autovec/zvabd-1.c: New tests for Zvabd.
+
+2026-06-23  Alex Coplan  <alex.coplan@arm.com>
+
+	PR target/125818
+	* gcc.target/aarch64/torture/pr125818.c: New test.
+
+2026-06-23  Sarvesh Chandra  <Sarvesh.Chandra@amd.com>
+	    Ashwin Godbole  <Ashwin.Godbole@amd.com>
+
+	PR target/107057
+	* gcc.target/i386/avx512-movedup.c: New test.
+
+2026-06-23  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/121972
+	* gfortran.dg/pdt_77.f03: Add 'finalalize_navier_stokes', which
+	tests that the 'navier_stokes' component 'p' is pointed to the
+	correct vtable in both tests. Check that VIEW_CONVERT_EXPR does
+	not appear in the tree dump.
+
+2026-06-23  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/125893
+	* gcc.target/i386/pr125893-1.c: New test.
+	* gcc.target/i386/pr125893-2.c: Likewise.
+	* gcc.target/i386/pr125893-3.c: Likewise.
+	* gcc.target/i386/pr125893-4.c: Likewise.
+	* gcc.target/i386/pr125893-5.c: Likewise.
+	* gcc.target/i386/pr125893-6.c: Likewise.
+	* gcc.target/i386/pr125893-7.c: Likewise.
+	* gcc.target/i386/pr125893-8.c: Likewise.
+	* gcc.target/i386/pr125893-9.c: Likewise.
+	* gcc.target/i386/pr125893-10.c: Likewise.
+	* gcc.target/i386/pr125893-11.c: Likewise.
+
+2026-06-23  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/110743
+	* gcc.dg/uninit-pr110743.c: New testcase.
+
+2026-06-23  Hu, Lin1  <lin1.hu@intel.com>
+
+	* gcc.target/i386/vect-cbranch-cond-any-128.c: New test.
+	* gcc.target/i386/vect-cbranch-cond-any-256.c: Ditto.
+	* gcc.target/i386/vect-cbranch-cond-any-run.c: Ditto.
+	* gcc.target/i386/vect-cbranch-cond-all-128.c: Ditto.
+	* gcc.target/i386/vect-cbranch-cond-all-256.c: Ditto.
+	* gcc.target/i386/vect-cbranch-cond-all-run.c: Ditto.
+
+2026-06-23  Xin Liu  <liulxx@hygon.cn>
+
+	* g++.target/i386/mv33.C: Add c86-4g-m8 target clone test.
+	* gcc.target/i386/funcspec-56.inc: Add c86-4g-m8 arch and tune
+	target attribute tests.
+
 2026-06-22  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/125697

@@ -1,3 +1,14 @@
+2026-06-23  Kwok Cheung Yeung  <kcyeung@baylibre.com>
+	    Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* c-parser.cc (c_parser_omp_iterators): Use iterator constructors
+	and macros for accessing iterator elements.
+	(c_parser_omp_clause_affinity): Likewise.
+	(c_parser_omp_clause_depend): Likewise.
+	(c_parser_omp_clause_map): Likewise.
+	(c_parser_omp_clause_from_to): Likewise.
+	* c-typeck.cc (c_omp_finish_iterators): Likewise.
+
 2026-06-19  Kees Cook  <kees@kernel.org>
 
 	PR c/125604

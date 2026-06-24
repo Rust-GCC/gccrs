@@ -1,3 +1,43 @@
+2026-06-23  Kwok Cheung Yeung  <kcyeung@baylibre.com>
+	    Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* trans-openmp.cc (gfc_trans_omp_array_section): Use macros for
+	accessing iterator elements.
+	(handle_iterator): Likewise, plus the iterator constructor.
+	(gfc_trans_omp_clauses): Likewise.
+
+2026-06-23  Sandra Loosemore  <sloosemore@baylibre.com>
+
+	* trans-openmp.cc (gfc_trans_omp_array_section): Add comments and
+	use a more descriptive variable name.
+
+2026-06-23  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/121972
+	* trans-array.cc (has_class_alloc_comp): New helper; returns true if
+	derived type DER has any CLASS component.
+	(gfc_trans_array_ctor_element): Also free allocatable components when
+	the element expression is EXPR_STRUCTURE, skipping types that contain
+	CLASS components to avoid freeing stack-allocated _data pointers.
+	(gfc_constructor_is_owned_alloc_comp): Likewise treat EXPR_STRUCTURE
+	elements as owned only when the derived type has no CLASS components.
+	* trans-expr.cc (gfc_trans_alloc_subarray_assign): Free allocatable
+	components of the component's temporary descriptor before nulling its
+	data pointer, for non-variable source expressions.
+
+2026-06-23  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/125902
+	* dump-parse-tree.cc (get_c_type_name): Use CFI_cdesc_t also for
+	deferred shape and deferred length dummies, as well as for
+	assumed-length scalar character dummies.
+
+2026-06-23  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/121972
+	* decl.cc (build_struct): Convert the PDT template before the
+	call to gfc_build_class_symbol.
+
 2026-06-22  Tobias Burnus  <tburnus@baylibre.com>
 
 	* openmp.cc (resolve_omp_clauses_aff_dep_map_cache): Split off
