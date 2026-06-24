@@ -151,7 +151,7 @@ struct die_struct;
 #define DEFTREECODE(SYM, STRING, TYPE, NARGS)   SYM,
 #define END_OF_BASE_TREE_CODES LAST_AND_UNUSED_TREE_CODE,
 
-enum tree_code {
+enum tree_code : unsigned {
 #include "all-tree.def"
 MAX_TREE_CODES
 };

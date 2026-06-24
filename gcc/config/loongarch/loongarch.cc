@@ -9999,11 +9999,8 @@ loongarch_vectorize_vec_perm_const (machine_mode vmode, machine_mode op_mode,
 
 static int
 loongarch_cpu_sched_reassociation_width (struct loongarch_target *target,
-					 unsigned int opc, machine_mode mode)
+					 tree_code opc, machine_mode mode)
 {
-  /* unreferenced argument */
-  (void) opc;
-
   switch (target->cpu_tune)
     {
     case TUNE_GENERIC:

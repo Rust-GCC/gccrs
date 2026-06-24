@@ -10157,7 +10157,7 @@ rs6000_offsettable_memref_p (rtx op, machine_mode reg_mode, bool strict)
 */
 
 static int
-rs6000_reassociation_width (unsigned int opc ATTRIBUTE_UNUSED,
+rs6000_reassociation_width (tree_code opc ATTRIBUTE_UNUSED,
                             machine_mode mode)
 {
   switch (rs6000_tune)

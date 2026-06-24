@@ -449,7 +449,7 @@ hashval_t
 address_info_hasher::hash (const address_info *info)
 {
   inchash::hash hash;
-  hash.add_int (info->base ? TREE_CODE (info->base) : 0);
+  hash.add_int (info->base ? (unsigned) TREE_CODE (info->base) : 0);
   hash.add_int (info->terms.length ());
   for (unsigned int i = 0; i < info->terms.length (); ++i)
     {

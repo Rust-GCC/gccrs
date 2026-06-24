@@ -1528,7 +1528,7 @@ aarch64_min_divisions_for_recip_mul (machine_mode mode)
 
 /* Return the reassociation width of treeop OPC with mode MODE.  */
 static int
-aarch64_reassociation_width (unsigned opc, machine_mode mode)
+aarch64_reassociation_width (tree_code opc, machine_mode mode)
 {
   if (VECTOR_MODE_P (mode))
     return aarch64_tune_params.vec_reassoc_width;

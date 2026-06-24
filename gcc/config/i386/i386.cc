@@ -25842,7 +25842,7 @@ ix86_enum_va_list (int idx, const char **pname, tree *ptree)
    is passed in MODE.  */
 
 static int
-ix86_reassociation_width (unsigned int op, machine_mode mode)
+ix86_reassociation_width (tree_code op, machine_mode mode)
 {
   int width = 1;
   /* Vector part.  */
@@ -25865,12 +25865,12 @@ ix86_reassociation_width (unsigned int op, machine_mode mode)
 	   || ix86_tune == PROCESSOR_C86_4G_M6
 	   || ix86_tune == PROCESSOR_C86_4G_M7
 	   || ix86_tune == PROCESSOR_C86_4G_M8)
-   	  && INTEGRAL_MODE_P (mode) && op != PLUS && op != MINUS)
+	  && INTEGRAL_MODE_P (mode) && op != PLUS_EXPR && op != MINUS_EXPR)
 	return 1;
       /* Znver5 can do 2 integer multiplications per cycle with latency
 	 of 3.  */
       if ((ix86_tune == PROCESSOR_ZNVER5 || ix86_tune == PROCESSOR_ZNVER6)
-	  && INTEGRAL_MODE_P (mode) && op != PLUS && op != MINUS)
+	  && INTEGRAL_MODE_P (mode) && op != PLUS_EXPR && op != MINUS_EXPR)
 	width = 6;
 
       /* Account for targets that splits wide vectors into multiple parts.  */

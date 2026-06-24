@@ -999,7 +999,7 @@ choose_output (const vec<FILE *> &parts)
    definition files.  */
 
 #define DEFTREECODE(SYM, STRING, TYPE, NARGS)   SYM,
-enum tree_code {
+enum tree_code : unsigned {
 #include "tree.def"
 MAX_TREE_CODES
 };

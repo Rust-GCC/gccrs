@@ -8442,7 +8442,7 @@ trees_out::decl_value (tree decl, depset *dep)
 		       && TYPE_NAME (type) == inner);
 
       if (streaming_p ())
-	u (has_type ? TREE_CODE (type) : 0);
+	u (has_type ? (unsigned) TREE_CODE (type) : 0);
 
       if (has_type)
 	{
@@ -8459,7 +8459,7 @@ trees_out::decl_value (tree decl, depset *dep)
 	  stub_decl = TYPE_STUB_DECL (type);
 	  bool has_stub = inner != stub_decl;
 	  if (streaming_p ())
-	    u (has_stub ? TREE_CODE (stub_decl) : 0);
+	    u (has_stub ? (unsigned) TREE_CODE (stub_decl) : 0);
 	  if (has_stub)
 	    {
 	      stub_tag = insert (stub_decl);
