@@ -58,6 +58,15 @@ struct mutex
 };
 #endif
 
+#ifdef _GLIBCXX_HAVE_ICONV
+// Detect whether type T* can be used as the second argument to iconv.
+// SUSv2 used 'const char**', but POSIX.1-2003 uses 'char**'.
+template<typename T>
+  concept iconv_input = requires (::iconv_t cd, T in, size_t n, char** out) {
+    ::iconv(cd, &in, &n, out, &n);
+  };
+#endif
+
 // A non-standard locale::facet that caches the locale's std::text_encoding
 // and an iconv descriptor for converting from that encoding to UTF-8.
 struct __encoding : locale::facet
@@ -111,8 +120,9 @@ struct __encoding : locale::facet
     bool done = false;
 
     auto overwrite = [&](char* p, size_t n) {
+      using input_t = __conditional_t<iconv_input<char*>, char*, const char*>;
       auto inbytes
-	= const_cast<char*>(input.data()) + input.size() - inbytesleft;
+	= const_cast<input_t>(input.data()) + input.size() - inbytesleft;
       char* outbytes = p + written;
       size_t outbytesleft = n - written;
       size_t res = ::iconv(_M_cd, &inbytes, &inbytesleft,
