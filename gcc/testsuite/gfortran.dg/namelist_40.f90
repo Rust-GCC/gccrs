@@ -31,7 +31,7 @@ contains
 
 subroutine writenml (astring)
   character(40), intent(in)  :: astring
-  character(300)   :: errmessage
+  character(500)   :: errmessage
   integer          :: ierror
 
   open (10, status="scratch", delim='apostrophe')
@@ -47,7 +47,11 @@ subroutine writenml (astring)
 end subroutine writenml
 
 end program namelist_40
-! { dg-output "Multiple sub-objects with non-zero rank in namelist object x%m%ch(\r*\n+)" }
-! { dg-output "Missing colon in substring qualifier for namelist variable x%m%ch(\r*\n+)" }
-! { dg-output "Substring out of range for namelist variable x%m%ch(\r*\n+)" }
-! { dg-output "Bad character in substring qualifier for namelist variable x%m%ch(\r*\n+)" }
+! { dg-output "Multiple sub-objects with non-zero rank in namelist object x%m%ch at line 2, column 20 in file .*(\r*\n+)" }
+! { dg-output " x\\(2\\)%m%ch\\(:\\)\\(2:2\\) = 'z','z',.*(\r*\n+)                   \\^(\r*\n+)(\r*\n+)" }
+! { dg-output "Missing colon in substring qualifier for namelist variable x%m%ch at line 2, column 19 in file .*(\r*\n+)" }
+! { dg-output " x\\(2\\)%m\\(2\\)%ch\\(:\\)\\(2\\) = 'z','z',.*(\r*\n+)                  \\^(\r*\n+)(\r*\n+)" }
+! { dg-output "Substring out of range for namelist variable x%m%ch at line 2, column 20 in file .*(\r*\n+)" }
+! { dg-output " x\\(2\\)%m\\(2\\)%ch\\(:\\)\\(:3\\) = 'z','z',.*(\r*\n+)                   \\^(\r*\n+)(\r*\n+)" }
+! { dg-output "Bad character in substring qualifier for namelist variable x%m%ch at line 2, column 20 in file .*(\r*\n+)" }
+! { dg-output " x\\(2\\)%m\\(2\\)%ch\\(1:2\\)\\(k:\\) = 'z','z',.*(\r*\n+)                   \\^" }

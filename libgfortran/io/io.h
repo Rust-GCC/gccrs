@@ -656,6 +656,9 @@ typedef struct gfc_unit
 
   int read_bad, current_record, saved_pos, previous_nonadvancing_write;
 
+  /* Position information for better diagnostics.  */
+  int line_number, column_number;
+
   enum
   { NO_ENDFILE, AT_ENDFILE, AFTER_ENDFILE }
   endfile;

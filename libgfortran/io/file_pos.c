@@ -480,6 +480,8 @@ st_rewind (st_parameter_filepos *fpp)
 	  
 	  u->current_record = 0;
 	  u->strm_pos = 1;
+	  u->line_number = 1;
+	  u->column_number = 0;
 	  u->read_bad = 0;
 	  u->last_char = EOF - 1;
 	}

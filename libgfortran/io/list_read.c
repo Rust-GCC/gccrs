@@ -211,6 +211,14 @@ next_char_default (st_parameter_dt *dtp)
   if (c != EOF && is_stream_io (dtp))
     dtp->u.p.current_unit->strm_pos++;
 
+  if (c == '\n')
+    {
+      dtp->u.p.current_unit->line_number++;
+      dtp->u.p.current_unit->column_number = 0;
+    }
+  else if (c != EOF)
+    dtp->u.p.current_unit->column_number++;
+
   dtp->u.p.at_eol = (c == '\n' || c == EOF);
   return c;
 }
@@ -241,6 +249,8 @@ next_char_internal (st_parameter_dt *dtp)
 	  int finished;
 
 	  c = '\n';
+	  dtp->u.p.current_unit->line_number++;
+	  dtp->u.p.current_unit->column_number = 0;
 	  record = next_array_record (dtp, dtp->u.p.current_unit->ls,
 				      &finished);
 
@@ -302,6 +312,14 @@ next_char_internal (st_parameter_dt *dtp)
     }
   dtp->u.p.current_unit->bytes_left--;
 
+  if (c == '\n')
+    {
+      dtp->u.p.current_unit->line_number++;
+      dtp->u.p.current_unit->column_number = 0;
+    }
+  else if (c != EOF)
+    dtp->u.p.current_unit->column_number++;
+
 done:
   dtp->u.p.at_eol = (c == '\n' || c == EOF);
   return c;
@@ -355,6 +373,14 @@ next_char_utf8 (st_parameter_dt *dtp)
     goto invalid;
 
 utf_done:
+  if (c == '\n')
+    {
+      dtp->u.p.current_unit->line_number++;
+      dtp->u.p.current_unit->column_number = 0;
+    }
+  else if (c != (gfc_char4_t) EOF)
+    dtp->u.p.current_unit->column_number++;
+
   dtp->u.p.at_eol = (c == '\n' || c == (gfc_char4_t) EOF);
   return (int) c;
 
@@ -3920,6 +3946,77 @@ nml_err_ret:
   /* All namelist error calls return from here */
   free_saved (dtp);
   free_line (dtp);
-  generate_error (&dtp->common, LIBERROR_READ_VALUE, nml_err_msg);
+
+  if (dtp->u.p.current_unit)
+    {
+      int line = dtp->u.p.current_unit->line_number;
+      int col = dtp->u.p.current_unit->column_number;
+      char *filename = dtp->u.p.current_unit->filename;
+      char *detailed_msg;
+
+      char *line_text = NULL;
+      int line_len = 0;
+
+      if (is_internal_unit (dtp) && dtp->internal_unit)
+	{
+	  GFC_IO_INT recl = dtp->u.p.current_unit->recl;
+	  line_text = dtp->internal_unit + (line - 1) * recl;
+	  line_len = recl;
+	}
+      else if (dtp->u.p.current_unit->fbuf)
+	{
+	  struct fbuf *fb = dtp->u.p.current_unit->fbuf;
+	  ptrdiff_t pos = fb->pos;
+	  if (pos > 0)
+	    {
+	      ptrdiff_t start = pos - 1;
+	      while (start > 0 && fb->buf[start-1] != '\n')
+		start--;
+	      ptrdiff_t end = pos - 1;
+
+	      /* Scan the buffer to get a fixed length of the text, but
+		 don't exceed thr length of the line.  */
+	      while (end < (ptrdiff_t)fb->act
+		     && (fb->buf[end] != '\n')
+		     && (end - start < 128))
+		end++;
+	      line_text = fb->buf + start;
+	      line_len = end - start;
+	    }
+	}
+
+      size_t msg_len = strlen (nml_err_msg) + 200;
+      if (line_text) msg_len += line_len + col + 10;
+      if (filename) msg_len += strlen (filename);
+
+      detailed_msg = xmalloc (msg_len);
+      int offset;
+      if (filename)
+	offset = sprintf (detailed_msg, "%s at line %lld, column %lld in file %s",
+		   nml_err_msg, (long long) line, (long long) col, filename);
+      else
+	offset = sprintf (detailed_msg, "%s at line %lld, column %lld",
+		   nml_err_msg, (long long) line, (long long) col);
+
+      if (line_text && line_len > 0)
+	{
+	  detailed_msg[offset++] = '\n';
+	  memcpy (detailed_msg + offset, line_text, line_len);
+	  offset += line_len;
+	  detailed_msg[offset++] = '\n';
+
+	  for (int i = 0; i < col - 1; i++)
+	    detailed_msg[offset++] = ' ';
+	  detailed_msg[offset++] = '^';
+	  detailed_msg[offset++] = '\n';
+	  detailed_msg[offset] = '\0';
+	}
+
+      generate_error (&dtp->common, LIBERROR_READ_VALUE, detailed_msg);
+      free (detailed_msg);
+    }
+  else
+    generate_error (&dtp->common, LIBERROR_READ_VALUE, nml_err_msg);
+
   return;
 }
