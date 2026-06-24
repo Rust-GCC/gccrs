@@ -37,8 +37,8 @@ includebits_DATA = std.cc std.compat.cc
 # The manifest to be installed uses the relative path between install dirs.
 libstdc++.modules.json: libstdc++.modules.json.in
 	relpath=$$($(toplevel_srcdir)/contrib/relpath.sh \
-		   $(abspath $(toolexeclibdir)) \
-		   $(abspath $(includebitsdir))) && \
+		    $(toolexeclibdir) \
+		    $(includebitsdir)) && \
 	sed "s,@MODPATH@,$$relpath," $< > $@
 
 # The uninstalled manifest uses the relative path to builddir.
@@ -57,7 +57,9 @@ std.compat.cc: std.compat.cc.in std-clib.cc.in
 # Also put the interface units in the build-includes bits directory.
 stamp-modules-bits: $(includebits_DATA)
 	@-mkdir -p $(top_builddir)/include/bits
-	-cd $(top_builddir)/include/bits && $(LN_S) $(abspath $?) . 2>/dev/null
+	-for f in $(includebits_DATA); do \
+	  $(LN_S) $(abs_srcdir)/$$f $(top_builddir)/include/bits; \
+	done 2>/dev/null
 	@$(STAMP) $@
 
 all-local: stamp-module-manifest stamp-modules-bits
