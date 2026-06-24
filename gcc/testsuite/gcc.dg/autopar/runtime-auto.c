@@ -47,7 +47,7 @@ main (void)
 /* { dg-final { scan-tree-dump "pragma omp parallel" "parloops2" } } */
 
 /* Check that instead of generating a num_threads(x) clause, the compiler calls
-   "__builtin_omp_get_num_threads" that will set the number of threads at
+   "GOMP_loop_static_worksharing" that will set the number of threads at
    program execution time.  */
-/* { dg-final { scan-tree-dump "__builtin_omp_get_num_threads" "parloops2" } } */
+/* { dg-final { scan-tree-dump "GOMP_loop_static_worksharing" "parloops2" } } */
 
