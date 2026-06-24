@@ -1,5 +1,6 @@
 // { dg-do run { target c++17 } }
 // { dg-require-filesystem-ts "" }
+// { dg-require-mkfifo "" }
 
 #include <filesystem>
 #include <testsuite_fs.h>
