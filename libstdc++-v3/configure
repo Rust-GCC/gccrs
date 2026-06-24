@@ -21487,6 +21487,7 @@ ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
         ac_has_clock_monotonic=yes
         ac_has_clock_realtime=yes
         ac_has_nanosleep=yes
+        ac_has_sched_yield=yes
         ;;
       gnu* | linux* | kfreebsd*-gnu | knetbsd*-gnu)
         # Don't use link test for freestanding library, in case gcc_no_link=yes
@@ -54158,7 +54159,7 @@ $as_echo "$glibcxx_cv_libbacktrace_atomics" >&6; }
     CXXFLAGS='-O0 -S'
 
     cat > conftest.$ac_ext << EOF
-#line 54161 "configure"
+#line 54162 "configure"
 #include <stddef.h>
 int main()
 {
