@@ -6153,12 +6153,17 @@ omp_get_device_distances (int ndevs, const int *devs, int *distances)
   if (node < 0) /* Not supported. */
     {
       for (int i = 0; i < ndevs; i++)
-	if (devs[i] < omp_initial_device || devs[i] > num_devices)
-	  distances[i] = -1;  /* invalid */
-	else if (devs[i] == omp_initial_device || devs[i] == num_devices)
-	  distances[i] = 0;
-	else
-	  distances[i] = 10;
+	{
+	  int device_num = (devs[i] == omp_default_device
+			    ? gomp_get_default_device () : devs[i]);
+	  if (device_num < omp_initial_device || device_num > num_devices)
+	    distances[i] = -1;  /* invalid */
+	  else if (device_num == omp_initial_device
+		   || device_num == num_devices)
+	    distances[i] = 0;
+	  else
+	    distances[i] = 10;
+	}
       return;
     }
   for (int i = 0; i < ndevs; i++)
