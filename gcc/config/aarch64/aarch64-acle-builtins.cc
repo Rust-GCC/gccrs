@@ -3091,6 +3091,21 @@ gimple_folder::fold ()
   return base->fold (*this);
 }
 
+/* Force EXPR to be a GIMPLE value, putting it into a new variable if
+   necessary.  */
+tree
+gimple_folder::force_val (tree expr)
+{
+  if (is_gimple_val (expr))
+    return expr;
+
+  auto type = TREE_TYPE (expr);
+  auto var = create_tmp_var (type);
+  auto stmt = gimple_build_assign (var, expr);
+  gsi_insert_before (this->gsi, stmt, GSI_SAME_STMT);
+  return var;
+}
+
 function_expander::function_expander (const function_instance &instance,
 				      tree fndecl, tree call_expr_in,
 				      rtx possible_target_in)

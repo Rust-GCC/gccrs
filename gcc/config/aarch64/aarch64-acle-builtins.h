@@ -659,6 +659,11 @@ public:
   gimple *convert_and_fold (tree, gimple *(*) (gimple_folder &,
 					       tree, vec<tree> &));
 
+  tree force_val (tree expr);
+  gassign *assign (tree lhs, tree rhs);
+  gassign *assign (tree lhs, tree_code code, tree rhs1, tree rhs2 = NULL_TREE,
+		   tree rhs3 = NULL_TREE);
+
   gimple *fold_to_cstu (poly_uint64);
   gimple *fold_to_pfalse ();
   gimple *fold_to_ptrue ();
@@ -1762,6 +1767,14 @@ function_expander::result_mode () const
 #define TYPES_za(S, D, T) \
   S (za)
 
+/* _p8  _s8  _u8  _mf8
+   _p16 _s16 _u16 _f16 _bf16
+	_s32 _u32 _f32
+   _p64 _s64 _u64 _f64.  */
+#define TYPES_all_neon(S, D, T) \
+  TYPES_bhsd_neon (S, D, T), \
+  TYPES_h_bfloat (S, D, T)
+
 /* _p8 _p16 _p64.  */
 #define TYPES_bhd_poly(S, D, T) \
   S (p8), S (p16), S (p64)
@@ -1769,6 +1782,15 @@ function_expander::result_mode () const
 /* _p8 _p16 _p64 _p128.  */
 #define TYPES_bhdq_poly(S, D, T) \
   S (p8), S (p16), S (p64), S (p128)
+
+/* _p8  _s8  _u8  _mf8
+   _p16 _s16 _u16 _f16
+	_s32 _u32 _f32
+   _p64 _s64 _u64 _f64.  */
+#define TYPES_bhsd_neon(S, D, T) \
+  TYPES_bhd_poly (S, D, T), S (mf8), \
+  TYPES_all_integer (S, D, T), \
+  TYPES_all_float (S, D, T)
 
 /* Describe a tuple of type suffixes in which only the first is used.  */
 #define DEF_VECTOR_TYPE(X) \
@@ -1904,8 +1926,10 @@ DEF_SVE_TYPES_ARRAY (mop_i16i64_signed);
 DEF_SVE_TYPES_ARRAY (mop_i16i64_unsigned);
 DEF_SVE_TYPES_ARRAY (za);
 
+DEF_SVE_TYPES_ARRAY (all_neon);
 DEF_SVE_TYPES_ARRAY (bhd_poly);
 DEF_SVE_TYPES_ARRAY (bhdq_poly);
+DEF_SVE_TYPES_ARRAY (bhsd_neon);
 
 static const group_suffix_index groups_none[] = {
   GROUP_none, NUM_GROUP_SUFFIXES

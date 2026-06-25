@@ -17,6 +17,16 @@
    along with GCC; see the file COPYING3.  If not see
    <http://www.gnu.org/licenses/>.  */
 
+// Lane manipulation
+#define REQUIRED_EXTENSIONS nonstreaming_only (AARCH64_FL_SIMD)
+DEF_NEON_FUNCTION (vcreate,     all_neon,  ("D0,su64"))
+DEF_NEON_FUNCTION (vcombine,    all_neon,  ("Q0,D0,D0"))
+DEF_NEON_FUNCTION (vdup_n,      all_neon,  ("D0,s0"))
+DEF_NEON_FUNCTION (vdupq_n,     all_neon,  ("Q0,s0"))
+DEF_NEON_FUNCTION (vmov_n,      bhsd_neon, ("D0,s0"))
+DEF_NEON_FUNCTION (vmovq_n,     bhsd_neon, ("Q0,s0"))
+#undef REQUIRED_EXTENSIONS
+
 // Lanewise arithmetic
 #define REQUIRED_EXTENSIONS nonstreaming_only (AARCH64_FL_SIMD)
 DEF_NEON_FUNCTION (vaddd, d_integer,	     ("s0,s0,s0"))

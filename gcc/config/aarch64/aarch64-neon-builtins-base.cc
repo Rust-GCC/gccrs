@@ -45,12 +45,57 @@
 #include "gimple-fold.h"
 
 namespace aarch64_acle {
+
+/* Build an expression for a vector with all lanes set to `ELEM`.  */
+tree
+build_vec_dup (tree type, tree elem)
+{
+  return known_eq (TYPE_VECTOR_SUBPARTS (type), 1U)
+	   ? fold_build1 (VIEW_CONVERT_EXPR, type, elem)
+	   : fold_build1 (VEC_DUPLICATE_EXPR, type, elem);
+}
+
 /* Base class for all function expanders.
    At least one of `expand` or `fold` must be overriden by derived classes.  */
 class gimple_function_base : public function_base
 {
   rtx expand (function_expander &) const override { gcc_unreachable (); }
   gimple *fold (gimple_folder &) const override { gcc_unreachable (); }
+};
+
+struct gimple_create : public gimple_function_base
+{
+  gimple *fold (gimple_folder &f) const override
+  {
+    auto arg = gimple_call_arg (f.call, 0);
+    return gimple_build_assign (f.lhs, fold_build1 (VIEW_CONVERT_EXPR,
+						    TREE_TYPE (f.lhs), arg));
+  }
+};
+
+struct gimple_combine : public gimple_function_base
+{
+  gimple *fold (gimple_folder &f) const override
+  {
+    auto arg1 = gimple_call_arg (f.call, 0);
+    auto arg2 = gimple_call_arg (f.call, 1);
+    auto arg_type = TREE_TYPE (arg1);
+    auto elem_type = TREE_TYPE (arg_type);
+    auto ret_type = TREE_TYPE (f.lhs);
+
+    if (known_eq (TYPE_VECTOR_SUBPARTS (arg_type), 1U))
+      {
+	arg1 = f.force_val (fold_build1 (VIEW_CONVERT_EXPR, elem_type, arg1));
+	arg2 = f.force_val (fold_build1 (VIEW_CONVERT_EXPR, elem_type, arg2));
+      }
+
+    if (BYTES_BIG_ENDIAN)
+      std::swap (arg1, arg2);
+
+    return gimple_build_assign (f.lhs,
+				build_constructor_va (ret_type, 2, NULL_TREE,
+						      arg1, NULL_TREE, arg2));
+  }
 };
 
 /* For intrinsics that map to a single GIMPLE expression with no argument
@@ -98,6 +143,24 @@ public:
       }
   }
 };
+
+struct gimple_dup : public gimple_function_base
+{
+  gimple *fold (gimple_folder &f) const override
+  {
+    auto elem = gimple_call_arg (f.call, 0);
+    auto ret_type = TREE_TYPE (f.lhs);
+    return gimple_build_assign (f.lhs, build_vec_dup (ret_type, elem));
+  }
+};
+
+// Vector creation
+NEON_FUNCTION (vcreate,		gimple_create,)
+NEON_FUNCTION (vcombine,	gimple_combine,)
+NEON_FUNCTION (vdup_n,		gimple_dup,)
+NEON_FUNCTION (vdupq_n,		gimple_dup,)
+NEON_FUNCTION (vmov_n,		gimple_dup,)
+NEON_FUNCTION (vmovq_n,		gimple_dup,)
 
 // Lanewise arithmetic
 NEON_FUNCTION (vaddd, gimple_expr, (PLUS_EXPR))

@@ -202,11 +202,6 @@ ENTRY_TERNARY (vbsl_mf8, mf8, u8, mf8, mf8, UNSPEC_BSL, QUIET)
 ENTRY_TERNARY (vbslq_mf8, mf8q, u8q, mf8q, mf8q, UNSPEC_BSL, QUIET)
 #undef REQUIRED_EXTENSIONS
 
-// combine
-#define REQUIRED_EXTENSIONS nonstreaming_only (0)
-ENTRY_BINARY (vcombine_mf8, mf8q, mf8, mf8, UNSPEC_COMBINE, QUIET)
-#undef REQUIRED_EXTENSIONS
-
 // copy_lane
 #define REQUIRED_EXTENSIONS nonstreaming_only (AARCH64_FL_SIMD)
 ENTRY_BINARY_TWO_LANES (vcopy_lane_mf8, mf8, mf8, mf8,
@@ -217,22 +212,6 @@ ENTRY_BINARY_TWO_LANES (vcopy_laneq_mf8, mf8, mf8, mf8q,
 			UNSPEC_VEC_COPY, QUIET)
 ENTRY_BINARY_TWO_LANES (vcopyq_laneq_mf8, mf8q, mf8q, mf8q,
 			UNSPEC_VEC_COPY, QUIET)
-#undef REQUIRED_EXTENSIONS
-
-// create
-#define REQUIRED_EXTENSIONS nonstreaming_only (AARCH64_FL_SIMD)
-ENTRY_UNARY (vcreate_mf8, mf8, u64_scalar, UNSPEC_VCREATE, QUIET)
-#undef REQUIRED_EXTENSIONS
-
-// dup
-#define REQUIRED_EXTENSIONS nonstreaming_only (AARCH64_FL_SIMD)
-ENTRY_UNARY (vdup_n_mf8, mf8, mf8_scalar, UNSPEC_DUP, QUIET)
-ENTRY_UNARY (vdupq_n_mf8, mf8q, mf8_scalar, UNSPEC_DUP, QUIET)
-
-ENTRY_UNARY_LANE (vdup_lane_mf8, mf8, mf8, UNSPEC_DUP_LANE, QUIET)
-ENTRY_UNARY_LANE (vdupq_lane_mf8, mf8q, mf8, UNSPEC_DUP_LANE, QUIET)
-ENTRY_UNARY_LANE (vdup_laneq_mf8, mf8, mf8q, UNSPEC_DUP_LANE, QUIET)
-ENTRY_UNARY_LANE (vdupq_laneq_mf8, mf8q, mf8q, UNSPEC_DUP_LANE, QUIET)
 #undef REQUIRED_EXTENSIONS
 
 // dupb_lane
@@ -304,12 +283,6 @@ ENTRY_TERNARY (vmmlaq_f16_mf8, f16q, f16q, mf8q, mf8q, UNSPEC_FMMLA, FP8)
 // mmla f32 mf8
 #define REQUIRED_EXTENSIONS nonstreaming_only (AARCH64_FL_F8F32MM)
 ENTRY_TERNARY (vmmlaq_f32_mf8, f32q, f32q, mf8q, mf8q, UNSPEC_FMMLA, FP8)
-#undef REQUIRED_EXTENSIONS
-
-// mov
-#define REQUIRED_EXTENSIONS nonstreaming_only (AARCH64_FL_SIMD)
-ENTRY_UNARY (vmov_n_mf8, mf8, mf8_scalar, UNSPEC_DUP, QUIET)
-ENTRY_UNARY (vmovq_n_mf8, mf8q, mf8_scalar, UNSPEC_DUP, QUIET)
 #undef REQUIRED_EXTENSIONS
 
 // rev

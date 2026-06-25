@@ -36,18 +36,19 @@ bfloat16x8_t vdupq_test (bfloat16_t a)
 {
   return vdupq_n_bf16 (a);
 }
+/* { dg-final { scan-assembler-times "dup\\tv\[0-9\]+\.8h, v\[0-9\]+.h\\\[0\\\]" 1 } } */
 
 bfloat16x8_t test_vdupq_lane_bf16 (bfloat16x4_t a)
 {
   return vdupq_lane_bf16 (a, 1);
 }
-/* { dg-final { scan-assembler-times "dup\\tv\[0-9\]+\.8h, v\[0-9\]+.h\\\[0\\\]" 2 } } */
+/* { dg-final { scan-assembler-times "dup\\tv\[0-9\]+\.8h, v\[0-9\]+.h\\\[1\\\]" 1 } } */
 
 bfloat16_t test_vget_lane_bf16 (bfloat16x4_t a)
 {
   return vget_lane_bf16 (a, 1);
 }
-/* { dg-final { scan-assembler-times "dup\\th\[0-9\]+, v\[0-9\]+\.h\\\[1\\\]" 2 } } */
+/* { dg-final { scan-assembler-times "dup\\th\[0-9\]+, v\[0-9\]+\.h\\\[1\\\]" 1 } } */
 
 bfloat16x4_t test_vdup_lane_bf16 (bfloat16x4_t a)
 {
@@ -59,7 +60,7 @@ bfloat16x4_t test_vdup_laneq_bf16 (bfloat16x8_t a)
 {
   return vdup_laneq_bf16 (a, 7);
 }
-/* { dg-final { scan-assembler "dup\\tv\[0-9\]+\.8h, v\[0-9\]+\.h\\\[7\\\]" } } */
+/* { dg-final { scan-assembler "dup\\tv\[0-9\]+\.4h, v\[0-9\]+\.h\\\[7\\\]" } } */
 
 bfloat16x8_t test_vdupq_laneq_bf16 (bfloat16x8_t a)
 {

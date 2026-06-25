@@ -4289,10 +4289,6 @@ aarch64_expand_pragma_builtin (tree exp, rtx target,
       icode = code_for_aarch64_simd_bsl (ops[0].mode);
       break;
 
-    case UNSPEC_COMBINE:
-      icode = code_for_aarch64_combine (ops[1].mode);
-      break;
-
     case UNSPEC_DUP:
       if (builtin_data.signature == aarch64_builtin_signatures::load)
 	aarch64_dereference_pointer (&ops[1], GET_MODE_INNER (ops[0].mode));
@@ -4496,9 +4492,6 @@ aarch64_expand_pragma_builtin (tree exp, rtx target,
 
     case UNSPEC_UZP:
       return aarch64_expand_permute_pair (ops, UNSPEC_UZP1, UNSPEC_UZP2);
-
-    case UNSPEC_VCREATE:
-      return force_lowpart_subreg (ops[0].mode, ops[1].value, ops[1].mode);
 
     case UNSPEC_VEC_COPY:
       {
@@ -5055,27 +5048,6 @@ aarch64_set_lane (tree lhs, tree elt, tree vec, tree lane)
   return gimple_build_assign (lhs, BIT_INSERT_EXPR, vec, elt, bit);
 }
 
-/* Fold a call to vcombine.  */
-static gimple *
-aarch64_fold_combine (gcall *stmt)
-{
-  tree first_part, second_part;
-  if (BYTES_BIG_ENDIAN)
-    {
-      second_part = gimple_call_arg (stmt, 0);
-      first_part = gimple_call_arg (stmt, 1);
-    }
-  else
-    {
-      first_part = gimple_call_arg (stmt, 0);
-      second_part = gimple_call_arg (stmt, 1);
-    }
-  tree ret_type = gimple_call_return_type (stmt);
-  tree ctor = build_constructor_va (ret_type, 2, NULL_TREE, first_part,
-				    NULL_TREE, second_part);
-  return gimple_build_assign (gimple_call_lhs (stmt), ctor);
-}
-
 /* Fold a call to vaeseq_u8 and vaesdq_u8.
    That is `vaeseq_u8 (x ^ y, 0)` gets folded
    into `vaeseq_u8 (x, y)`.*/
@@ -5219,9 +5191,6 @@ aarch64_gimple_fold_pragma_builtin
 
   switch (builtin_data.unspec)
     {
-    case UNSPEC_COMBINE:
-      return aarch64_fold_combine (stmt);
-
     case UNSPEC_DUP:
     case UNSPEC_DUP_LANE:
       {
@@ -5308,12 +5277,6 @@ aarch64_gimple_fold_pragma_builtin
 
     case UNSPEC_UZP2:
       return aarch64_fold_permute (stmt, 2, aarch64_uzp_index, 1);
-
-    case UNSPEC_VCREATE:
-      return gimple_build_assign (gimple_call_lhs (stmt),
-				  fold_build1 (VIEW_CONVERT_EXPR,
-					       types[0].type (),
-					       gimple_call_arg (stmt, 0)));
 
     case UNSPEC_VEC_COPY:
       {
@@ -5533,12 +5496,6 @@ aarch64_general_gimple_fold_builtin (unsigned int fcode, gcall *stmt,
 					       1, args[0]);
 	gimple_call_set_lhs (new_stmt, gimple_call_lhs (stmt));
 	break;
-
-     BUILTIN_VDC (BINOP, combine, 0, QUIET)
-     BUILTIN_VD_I (BINOPU, combine, 0, DEFAULT)
-     BUILTIN_VDC_P (BINOPP, combine, 0, DEFAULT)
-       new_stmt = aarch64_fold_combine (stmt);
-       break;
 
      /*lower store and load neon builtins to gimple.  */
      BUILTIN_VALL_F16 (LOAD1, ld1, 0, LOAD)

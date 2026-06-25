@@ -65,7 +65,7 @@ extern void abort (void);
   for (i = 0; i < n; i++)						\
     {									\
       INHIB_OPTIMIZATION;						\
-      a = GET_ELEMENT (reg_len, data_len, data_type) (b, i);		\
+      a = b[i];								\
       if ((a) != (c))							\
 	return 1;							\
     }									\
