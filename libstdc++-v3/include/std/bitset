@@ -908,6 +908,20 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	  return *this;
 	}
 
+#if __glibcxx_ranges_zip // >= C++23
+	// _GLIBCXX_RESOLVE_LIB_DEFECTS
+	// 4187. bitset::reference should be const-assignable
+	constexpr const reference&
+	operator=(bool __x) const noexcept
+	{
+	  if (__x)
+	    *_M_wp |= _Base::_S_maskbit(_M_bpos);
+	  else
+	    *_M_wp &= ~_Base::_S_maskbit(_M_bpos);
+	  return *this;
+	}
+#endif // C++23
+
 	// For b[i] = b[__j];
 	_GLIBCXX23_CONSTEXPR
 	reference&
@@ -939,6 +953,35 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	  *_M_wp ^= _Base::_S_maskbit(_M_bpos);
 	  return *this;
 	}
+
+#if __cplusplus >= 201103L
+	_GLIBCXX23_CONSTEXPR
+	friend void
+	swap(reference __x, reference __y) noexcept
+	{
+	  bool __tmp = __x;
+	  __x = __y;
+	  __y = __tmp;
+	}
+
+	_GLIBCXX23_CONSTEXPR
+	friend void
+	swap(reference __x, bool& __y) noexcept
+	{
+	  bool __tmp = __x;
+	  __x = __y;
+	  __y = __tmp;
+	}
+
+	_GLIBCXX23_CONSTEXPR
+	friend void
+	swap(bool& __x, reference __y) noexcept
+	{
+	  bool __tmp = __x;
+	  __x = __y;
+	  __y = __tmp;
+	}
+#endif
       };
       friend class reference;
 

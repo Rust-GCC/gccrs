@@ -53,7 +53,7 @@ constexpr bool
 test_reference_swap()
 {
   std::vector<bool> v1 = {true, false, true};
-  std::vector<bool>::swap(v1[0], v1[1]);
+  std::vector<bool>::swap(v1[0], v1[1]); // { dg-warning "deprecated" "::swap" { target { c++26 && { ! debug_mode } } } }
 
   VERIFY(v1[0] == false);
   VERIFY(v1[1] == true);
