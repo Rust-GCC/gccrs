@@ -105,7 +105,7 @@ if test "x${with_newlib}" != "xyes" &&
     test "x$with_headers" != "xno"; then
   AC_LIBTOOL_DLOPEN
 fi
-AM_PROG_LIBTOOL
+LT_INIT
 ACX_LT_HOST_FLAGS
 AC_SUBST(enable_shared)
 AC_SUBST(enable_static)
@@ -150,7 +150,7 @@ AC_SUBST(glibcxx_compiler_pic_flag)
 AC_SUBST(glibcxx_compiler_shared_flag)
 
 # Override the libtool's pic_flag and pic_mode.
-# Do this step after AM_PROG_LIBTOOL, but before AC_OUTPUT.
+# Do this step after LT_INIT, but before AC_OUTPUT.
 # NB: this impacts --with-pic and --without-pic.
 lt_prog_compiler_pic_CXX="$glibcxx_compiler_pic_flag $glibcxx_compiler_shared_flag"
 pic_mode='default'
