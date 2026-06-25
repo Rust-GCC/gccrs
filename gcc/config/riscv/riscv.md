@@ -5356,6 +5356,49 @@
    (set (match_dup 0) (any_eq:X (match_dup 0) (const_int 0)))]
 { operands[2] = GEN_INT (-UINTVAL (operands[2])); })
 
+;; So the idea here is to realize that with a single insn we
+;; can mask off all the relevant bits in the source operand.
+;; A second insn generates zero/non-zero
+;; The third and final insn canonicalizes that result to 0/1.
+;;
+;; There's probably some HImode cases we could handle too.  I haven't
+;; thought hard about them.
+(define_insn_and_split "seq_sne_qi"
+  [(set (match_operand:X 0 "register_operand" "=r")
+	(any_eq:X (subreg:QI
+		   (ashift:X (match_operand:X 1 "register_operand" "r")
+			     (match_operand 2 "const_int_operand")) 0)
+		  (match_operand 3 "const_int_operand")))]
+  "(INTVAL (operands[2]) > 0 && INTVAL (operands[2]) < 8
+    && INTVAL (operands[3]) >= -128 && INTVAL (operands[3]) <= 127
+    && (INTVAL (operands[3])
+	& ((HOST_WIDE_INT_1U << INTVAL (operands[2])) - 1)) == 0)"
+  "#"
+  "&& 1"
+  [(const_int 0)]
+{
+  operands[3] = GEN_INT (-((INTVAL (operands[3]) & 0xff)
+			   >> INTVAL (operands[2])));
+  operands[2] = GEN_INT (0xff >> INTVAL (operands[2]));
+
+  /* We generate code here rather than in the split RTL template so that we
+     can elide the PLUS if it is not needed.  */
+  rtx x = gen_rtx_AND (word_mode, operands[1], operands[2]);
+  emit_insn (gen_rtx_SET (operands[0], x));
+
+  if (operands[3] != CONST0_RTX (word_mode))
+    {
+      x = gen_rtx_PLUS (word_mode, operands[0], operands[3]);
+      emit_insn (gen_rtx_SET (operands[0], x));
+    }
+
+  x = gen_rtx_fmt_ee (<CODE>, word_mode, operands[0], CONST0_RTX (word_mode));
+  emit_insn (gen_rtx_SET (operands[0], x));
+  DONE;
+}
+  [(set_attr "type" "slt")
+   (set_attr "mode" "<X:MODE>")])
+
 (include "bitmanip.md")
 (include "crypto.md")
 (include "sync.md")
