@@ -139,8 +139,7 @@ AC_DEFUN([GLIBCXX_CHECK_COMPILER_FEATURES], [
   # All these tests are for C++; save the language and the compiler flags.
   # The CXXFLAGS thing is suspicious, but based on similar bits previously
   # found in GLIBCXX_CONFIGURE.
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   ac_test_CXXFLAGS="${CXXFLAGS+set}"
   ac_save_CXXFLAGS="$CXXFLAGS"
 
@@ -161,7 +160,7 @@ AC_DEFUN([GLIBCXX_CHECK_COMPILER_FEATURES], [
   fi
   AC_MSG_RESULT($ac_fdsections)
 
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
   AC_SUBST(SECTION_FLAGS)
 ])
 
@@ -339,8 +338,7 @@ AC_DEFUN([GLIBCXX_CHECK_SETRLIMIT_ancilliary], [
 ])
 
 AC_DEFUN([GLIBCXX_CHECK_SETRLIMIT], [
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   setrlimit_have_headers=yes
   AC_CHECK_HEADERS(unistd.h sys/time.h sys/resource.h,
 		   [],
@@ -374,7 +372,7 @@ AC_DEFUN([GLIBCXX_CHECK_SETRLIMIT], [
 		"make check"])
     fi
   fi
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 
@@ -384,8 +382,7 @@ dnl Define HAVE_S_ISREG / HAVE_S_IFREG appropriately.
 dnl
 AC_DEFUN([GLIBCXX_CHECK_S_ISREG_OR_S_IFREG], [
 
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   ac_save_CXXFLAGS="$CXXFLAGS"
   CXXFLAGS="$CXXFLAGS -fno-exceptions"
 
@@ -421,7 +418,7 @@ AC_DEFUN([GLIBCXX_CHECK_S_ISREG_OR_S_IFREG], [
   AC_MSG_RESULT($res)
 
   CXXFLAGS="$ac_save_CXXFLAGS"
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 
@@ -430,8 +427,7 @@ dnl Check whether poll is available in <poll.h>, and define HAVE_POLL.
 dnl
 AC_DEFUN([GLIBCXX_CHECK_POLL], [
 
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   ac_save_CXXFLAGS="$CXXFLAGS"
   CXXFLAGS="$CXXFLAGS -fno-exceptions"
 
@@ -449,7 +445,7 @@ AC_DEFUN([GLIBCXX_CHECK_POLL], [
   fi
 
   CXXFLAGS="$ac_save_CXXFLAGS"
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 
@@ -458,8 +454,7 @@ dnl Check whether writev is available in <sys/uio.h>, and define HAVE_WRITEV.
 dnl
 AC_DEFUN([GLIBCXX_CHECK_WRITEV], [
 
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   ac_save_CXXFLAGS="$CXXFLAGS"
   CXXFLAGS="$CXXFLAGS -fno-exceptions"
 
@@ -476,7 +471,7 @@ AC_DEFUN([GLIBCXX_CHECK_WRITEV], [
   fi
 
   CXXFLAGS="$ac_save_CXXFLAGS"
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 
@@ -484,8 +479,7 @@ dnl
 dnl Check whether LFS support is available.
 dnl
 AC_DEFUN([GLIBCXX_CHECK_LFS], [
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   ac_save_CXXFLAGS="$CXXFLAGS"
   CXXFLAGS="$CXXFLAGS -fno-exceptions"
   AC_CACHE_CHECK([for LFS support], glibcxx_cv_LFS, [
@@ -524,7 +518,7 @@ AC_DEFUN([GLIBCXX_CHECK_LFS], [
   fi
 
   CXXFLAGS="$ac_save_CXXFLAGS"
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 
@@ -876,8 +870,7 @@ AC_DEFUN([GLIBCXX_ENABLE_C99], [
   GLIBCXX_ENABLE(c99,$1,,[turns on ISO/IEC 9899:1999 support])
 
   if test x"$enable_c99" = x"yes"; then
-    AC_LANG_SAVE
-    AC_LANG_CPLUSPLUS
+    AC_LANG_PUSH([C++])
 
     # Use -std=c++98 (instead of -std=gnu++98) because leaving __STRICT_ANSI__
     # undefined may cause fake C99 facilities, like pre-standard snprintf,
@@ -1107,10 +1100,9 @@ AC_DEFUN([GLIBCXX_ENABLE_C99], [
     gcc_no_link="$ac_save_gcc_no_link"
     LIBS="$ac_save_LIBS"
     CXXFLAGS="$ac_save_CXXFLAGS"
-    AC_LANG_RESTORE
+    AC_LANG_POP([C++])
 
-    AC_LANG_SAVE
-    AC_LANG_CPLUSPLUS
+    AC_LANG_PUSH([C++])
 
     # Use -std=c++11 and test again for C99 library feature in C++11 mode.
     # For the reasons given above we use -std=c++11 not -std=gnu++11.
@@ -1721,7 +1713,7 @@ AC_DEFUN([GLIBCXX_ENABLE_C99], [
     gcc_no_link="$ac_save_gcc_no_link"
     LIBS="$ac_save_LIBS"
     CXXFLAGS="$ac_save_CXXFLAGS"
-    AC_LANG_RESTORE
+    AC_LANG_POP([C++])
   fi
 
   AC_MSG_CHECKING([for fully enabled ISO C99 support])
@@ -1759,8 +1751,7 @@ AC_DEFUN([GLIBCXX_ENABLE_LIBSTDCXX_TIME], [
     [use KIND for check type],
     [permit yes|no|rt])
 
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   ac_save_CXXFLAGS="$CXXFLAGS"
   CXXFLAGS="$CXXFLAGS -fno-exceptions"
   ac_save_LIBS="$LIBS"
@@ -1999,7 +1990,7 @@ AC_DEFUN([GLIBCXX_ENABLE_LIBSTDCXX_TIME], [
 
   CXXFLAGS="$ac_save_CXXFLAGS"
   LIBS="$ac_save_LIBS"
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 dnl
@@ -2010,8 +2001,7 @@ AC_DEFUN([GLIBCXX_CHECK_GETTIMEOFDAY], [
 
   AC_MSG_CHECKING([for gettimeofday])
 
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   ac_save_CXXFLAGS="$CXXFLAGS"
   CXXFLAGS="$CXXFLAGS -fno-exceptions"
 
@@ -2032,7 +2022,7 @@ AC_DEFUN([GLIBCXX_CHECK_GETTIMEOFDAY], [
   fi
 
   CXXFLAGS="$ac_save_CXXFLAGS"
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 dnl
@@ -2041,8 +2031,7 @@ dnl facilities in Chapter 8, "C compatibility".
 dnl
 AC_DEFUN([GLIBCXX_CHECK_C99_TR1], [
 
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
 
   # Use -std=c++98 because -std=gnu++98 leaves __STRICT_ANSI__
   # undefined and fake C99 facilities may be spuriously enabled.
@@ -2403,7 +2392,7 @@ AC_DEFUN([GLIBCXX_CHECK_C99_TR1], [
   AC_CHECK_HEADERS(stdalign.h)
 
   CXXFLAGS="$ac_save_CXXFLAGS"
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 dnl
@@ -2414,8 +2403,7 @@ AC_DEFUN([GLIBCXX_CHECK_UCHAR_H], [
   # Test uchar.h.
   AC_CHECK_HEADERS(uchar.h, ac_has_uchar_h=yes, ac_has_uchar_h=no)
 
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   ac_save_CXXFLAGS="$CXXFLAGS"
   CXXFLAGS="$CXXFLAGS -std=c++11"
 
@@ -2492,7 +2480,7 @@ AC_DEFUN([GLIBCXX_CHECK_UCHAR_H], [
   fi
 
   CXXFLAGS="$ac_save_CXXFLAGS"
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 
@@ -2565,8 +2553,7 @@ dnl Check whether required C++ overloads are present in <stdio.h>.
 dnl
 AC_DEFUN([GLIBCXX_CHECK_STDIO_PROTO], [
 
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   # Use C++11 because a conforming <stdio.h> won't define gets for C++14,
   # and we don't need a declaration for C++14 anyway.
   ac_save_CXXFLAGS="$CXXFLAGS"
@@ -2589,7 +2576,7 @@ AC_DEFUN([GLIBCXX_CHECK_STDIO_PROTO], [
   fi
 
   CXXFLAGS="$ac_save_CXXFLAGS"
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 dnl
@@ -2598,8 +2585,7 @@ dnl types are present in <math.h>.
 dnl
 AC_DEFUN([GLIBCXX_CHECK_MATH11_PROTO], [
 
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   ac_save_CXXFLAGS="$CXXFLAGS"
   CXXFLAGS="$CXXFLAGS -std=c++11"
 
@@ -2735,7 +2721,7 @@ AC_DEFUN([GLIBCXX_CHECK_MATH11_PROTO], [
   esac
 
   CXXFLAGS="$ac_save_CXXFLAGS"
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 dnl
@@ -3520,8 +3506,7 @@ dnl  ENABLE_FLOAT128
 dnl
 AC_DEFUN([GLIBCXX_ENABLE_FLOAT128], [
 
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
 
   # Fake what AC_COMPILE_IFELSE does, without linking as this is
   # unnecessary for this test.
@@ -3552,7 +3537,7 @@ EOF
     GLIBCXX_CONDITIONAL(ENABLE_FLOAT128, test $enable_float128 = yes)
     rm -f conftest*
 
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 dnl
@@ -3585,8 +3570,7 @@ AC_DEFUN([GLIBCXX_ENABLE_WCHAR_T], [
 
   if test x"$enable_wchar_t" = x"yes"; then
 
-    AC_LANG_SAVE
-    AC_LANG_CPLUSPLUS
+    AC_LANG_PUSH([C++])
 
     if test x"$ac_has_wchar_h" = xyes &&
        test x"$ac_has_wctype_h" = xyes; then
@@ -3656,7 +3640,7 @@ AC_DEFUN([GLIBCXX_ENABLE_WCHAR_T], [
       enable_wchar_t=no
     fi
 
-    AC_LANG_RESTORE
+    AC_LANG_POP([C++])
   fi
 
   if test x"$enable_wchar_t" = x"yes"; then
@@ -3690,8 +3674,7 @@ AC_DEFUN([GLIBCXX_ENABLE_PCH], [
       [glibcxx_cv_prog_CXX_pch],
       [ac_save_CXXFLAGS="$CXXFLAGS"
        CXXFLAGS="$CXXFLAGS -Werror -Winvalid-pch -Wno-deprecated"
-       AC_LANG_SAVE
-       AC_LANG_CPLUSPLUS
+       AC_LANG_PUSH([C++])
        echo '#include <math.h>' > conftest.h
        if $CXX $CXXFLAGS $CPPFLAGS -x c++-header conftest.h \
 			  -o conftest.h.gch 1>&5 2>&1 &&
@@ -3705,7 +3688,7 @@ AC_DEFUN([GLIBCXX_ENABLE_PCH], [
        fi
        rm -f conftest*
        CXXFLAGS=$ac_save_CXXFLAGS
-       AC_LANG_RESTORE
+       AC_LANG_POP([C++])
       ])
     enable_libstdcxx_pch=$glibcxx_cv_prog_CXX_pch
   fi
@@ -3743,8 +3726,7 @@ dnl Note:
 dnl libgomp and libgfortran use a link test, see CHECK_SYNC_FETCH_AND_ADD.
 dnl
 AC_DEFUN([GLIBCXX_ENABLE_ATOMIC_BUILTINS], [
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   old_CXXFLAGS="$CXXFLAGS"
 
   # Do link tests if possible, otherwise asm tests. Limited to some platforms
@@ -3816,7 +3798,7 @@ EOF
   rm -f ./atomic_word.h
 
   CXXFLAGS="$old_CXXFLAGS"
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 
   # Set atomicity_dir to builtins if the test above passes,
   # or if the builtins were already chosen (e.g. by configure.host).
@@ -3881,8 +3863,7 @@ AC_DEFUN([GLIBCXX_ENABLE_LOCK_POLICY], [
   AC_MSG_CHECKING([for lock policy for shared_ptr reference counts])
 
   if test x"$libstdcxx_atomic_lock_policy" = x"auto"; then
-    AC_LANG_SAVE
-    AC_LANG_CPLUSPLUS
+    AC_LANG_PUSH([C++])
     ac_save_CXXFLAGS="$CXXFLAGS"
 
     dnl Why do we care about 2-byte CAS on targets with 4-byte _Atomic_word?!
@@ -3901,7 +3882,7 @@ AC_DEFUN([GLIBCXX_ENABLE_LOCK_POLICY], [
     ]],[])],
     [libstdcxx_atomic_lock_policy=atomic],
     [libstdcxx_atomic_lock_policy=mutex])
-    AC_LANG_RESTORE
+    AC_LANG_POP([C++])
     CXXFLAGS="$ac_save_CXXFLAGS"
   fi
 
@@ -4239,8 +4220,7 @@ AC_DEFUN([GLIBCXX_CHECK_GTHREADS], [
   if test x$enable_libstdcxx_threads = xauto ||
      test x$enable_libstdcxx_threads = xyes; then
 
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
 
   ac_save_CXXFLAGS="$CXXFLAGS"
   CXXFLAGS="$CXXFLAGS -fno-exceptions \
@@ -4325,7 +4305,7 @@ AC_DEFUN([GLIBCXX_CHECK_GTHREADS], [
   fi
 
   CXXFLAGS="$ac_save_CXXFLAGS"
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 
@@ -4392,8 +4372,7 @@ dnl Check whether get_nprocs is available in <sys/sysinfo.h>, and define _GLIBCX
 dnl
 AC_DEFUN([GLIBCXX_CHECK_GET_NPROCS], [
 
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   ac_save_CXXFLAGS="$CXXFLAGS"
   CXXFLAGS="$CXXFLAGS -fno-exceptions"
 
@@ -4410,7 +4389,7 @@ AC_DEFUN([GLIBCXX_CHECK_GET_NPROCS], [
   fi
 
   CXXFLAGS="$ac_save_CXXFLAGS"
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 dnl
@@ -4418,8 +4397,7 @@ dnl Check whether sysconf(_SC_NPROCESSORS_ONLN) is available in <unistd.h>, and 
 dnl
 AC_DEFUN([GLIBCXX_CHECK_SC_NPROCESSORS_ONLN], [
 
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   ac_save_CXXFLAGS="$CXXFLAGS"
   CXXFLAGS="$CXXFLAGS -fno-exceptions"
 
@@ -4436,7 +4414,7 @@ AC_DEFUN([GLIBCXX_CHECK_SC_NPROCESSORS_ONLN], [
   fi
 
   CXXFLAGS="$ac_save_CXXFLAGS"
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 dnl
@@ -4444,8 +4422,7 @@ dnl Check whether sysconf(_SC_NPROC_ONLN) is available in <unistd.h>, and define
 dnl
 AC_DEFUN([GLIBCXX_CHECK_SC_NPROC_ONLN], [
 
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   ac_save_CXXFLAGS="$CXXFLAGS"
   CXXFLAGS="$CXXFLAGS -fno-exceptions"
 
@@ -4462,7 +4439,7 @@ AC_DEFUN([GLIBCXX_CHECK_SC_NPROC_ONLN], [
   fi
 
   CXXFLAGS="$ac_save_CXXFLAGS"
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 dnl
@@ -4470,8 +4447,7 @@ dnl Check whether pthread_num_processors_np is available in <pthread.h>, and def
 dnl
 AC_DEFUN([GLIBCXX_CHECK_PTHREADS_NUM_PROCESSORS_NP], [
 
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   ac_save_CXXFLAGS="$CXXFLAGS"
   CXXFLAGS="$CXXFLAGS -fno-exceptions"
 
@@ -4488,7 +4464,7 @@ AC_DEFUN([GLIBCXX_CHECK_PTHREADS_NUM_PROCESSORS_NP], [
   fi
 
   CXXFLAGS="$ac_save_CXXFLAGS"
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 dnl
@@ -4497,8 +4473,7 @@ dnl and define _GLIBCXX_USE_PTHREAD_COND_CLOCKWAIT.
 dnl
 AC_DEFUN([GLIBCXX_CHECK_PTHREAD_COND_CLOCKWAIT], [
 
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   ac_save_CXXFLAGS="$CXXFLAGS"
   CXXFLAGS="$CXXFLAGS -fno-exceptions"
   ac_save_LIBS="$LIBS"
@@ -4518,7 +4493,7 @@ AC_DEFUN([GLIBCXX_CHECK_PTHREAD_COND_CLOCKWAIT], [
 
   CXXFLAGS="$ac_save_CXXFLAGS"
   LIBS="$ac_save_LIBS"
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 dnl
@@ -4527,8 +4502,7 @@ dnl and define _GLIBCXX_USE_PTHREAD_MUTEX_CLOCKLOCK.
 dnl
 AC_DEFUN([GLIBCXX_CHECK_PTHREAD_MUTEX_CLOCKLOCK], [
 
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   ac_save_CXXFLAGS="$CXXFLAGS"
   CXXFLAGS="$CXXFLAGS -fno-exceptions"
   ac_save_LIBS="$LIBS"
@@ -4548,7 +4522,7 @@ AC_DEFUN([GLIBCXX_CHECK_PTHREAD_MUTEX_CLOCKLOCK], [
 
   CXXFLAGS="$ac_save_CXXFLAGS"
   LIBS="$ac_save_LIBS"
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 dnl
@@ -4557,8 +4531,7 @@ dnl and define _GLIBCXX_USE_PTHREAD_MUTEX_CLOCKLOCK.
 dnl
 AC_DEFUN([GLIBCXX_CHECK_PTHREAD_RWLOCK_CLOCKLOCK], [
 
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   ac_save_CXXFLAGS="$CXXFLAGS"
   CXXFLAGS="$CXXFLAGS -fno-exceptions"
   ac_save_LIBS="$LIBS"
@@ -4580,7 +4553,7 @@ AC_DEFUN([GLIBCXX_CHECK_PTHREAD_RWLOCK_CLOCKLOCK], [
 
   CXXFLAGS="$ac_save_CXXFLAGS"
   LIBS="$ac_save_LIBS"
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 dnl
@@ -4588,8 +4561,7 @@ dnl Check whether sysctl is available in <pthread.h>, and define _GLIBCXX_USE_SY
 dnl
 AC_DEFUN([GLIBCXX_CHECK_SYSCTL_HW_NCPU], [
 
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   ac_save_CXXFLAGS="$CXXFLAGS"
   CXXFLAGS="$CXXFLAGS -fno-exceptions"
 
@@ -4614,7 +4586,7 @@ AC_DEFUN([GLIBCXX_CHECK_SYSCTL_HW_NCPU], [
   fi
 
   CXXFLAGS="$ac_save_CXXFLAGS"
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 dnl
@@ -4654,8 +4626,7 @@ dnl and define _GLIBCXX_USE_TMPNAM.
 dnl
 AC_DEFUN([GLIBCXX_CHECK_TMPNAM], [dnl
 dnl
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   ac_save_CXXFLAGS="$CXXFLAGS"
   CXXFLAGS="$CXXFLAGS -fno-exceptions"
 dnl
@@ -4671,7 +4642,7 @@ dnl
   fi
 dnl
   CXXFLAGS="$ac_save_CXXFLAGS"
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 dnl
@@ -4682,8 +4653,7 @@ AC_DEFUN([GLIBCXX_CHECK_SDT_H], [
   # Note that this test has to be run with the C language.
   # Otherwise, sdt.h will try to include some headers from
   # libstdc++ itself.
-  AC_LANG_SAVE
-  AC_LANG_C
+  AC_LANG_PUSH([C])
   AC_CACHE_CHECK([for suitable sys/sdt.h],
     glibcxx_cv_sys_sdt_h, [
     # Because we have to run the test in C, we use grep rather
@@ -4696,7 +4666,7 @@ AC_DEFUN([GLIBCXX_CHECK_SDT_H], [
       int f() { STAP_PROBE(hi, bob); }
     ], [glibcxx_cv_sys_sdt_h=yes], [glibcxx_cv_sys_sdt_h=no])
   ])
-  AC_LANG_RESTORE
+  AC_LANG_POP([C])
   if test $glibcxx_cv_sys_sdt_h = yes; then
     AC_DEFINE(HAVE_SYS_SDT_H, 1,
               [Define to 1 if you have a suitable <sys/sdt.h> header file])
@@ -4819,8 +4789,7 @@ dnl  HAVE_SYMLINK
 dnl
 AC_DEFUN([GLIBCXX_CHECK_FILESYSTEM_DEPS], [dnl
 dnl
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   ac_save_CXXFLAGS="$CXXFLAGS"
   CXXFLAGS="$CXXFLAGS -fno-exceptions"
 dnl
@@ -5158,7 +5127,7 @@ dnl
   fi
 dnl
   CXXFLAGS="$ac_save_CXXFLAGS"
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 dnl
@@ -5237,8 +5206,7 @@ dnl Check whether getentropy is present in <unistd.h>.
 dnl
 AC_DEFUN([GLIBCXX_CHECK_GETENTROPY], [
 
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   AC_CACHE_CHECK([for getentropy], glibcxx_cv_getentropy, [
       GCC_TRY_COMPILE_OR_LINK(
 	[#include <unistd.h>],
@@ -5250,7 +5218,7 @@ AC_DEFUN([GLIBCXX_CHECK_GETENTROPY], [
   if test $glibcxx_cv_getentropy = yes; then
     AC_DEFINE(HAVE_GETENTROPY, 1, [Define if getentropy is available in <unistd.h>.])
   fi
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 dnl
@@ -5258,8 +5226,7 @@ dnl Check whether arc4random is present in <stdlib.h>.
 dnl
 AC_DEFUN([GLIBCXX_CHECK_ARC4RANDOM], [
 
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   AC_CACHE_CHECK([for arc4random], glibcxx_cv_arc4random, [
       GCC_TRY_COMPILE_OR_LINK(
 	[#include <stdlib.h>],
@@ -5270,7 +5237,7 @@ AC_DEFUN([GLIBCXX_CHECK_ARC4RANDOM], [
   if test $glibcxx_cv_arc4random = yes; then
     AC_DEFINE(HAVE_ARC4RANDOM, 1, [Define if arc4random is available in <stdlib.h>.])
   fi
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 dnl
@@ -5287,7 +5254,7 @@ AC_DEFUN([GLIBCXX_ENABLE_BACKTRACE], [
 
   BACKTRACE_CPPFLAGS="-D_GNU_SOURCE"
 
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   old_CXXFLAGS="$CXXFLAGS"
 
   # libbacktrace's own configure.ac only tests atomics for int,
@@ -5355,7 +5322,7 @@ EOF
   fi
 
   CXXFLAGS="$old_CXXFLAGS"
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 
   if test "$glibcxx_cv_libbacktrace_atomics" = yes; then
     BACKTRACE_CPPFLAGS="$BACKTRACE_CPPFLAGS -DHAVE_ATOMIC_FUNCTIONS=1"
@@ -5663,9 +5630,7 @@ dnl Defines:
 dnl  _GLIBCXX_USE_STRUCT_TM_TM_ZONE if struct tm has a tm_zone member.
 dnl
 AC_DEFUN([GLIBCXX_STRUCT_TM_TM_ZONE], [
-
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   ac_save_CXXFLAGS="$CXXFLAGS"
   CXXFLAGS="$CXXFLAGS -std=c++20"
 
@@ -5685,7 +5650,7 @@ AC_DEFUN([GLIBCXX_STRUCT_TM_TM_ZONE], [
   fi
 
   CXXFLAGS="$ac_save_CXXFLAGS"
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 dnl
@@ -5696,8 +5661,7 @@ dnl  _GLIBCXX_CAN_ALIGNAS_DESTRUCTIVE_SIZE if objects with static storage
 dnl    duration can be aligned to std::hardware_destructive_interference_size.
 dnl
 AC_DEFUN([GLIBCXX_CHECK_ALIGNAS_CACHELINE], [
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
 
   AC_MSG_CHECKING([whether static objects can be aligned to the cacheline size])
   AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]],
@@ -5711,7 +5675,7 @@ AC_DEFUN([GLIBCXX_CHECK_ALIGNAS_CACHELINE], [
   fi
   AC_MSG_RESULT($ac_alignas_cacheline)
 
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 dnl
@@ -5723,8 +5687,7 @@ dnl  _GLIBCXX_USE_INIT_PRIORITY_ATTRIBUTE if GCC supports the init_priority
 dnl    attribute for the target.
 dnl
 AC_DEFUN([GLIBCXX_CHECK_INIT_PRIORITY], [
-AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
 
   AC_MSG_CHECKING([whether init_priority attribute is supported])
   AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]], [[
@@ -5738,7 +5701,7 @@ AC_LANG_SAVE
   fi
   AC_MSG_RESULT($ac_init_priority)
 
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 dnl
@@ -5748,8 +5711,7 @@ dnl Defines:
 dnl   _GLIBCXX_USE__GET_OSFHANDLE if _get_osfhandle is in <io.h> for Windows.
 dnl
 AC_DEFUN([GLIBCXX_CHECK_FILEBUF_NATIVE_HANDLES], [
-AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
 
   AC_MSG_CHECKING([whether _get_osfhandle is defined in <io.h>])
   AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
@@ -5770,7 +5732,7 @@ AC_LANG_SAVE
   fi
   AC_MSG_RESULT($ac_get_osfhandle)
 
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 dnl
@@ -5780,8 +5742,7 @@ dnl Defines:
 dnl   _GLIBCXX_USE_NL_LANGINFO_L if nl_langinfo_l is in <langinfo.h>.
 dnl
 AC_DEFUN([GLIBCXX_CHECK_TEXT_ENCODING], [
-AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
 
   AC_MSG_CHECKING([whether nl_langinfo_l is defined in <langinfo.h>])
   AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
@@ -5801,7 +5762,7 @@ AC_LANG_SAVE
       [Define if nl_langinfo_l should be used for std::text_encoding.])
   fi
 
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 dnl
@@ -5812,8 +5773,7 @@ dnl   _GLIBCXX_USE_PTRACE if ptrace(int, pid_t, int, int) is in <sys/ptrace.h>.
 dnl   _GLIBCXX_USE_PROC_SELF_STATUS if /proc/self/status should be used.
 dnl
 AC_DEFUN([GLIBCXX_CHECK_DEBUGGING], [
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
 
   AC_CHECK_HEADERS([sys/ptrace.h debugapi.h])
 
@@ -5836,7 +5796,7 @@ AC_DEFUN([GLIBCXX_CHECK_DEBUGGING], [
       [Define if ptrace should be used for std::is_debugger_present.])
   fi
 
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 dnl
@@ -5847,8 +5807,7 @@ dnl   _GLIBCXX_USE_STDIO_LOCKING if flockfile, putc_unlocked etc. are present.
 dnl   _GLIBCXX_USE_GLIBC_STDIO_EXT if FILE::_IO_write_ptr etc. are also present.
 dnl
 AC_DEFUN([GLIBCXX_CHECK_STDIO_LOCKING], [
-AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
 
   AC_MSG_CHECKING([whether flockfile and putc_unlocked are defined in <stdio.h>])
   AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
@@ -5926,7 +5885,7 @@ AC_LANG_SAVE
     fi
   fi
 
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 

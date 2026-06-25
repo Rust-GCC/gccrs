@@ -320,8 +320,7 @@ dnl GLIBCXX_CHECK_MATH_DECL
 AC_DEFUN([GLIBCXX_CHECK_MATH_DECL], [
   AC_CACHE_CHECK([for $1 declaration],
     [glibcxx_cv_func_$1_use], [
-      AC_LANG_SAVE
-      AC_LANG_C
+      AC_LANG_PUSH([C])
       AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
 #include <math.h>
 #ifdef HAVE_IEEEFP_H
