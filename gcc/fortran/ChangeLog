@@ -1,3 +1,28 @@
+2026-06-24  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/125761
+	* trans-array.cc (build_array_ref): When the descriptor's
+	canonical type is a class type, pass the class container as
+	'decl' to gfc_build_array_ref for genuine array element
+	references (rank > 0), so the element size can be corrected
+	for an unlimited-polymorphic character payload.
+	* trans-types.cc (gfc_typenode_for_spec): Move setting the
+	GFC_CLASS_TYPE_P bit to..
+	(gfc_get_derived_type): .. and use attr.is_class.
+	(gfc_get_derived_type): Move setting the GFC_CLASS_TYPE_P bit
+	as the last step before returning the derived->backend_decl
+	if the derived->attr.is_class is true.
+
+2026-06-24  Paul-Antoine Arras  <parras@baylibre.com>
+
+	* trans-openmp.cc (gfc_trans_omp_barrier): Pass GOMP_BARRIER_EXPLICIT
+	to GOMP_barrier_ext.
+
+2026-06-24  Paul-Antoine Arras  <parras@baylibre.com>
+
+	* types.def (BT_COMPLEX_INT): New type.
+	(BT_FN_COMPLEX_INT): New function type.
+
 2026-06-23  Kwok Cheung Yeung  <kcyeung@baylibre.com>
 	    Sandra Loosemore  <sloosemore@baylibre.com>
 

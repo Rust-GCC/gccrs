@@ -1,3 +1,24 @@
+2026-06-24  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125939
+	* cp-tree.h (build_const_lref): Declare.
+	* method.cc (build_stub_type): Pass tf_ignore_bad_quals to
+	cp_build_qualified_type.
+	* reflect.cc (build_const_lref): New.
+	(get_range_elts): Use it.
+	(eval_is_copy_constructible_type): Likewise.
+	(eval_is_copy_assignable_type): Likewise.
+	(eval_is_trivially_copy_assignable_type): Likewise.
+	(eval_is_nothrow_copy_constructible_type): Likewise.
+	(eval_is_nothrow_copy_assignable_type): Likewise.
+	* tree.cc (trivially_copy_constructible_p): Likewise.
+	(handle_annotation_attribute): Likewise.
+
+2026-06-24  Paul-Antoine Arras  <parras@baylibre.com>
+
+	* semantics.cc (finish_omp_barrier): Push GOMP_BARRIER_EXPLICIT
+	onto the argument vector.
+
 2026-06-23  Jason Merrill  <jason@redhat.com>
 
 	PR c++/125334

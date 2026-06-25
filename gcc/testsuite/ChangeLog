@@ -1,3 +1,85 @@
+2026-06-24  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* gcc.dg/autopar/runtime-auto.c: Adjust.
+
+2026-06-24  Oleg Tolmatcev  <oleg.tolmatcev@gmail.com>
+
+	* gcc.target/i386/prfchw-Wcast-qual-1.c: New test.
+
+2026-06-24  Andrew MacLeod  <amacleod@redhat.com>
+
+	PR tree-optimization/125910
+	* gcc.dg/pr125910.c: New.
+
+2026-06-24  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/125761
+	* gfortran.dg/select_type_53.f90: New test.
+
+2026-06-24  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125939
+	* g++.dg/reflect/type_trait15.C: New test.
+
+2026-06-24  Vineet Gupta  <vineet.gupta@linux.dev>
+
+	PR debug/125421
+	* gcc.dg/debug/dwarf2/pr125421.c: New Test.
+
+2026-06-24  Paul-Antoine Arras  <parras@baylibre.com>
+
+	* c-c++-common/gomp/atomic-builtins-1.c: New test.
+	* c-c++-common/gomp/reduction-builtins-1.c: New test.
+
+2026-06-24  Paul-Antoine Arras  <parras@baylibre.com>
+
+	* g++.dg/gomp/barrier-1.C: Update scan dump.
+	* g++.dg/gomp/tpl-barrier-1.C: Likewise.
+	* gcc.dg/gomp/barrier-1.c: Likewise.
+	* c-c++-common/gomp/implicit-barrier-1.c: New test.
+	* gfortran.dg/gomp/lastprivate-allocatable-barrier-1.f90: New test.
+
+2026-06-24  Paul-Antoine Arras  <parras@baylibre.com>
+
+	* c-c++-common/gomp/for-8.c: New test.
+
+2026-06-24  Paul-Antoine Arras  <parras@baylibre.com>
+
+	* c-c++-common/gomp/masked-1.c: Add scan directives verifying that
+	GOMP_has_masked_thread_num is emitted and omp_get_thread_num is not.
+	* g++.dg/gomp/master-3.C: Update scan-tree-dump-times to look for
+	GOMP_has_masked_thread_num instead of omp_get_thread_num.
+	* gcc.dg/gomp/master-3.c: Likewise.
+	* gfortran.dg/gomp/masked-1.f90: Add scan directive for
+	GOMP_has_masked_thread_num.
+
+2026-06-24  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/110743
+	* gcc.dg/uninit-pr110743-2.c: New testcase.
+
+2026-06-24  Jeevitha Palanisamy  <jeevitha@linux.ibm.com>
+
+	* gcc.target/powerpc/vsx_arith_builtin-1.c: New test.
+	* gcc.target/powerpc/vsx_arith_builtin-2.c: Likewise.
+	* gcc.target/powerpc/vsx_arith_builtin-3.c: Likewise.
+	* gcc.target/powerpc/vsx_arith_builtin-4.c: Likewise.
+	* gcc.target/powerpc/vsx_arith_vect_1.c: Likewise.
+	* gcc.target/powerpc/vsx_arith_vect_2.c: Likewise.
+
+2026-06-24  Christopher Bazley  <chris.bazley@arm.com>
+
+	* gcc.target/aarch64/sve/slp_stack.c: New test.
+
+2026-06-24  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/125958
+	* gcc.target/i386/pr125958.c: New test.
+
+2026-06-24  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* gcc.dg/vect/pr125567.c: Require vect_hw_misalign.
+
 2026-06-23  Jason Merrill  <jason@redhat.com>
 
 	PR c++/125334

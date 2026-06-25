@@ -1,3 +1,60 @@
+2026-06-24  Paul-Antoine Arras  <parras@baylibre.com>
+
+	* atomic.c (GOMP_reduction_start): New function.
+	(GOMP_reduction_end): New function.
+	* libgomp.map (GOMP_6.0.2): Export GOMP_reduction_start and
+	GOMP_reduction_end.
+	* libgomp_g.h (GOMP_reduction_start): New declaration.
+	(GOMP_reduction_end): New declaration.
+
+2026-06-24  Paul-Antoine Arras  <parras@baylibre.com>
+
+	* barrier.c (GOMP_barrier_ext): New function.
+	(GOMP_barrier_cancel_ext): Likewise.
+	* libgomp_g.h (GOMP_barrier_ext): Declare.
+	(GOMP_barrier_cancel_ext): Likewise.
+	* libgomp.map (GOMP_6.0.2): Add GOMP_barrier_ext and
+	GOMP_barrier_cancel_ext.
+	* testsuite/libgomp.c/barrier-1.c: Update GOMP_barrier_ext calls to pass
+	GOMP_BARRIER_EXPLICIT.
+
+2026-06-24  Paul-Antoine Arras  <parras@baylibre.com>
+
+	* config/gcn/teams.c (GOMP_distribute_static_worksharing): New
+	function.
+	* config/nvptx/teams.c (GOMP_distribute_static_worksharing): Likewise.
+	* libgomp.map (GOMP_6.0.2): Export GOMP_loop_static_worksharing and
+	GOMP_distribute_static_worksharing.
+	* libgomp_g.h (GOMP_loop_static_worksharing): New declaration.
+	(GOMP_distribute_static_worksharing): Likewise.
+	* parallel.c (GOMP_loop_static_worksharing): New function.
+	* teams.c (GOMP_distribute_static_worksharing): Likewise.
+
+2026-06-24  Paul-Antoine Arras  <parras@baylibre.com>
+
+	* libgomp.map (GOMP_6.0.2): New symbol version. Export
+	GOMP_has_masked_thread_num.
+	* libgomp_g.h (GOMP_has_masked_thread_num): New declaration.
+	* parallel.c (GOMP_has_masked_thread_num): New function.
+
+2026-06-24  Tobias Burnus  <tburnus@baylibre.com>
+
+	PR libgomp/125940
+	* Makefile.am (libgomp_la_SOURCES): Add numa.c.
+	* Makefile.in: Regenerate.
+	* affinity.c (gomp_get_current_numa_node,
+	gomp_get_numa_distance): Move to ...
+	* numa.c: ... this new file.
+	* config/linux/affinity.c (gomp_get_current_numa_node,
+	gomp_get_numa_distance): Move to ...
+	* config/linux/numa.c: ... this new file.
+
+2026-06-24  Tobias Burnus  <tburnus@baylibre.com>
+
+	PR libgomp/125951
+	* target.c (omp_get_device_distances): Handle omp_default_device
+	in the fallback code.
+
 2026-06-22  Tobias Burnus  <tburnus@baylibre.com>
 
 	* config/gcn/teams.c (omp_get_num_teams_dim,

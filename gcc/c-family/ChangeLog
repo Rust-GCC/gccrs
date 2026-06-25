@@ -1,3 +1,8 @@
+2026-06-24  Paul-Antoine Arras  <parras@baylibre.com>
+
+	* c-omp.cc (c_finish_omp_barrier): Pass GOMP_BARRIER_EXPLICIT to
+	GOMP_barrier_ext.
+
 2026-06-16  Jakub Jelinek  <jakub@redhat.com>
 
 	* c-common.h (enum cxx_dialect): Add cxx29.

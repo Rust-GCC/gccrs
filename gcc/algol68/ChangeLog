@@ -1,3 +1,13 @@
+2026-06-24  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-moids-sorting.cc (packs_ordering): Do not rely on pointer
+	comparison when comparing pack element names.
+
+2026-06-24  Jose E. Marchesi  <jemarch@gnu.org>
+
+	* a68-imports.cc (complete_encoded_mode): Fix comment on ordering
+	of union packs entries.
+
 2026-06-22  Kanishka Solanki  <kanishkasolanki456s@gmail.com>
 
 	* a68-lang.cc (a68_get_alias_set): New function.

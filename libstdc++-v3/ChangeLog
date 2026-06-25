@@ -1,3 +1,38 @@
+2026-06-24  Jonathan Wakely  <jwakely@redhat.com>
+
+	* testsuite/27_io/filesystem/operations/copy_symlink/1.cc: Add
+	dg-require-target-fs-symlinks.
+	* testsuite/27_io/filesystem/operations/copy_symlink/2.cc:
+	Likewise.
+	* testsuite/27_io/filesystem/operations/copy_symlink/3.cc:
+	Likewise.
+	* testsuite/27_io/filesystem/operations/copy_symlink/4.cc:
+	Likewise.
+
+2026-06-24  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/118158
+	* testsuite/27_io/filesystem/operations/pr118158.cc: Add
+	dg-require-mkfifo.
+
+2026-06-24  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/std/format (__do_vformat_to): Change the preprocessor
+	check for __do_vformat_to.
+
+2026-06-24  Alexandre Oliva  <oliva@adacore.com>
+
+	* src/c++23/Makefile.am (libstdc++.modules.json): Rewrite
+	without abspath make function.
+	(stamp-modules-bits): Likewise.
+	* src/c++23/Makefile.in: Rebuilt.
+
+2026-06-24  Alexandre Oliva  <oliva@adacore.com>
+
+	* acinclude.m4 (GLIBXX_ENABLE_LIBSTDCXX_TIME) [vxworks*]:
+	Enable __gthread_yield.
+	* configure: Rebuilt.
+
 2026-06-23  Jonathan Wakely  <jwakely@redhat.com>
 
 	PR libstdc++/125684

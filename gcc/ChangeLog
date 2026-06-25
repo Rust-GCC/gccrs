@@ -1,3 +1,146 @@
+2026-06-24  Oleg Tolmatcev  <oleg.tolmatcev@gmail.com>
+
+	* config/i386/prfchwintrin.h (_m_prefetchw): Take
+	volatile const void * instead of void *.
+
+2026-06-24  Andrew MacLeod  <amacleod@redhat.com>
+
+	PR tree-optimization/125910
+	* value-range.cc (prange::set_pt): Do not set PT when zero.
+	(prange::intersect): If the result is zero_p, clear PT.
+	(prange::verify_range): Verify points-to range is valid.
+	* value-range.h (zero_p): Do not assert, move to verify range.
+	(prange::set_pt): Only set PT when the range valid.
+
+2026-06-24  Vineet Gupta  <vineet.gupta@linux.dev>
+
+	PR debug/125421
+	* dwarf2out.cc (modified_type_die): Handle qualified_type being
+	a variant of dtype as if they were identical to avoid peeling a
+	typdef.
+	For named types, use dentry unconditionally as that is valid for
+	both cases of qualified_type == and  != dentry.
+
+2026-06-24  Paul-Antoine Arras  <parras@baylibre.com>
+
+	* omp-builtins.def (BUILT_IN_GOMP_REDUCTION_START): New builtin.
+	(BUILT_IN_GOMP_REDUCTION_END): New builtin.
+	* omp-low.cc (lower_reduction_clauses): Replace
+	BUILT_IN_GOMP_ATOMIC_START / BUILT_IN_GOMP_ATOMIC_END with
+	BUILT_IN_GOMP_REDUCTION_START / BUILT_IN_GOMP_REDUCTION_END.
+	(lower_omp_sections): Likewise.
+	(lower_omp_scope): Likewise.
+	(lower_omp_for): Likewise.
+	* tree-ssa-alias.cc (check_fnspec): Handle
+	BUILT_IN_GOMP_REDUCTION_START and BUILT_IN_GOMP_REDUCTION_END as
+	memory barriers.
+
+2026-06-24  Paul-Antoine Arras  <parras@baylibre.com>
+
+	* omp-builtins.def (BUILT_IN_GOMP_BARRIER): Change function to
+	GOMP_barrier_ext and type to BT_FN_VOID_INT.
+	(BUILT_IN_GOMP_BARRIER_CANCEL): Change function to
+	GOMP_barrier_cancel_ext and type to BT_FN_VOID_INT.
+	* omp-expand.cc (expand_omp_for_static_nochunk): Pass
+	GOMP_BARRIER_IMPLICIT_WORKSHARE to omp_build_barrier.
+	(expand_omp_for_static_chunk): Likewise.
+	(expand_omp_single): Likewise.
+	* omp-general.cc (omp_build_barrier): Add kind parameter; pass it
+	to GOMP_barrier_ext or GOMP_barrier_cancel_ext.
+	* omp-general.h (omp_build_barrier): Update declaration to add
+	kind parameter.
+	* omp-low.cc (lower_rec_input_clauses): Determine barrier kind from
+	the enclosing gimple statement code and pass it to omp_build_barrier.
+	(lower_omp_for_scan): Pass GOMP_BARRIER_IMPLICIT_WORKSHARE to
+	omp_build_barrier.
+
+2026-06-24  Paul-Antoine Arras  <parras@baylibre.com>
+
+	* builtin-types.def (BT_COMPLEX_INT, BT_FN_COMPLEX_INT): New types.
+	* omp-builtins.def (BUILT_IN_GOMP_LOOP_STATIC_WORKSHARING): New
+	builtin.
+	(BUILT_IN_GOMP_DISTRIBUTE_STATIC_WORKSHARING): Likewise.
+	* omp-expand.cc (expand_omp_for_static_nochunk): Replace separate calls
+	to public API functions with a single call to
+	GOMP_loop_static_worksharing or GOMP_distribute_static_worksharing, then
+	unpack id and count.
+	(expand_omp_for_static_chunk): Likewise.
+
+2026-06-24  Paul-Antoine Arras  <parras@baylibre.com>
+
+	* omp-builtins.def (BUILT_IN_GOMP_HAS_MASKED_THREAD_NUM): New builtin.
+	* omp-low.cc (lower_omp_master): Call it.
+
+2026-06-24  Filip Kastl  <fkastl@suse.cz>
+
+	* gimple-ssa-pta-constraints.cc (handle_call_arg): Mention in
+	comment that the function can get called in IPA mode.
+
+2026-06-24  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/110743
+	* tree-ssa-uninit.cc (maybe_warn_operand): Also cover
+	VIEW_CONVERT_EXPR uses for RMW bit clear/set pattern
+	detection.
+
+2026-06-24  Jeevitha Palanisamy  <jeevitha@linux.ibm.com>
+
+	* config/rs6000/altivec.md (V16QI_V2DI): New mode iterator.
+	(add<mode>3): Split into two patterns to support future ISA
+	alternatives.
+	(sub<mode>3): Likewise.
+	* config/rs6000/vsx.md (VIArith): New mode iterator.
+	(vsx_mul<mode>3): New insn pattern.
+	(smul<mode>3_highpart): Split into mode-specific patterns.
+	(umul<mode>3_highpart): Likewise.
+	(smulv8hi3_highpart): New insn pattern.
+	(smulv4si3_highpart): Likewise.
+	(smulv2di3_highpart): Likewise.
+	(umulv8hi3_highpart): Likewise.
+	(umulv4si3_highpart): Likewise.
+	(umulv2di3_highpart): Likewise.
+	* config/rs6000/rs6000-builtins.def (__builtin_vsx_xvmulhuh): New
+	builtin.
+	(__builtin_vsx_xvmulhsh): Likewise.
+	* config/rs6000/rs6000-overload.def (__builtin_vec_mulh): Add
+	overloads for vector multiply-high signed/unsigned halfword.
+	* config/rs6000/rs6000-gen-builtins.cc (enum bif_stanza): Add entry for
+	BSTZ_FUTURE_VSX.
+	(stanza_map): Add future-vsx stanza mapping.
+	(enable_string): Add ENB_FUTURE_VSX.
+	(write_decls): Add ENB_FUTURE_VSX to the bif_enable enum in the
+	generated header file.
+	* config/rs6000/rs6000.md (define_attr "isa"): Add future to the list
+	of ISA values.
+	(define_attr "enabled"): Add check for future ISA.
+	* config/rs6000/rs6000-builtin.cc (rs6000_invalid_builtin): Handle
+	ENB_FUTURE_VSX and issue a diagnostic requiring -mcpu=future and -mvsx.
+	(rs6000_builtin_is_supported): Return TARGET_FUTURE && TARGET_VSX
+	for ENB_FUTURE_VSX built-ins.
+	* doc/extend.texi (PowerPC AltiVec/VSX Built-in Functions Available
+	on Future ISA): Document new functions.
+
+2026-06-24  Christopher Bazley  <chris.bazley@arm.com>
+
+	* config/aarch64/aarch64-sve.md: Update
+	vec_init<mode><Vel> and vec_shl_insert_<mode> to
+	accept all SVE vector modes.
+
+2026-06-24  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/125958
+	* config/i386/i386-expand.cc (ix86_expand_lcp_stall_peephole):
+	Replace !REG_P (dest) with !GENERAL_REG_P (dest).
+
+2026-06-24  Lili Cui  <lili.cui@intel.com>
+
+	* config/i386/x86-tune-costs.h (generic_cost): Increase branch
+	mispredict scale from COSTS_N_INSNS (2) to COSTS_N_INSNS (2) + 3.
+
+2026-06-24  Jan Beulich  <jbeulich@suse.com>
+
+	* doc/ifn.texi: Drop blanks after @code.
+
 2026-06-23  Kwok Cheung Yeung  <kcyeung@baylibre.com>
 	    Sandra Loosemore  <sloosemore@baylibre.com>
 

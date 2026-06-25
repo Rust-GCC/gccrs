@@ -1,3 +1,9 @@
+2026-06-24  Paul-Antoine Arras  <parras@baylibre.com>
+
+	* gomp-constants.h (GOMP_BARRIER_IMPLICIT_PARALLEL): New macro.
+	(GOMP_BARRIER_IMPLICIT_WORKSHARE): New macro.
+	(GOMP_BARRIER_EXPLICIT): New macro.
+
 2026-06-19  Tobias Burnus  <tburnus@baylibre.com>
 
 	PR libgomp/125877

@@ -1,3 +1,24 @@
+2026-06-24  James K. Lowden  <jklowden@cobolworx.com>
+
+	* parse.y: Modify grammar to accept list of intrinic function tokens.
+	* parse_ante.h (in_procedure_division): Remove C-syntax (void).
+	(in_environment_division): Declare function.
+	* scan_ante.h (in_procedure_division): Whitespace.
+	(in_environment_division): Define function.
+	(typed_name): Return intrinsic function token in environment division.
+	* scan_post.h (in_procedure_division): Remove duplicate declaration.
+
+2026-06-24  James K. Lowden  <jklowden@cobolworx.com>
+
+	* lexio.cc (valid_sequence_area): Each character may be
+	ISDIGIT or ISBLANK.
+
+2026-06-24  James K. Lowden  <jklowden@cobolworx.com>
+
+	* parse.y: Introduce ast_relop to apply validation.
+	* parse_ante.h (ast_relop): Declare.
+	(class eval_subject_t): Use ast_relop.
+
 2026-06-23  James K. Lowden  <jklowden@cobolworx.com>
 
 	* cbldiag.h (enum cbl_diag_id_t): Add IbmCdf.
