@@ -77,6 +77,11 @@ public:
 
   Pattern::Kind get_pattern_kind () override { return Pattern::Kind::Literal; }
 
+  virtual LiteralPattern *reconstruct_impl () const override
+  {
+    return new LiteralPattern (lit, locus, has_minus);
+  }
+
 protected:
   /* Use covariance to implement clone function as returning this object rather
    * than base */
@@ -149,6 +154,16 @@ public:
     return Pattern::Kind::Identifier;
   }
 
+  IdentifierPattern *reconstruct_impl () const override
+  {
+    std::unique_ptr<Pattern> new_sub = nullptr;
+    if (subpattern)
+      new_sub = subpattern->reconstruct ();
+
+    return new IdentifierPattern (variable_ident, locus, is_ref, is_mut,
+				  std::move (new_sub));
+  }
+
 protected:
   /* Use covariance to implement clone function as returning this object rather
    * than base */
@@ -179,6 +194,11 @@ public:
 
   Pattern::Kind get_pattern_kind () override { return Pattern::Kind::Wildcard; }
 
+  WildcardPattern *reconstruct_impl () const override
+  {
+    return new WildcardPattern (locus);
+  }
+
 protected:
   /* Use covariance to implement clone function as returning this object rather
    * than base */
@@ -208,6 +228,11 @@ public:
 
   Pattern::Kind get_pattern_kind () override { return Pattern::Kind::Rest; }
 
+  RestPattern *reconstruct_impl () const override
+  {
+    return new RestPattern (locus);
+  }
+
 protected:
   RestPattern *clone_pattern_impl () const override
   {
@@ -235,15 +260,32 @@ public:
       clone_range_pattern_bound_impl ());
   }
 
+  // Unique pointer custom reconstruct function
+  std::unique_ptr<RangePatternBound> reconstruct () const
+  {
+    return std::unique_ptr<RangePatternBound> (reconstruct_impl ());
+  }
+
   virtual std::string as_string () const = 0;
 
   virtual void accept_vis (ASTVisitor &vis) = 0;
 
   virtual RangePatternBoundType get_bound_type () const = 0;
 
+  // pure virtual as RangePatternBound is abstract
+  virtual RangePatternBound *reconstruct_impl () const = 0;
+
+  NodeId get_node_id () const { return node_id; }
+
 protected:
+  RangePatternBound ()
+    : node_id (Analysis::Mappings::get ().get_next_node_id ())
+  {}
+
   // pure virtual as RangePatternBound is abstract
   virtual RangePatternBound *clone_range_pattern_bound_impl () const = 0;
+
+  NodeId node_id;
 };
 
 // Literal-based pattern bound
@@ -278,6 +320,11 @@ public:
   RangePatternBoundType get_bound_type () const override
   {
     return RangePatternBoundType::LITERAL;
+  }
+
+  RangePatternBoundLiteral *reconstruct_impl () const override
+  {
+    return new RangePatternBoundLiteral (literal, locus, has_minus);
   }
 
 protected:
@@ -315,6 +362,12 @@ public:
     return RangePatternBoundType::PATH;
   }
 
+  RangePatternBoundPath *reconstruct_impl () const override
+  {
+    auto new_path = path.reconstruct ();
+    return new RangePatternBoundPath (std::move (*new_path));
+  }
+
 protected:
   /* Use covariance to implement clone function as returning this object rather
    * than base */
@@ -350,6 +403,12 @@ public:
   RangePatternBoundType get_bound_type () const override
   {
     return RangePatternBoundType::QUALPATH;
+  }
+
+  RangePatternBoundQualPath *reconstruct_impl () const override
+  {
+    auto new_path = path.reconstruct ();
+    return new RangePatternBoundQualPath (std::move (*new_path));
   }
 
 protected:
@@ -394,6 +453,33 @@ public:
       node_id (Analysis::Mappings::get ().get_next_node_id ())
   {}
 
+<<<<<<< HEAD
+=======
+  // Copy constructor with clone
+  RangePattern (RangePattern const &other)
+    : lower (other.lower ? other.lower->clone_range_pattern_bound () : nullptr),
+      upper (other.upper ? other.upper->clone_range_pattern_bound () : nullptr),
+      range_kind (other.range_kind), locus (other.locus),
+      node_id (other.node_id)
+  {}
+
+  // Overloaded assignment operator to clone
+  RangePattern &operator= (RangePattern const &other)
+  {
+    lower = other.lower ? other.lower->clone_range_pattern_bound () : nullptr;
+    upper = other.upper ? other.upper->clone_range_pattern_bound () : nullptr;
+    range_kind = other.range_kind;
+    locus = other.locus;
+    node_id = other.node_id;
+
+    return *this;
+  }
+
+  // default move semantics
+  RangePattern (RangePattern &&other) = default;
+  RangePattern &operator= (RangePattern &&other) = default;
+
+>>>>>>> 745dab0417f4 (ast: Implement reconstruct() logic for Pattern nodes)
   location_t get_locus () const override final { return locus; }
 
   bool get_has_ellipsis_syntax () const
@@ -426,6 +512,15 @@ public:
 
   Pattern::Kind get_pattern_kind () override { return Pattern::Kind::Range; }
 
+  RangePattern *reconstruct_impl () const override
+  {
+    auto new_lower = lower ? lower->reconstruct () : nullptr;
+    auto new_upper = upper ? upper->reconstruct () : nullptr;
+
+    return new RangePattern (std::move (new_lower), std::move (new_upper),
+			     range_kind, locus);
+  }
+
 protected:
   /* Use covariance to implement clone function as returning this object rather
    * than base */
@@ -454,6 +549,38 @@ public:
       node_id (Analysis::Mappings::get ().get_next_node_id ())
   {}
 
+<<<<<<< HEAD
+=======
+  // Copy constructor requires clone
+  ReferencePattern (ReferencePattern const &other)
+    : has_two_amps (other.has_two_amps), is_mut (other.is_mut),
+      pattern (nullptr), locus (other.locus), node_id (other.node_id)
+  {
+    if (other.pattern)
+      pattern = other.pattern->clone_pattern ();
+  }
+
+  // Overload assignment operator to clone
+  ReferencePattern &operator= (ReferencePattern const &other)
+  {
+    if (other.pattern)
+      pattern = other.pattern->clone_pattern ();
+    else
+      pattern = nullptr;
+
+    is_mut = other.is_mut;
+    has_two_amps = other.has_two_amps;
+    locus = other.locus;
+    node_id = other.node_id;
+
+    return *this;
+  }
+
+  // default move semantics
+  ReferencePattern (ReferencePattern &&other) = default;
+  ReferencePattern &operator= (ReferencePattern &&other) = default;
+
+>>>>>>> 745dab0417f4 (ast: Implement reconstruct() logic for Pattern nodes)
   location_t get_locus () const override final { return locus; }
 
   void accept_vis (ASTVisitor &vis) override;
@@ -480,6 +607,16 @@ public:
   Pattern::Kind get_pattern_kind () override
   {
     return Pattern::Kind::Reference;
+  }
+
+  ReferencePattern *reconstruct_impl () const override
+  {
+    std::unique_ptr<Pattern> new_pat = nullptr;
+    if (pattern)
+      new_pat = pattern->reconstruct ();
+
+    return new ReferencePattern (std::move (new_pat), is_mut, has_two_amps,
+				 locus);
   }
 
 protected:
@@ -539,6 +676,12 @@ public:
       clone_struct_pattern_field_impl ());
   }
 
+  // Unique pointer custom reconstruct function
+  std::unique_ptr<StructPatternField> reconstruct () const
+  {
+    return std::unique_ptr<StructPatternField> (reconstruct_impl ());
+  }
+
   virtual std::string as_string () const;
 
   location_t get_locus () const { return locus; }
@@ -554,6 +697,12 @@ public:
   // TODO: seems kinda dodgy. Think of better way.
   std::vector<Attribute> &get_outer_attrs () { return outer_attrs; }
   const std::vector<Attribute> &get_outer_attrs () const { return outer_attrs; }
+
+  // Overload assignment operator to clone
+  StructPatternField &operator= (StructPatternField const &) = default;
+
+  // pure virtual reconstruct implementation
+  virtual StructPatternField *reconstruct_impl () const = 0;
 
 protected:
   StructPatternField (std::vector<Attribute> outer_attribs, location_t locus,
@@ -609,6 +758,16 @@ public:
 
   ItemType get_item_type () const override final { return ItemType::TUPLE_PAT; }
 
+  StructPatternFieldTuplePat *reconstruct_impl () const override
+  {
+    std::unique_ptr<Pattern> new_pat = nullptr;
+    if (tuple_pattern)
+      new_pat = tuple_pattern->reconstruct ();
+
+    return new StructPatternFieldTuplePat (index, std::move (new_pat),
+					   get_outer_attrs (), get_locus ());
+  }
+
 protected:
   /* Use covariance to implement clone function as returning this object rather
    * than base */
@@ -662,6 +821,16 @@ public:
 
   ItemType get_item_type () const override final { return ItemType::IDENT_PAT; }
 
+  StructPatternFieldIdentPat *reconstruct_impl () const override
+  {
+    std::unique_ptr<Pattern> new_pat = nullptr;
+    if (ident_pattern)
+      new_pat = ident_pattern->reconstruct ();
+
+    return new StructPatternFieldIdentPat (ident, std::move (new_pat),
+					   get_outer_attrs (), get_locus ());
+  }
+
 protected:
   /* Use covariance to implement clone function as returning this object rather
    * than base */
@@ -701,6 +870,12 @@ public:
   bool is_ref () const { return has_ref; }
 
   bool is_mut () const { return has_mut; }
+
+  StructPatternFieldIdent *reconstruct_impl () const override
+  {
+    return new StructPatternFieldIdent (ident, has_ref, has_mut,
+					get_outer_attrs (), get_locus ());
+  }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -753,6 +928,51 @@ public:
       struct_pattern_etc_attrs ()
   {}
 
+<<<<<<< HEAD
+=======
+  // Copy constructor with vector clone
+  StructPatternElements (StructPatternElements const &other)
+    : has_rest_pattern (other.has_rest_pattern),
+      struct_pattern_etc_attrs (other.struct_pattern_etc_attrs)
+  {
+    fields.reserve (other.fields.size ());
+    for (const auto &e : other.fields)
+      fields.push_back (e->clone_struct_pattern_field ());
+  }
+
+  // Overloaded assignment operator with vector clone
+  StructPatternElements &operator= (StructPatternElements const &other)
+  {
+    struct_pattern_etc_attrs = other.struct_pattern_etc_attrs;
+    has_rest_pattern = other.has_rest_pattern;
+
+    fields.clear ();
+    fields.reserve (other.fields.size ());
+    for (const auto &e : other.fields)
+      fields.push_back (e->clone_struct_pattern_field ());
+
+    return *this;
+  }
+
+  // move constructors
+  StructPatternElements (StructPatternElements &&other) = default;
+  StructPatternElements &operator= (StructPatternElements &&other) = default;
+
+  StructPatternElements reconstruct () const
+  {
+    std::vector<std::unique_ptr<StructPatternField>> new_fields;
+    new_fields.reserve (fields.size ());
+    for (const auto &e : fields)
+      new_fields.push_back (e->reconstruct ());
+
+    if (has_rest_pattern)
+      return StructPatternElements (std::move (new_fields),
+				    struct_pattern_etc_attrs);
+    else
+      return StructPatternElements (std::move (new_fields));
+  }
+
+>>>>>>> 745dab0417f4 (ast: Implement reconstruct() logic for Pattern nodes)
   // Creates an empty StructPatternElements
   static StructPatternElements create_empty ()
   {
@@ -837,6 +1057,15 @@ public:
 
   Pattern::Kind get_pattern_kind () override { return Pattern::Kind::Struct; }
 
+  /* Use covariance to implement reconstruct function as returning this object
+   * rather than base */
+  StructPattern *reconstruct_impl () const override
+  {
+    auto new_path = path.reconstruct ();
+    return new StructPattern (std::move (*new_path), locus,
+			      elems.reconstruct ());
+  }
+
 protected:
   /* Use covariance to implement clone function as returning this object rather
    * than base */
@@ -872,7 +1101,14 @@ public:
   virtual void accept_vis (ASTVisitor &vis) = 0;
 
 protected:
+  // Unique pointer custom reconstruct function
+  std::unique_ptr<PatternItems> reconstruct () const
+  {
+    return std::unique_ptr<PatternItems> (reconstruct_impl ());
+  }
+
   virtual PatternItems *clone_pattern_items_impl () const = 0;
+  virtual PatternItems *reconstruct_impl () const = 0;
 };
 
 // Base abstract class for patterns used in TupleStructPattern
@@ -885,9 +1121,16 @@ public:
     return std::unique_ptr<TupleStructItems> (clone_pattern_items_impl ());
   }
 
+  // Unique pointer custom reconstruct function
+  std::unique_ptr<TupleStructItems> reconstruct () const
+  {
+    return std::unique_ptr<TupleStructItems> (reconstruct_impl ());
+  }
+
 protected:
   // pure virtual clone implementation
   virtual TupleStructItems *clone_pattern_items_impl () const = 0;
+  virtual TupleStructItems *reconstruct_impl () const override = 0;
 };
 
 // Class for non-ranged tuple struct pattern patterns
@@ -915,6 +1158,11 @@ public:
   }
 
   ItemType get_item_type () const override final { return ItemType::NO_REST; }
+
+  TupleStructItemsNoRest *reconstruct_impl () const override
+  {
+    return new TupleStructItemsNoRest (reconstruct_vec (patterns));
+  }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -963,6 +1211,12 @@ public:
   }
 
   ItemType get_item_type () const override final { return ItemType::HAS_REST; }
+
+  TupleStructItemsHasRest *reconstruct_impl () const override
+  {
+    return new TupleStructItemsHasRest (reconstruct_vec (lower_patterns),
+					reconstruct_vec (upper_patterns));
+  }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -1014,6 +1268,19 @@ public:
     return Pattern::Kind::TupleStruct;
   }
 
+  /* Use covariance to implement reconstruct function as returning this object
+   * rather than base */
+  TupleStructPattern *reconstruct_impl () const override
+  {
+    std::unique_ptr<TupleStructItems> new_items = nullptr;
+    if (items)
+      new_items = items->reconstruct ();
+
+    auto new_path = path.reconstruct ();
+    return new TupleStructPattern (std::move (*new_path),
+				   std::move (new_items));
+  }
+
 protected:
   /* Use covariance to implement clone function as returning this object rather
    * than base */
@@ -1033,9 +1300,16 @@ public:
     return std::unique_ptr<TuplePatternItems> (clone_pattern_items_impl ());
   }
 
+  // Unique pointer custom reconstruct function
+  std::unique_ptr<TuplePatternItems> reconstruct () const
+  {
+    return std::unique_ptr<TuplePatternItems> (reconstruct_impl ());
+  }
+
 protected:
   // pure virtual clone implementation
   virtual TuplePatternItems *clone_pattern_items_impl () const = 0;
+  virtual TuplePatternItems *reconstruct_impl () const override = 0;
 };
 
 // Class representing TuplePattern patterns which contains no rest pattern
@@ -1063,6 +1337,11 @@ public:
   }
 
   ItemType get_item_type () const override { return ItemType::NO_REST; }
+
+  TuplePatternItemsNoRest *reconstruct_impl () const override
+  {
+    return new TuplePatternItemsNoRest (reconstruct_vec (patterns));
+  }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -1113,6 +1392,12 @@ public:
 
   ItemType get_item_type () const override { return ItemType::HAS_REST; }
 
+  TuplePatternItemsHasRest *reconstruct_impl () const override
+  {
+    return new TuplePatternItemsHasRest (reconstruct_vec (lower_patterns),
+					 reconstruct_vec (upper_patterns));
+  }
+
 protected:
   /* Use covariance to implement clone function as returning this object rather
    * than base */
@@ -1153,6 +1438,17 @@ public:
   NodeId get_node_id () const override { return node_id; }
 
   Pattern::Kind get_pattern_kind () override { return Pattern::Kind::Tuple; }
+
+  /* Use covariance to implement reconstruct function as returning this object
+   * rather than base */
+  TuplePattern *reconstruct_impl () const override
+  {
+    std::unique_ptr<TuplePatternItems> new_items = nullptr;
+    if (items)
+      new_items = items->reconstruct ();
+
+    return new TuplePattern (std::move (new_items), locus);
+  }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -1202,6 +1498,13 @@ public:
 
   Pattern::Kind get_pattern_kind () override { return Pattern::Kind::Grouped; }
 
+  /* Use covariance to implement reconstruct function as returning this object
+   * rather than base */
+  GroupedPattern *reconstruct_impl () const override
+  {
+    return new GroupedPattern (pattern_in_parens->reconstruct (), locus);
+  }
+
 protected:
   /* Use covariance to implement clone function as returning this object rather
    * than base */
@@ -1221,9 +1524,16 @@ public:
     return std::unique_ptr<SlicePatternItems> (clone_pattern_items_impl ());
   }
 
+  // Unique pointer custom reconstruct function
+  std::unique_ptr<SlicePatternItems> reconstruct () const
+  {
+    return std::unique_ptr<SlicePatternItems> (reconstruct_impl ());
+  }
+
 protected:
   // pure virtual clone implementation
   virtual SlicePatternItems *clone_pattern_items_impl () const = 0;
+  virtual SlicePatternItems *reconstruct_impl () const override = 0;
 };
 
 // Class representing the patterns in a SlicePattern without `..`
@@ -1251,6 +1561,11 @@ public:
   }
 
   ItemType get_item_type () const override { return ItemType::NO_REST; }
+
+  SlicePatternItemsNoRest *reconstruct_impl () const override
+  {
+    return new SlicePatternItemsNoRest (reconstruct_vec (patterns));
+  }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -1301,6 +1616,12 @@ public:
 
   ItemType get_item_type () const override { return ItemType::HAS_REST; }
 
+  SlicePatternItemsHasRest *reconstruct_impl () const override
+  {
+    return new SlicePatternItemsHasRest (reconstruct_vec (lower_patterns),
+					 reconstruct_vec (upper_patterns));
+  }
+
 protected:
   /* Use covariance to implement clone function as returning this object rather
    * than base */
@@ -1339,6 +1660,17 @@ public:
   NodeId get_node_id () const override { return node_id; }
 
   Pattern::Kind get_pattern_kind () override { return Pattern::Kind::Slice; }
+
+  /* Use covariance to implement reconstruct function as returning this object
+   * rather than base */
+  SlicePattern *reconstruct_impl () const override
+  {
+    std::unique_ptr<SlicePatternItems> new_items = nullptr;
+    if (items)
+      new_items = items->reconstruct ();
+
+    return new SlicePattern (std::move (new_items), locus);
+  }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -1379,6 +1711,13 @@ public:
   NodeId get_node_id () const override { return node_id; }
 
   Pattern::Kind get_pattern_kind () override { return Pattern::Kind::Alt; }
+
+  /* Use covariance to implement reconstruct function as returning this object
+   * rather than base */
+  AltPattern *reconstruct_impl () const override
+  {
+    return new AltPattern (reconstruct_vec (alts), locus);
+  }
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
