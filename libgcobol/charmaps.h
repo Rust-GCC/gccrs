@@ -263,6 +263,9 @@ enum
 #define ascii_ff               ((uint8_t)('\f'))
 #define ascii_newline          ((uint8_t)('\n'))
 #define ascii_return           ((uint8_t)('\r'))
+#define ebcdic_zero            ((uint8_t)(0xF0))
+#define ebcdic_plus            ((uint8_t)(0x4E))
+#define ebcdic_minus           ((uint8_t)(0x60))
 
 extern unsigned char __gg__data_space[1]       ;
 extern unsigned char __gg__data_low_values[1]  ;

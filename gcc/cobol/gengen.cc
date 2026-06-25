@@ -1594,7 +1594,7 @@ gg_bitwise_not(tree var)
 tree
 gg_abs(tree var)
   {
-  return build1(ABS_EXPR, TREE_TYPE(var), var);
+  return fold_build1(ABS_EXPR, TREE_TYPE(var), var);
   }
 
 static tree

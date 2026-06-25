@@ -21,7 +21,7 @@
 *> { dg-output { } }
         >>SOURCE FREE
         IDENTIFICATION DIVISION.
-        PROGRAM-ID. test.
+        PROGRAM-ID. prog.
         DATA DIVISION.
         WORKING-STORAGE SECTION.
         01 A_4 PIC 9999 VALUE 5.

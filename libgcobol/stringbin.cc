@@ -128,148 +128,128 @@ static char zero_char;
 
 typedef struct
   {
-  int   start;
   int   run;
   union
     {
     unsigned __int128 val128;
     uint64_t          val64;
-    uint32_t          val32;
-    uint16_t          val16;
-    uint8_t           val8;
     };
   } COMBINED;
+
+#if defined(__cplusplus) && __cplusplus >= 201703L
+#  define FALLTHROUGH [[fallthrough]]
+#elif defined(__GNUC__) && __GNUC__ >= 7
+#  define FALLTHROUGH __attribute__((fallthrough))
+#else
+#  define FALLTHROUGH ((void)0)
+#endif
+
+static const unsigned char digits2[100][2] =
+  {
+  {0,0},{0,1},{0,2},{0,3},{0,4},{0,5},{0,6},{0,7},{0,8},{0,9},
+  {1,0},{1,1},{1,2},{1,3},{1,4},{1,5},{1,6},{1,7},{1,8},{1,9},
+  {2,0},{2,1},{2,2},{2,3},{2,4},{2,5},{2,6},{2,7},{2,8},{2,9},
+  {3,0},{3,1},{3,2},{3,3},{3,4},{3,5},{3,6},{3,7},{3,8},{3,9},
+  {4,0},{4,1},{4,2},{4,3},{4,4},{4,5},{4,6},{4,7},{4,8},{4,9},
+  {5,0},{5,1},{5,2},{5,3},{5,4},{5,5},{5,6},{5,7},{5,8},{5,9},
+  {6,0},{6,1},{6,2},{6,3},{6,4},{6,5},{6,6},{6,7},{6,8},{6,9},
+  {7,0},{7,1},{7,2},{7,3},{7,4},{7,5},{7,6},{7,7},{7,8},{7,9},
+  {8,0},{8,1},{8,2},{8,3},{8,4},{8,5},{8,6},{8,7},{8,8},{8,9},
+  {9,0},{9,1},{9,2},{9,3},{9,4},{9,5},{9,6},{9,7},{9,8},{9,9}
+  };
+
+static void
+uint_to_8_digits(unsigned int a, unsigned char *ach, int n)
+  {
+  unsigned int x;
+
+  switch(n)
+    {
+    case 8:
+      x = a % 100;
+      ach[6] = digits2[x][0];
+      ach[7] = digits2[x][1];
+      a /= 100;
+      FALLTHROUGH;
+
+    case 7:
+    case 6:
+      x = a % 100;
+      ach[4] = digits2[x][0];
+      ach[5] = digits2[x][1];
+      a /= 100;
+      FALLTHROUGH;
+
+    case 5:
+    case 4:
+      x = a % 100;
+      ach[2] = digits2[x][0];
+      ach[3] = digits2[x][1];
+      a /= 100;
+      FALLTHROUGH;
+
+    case 3:
+    case 2:
+      x = a % 100;
+      ach[0] = digits2[x][0];
+      ach[1] = digits2[x][1];
+      FALLTHROUGH;
+    default:
+      break;
+    }
+  }
 
 static
 void
 string_from_combined(const COMBINED &combined)
   {
-  COMBINED left;
-  COMBINED right;
+  int ndigits = combined.run;
+  unsigned __int128 value = combined.val128;
 
-  uint16_t v16;
-
-  switch(combined.run)
+  if( ndigits & 0x01 )
     {
-    case 1:
-      // We know that val8 is a single digit
-      combined_string[combined.start] = combined.val8 + zero_char;
-      break;
+    combined_string[ndigits-1] = value%10;
+    value /= 10;
+    ndigits -= 1;
+    }
+  while(ndigits >= 8)
+    {
+    unsigned int val = value % 100000000;
+    uint_to_8_digits(val,
+           reinterpret_cast<unsigned char *>(combined_string + ndigits-8), 8);
+    value /= 100000000;
+    ndigits -= 8;
+    }
+  if( ndigits )
+    {
+    const unsigned int pots[8] =
+      {
+      1,
+      10,
+      100,
+      1000,
+      10000,
+      100000,
+      1000000,
+      10000000,
+      };
 
-    case 2:
-      // We know that val8 has two digits
-      combined_string[combined.start]   = digit_high[combined.val8] + zero_char;
-      combined_string[combined.start+1] = digit_low [combined.val8] + zero_char;
-      break;
-
-    case 3:
-      // We know that val16 has three digits.
-      v16 = combined.val16;
-      combined_string[combined.start] = v16 / 100 + zero_char;
-      v16 %= 100;
-      combined_string[combined.start+1] = v16 / 10 + zero_char;
-      combined_string[combined.start+2] = v16 % 10 + zero_char;
-      break;
-
-    case 4:
-      // We know that val16 has four digits:
-      v16 = combined.val16;
-      combined_string[combined.start] = v16 / 1000 + zero_char;
-      v16 %= 1000;
-      combined_string[combined.start+1] = v16 / 100 + zero_char;
-      v16 %= 100;
-      combined_string[combined.start+2] = v16 / 10 + zero_char;
-      combined_string[combined.start+3] = v16 % 10 + zero_char;
-      break;
-
-    case 5:
-    case 6:
-    case 7:
-    case 8:
-      // We know that val32 can be treated as two 4-digit pieces
-      left.start  = combined.start;
-      left.run    = combined.run - 4;
-      left.val16  = combined.val32 / 10000;
-
-      right.start = combined.start+left.run;
-      right.run   =                4;
-      right.val16 = combined.val32 % 10000;
-
-      string_from_combined(left);
-      string_from_combined(right);
-      break;
-
-    case 9:
-      // We break val32 into a 1-digit piece, and an 8-digit piece:
-      left.start  = combined.start;
-      left.run    = combined.run - 8;
-      left.val32  = combined.val32 / 100000000;
-
-      right.start = combined.start+left.run;
-      right.run   =                8;
-      right.val32 = combined.val32 % 100000000;
-
-      string_from_combined(left);
-      string_from_combined(right);
-      break;
-
-    case 10:
-    case 11:
-    case 12:
-    case 13:
-    case 14:
-    case 15:
-    case 16:
-    case 17:
-    case 18:
-      // We know we can treat val64 as two 9-digit pieces:
-      left.start  = combined.start;
-      left.run    = combined.run - 9;
-      left.val32  = combined.val64 / 1000000000;
-
-      right.start = combined.start+left.run;
-      right.run   =                9;
-      right.val32 = combined.val64 % 1000000000;
-
-      string_from_combined(left);
-      string_from_combined(right);
-      break;
-
-    case 19:
-      // We split off the bottom nine digits
-      left.start  = combined.start;
-      left.run    = combined.run - 9;
-      left.val64 = combined.val64 / 1000000000;
-
-      right.start = combined.start+left.run;
-      right.run   =                9;
-      right.val32 = combined.val64 % 1000000000;
-
-      string_from_combined(left);
-      string_from_combined(right);
-      break;
-
-    default:
-      // For twenty or more digits we peel eighteen digits at a time off the
-      // right side:
-      left.start  = combined.start;
-      left.run    = combined.run - 18;
-      left.val128 = combined.val128 / 1000000000000000000ULL;
-
-      right.start = combined.start+left.run;
-      right.run   =                18;
-      right.val64 = combined.val128 % 1000000000000000000ULL;
-
-      string_from_combined(left);
-      string_from_combined(right);
-      break;
+    unsigned int val = value % pots[ndigits];
+    uint_to_8_digits(val,
+                  reinterpret_cast<unsigned char *>(combined_string), ndigits);
+    value /= 100000000;
+    }
+  char *p = combined_string;
+  const char *pend = p + combined.run;
+  while(p < pend)
+    {
+    *p++ += zero_char;
     }
   }
 
-bool
-__gg__binary_to_string_ascii(char *result, int digits, __int128 value)
+static bool
+binary_to_string(char *result, int digits, __int128 value)
   {
-  zero_char = ascii_zero;
   bool retval; // True means the value was too big to fit into digits
   if( digits < 39 )
     {
@@ -291,7 +271,6 @@ __gg__binary_to_string_ascii(char *result, int digits, __int128 value)
     // mask off the bottom digits to avoid garbage when value is too large
     value %= mask;
 
-    combined.start = 0;
     combined.run = digits;
     combined.val128 = value;
     string_from_combined(combined);
@@ -307,13 +286,28 @@ __gg__binary_to_string_ascii(char *result, int digits, __int128 value)
     // number of digits:
     retval = false;
 
-    combined.start = 0;
     combined.run = digits;
     combined.val128 = value;
     string_from_combined(combined);
     memcpy(result, combined_string, digits);
     }
   return retval;
+  }
+
+extern "C"
+bool
+__gg__binary_to_string_ascii(char *result, int digits, __int128 value)
+  {
+  zero_char = ascii_zero;
+  return binary_to_string(result, digits, value);
+  }
+
+extern "C"
+bool
+__gg__binary_to_string_ebcdic(char *result, int digits, __int128 value)
+  {
+  zero_char = ebcdic_zero;
+  return binary_to_string(result, digits, value);
   }
 
 bool
@@ -325,7 +319,10 @@ __gg__binary_to_string_encoded( char *result,
   // A non-zero retval means the number was too big to fit into the desired
   // number of digits.
 
-  zero_char = ascii_0;
+  const charmap_t *charmap = __gg__get_charmap(encoding);
+  int stride = charmap->stride();
+
+  zero_char = charmap->is_like_ebcdic() ? ebcdic_zero : ascii_0;
 
   // Note that this routine does not terminate the generated string with a
   // NUL.  This routine is sometimes used to generate a NumericDisplay string
@@ -343,22 +340,29 @@ __gg__binary_to_string_encoded( char *result,
   // mask off the bottom digits to avoid garbage when value is too large
   value %= mask;
 
-  combined.start = 0;
   combined.run = digits;
   combined.val128 = value;
   string_from_combined(combined);
-  size_t converted_bytes;
-  const char *converted = __gg__iconverter(DEFAULT_SOURCE_ENCODING,
-                                           encoding,
-                                           combined_string,
-                                           digits,
-                                           &converted_bytes);
-  memcpy(result, converted, converted_bytes);
+  if( stride == 1 )
+    {
+    memcpy(result, combined_string, digits);
+    }
+  else
+    {
+    char *p = combined_string;
+    const char *pend = p + digits;
+    char *d = result;
+    while(p < pend)
+      {
+      *d++ = *p++;
+      memset(d, 0, stride-1);
+      d += stride-1;
+      }
+    }
   return retval;
   }
 
-static
-void
+static void
 packed_from_combined(const COMBINED &combined)
   {
   /*  The combined.value must be positive at this point.
@@ -383,108 +387,33 @@ packed_from_combined(const COMBINED &combined)
     0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99,
     } ;
 
-  COMBINED left;
-  COMBINED right;
+  char *d = combined_string + combined.run;
 
-  switch(combined.run)
+  if( combined.run > 9)
     {
-    case 1:
-      // We know that val8 has two digits.
-      combined_string[combined.start] = bin2pd[combined.val8];
-      break;
-
-    case 2:
-      // We know that val16 has four digits.
-      combined_string[combined.start  ] = bin2pd[combined.val16/100];
-      combined_string[combined.start+1] = bin2pd[combined.val16%100];
-      break;
-
-    case 3:
-    case 4:
-      // We know that val32 can hold up to eight digits. Break it in half.
-      left.start  = combined.start;
-      left.run    = combined.run - 2;
-      left.val16  = combined.val32 / 10000;
-
-      right.start = combined.start+left.run;
-      right.run   =                2;
-      right.val16 = combined.val32 % 10000;
-
-      packed_from_combined(left);
-      packed_from_combined(right);
-      break;
-
-    case 5:
-    case 6:
-    case 7:
-    case 8:
-      // We know that val64 is holding up to 18 digits.  Break it into two
-      // eight-digit places that can each go into a val23
-      left.start  = combined.start;
-      left.run    = combined.run - 4;
-      left.val32  = combined.val64 / 100000000;
-
-      right.start = combined.start+left.run;
-      right.run   =                4;
-      right.val32 = combined.val64 % 100000000;
-
-      packed_from_combined(left);
-      packed_from_combined(right);
-      break;
-
-    case 9:
-      // We know that val64 is holding 17 or 18 digits.  Break off the
-      // bottom eight.
-      left.start  = combined.start;
-      left.run    = combined.run - 4;
-      left.val64  = combined.val64 / 100000000;
-
-      right.start = combined.start+left.run;
-      right.run   =                4;
-      right.val32 = combined.val64 % 100000000;
-
-      packed_from_combined(left);
-      packed_from_combined(right);
-      break;
-
-    case 10:
-    case 11:
-    case 12:
-    case 13:
-    case 14:
-    case 15:
-    case 16:
-    case 17:
-    case 18:
-      // We know that val64 is holding between 18 and 36 digits.  Break it
-      // two val64:
-
-      left.start  = combined.start;
-      left.run    = combined.run - 9;
-      left.val64  = combined.val128 / 1000000000000000000ULL;
-
-      right.start = combined.start+left.run;
-      right.run   =                9;
-      right.val64 = combined.val128 % 1000000000000000000ULL;
-
-      packed_from_combined(left);
-      packed_from_combined(right);
-      break;
-
-    default:
-      // For twenty or more digits we peel eighteen digits at a time off the
-      // right side:
-      left.start  = combined.start;
-      left.run    = combined.run - 9;
-      left.val128 = combined.val128 / 1000000000000000000ULL;
-
-      right.start = combined.start+left.run;
-      right.run   =                9;
-      right.val64 = combined.val128 % 1000000000000000000ULL;
-
-      packed_from_combined(left);
-      packed_from_combined(right);
-      break;
+    // Stage 1: pull from int128 until the top half is zero.
+    __int128 value128 = combined.val128;
+    while(value128>>64)
+      {
+      *(--d) = bin2pd[value128%100];
+      value128 /= 100;
+      }
+    // Stage 2: Keep going with the 64-bit bottom half.
+    uint64_t value64 = value128;
+    while(d > combined_string)
+      {
+      *(--d) = bin2pd[value64%100];
+      value64 /= 100;
+      }
+    }
+  else
+    {
+    uint64_t value = combined.val64;
+    while(d > combined_string)
+      {
+      *(--d) = bin2pd[value%100];
+      value /= 100;
+      }
     }
   }
 
@@ -497,7 +426,6 @@ __gg__binary_to_packed( unsigned char *result,
   size_t length = (digits+1)/2;
 
   COMBINED combined;
-  combined.start = 0;
   combined.run = length;
   combined.val128 = value;
   packed_from_combined(combined);
@@ -671,3 +599,4 @@ __gg__packed_to_binary(const unsigned char *psz,
     }
   return retval;
   }
+

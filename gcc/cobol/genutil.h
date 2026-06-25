@@ -90,11 +90,10 @@ void      scale_by_power_of_ten_N(tree value,
 tree      scale_by_power_of_ten(tree value,
                                 tree N,
                                 bool check_for_fractional = false);
-void      scale_and_round(tree value,
-                          int  value_rdigits,
-                          bool target_is_signable,
-                          int  target_rdigits,
-                          cbl_round_t rounded);
+tree      round_this_value( tree &value,
+                            tree power_of_ten,
+                            cbl_round_t rounded,
+                            tree size_error);
 void      hex_dump(tree data, size_t bytes);
 void      set_exception_code_func(ec_type_t ec,
                                   int line,

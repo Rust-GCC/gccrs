@@ -1761,71 +1761,6 @@ scale_by_power_of_ten(tree value,
   }
 
 void
-scale_and_round(tree value,
-                int  value_rdigits,
-                bool target_is_signable,
-                int  target_rdigits,
-                cbl_round_t rounded)
-  {
-  if( !target_is_signable )
-    {
-    // The target has to be positive, so take the absolute value of the input
-    gg_assign(value, gg_abs(value));
-    }
-
-  if( target_rdigits >= value_rdigits )
-    {
-    // The value doesn't have enough rdigits.  All we need to do is multiply it
-    // by a power of ten to get it right:
-    scale_by_power_of_ten_N(value,
-                          target_rdigits - value_rdigits);
-    }
-  else
-    {
-    // The value has too few rdigits.
-    switch(rounded)
-      {
-      case nearest_away_from_zero_e:
-        {
-        // This is rounding away from zero
-
-        // We want to adjust value so that the extra digit is in the units
-        // place:
-        scale_by_power_of_ten_N(value,
-                              target_rdigits - value_rdigits + 1);
-        // Add five to the result:
-        IF( value, lt_op, gg_cast(TREE_TYPE(value), integer_zero_node) )
-          {
-          gg_assign(value,
-                    gg_add( value,
-                            build_int_cst_type(TREE_TYPE(value), -5)));
-          }
-        ELSE
-          {
-          gg_assign(value,
-                    gg_add( value,
-                            build_int_cst_type(TREE_TYPE(value), +5)));
-          }
-        // And now get rid of the lowest decimal digit
-        scale_by_power_of_ten_N(value, -1);
-
-        break;
-        }
-
-      case truncation_e:
-        {
-        // Without rounding, just scale the result
-        scale_by_power_of_ten_N(value, target_rdigits - value_rdigits);
-        break;
-        }
-      default:
-        abort();
-        break;
-      }
-    }
-  }
-
-void
 hex_dump(tree data, size_t bytes)
   {
   gg_printf("0x", NULL_TREE);
@@ -3493,3 +3428,341 @@ attribute_bit_set(struct cbl_field_t *var, cbl_field_attr_t bits)
                             build_int_cst_type(SIZE_T, bits)));
   }
 
+tree
+round_this_value( tree &value,
+                  tree pot,
+                  cbl_round_t rounded,
+                  tree size_error)
+  {
+  tree retval = gg_define_variable(INT);
+  // We are rounding value by dividing it by 'pot', which is a power of ten.
+  // We will decide how to round it by looking at the remainder.
+
+  // Return zero when the returned value is zero.  We use this to avoid
+  // negative zero flags in numeric-display and packed-decimal reprentatios
+  // when there have been truncations.
+  tree type = TREE_TYPE(value);
+  if( rounded == truncation_e )
+    {
+    // This is the simplest and most common case.
+    gg_assign(value, gg_divide(value, pot));
+    IF( value, eq_op, build_int_cst_type(type, 0) )
+      {
+      gg_assign(retval, integer_zero_node);
+      }
+    ELSE
+      {
+      gg_assign(retval, integer_one_node);
+      }
+    ENDIF
+    return retval;
+    }
+  // With truncation out of the way, we actually have to do some work.
+  bool signable = !TYPE_UNSIGNED(type);
+
+  // Let's calculate rem = abs(value) % pot.  So, if the POT is, say, 1000,
+  // the remainder will be between 000 and 999 inclusive.
+  tree rem = gg_define_variable(type);
+  gg_assign(rem, gg_mod(gg_abs(value), pot));
+  gg_assign(value, gg_divide(value, pot));
+
+  // We often need the halfway point, that is, 500 when POT is 1000
+  tree half = gg_define_variable(type);
+  gg_assign(half, gg_divide(pot, build_int_cst_type(type, 2)));
+
+  tree zero = build_int_cst_type(type, 0);
+
+  switch(rounded)
+    {
+    case away_from_zero_e:
+      {
+      /* "If the AWAY-FROM-ZERO phrase is specified and the arithmetic value
+         cannot be exactly represented in the resultant identifier, the
+         arithmetic value is rounded to the nearest value farther from zero
+         that can be represented in the resultant identifier." */
+      if( signable )
+        {
+        IF( value, ge_op, zero )
+          {
+          // The value is positive, so if there is a remainder, increment it
+          IF( rem, gt_op, zero )
+            {
+            gg_increment(value);
+            }
+          ELSE {} ENDIF
+          }
+        ELSE
+          {
+          // The value is negative, so if there is a remainder, decrement it
+          IF( rem, gt_op, zero )
+            {
+            gg_decrement(value);
+            }
+          ELSE {} ENDIF
+          }
+        ENDIF
+        }
+      else
+        {
+        // The value is positive, so if there is a remainder, increment it
+        IF( rem, gt_op, zero )
+          {
+          gg_increment(value);
+          }
+        ELSE {} ENDIF
+        }
+      break;
+      }
+
+    case nearest_away_from_zero_e:
+      {
+      /* "If the NEAREST-AWAY-FROM-ZERO phrase is specified or implied and the
+         arithmetic value cannot be exactly represented in the resultant
+         identifier, the arithmetic value is rounded to the nearest value that
+         can be represented in the resultant identifier. If two such values are
+         equally near, the value farther from zero is chosen."
+
+         This is rounding like you learned in grade school,
+         */
+      if( signable )
+        {
+        IF( value, ge_op, zero )
+          {
+          // The value is positive, so if remainder >= 5, increment it
+          IF( rem, ge_op, half )
+            {
+            gg_increment(value);
+            }
+          ELSE {} ENDIF
+          }
+        ELSE
+          {
+          // The value is negative, so if remainder < 5, decrement it
+          IF( rem, ge_op, half )
+            {
+            gg_decrement(value);
+            }
+          ELSE {} ENDIF
+          }
+        ENDIF
+        }
+      else
+        {
+        // The value is positive, so if remainder >= 5, increment it
+        IF( rem, ge_op, half )
+          {
+          gg_increment(value);
+          }
+        ELSE {} ENDIF
+        }
+      break;
+      }
+
+    case nearest_even_e:
+      {
+      /* "If the NEAREST-EVEN phrase is specified and the arithmetic value
+         cannot be exactly represented in the resultant identifier, the
+         arithmetic value is rounded to the nearest value that can be
+         represented in the resultant identifier. If two such values are
+         equally near, the value whose rightmost digit is even is chosen.
+         NOTE: This method is sometimes known as 'banker's rounding'." */
+      if( signable )
+        {
+        IF( rem, eq_op, half )
+          {
+          // This is the money shot, exactly half-way.
+          IF( value, ge_op, zero )
+            {
+            gg_increment(value);
+            gg_assign(value,
+                      gg_bitwise_and(value,
+                                     gg_bitwise_not(build_int_cst_type(type,
+                                                                       1))));
+            }
+          ELSE
+            {
+            gg_assign(value, gg_negate(value));
+            gg_increment(value);
+            gg_assign(value,
+                      gg_bitwise_and(value,
+                                     gg_bitwise_not(build_int_cst_type(type,
+                                                                       1))));
+            gg_assign(value, gg_negate(value));
+            }
+          ENDIF
+          }
+        ELSE
+          {
+          // The signable value has a remainder that is not exactly 5
+          IF( value, ge_op, zero )
+            {
+            // The value is positive, so if remainder >= 5, increment it
+            IF( rem, ge_op, half )
+              {
+              gg_increment(value);
+              }
+            ELSE {} ENDIF
+            }
+          ELSE
+            {
+            // The value is negative, so if remainder < 5, decrement it
+            IF( rem, ge_op, half )
+              {
+              gg_decrement(value);
+              }
+            ELSE {} ENDIF
+            }
+          ENDIF
+          }
+        ENDIF
+        }
+      else
+        {
+        // The value is not signable, hence it is positive:
+        IF( rem, eq_op, half )
+          {
+          // This is the money shot, exactly half-way.
+          // Make value a multiple of 2
+          gg_increment(value);
+          gg_assign(value,
+                    gg_bitwise_and(value,
+                                   gg_bitwise_not(build_int_cst_type(type,
+                                                                     1))));
+          }
+        ELSE
+          {
+          // The value is positive, so if remainder > 5, increment it
+          IF( rem, gt_op, half )
+            {
+            gg_increment(value);
+            }
+          ELSE {} ENDIF
+          }
+        ENDIF
+        }
+      break;
+      }
+
+    case nearest_toward_zero_e:
+      {
+      /* "If the NEAREST-TOWARD-ZERO phrase is specified and the arithmetic
+         value cannot be exactly represented in the resultant identifier, the
+         arithmetic value is rounded to the nearest value that can be
+         represented in the resultant identifier. If two such values are
+         equally near, the value nearest to zero is chosen." */
+      if( signable )
+        {
+        IF( value, ge_op, zero )
+          {
+          // The value is positive, so if remainder > 5, increment it
+          IF( rem, gt_op, half )
+            {
+            gg_increment(value);
+            }
+          ELSE {} ENDIF
+          }
+        ELSE
+          {
+          // The value is negative, so if remainder < 5, decrement it
+          IF( rem, gt_op, half )
+            {
+            gg_decrement(value);
+            }
+          ELSE {} ENDIF
+          }
+        ENDIF
+        }
+      else
+        {
+        // The value is positive, so if remainder > 5, increment it
+        IF( rem, gt_op, half )
+          {
+          gg_increment(value);
+          }
+        ELSE {} ENDIF
+        }
+      break;
+      }
+    case prohibited_e:
+      {
+      /* "If the PROHIBITED phrase is specified, and the arithmetic value
+         cannot be represented exactly in the resultant identifier, the
+         EC-SIZE-TRUNCATION exception condition is set to exist, the size error
+         condition exists, and the content of the resultant identifier is
+         unchanged." */
+      const cbl_enabled_exceptions_t&
+                                enabled_exceptions( cdf_enabled_exceptions() );
+      IF( rem, ne_op, zero )
+        {
+        if( size_error )
+          {
+          gg_assign(size_error, integer_one_node);
+          }
+        else if( enabled_exceptions.match(ec_size_truncation_e) )
+          {
+          set_exception_code(ec_size_truncation_e);
+          }
+        }
+      ELSE
+        {
+        }
+      ENDIF
+      break;
+      }
+
+    case toward_greater_e:
+      {
+      /* "If the TOWARD-GREATER phrase is specified, and the arithmetic value
+         cannot be represented exactly in the resultant identifier, the
+         arithmetic value is rounded to the nearest larger value that can be
+         represented in the resultant identifier." */
+      IF( value, ge_op, zero )
+        {
+        // The value is positive, so if remainder != 0, increment it
+        IF( rem, ne_op, zero )
+          {
+          gg_increment(value);
+          }
+        ELSE {} ENDIF
+        }
+      ELSE {} ENDIF
+      break;
+      }
+   
+    case toward_lesser_e:
+      {
+      /* "If the TOWARD-LESS phrase is specified, and the arithmetic value
+          cannot be represented exactly in the resultant identifier, the
+          arithmetic value is rounded to the nearest smaller value that
+          can be represented in the resultant identifier." */
+      IF( value, lt_op, zero )
+        {
+        // The value is negative, so if remainder != 0 , decrement it
+        IF( rem, ne_op, zero )
+          {
+          gg_decrement(value);
+          }
+        ELSE {} ENDIF
+        }
+      ELSE {} ENDIF
+      break;
+      }
+
+    case truncation_e:
+      {
+      /* We do nothing.*/
+      gg_assign(value, gg_divide(value, pot));
+      break;
+      }
+    }
+  IF( value, eq_op, build_int_cst_type(type, 0) )
+    {
+    gg_assign(retval, integer_zero_node);
+    }
+  ELSE
+    {
+    gg_assign(retval, integer_one_node);
+    }
+  ENDIF
+  return retval;
+  }

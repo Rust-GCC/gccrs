@@ -1715,11 +1715,13 @@ __gg__miconverter( cbl_encoding_t from,
   return retval;
   }
 
-typedef std::unordered_map<cbl_encoding_t, charmap_t *, cbl_encoding_t_hash>
-cbl_encoding_charmap_map;
+// I switched to this wasteful table when I learned that unordered_map.find(),
+// fast though it is, at something like 23 nanoseconds was annoyingly longer
+// than some of my efficient MOVE conversion routines.
 
-static
-cbl_encoding_charmap_map map_of_encodings;
+// Using 1500 is, I suppose, sloppy.  Right now the biggest entry in the
+// cbl_encodings_t enum is about 1,150.
+static charmap_t *maps_weve_seen[iconv_LAST] = {};
 
 charmap_t *
 __gg__get_charmap(cbl_encoding_t encoding)
@@ -1741,15 +1743,15 @@ __gg__get_charmap(cbl_encoding_t encoding)
     }
 
   charmap_t *retval;
-  cbl_encoding_charmap_map::const_iterator it = map_of_encodings.find(encoding);
-  if( it != map_of_encodings.end() )
+
+  if( maps_weve_seen[encoding] )
     {
-    retval = it->second;
+    retval = maps_weve_seen[encoding];
     }
   else
     {
     retval = new charmap_t(encoding);
-    map_of_encodings[encoding] = retval;
+    maps_weve_seen[encoding] = retval;
     }
   return retval;
   }

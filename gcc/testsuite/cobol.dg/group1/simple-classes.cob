@@ -12,7 +12,7 @@
 *> { dg-output {Fred            is alphabetic(\n|\r\n|\r)} }
 *> { dg-output { } }
 IDENTIFICATION DIVISION.
-PROGRAM-ID. test.
+PROGRAM-ID. prog.
 AUTHOR. Michael Coughlan.
 *> This routine is based on Listing-5-1
 ENVIRONMENT DIVISION.
@@ -65,4 +65,4 @@ TestAlphabetic.
     ELSE
       DISPLAY NameIn " is not alphabetic"
    END-IF.
-  END PROGRAM test.
+  END PROGRAM prog.
