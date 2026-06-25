@@ -5363,7 +5363,7 @@
 ;;
 ;; There's probably some HImode cases we could handle too.  I haven't
 ;; thought hard about them.
-(define_insn_and_split "seq_sne_qi"
+(define_insn_and_split "*seq_sne_qi"
   [(set (match_operand:X 0 "register_operand" "=r")
 	(any_eq:X (subreg:QI
 		   (ashift:X (match_operand:X 1 "register_operand" "r")
