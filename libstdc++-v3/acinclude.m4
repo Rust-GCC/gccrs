@@ -5861,7 +5861,7 @@ AC_DEFUN([GLIBCXX_CHECK_STDIO_LOCKING], [
 	  }
 	  ]],[[
 	  f1_type twritable = &::__fwritable;
-	  f1_type tblk = &::__flbf; 
+	  f1_type tblk = &::__flbf;
 	  f2_type pbufsize = &::__fbufsize;
 	  FILE* f = ::fopen("", "");
 	  int i = ::__overflow(f, EOF);
