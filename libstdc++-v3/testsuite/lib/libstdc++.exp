@@ -476,7 +476,7 @@ if { [info procs saved-dg-test] == [list] } {
 # These should be adjusted whenever the compiler's default -std is updated
 # or a newer C++ effective target is added.
 set v3_default_std 20
-set v3_max_std 26
+set v3_max_std 29
 
 # Find the minimum standard required by a test, if higher than $v3_default_std.
 proc v3-minimum-std { test } {
