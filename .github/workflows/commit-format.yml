@@ -160,9 +160,11 @@ jobs:
 
             git log --format=%B -n 1 "$commit" > /tmp/commit_log
 
-            if grep -P '(^|[^\w]+)#[0-9]+' /tmp/commit_log > /tmp/found ; then
+            python -c 'import re,sys; p=re.compile(r"(?<!/)\b\w+#\d+|\B#\d+"); [print(l,end="") for l in sys.stdin if p.search(l)]' < /tmp/commit_log > /tmp/found
+
+            if [ -s /tmp/found ] ; then
               echo "$commit: KO because it has one or more bad references" | tee -a $GITHUB_STEP_SUMMARY
-              cat /tmp/found | tee -a $GITHUB_STEP_SUMMARY
+              tee -a $GITHUB_STEP_SUMMARY < /tmp/found
               retval=1
             else
               echo "$commit: OK"
@@ -170,10 +172,13 @@ jobs:
           done;
 
           if [ "$retval" -ne 0 ]; then
-            echo "Some raw issue references were found (eg. #4242)." | tee -a $GITHUB_STEP_SUMMARY
-            echo "You shall rewrite the faulty commit message with this format: Rust-GCC/gccrs#4242" | tee -a $GITHUB_STEP_SUMMARY
-            echo "You may ignore this CI step if it represents a valid GCC bugzilla or external repository reference instead." | tee -a $GITHUB_STEP_SUMMARY
+            echo "Some bad issue references were found (eg. #4242, Rust-GCC#7777)." | tee -a $GITHUB_STEP_SUMMARY
+            echo "You shall rewrite the faulty commit message with this format: Rust-GCC/gccrs#4242" | \
+               tee -a $GITHUB_STEP_SUMMARY
+            echo "You may ignore this CI step if it represents a valid GCC bugzilla or external repository reference instead." | \
+               tee -a $GITHUB_STEP_SUMMARY
           else
-            echo "No unadorned references found" | tee $GITHUB_STEP_SUMMARY
+            echo "No unadorned (#1234) or incorrect (foo#1234) references found" | \
+               tee $GITHUB_STEP_SUMMARY
           fi
           exit $retval;
