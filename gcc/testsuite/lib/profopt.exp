@@ -462,7 +462,11 @@ proc profopt-execute { src } {
 		} else {
 		    set profiler "perf"
 		}
-		set cmd "create_gcov --binary $execname1 --profile=$tmpdir/$base.perf.data --profiler=$profiler --gcov_version=$autofdo_version --gcov=$tmpdir/$bprefix$base.$ext"
+	    	set create_gcov "[getenv CREATE_GCOV]"
+		if { $create_gcov == "" } {
+		    set create_gcov "create_gcov"
+		}
+		set cmd "$create_gcov --binary $execname1 --profile=$tmpdir/$base.perf.data --profiler=$profiler --gcov_version=$autofdo_version --gcov=$tmpdir/$bprefix$base.$ext"
 		verbose "Running $cmd"
 		set id [remote_spawn "" $cmd]
 		if { $id < 0 } {
