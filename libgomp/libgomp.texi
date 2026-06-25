@@ -8033,7 +8033,7 @@ queries:
 
 @smallexample
 omp_get_thread_num() == @var{thread_num}
-@end
+@end smallexample
 
 Hereby, @var{thread_num} has the value of the argument to the @code{filter}
 clause or zero if not specified.
@@ -8319,7 +8319,7 @@ For @code{schedule(static)} without @code{ordered}, the compiler uses:
 
 @smallexample
   _Complex int GOMP_loop_static_worksharing (void)
-@end
+@end smallexample
 
 which returns the thread id in the real part and the thread count in the imaginary
 part as a single value, avoiding separate @code{omp_get_thread_num} /
@@ -8329,7 +8329,7 @@ Similarly, for @code{distribute} constructs:
 
 @smallexample
   _Complex int GOMP_distribute_static_worksharing (void)
-@end
+@end smallexample
 
 returns the team id and team count.
 
