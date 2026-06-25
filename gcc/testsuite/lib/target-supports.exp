@@ -4245,6 +4245,20 @@ proc check_effective_target_has_q_floating_suffix { } {
     } "$opts"]
 }
 
+# Return 1 if the target supports infinities and NaNs on
+# float, double and long double.
+
+proc check_effective_target_flt_dbl_ldbl_inf_nan { } {
+    return [check_no_compiler_messages_nocache flt_dbl_ldbl_inf_nan object {
+	int dummy1[__FLT_HAS_INFINITY__ ? 1 : -1];
+	int dummy2[__FLT_HAS_QUIET_NAN__ ? 1 : -1];
+	int dummy3[__DBL_HAS_INFINITY__ ? 1 : -1];
+	int dummy4[__DBL_HAS_QUIET_NAN__ ? 1 : -1];
+	int dummy5[__LDBL_HAS_INFINITY__ ? 1 : -1];
+	int dummy6[__LDBL_HAS_QUIET_NAN__ ? 1 : -1];
+    }]
+}
+
 # Return 1 if the target supports the _FloatN / _FloatNx type
 # indicated in the function name, 0 otherwise.
 
