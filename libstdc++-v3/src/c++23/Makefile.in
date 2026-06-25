@@ -866,7 +866,7 @@ std.compat.cc: std.compat.cc.in std-clib.cc.in
 stamp-modules-bits: $(includebits_DATA)
 	@-mkdir -p $(top_builddir)/include/bits
 	-for f in $(includebits_DATA); do \
-	  $(LN_S) $(abs_srcdir)/$$f $(top_builddir)/include/bits; \
+	  $(LN_S) $(abs_builddir)/$$f $(top_builddir)/include/bits; \
 	done 2>/dev/null
 	@$(STAMP) $@
 
