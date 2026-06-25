@@ -37,16 +37,68 @@
 
 using namespace aarch64_acle;
 
+/* Require that the parameter at PARAM_INDEX is in the range MIN to MAX
+   (inclusive).  */
+template <unsigned int PARAM_INDEX, int MIN, int MAX>
+bool
+range (function_checker &c)
+{
+  return c.require_immediate_range (PARAM_INDEX, MIN, MAX);
+}
+
+/* Require that the parameter at PARAM_INDEX is a valid lane index for the
+   vector at PARAM_INDEX - 1.  */
+template <unsigned int PARAM_INDEX>
+bool
+lane (function_checker &c)
+{
+  auto vec_param_index = PARAM_INDEX - 1;
+  auto fn_type = TREE_TYPE (c.fndecl);
+  auto args = TYPE_ARG_TYPES (fn_type);
+
+  for (auto i = 0U; i < vec_param_index; i++)
+    args = TREE_CHAIN (args);
+  auto arg_type = TREE_VALUE (args);
+
+  unsigned element_count;
+  if (VECTOR_TYPE_P (arg_type))
+    element_count = TYPE_VECTOR_SUBPARTS (arg_type).to_constant ();
+  else
+    {
+      auto field = tuple_type_field (arg_type);
+      auto array_type = TREE_TYPE (field);
+      auto vec_type = TREE_TYPE (array_type);
+      element_count = TYPE_VECTOR_SUBPARTS (vec_type).to_constant ();
+    }
+  return c.require_immediate_range (PARAM_INDEX, 0, element_count - 1);
+}
+
+
+/* A checker that always returns true.  */
+bool
+trivial (function_checker &)
+{
+  return true;
+}
+
+using check_fn_t = bool (*) (function_checker &);
+
 /* All NEON functions are non-overloaded, so we don't need bespoke
   function shapes.  Instead, we can just use a single shape for all NEON
-  functions, parameterised by a signature.  */
+  functions, parameterised by a signature and optional validity checkers.  */
 struct neon_shape : public function_shape
 {
-  constexpr neon_shape (const char *signature)
-    : m_signature (signature)
+  constexpr neon_shape (const char *signature,
+			check_fn_t check_fn1 = trivial,
+			check_fn_t check_fn2 = trivial)
+    : m_signature (signature),
+      m_check_fn1 (check_fn1),
+      m_check_fn2 (check_fn2)
   {}
 
   const char *m_signature;
+  check_fn_t m_check_fn1;
+  check_fn_t m_check_fn2;
 
   void build (function_builder &b,
 	      const function_group_info &group) const override
@@ -54,7 +106,12 @@ struct neon_shape : public function_shape
     aarch64_acle::build_all (b, this->m_signature, group, MODE_none);
   }
 
-  bool check (function_checker &) const override { return true; }
+  bool check (function_checker &c) const override
+  {
+    /* Use strict `&` rather than short-circuiting `&&` so that we report errors
+       from both checkers.  */
+    return this->m_check_fn1 (c) & this->m_check_fn2 (c);
+  }
 
   bool explicit_type_suffix_p (unsigned int) const override { return true; }
   tree resolve (function_resolver &) const override { gcc_unreachable (); }

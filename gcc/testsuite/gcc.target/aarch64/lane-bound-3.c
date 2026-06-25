@@ -12,9 +12,7 @@
 __attribute__((always_inline))
 static inline
 void h(uint64x2_t c, int __b) {
-   /* Use vgetq_lane_u64 to get a 
-     __builtin_aarch64_im_lane_boundsi */
-   vgetq_lane_u64(c, __b);
+    __builtin_aarch64_im_lane_boundsi (sizeof (c), sizeof (c[0]), __b);
 
   __builtin_unreachable();
 }

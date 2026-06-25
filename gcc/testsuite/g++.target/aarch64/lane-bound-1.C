@@ -12,7 +12,7 @@ void hh(uint64x2_t c, int __b)
 {
   try {
     vgetq_lane_u64(c, __b);
-    // { dg-error "must be a constant immediate" "" { target *-*-* } 0 }
+    // { dg-error "must be an integer constant expression" "" { target *-*-* } 0 }
   } catch (...)
   {
         removeme(); // { dg-bogus "declared with attribute error" }

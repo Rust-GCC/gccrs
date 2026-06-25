@@ -704,42 +704,6 @@ static aarch64_simd_builtin_datum aarch64_simd_builtin_data[] = {
   VREINTERPRET_BUILTINS \
   VREINTERPRETQ_BUILTINS
 
-#define AARCH64_SIMD_VGET_LOW_BUILTINS \
-  VGET_LOW_BUILTIN(mf8) \
-  VGET_LOW_BUILTIN(f16) \
-  VGET_LOW_BUILTIN(f32) \
-  VGET_LOW_BUILTIN(f64) \
-  VGET_LOW_BUILTIN(p8) \
-  VGET_LOW_BUILTIN(p16) \
-  VGET_LOW_BUILTIN(p64) \
-  VGET_LOW_BUILTIN(s8) \
-  VGET_LOW_BUILTIN(s16) \
-  VGET_LOW_BUILTIN(s32) \
-  VGET_LOW_BUILTIN(s64) \
-  VGET_LOW_BUILTIN(u8) \
-  VGET_LOW_BUILTIN(u16) \
-  VGET_LOW_BUILTIN(u32) \
-  VGET_LOW_BUILTIN(u64) \
-  VGET_LOW_BUILTIN(bf16)
-
-#define AARCH64_SIMD_VGET_HIGH_BUILTINS \
-  VGET_HIGH_BUILTIN(mf8) \
-  VGET_HIGH_BUILTIN(f16) \
-  VGET_HIGH_BUILTIN(f32) \
-  VGET_HIGH_BUILTIN(f64) \
-  VGET_HIGH_BUILTIN(p8) \
-  VGET_HIGH_BUILTIN(p16) \
-  VGET_HIGH_BUILTIN(p64) \
-  VGET_HIGH_BUILTIN(s8) \
-  VGET_HIGH_BUILTIN(s16) \
-  VGET_HIGH_BUILTIN(s32) \
-  VGET_HIGH_BUILTIN(s64) \
-  VGET_HIGH_BUILTIN(u8) \
-  VGET_HIGH_BUILTIN(u16) \
-  VGET_HIGH_BUILTIN(u32) \
-  VGET_HIGH_BUILTIN(u64) \
-  VGET_HIGH_BUILTIN(bf16)
-
 #include "aarch64-builtin-pairs.def"
 
 #define LO_HI_PAIRINGS \
@@ -789,12 +753,6 @@ typedef struct
 #define VREINTERPRET_BUILTIN(A, B, L) \
   AARCH64_SIMD_BUILTIN_VREINTERPRET##L##_##A##_##B,
 
-#define VGET_LOW_BUILTIN(A) \
-  AARCH64_SIMD_BUILTIN_VGET_LOW_##A,
-
-#define VGET_HIGH_BUILTIN(A)                     \
-  AARCH64_SIMD_BUILTIN_VGET_HIGH_##A,
-
 #undef VAR1
 #define VAR1(T, N, MAP, FLAG, A) \
   AARCH64_SIMD_BUILTIN_##T##_##N##A,
@@ -834,8 +792,6 @@ enum aarch64_builtins
   AARCH64_CRC32_BUILTIN_MAX,
   /* SIMD intrinsic builtins.  */
   AARCH64_SIMD_VREINTERPRET_BUILTINS
-  AARCH64_SIMD_VGET_LOW_BUILTINS
-  AARCH64_SIMD_VGET_HIGH_BUILTINS
   /* ARMv8.3-A Pointer Authentication Builtins.  */
   AARCH64_PAUTH_BUILTIN_AUTIA1716,
   AARCH64_PAUTH_BUILTIN_PACIA1716,
@@ -948,34 +904,9 @@ static aarch64_fcmla_laneq_builtin_datum aarch64_fcmla_lane_builtin_data[] = {
      && SIMD_INTR_QUAL(A) == SIMD_INTR_QUAL(B) \
   },
 
-#undef VGET_LOW_BUILTIN
-#define VGET_LOW_BUILTIN(A) \
-  {"vget_low_" #A, \
-   AARCH64_SIMD_BUILTIN_VGET_LOW_##A, \
-   2, \
-   { SIMD_INTR_MODE(A, d), SIMD_INTR_MODE(A, q) }, \
-   { SIMD_INTR_QUAL(A), SIMD_INTR_QUAL(A) }, \
-   FLAG_DEFAULT, \
-   false \
-  },
-
-#undef VGET_HIGH_BUILTIN
-#define VGET_HIGH_BUILTIN(A) \
-  {"vget_high_" #A, \
-   AARCH64_SIMD_BUILTIN_VGET_HIGH_##A, \
-   2, \
-   { SIMD_INTR_MODE(A, d), SIMD_INTR_MODE(A, q) }, \
-   { SIMD_INTR_QUAL(A), SIMD_INTR_QUAL(A) }, \
-   FLAG_DEFAULT, \
-   false \
-  },
-
 static const aarch64_simd_intrinsic_datum aarch64_simd_intrinsic_data[] = {
   AARCH64_SIMD_VREINTERPRET_BUILTINS
-  AARCH64_SIMD_VGET_LOW_BUILTINS
-  AARCH64_SIMD_VGET_HIGH_BUILTINS
 };
-
 
 #undef CRC32_BUILTIN
 
@@ -2897,8 +2828,6 @@ aarch64_pragma_builtins_checker::check ()
 
   switch (builtin_data.unspec)
     {
-    case UNSPEC_DUP_LANE:
-    case UNSPEC_GET_LANE:
     case UNSPEC_LD2_LANE:
     case UNSPEC_LD3_LANE:
     case UNSPEC_LD4_LANE:
@@ -2942,11 +2871,6 @@ aarch64_pragma_builtins_checker::check ()
 
 	return require_immediate_range (nargs - 1, 0, high);
       }
-
-    case UNSPEC_VEC_COPY:
-      /* & rather than && so that we report errors against both indices.  */
-      return (require_immediate_lane_index (1, 0)
-	      & require_immediate_lane_index (3, 2));
 
     default:
       return true;
@@ -3187,12 +3111,12 @@ aarch64_simd_expand_builtin (int fcode, tree exp, rtx target)
 	  && UINTVAL (totalsize) != 0)
 	{
 	  rtx lane_idx = expand_normal (CALL_EXPR_ARG (exp, 2));
-          if (CONST_INT_P (lane_idx))
+	  if (CONST_INT_P (lane_idx))
 	    aarch64_simd_lane_bounds (lane_idx, 0,
 				      UINTVAL (totalsize)
 				       / UINTVAL (elementsize),
 				      exp);
-          else
+	  else
 	    error_at (EXPR_LOCATION (exp),
 		      "lane index must be a constant immediate");
 	}
@@ -4294,13 +4218,6 @@ aarch64_expand_pragma_builtin (tree exp, rtx target,
 	aarch64_dereference_pointer (&ops[1], GET_MODE_INNER (ops[0].mode));
       return expand_vector_broadcast (ops[0].mode, ops[1].value);
 
-    case UNSPEC_DUP_LANE:
-      aarch64_canonicalize_lane (&ops[2], ops[1].mode);
-      if (ops[0].mode == ops[1].mode)
-	icode = code_for_aarch64_dup_lane (ops[0].mode);
-      else
-	icode = code_for_aarch64_dup_lane (ops[0].mode, ops[0].mode);
-      break;
 
     case UNSPEC_EXT:
       icode = code_for_aarch64_ext (ops[0].mode);
@@ -4373,11 +4290,6 @@ aarch64_expand_pragma_builtin (tree exp, rtx target,
 	icode = code_for_aarch64 (builtin_data.unspec, ops[0].mode);
       else
 	gcc_unreachable ();
-      break;
-
-    case UNSPEC_GET_LANE:
-      aarch64_canonicalize_lane (&ops[2], ops[1].mode);
-      icode = code_for_aarch64_get_lane (ops[1].mode);
       break;
 
     case UNSPEC_LD1:
@@ -4492,18 +4404,6 @@ aarch64_expand_pragma_builtin (tree exp, rtx target,
 
     case UNSPEC_UZP:
       return aarch64_expand_permute_pair (ops, UNSPEC_UZP1, UNSPEC_UZP2);
-
-    case UNSPEC_VEC_COPY:
-      {
-	aarch64_convert_to_lane_mask (&ops[2], ops[1].mode);
-	aarch64_canonicalize_lane (&ops[4], ops[3].mode);
-	if (ops[1].mode == ops[3].mode)
-	  icode = code_for_aarch64_simd_vec_copy_lane (ops[1].mode);
-	else
-	  icode = code_for_aarch64_simd_vec_copy_lane (ops[1].mode,
-						       ops[1].mode);
-	break;
-      }
 
     case UNSPEC_ZIP:
       return aarch64_expand_permute_pair (ops, UNSPEC_ZIP1, UNSPEC_ZIP2);
@@ -4817,14 +4717,6 @@ aarch64_fold_builtin_lane_check (tree arg0, tree arg1, tree arg2)
 #define VREINTERPRET_BUILTIN(A, B, L) \
   case AARCH64_SIMD_BUILTIN_VREINTERPRET##L##_##A##_##B:
 
-#undef VGET_LOW_BUILTIN
-#define VGET_LOW_BUILTIN(A) \
-  case AARCH64_SIMD_BUILTIN_VGET_LOW_##A:
-
-#undef VGET_HIGH_BUILTIN
-#define VGET_HIGH_BUILTIN(A) \
-  case AARCH64_SIMD_BUILTIN_VGET_HIGH_##A:
-
 /* Try to fold a call to the built-in function with subcode FCODE.  The
    function is passed the N_ARGS arguments in ARGS and it returns a value
    of type TYPE.  Return the new expression on success and NULL_TREE on
@@ -4843,20 +4735,6 @@ aarch64_general_fold_builtin (unsigned int fcode, tree type,
 	return fold_build1 (FLOAT_EXPR, type, args[0]);
       AARCH64_SIMD_VREINTERPRET_BUILTINS
 	return fold_build1 (VIEW_CONVERT_EXPR, type, args[0]);
-      AARCH64_SIMD_VGET_LOW_BUILTINS
-	{
-	  auto pos = BYTES_BIG_ENDIAN ? 64 : 0;
-
-	  return fold_build3 (BIT_FIELD_REF, type, args[0], bitsize_int (64),
-			      bitsize_int (pos));
-	}
-      AARCH64_SIMD_VGET_HIGH_BUILTINS
-	{
-	  auto pos = BYTES_BIG_ENDIAN ? 0 : 64;
-
-	  return fold_build3 (BIT_FIELD_REF, type, args[0], bitsize_int (64),
-			      bitsize_int (pos));
-	}
       case AARCH64_SIMD_BUILTIN_LANE_CHECK:
 	gcc_assert (n_args == 3);
 	if (aarch64_fold_builtin_lane_check (args[0], args[1], args[2]))
@@ -5192,14 +5070,11 @@ aarch64_gimple_fold_pragma_builtin
   switch (builtin_data.unspec)
     {
     case UNSPEC_DUP:
-    case UNSPEC_DUP_LANE:
       {
 	tree arg = gimple_call_arg (stmt, 0);
 	tree type = types[0].type ();
 	if (builtin_data.signature == aarch64_builtin_signatures::load)
 	  arg = aarch64_dereference (arg, TREE_TYPE (type));
-	else if (builtin_data.unspec == UNSPEC_DUP_LANE)
-	  arg = aarch64_get_lane (arg, gimple_call_arg (stmt, 1));
 	arg = aarch64_force_gimple_val (gsi, arg);
 
 	tree dup = build_vector_from_val (type, arg);
@@ -5210,13 +5085,6 @@ aarch64_gimple_fold_pragma_builtin
       {
 	auto index = tree_to_uhwi (gimple_call_arg (stmt, 2));
 	return aarch64_fold_permute (stmt, 2, aarch64_ext_index, index);
-      }
-
-    case UNSPEC_GET_LANE:
-      {
-	tree val = aarch64_get_lane (gimple_call_arg (stmt, 0),
-				     gimple_call_arg (stmt, 1));
-	return gimple_build_assign (gimple_call_lhs (stmt), val);
       }
 
     case UNSPEC_LD1:
@@ -5277,16 +5145,6 @@ aarch64_gimple_fold_pragma_builtin
 
     case UNSPEC_UZP2:
       return aarch64_fold_permute (stmt, 2, aarch64_uzp_index, 1);
-
-    case UNSPEC_VEC_COPY:
-      {
-	tree elt = aarch64_get_lane (gimple_call_arg (stmt, 2),
-				     gimple_call_arg (stmt, 3));
-	elt = aarch64_force_gimple_val (gsi, elt);
-	return aarch64_set_lane (gimple_call_lhs (stmt), elt,
-				 gimple_call_arg (stmt, 0),
-				 gimple_call_arg (stmt, 1));
-      }
 
     case UNSPEC_ZIP1:
       return aarch64_fold_permute (stmt, 2, aarch64_zip_index, 0);

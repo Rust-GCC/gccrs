@@ -1309,6 +1309,10 @@ function_expander::result_mode () const
   D (s16, s8), D (s32, s16), D (s64, s32), \
   D (u16, u8), D (u32, u16), D (u64, u32)
 
+/* _mf8.  */
+#define TYPES_b_float(S, D, T) \
+  S (mf8)
+
 /* _bf16.  */
 #define TYPES_h_bfloat(S, D, T) \
   S (bf16)
@@ -1767,6 +1771,10 @@ function_expander::result_mode () const
 #define TYPES_za(S, D, T) \
   S (za)
 
+/* _p16 _s16 _u16 _f16 _bf16.  */
+#define TYPES_h_neon(S, D, T) \
+  S (p16), S (s16), S (u16), S (f16), S (bf16)
+
 /* _p8  _s8  _u8  _mf8
    _p16 _s16 _u16 _f16 _bf16
 	_s32 _u32 _f32
@@ -1791,6 +1799,19 @@ function_expander::result_mode () const
   TYPES_bhd_poly (S, D, T), S (mf8), \
   TYPES_all_integer (S, D, T), \
   TYPES_all_float (S, D, T)
+
+/* _p8  _s8  _u8  _mf8
+   _p16 _s16 _u16 _bf16
+	_s32 _u32 _f32
+   _p64 _s64 _u64 _f64.  */
+#define TYPES_neon_copy_lane(S, D, T) \
+  TYPES_bhd_poly (S, D, T), \
+  TYPES_all_integer (S, D, T), \
+  S (mf8), S (bf16), S (f32), S (f64)
+
+/* _p8 _s8 _u8.  */
+#define TYPES_b_neon(S, D, T) \
+  S (p8), S (s8), S (u8)
 
 /* Describe a tuple of type suffixes in which only the first is used.  */
 #define DEF_VECTOR_TYPE(X) \
@@ -1926,10 +1947,14 @@ DEF_SVE_TYPES_ARRAY (mop_i16i64_signed);
 DEF_SVE_TYPES_ARRAY (mop_i16i64_unsigned);
 DEF_SVE_TYPES_ARRAY (za);
 
+DEF_SVE_TYPES_ARRAY (b_float);
 DEF_SVE_TYPES_ARRAY (all_neon);
+DEF_SVE_TYPES_ARRAY (b_neon);
+DEF_SVE_TYPES_ARRAY (h_neon);
 DEF_SVE_TYPES_ARRAY (bhd_poly);
 DEF_SVE_TYPES_ARRAY (bhdq_poly);
 DEF_SVE_TYPES_ARRAY (bhsd_neon);
+DEF_SVE_TYPES_ARRAY (neon_copy_lane);
 
 static const group_suffix_index groups_none[] = {
   GROUP_none, NUM_GROUP_SUFFIXES

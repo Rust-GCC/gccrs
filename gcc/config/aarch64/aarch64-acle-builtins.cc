@@ -2542,18 +2542,21 @@ function_checker::require_immediate (unsigned int argno,
   gcc_assert (argno < m_nargs);
   tree arg = m_args[argno];
 
-  /* The type and range are unsigned, so read the argument as an
-     unsigned rather than signed HWI.  */
-  if (!tree_fits_uhwi_p (arg))
+  if (tree_fits_shwi_p (arg))
+    {
+      value_out = tree_to_shwi (arg);
+      return true;
+    }
+  else if (tree_fits_uhwi_p (arg))
+    {
+      value_out = tree_to_uhwi (arg);
+      return true;
+    }
+  else
     {
       report_non_ice (location, fndecl, argno);
       return false;
     }
-
-  /* ...but treat VALUE_OUT as signed for error reporting, since printing
-     -1 is more user-friendly than the maximum uint64_t value.  */
-  value_out = tree_to_uhwi (arg);
-  return true;
 }
 
 /* Check that argument REL_ARGNO is an integer constant expression that
@@ -3104,6 +3107,28 @@ gimple_folder::force_val (tree expr)
   auto stmt = gimple_build_assign (var, expr);
   gsi_insert_before (this->gsi, stmt, GSI_SAME_STMT);
   return var;
+}
+
+/* Insert a `lhs = rhs` statement before the current statement.
+   Returns the new statement.  */
+gassign *
+gimple_folder::assign (tree lhs, tree rhs)
+{
+  auto stmt = gimple_build_assign (lhs, rhs);
+  gsi_insert_before (this->gsi, stmt, GSI_SAME_STMT);
+  return stmt;
+}
+
+/* Insert a `lhs = code<rhs1, rhs2, rhs3>` statement before the current
+   statement.
+   Returns the new statement.  */
+gassign *
+gimple_folder::assign (tree lhs, tree_code code, tree rhs1, tree rhs2,
+		       tree rhs3)
+{
+  auto stmt = gimple_build_assign (lhs, code, rhs1, rhs2, rhs3);
+  gsi_insert_before (this->gsi, stmt, GSI_SAME_STMT);
+  return stmt;
 }
 
 function_expander::function_expander (const function_instance &instance,

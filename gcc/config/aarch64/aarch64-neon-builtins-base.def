@@ -21,10 +21,38 @@
 #define REQUIRED_EXTENSIONS nonstreaming_only (AARCH64_FL_SIMD)
 DEF_NEON_FUNCTION (vcreate,     all_neon,  ("D0,su64"))
 DEF_NEON_FUNCTION (vcombine,    all_neon,  ("Q0,D0,D0"))
+DEF_NEON_FUNCTION (vget_lane,   all_neon,  ("s0,D0,ss32",    lane<1>))
+DEF_NEON_FUNCTION (vgetq_lane,  all_neon,  ("s0,Q0,ss32",    lane<1>))
+DEF_NEON_FUNCTION (vget_high,   all_neon,  ("D0,Q0"))
+DEF_NEON_FUNCTION (vget_low,    all_neon,  ("D0,Q0"))
+DEF_NEON_FUNCTION (vset_lane,   all_neon,  ("D0,s0,D0,ss32", lane<2>))
+DEF_NEON_FUNCTION (vsetq_lane,  all_neon,  ("Q0,s0,Q0,ss32", lane<2>))
+DEF_NEON_FUNCTION (vdup_lane,   all_neon,  ("D0,D0,ss32",    lane<1>))
+DEF_NEON_FUNCTION (vdupq_lane,  all_neon,  ("Q0,D0,ss32",    lane<1>))
+DEF_NEON_FUNCTION (vdup_laneq,  all_neon,  ("D0,Q0,ss32",    lane<1>))
+DEF_NEON_FUNCTION (vdupq_laneq, all_neon,  ("Q0,Q0,ss32",    lane<1>))
+DEF_NEON_FUNCTION (vdupb_lane,  b_neon,    ("s0,D0,ss32",    lane<1>))
+DEF_NEON_FUNCTION (vdupb_laneq, b_neon,    ("s0,Q0,ss32",    lane<1>))
+DEF_NEON_FUNCTION (vdupb_lane,  b_float,   ("s0,D0,ss32",    lane<1>))
+DEF_NEON_FUNCTION (vdupb_laneq, b_float,   ("s0,Q0,ss32",    lane<1>))
+DEF_NEON_FUNCTION (vduph_lane,  h_neon,    ("s0,D0,ss32",    lane<1>))
+DEF_NEON_FUNCTION (vduph_laneq, h_neon,    ("s0,Q0,ss32",    lane<1>))
+DEF_NEON_FUNCTION (vdups_lane,  s_data,    ("s0,D0,ss32",    lane<1>))
+DEF_NEON_FUNCTION (vdups_laneq, s_data,    ("s0,Q0,ss32",    lane<1>))
+DEF_NEON_FUNCTION (vdupd_lane,  d_data,    ("s0,D0,ss32",    lane<1>))
+DEF_NEON_FUNCTION (vdupd_laneq, d_data,    ("s0,Q0,ss32",    lane<1>))
 DEF_NEON_FUNCTION (vdup_n,      all_neon,  ("D0,s0"))
 DEF_NEON_FUNCTION (vdupq_n,     all_neon,  ("Q0,s0"))
 DEF_NEON_FUNCTION (vmov_n,      bhsd_neon, ("D0,s0"))
 DEF_NEON_FUNCTION (vmovq_n,     bhsd_neon, ("Q0,s0"))
+DEF_NEON_FUNCTION (vcopy_lane,  neon_copy_lane,
+		   ("D0,D0,ss32,D0,ss32", lane<1>, lane<3>))
+DEF_NEON_FUNCTION (vcopy_laneq, neon_copy_lane,
+		   ("D0,D0,ss32,Q0,ss32", lane<1>, lane<3>))
+DEF_NEON_FUNCTION (vcopyq_lane, neon_copy_lane,
+		   ("Q0,Q0,ss32,D0,ss32", lane<1>, lane<3>))
+DEF_NEON_FUNCTION (vcopyq_laneq, neon_copy_lane,
+		   ("Q0,Q0,ss32,Q0,ss32", lane<1>, lane<3>))
 #undef REQUIRED_EXTENSIONS
 
 // Lanewise arithmetic

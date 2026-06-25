@@ -2,6 +2,8 @@
 
 #pragma GCC target "+simd+fp16+bf16+sha3"
 
+#define VEC_LEN(VEC) (sizeof (VEC) / sizeof (VEC[0]))
+
 #define TEST_UNARY(NAME, RET_TYPE, ARG_1_TYPE)                                 \
   RET_TYPE test_##NAME (ARG_1_TYPE a) { return NAME (a); }
 

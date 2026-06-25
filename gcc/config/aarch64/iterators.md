@@ -266,7 +266,7 @@
 
 ;; The VALL_F16 modes except the 128-bit 2-element ones.
 (define_mode_iterator VALL_F16_NO_V2Q [V8QI V16QI V4HI V8HI V2SI V4SI
-				V4HF V8HF V2SF V4SF])
+				V4HF V8HF V4BF V8BF V2SF V4SF])
 
 ;; All Advanced SIMD modes barring HF modes, plus DI.
 (define_mode_iterator VALLDI [V8QI V16QI V4HI V8HI V2SI V4SI V2DI V2SF V4SF V2DF DI])

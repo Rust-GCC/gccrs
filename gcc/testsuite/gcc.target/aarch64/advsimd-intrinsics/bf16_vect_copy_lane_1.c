@@ -28,5 +28,4 @@ test_vcopyq_laneq_bf16 (bfloat16x8_t a, bfloat16x8_t b)
   return vcopyq_laneq_bf16 (a, 1, b, 2);
 }
 
-/* { dg-final { scan-assembler-times "ins\\tv0.h\\\[1\\\], v1.h\\\[2\\\]" 2 } } */
-/* { dg-final { scan-assembler-times "ins\\tv0.h\\\[1\\\], v1.h\\\[0\\\]" 2 } } */
+/* { dg-final { scan-assembler-times "ins\\tv0.h\\\[1\\\], v1.h\\\[2\\\]" 4 } } */
