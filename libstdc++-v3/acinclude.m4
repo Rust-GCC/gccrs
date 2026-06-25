@@ -254,9 +254,9 @@ AC_DEFUN([GLIBCXX_CHECK_LINKER_FEATURES], [
 
     # Check for -Wl,--gc-sections
     AC_MSG_CHECKING([for ld that supports -Wl,--gc-sections])
-    AC_TRY_LINK([ int one(void) { return 1; }
+    AC_LINK_IFELSE([AC_LANG_PROGRAM([[ int one(void) { return 1; }
      int two(void) { return 2; }
-	], [ two(); ] , [ac_gcsections=yes], [ac_gcsections=no])
+	]], [[ two(); ]])] , [ac_gcsections=yes], [ac_gcsections=no])
     if test "$ac_gcsections" = "yes"; then
       rm -f conftest.c
       touch conftest.c
@@ -1862,41 +1862,41 @@ AC_DEFUN([GLIBCXX_ENABLE_LIBSTDCXX_TIME], [
 
     if test x"$ac_has_unistd_h" = x"yes"; then
       AC_MSG_CHECKING([for monotonic clock])
-      AC_TRY_LINK(
-	[#include <unistd.h>
+      AC_LINK_IFELSE([AC_LANG_PROGRAM(
+	[[#include <unistd.h>
 	 #include <time.h>
-	],
-	[#if _POSIX_TIMERS > 0 && defined(_POSIX_MONOTONIC_CLOCK)
+	]],
+	[[#if _POSIX_TIMERS > 0 && defined(_POSIX_MONOTONIC_CLOCK)
 	  timespec tp;
 	 #endif
 	  clock_gettime(CLOCK_MONOTONIC, &tp);
-	], [ac_has_clock_monotonic=yes], [ac_has_clock_monotonic=no])
+	]])], [ac_has_clock_monotonic=yes], [ac_has_clock_monotonic=no])
 
       AC_MSG_RESULT($ac_has_clock_monotonic)
 
       AC_MSG_CHECKING([for realtime clock])
-      AC_TRY_LINK(
-	[#include <unistd.h>
+      AC_LINK_IFELSE([AC_LANG_PROGRAM(
+	[[#include <unistd.h>
 	 #include <time.h>
-	],
-	[#if _POSIX_TIMERS > 0
+	]],
+	[[#if _POSIX_TIMERS > 0
 	  timespec tp;
 	 #endif
 	  clock_gettime(CLOCK_REALTIME, &tp);
-	], [ac_has_clock_realtime=yes], [ac_has_clock_realtime=no])
+	]])], [ac_has_clock_realtime=yes], [ac_has_clock_realtime=no])
 
       AC_MSG_RESULT($ac_has_clock_realtime)
 
       AC_MSG_CHECKING([for nanosleep])
-      AC_TRY_LINK(
-	[#include <unistd.h>
+      AC_LINK_IFELSE([AC_LANG_PROGRAM(
+	[[#include <unistd.h>
 	 #include <time.h>
-	],
-	[#if _POSIX_TIMERS > 0
+	]],
+	[[#if _POSIX_TIMERS > 0
 	  timespec tp;
 	 #endif
 	  nanosleep(&tp, 0);
-	], [ac_has_nanosleep=yes], [ac_has_nanosleep=no])
+	]])], [ac_has_nanosleep=yes], [ac_has_nanosleep=no])
 
       AC_MSG_RESULT($ac_has_nanosleep)
     fi
@@ -3775,9 +3775,9 @@ AC_DEFUN([GLIBCXX_ENABLE_ATOMIC_BUILTINS], [
 
     AC_CACHE_CHECK([for atomic builtins for _Atomic_word],
 	glibcxx_cv_atomic_word,
-	[AC_TRY_LINK([#include "atomic_word.h"],
-		     [_Atomic_word a = 0, b;
-		      b = __atomic_fetch_add(&a, 1, __ATOMIC_ACQ_REL);],
+	[AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include "atomic_word.h"]],
+		     [[_Atomic_word a = 0, b;
+		      b = __atomic_fetch_add(&a, 1, __ATOMIC_ACQ_REL);]])],
 		     [glibcxx_cv_atomic_word=yes],
 		     [glibcxx_cv_atomic_word=no])])
 
@@ -4042,7 +4042,11 @@ if test $enable_symvers = gnu ||
   AC_MSG_CHECKING([for shared libgcc])
   ac_save_CFLAGS="$CFLAGS"
   CFLAGS=' -lgcc_s'
-  AC_TRY_LINK(, [return 0;], glibcxx_shared_libgcc=yes, glibcxx_shared_libgcc=no)
+  AC_LINK_IFELSE([AC_LANG_PROGRAM(
+    [[]],
+    [[return 0;]])],
+    [glibcxx_shared_libgcc=yes],
+    [glibcxx_shared_libgcc=no])
   CFLAGS="$ac_save_CFLAGS"
   if test $glibcxx_shared_libgcc = no; then
     cat > conftest.c <<EOF
@@ -4057,7 +4061,7 @@ changequote([,])dnl
     rm -f conftest.c conftest.so
     if test x${glibcxx_libgcc_s_suffix+set} = xset; then
       CFLAGS=" -lgcc_s$glibcxx_libgcc_s_suffix"
-      AC_TRY_LINK(, [return 0;], glibcxx_shared_libgcc=yes)
+      AC_LINK_IFELSE([AC_LANG_PROGRAM([[]], [[return 0;]])], [glibcxx_shared_libgcc=yes])
       CFLAGS="$ac_save_CFLAGS"
     fi
   fi
@@ -5286,7 +5290,7 @@ AC_DEFUN([GLIBCXX_ENABLE_BACKTRACE], [
 
     AC_CACHE_CHECK([for atomic builtins for libbacktrace],
 	glibcxx_cv_libbacktrace_atomics,
-	[AC_TRY_LINK([], [
+	[AC_LINK_IFELSE([AC_LANG_PROGRAM([[]], [[
 	    int i = 0;
 	    int* p = &i;
 	    __SIZE_TYPE__ s = 0;
@@ -5300,7 +5304,7 @@ AC_DEFUN([GLIBCXX_ENABLE_BACKTRACE], [
 	    __atomic_store_n(&s, s, __ATOMIC_RELEASE);
 	    // backtrace_atomic_store_int
 	    __atomic_store_n(&i, i, __ATOMIC_RELEASE);
-			 ],
+			 ]])],
 		     [glibcxx_cv_libbacktrace_atomics=yes],
 		     [glibcxx_cv_libbacktrace_atomics=no])])
 
