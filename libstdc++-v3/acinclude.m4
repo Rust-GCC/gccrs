@@ -70,19 +70,19 @@ AC_DEFUN([GLIBCXX_CONFIGURE], [
   # We use these options to decide which functions to include.  They are
   # set from the top level.
   AC_ARG_WITH([target-subdir],
-    AC_HELP_STRING([--with-target-subdir=SUBDIR],
+    AS_HELP_STRING([--with-target-subdir=SUBDIR],
 		   [configuring in a subdirectory]))
 
   AC_ARG_WITH([cross-host],
-    AC_HELP_STRING([--with-cross-host=HOST],
+    AS_HELP_STRING([--with-cross-host=HOST],
 		   [configuring with a cross compiler]))
 
   AC_ARG_WITH([newlib],
-    AC_HELP_STRING([--with-newlib],
+    AS_HELP_STRING([--with-newlib],
 		   [assume newlib as a system C library]))
 
   AC_ARG_WITH([picolibc],
-    AC_HELP_STRING([--with-picolibc],
+    AS_HELP_STRING([--with-picolibc],
 		   [assume picolibc as a system C library]))
 
   # Will set LN_S to either 'ln -s', 'ln', or 'cp -p' (if linking isn't
@@ -741,7 +741,7 @@ AC_DEFUN([GLIBCXX_EXPORT_INSTALL_INFO], [
 
   AC_MSG_CHECKING([for gxx-include-dir])
   AC_ARG_WITH([gxx-include-dir],
-    AC_HELP_STRING([--with-gxx-include-dir=DIR],
+    AS_HELP_STRING([--with-gxx-include-dir=DIR],
 		   [installation directory for include files]),
     [case "$withval" in
       yes) AC_MSG_ERROR([Missing directory for --with-gxx-include-dir]) ;;
@@ -753,7 +753,7 @@ AC_DEFUN([GLIBCXX_EXPORT_INSTALL_INFO], [
 
   AC_MSG_CHECKING([for --enable-version-specific-runtime-libs])
   AC_ARG_ENABLE([version-specific-runtime-libs],
-    AC_HELP_STRING([--enable-version-specific-runtime-libs],
+    AS_HELP_STRING([--enable-version-specific-runtime-libs],
 		   [Specify that runtime libraries should be installed in a compiler-specific directory]),
     [case "$enableval" in
       yes) version_specific_libs=yes ;;
@@ -835,7 +835,7 @@ dnl documentation.
 dnl
 m4_define([GLIBCXX_ENABLE],[dnl
 m4_define([_g_switch],[--enable-$1])dnl
-m4_define([_g_help],[AC_HELP_STRING([_g_switch$3],[$4 @<:@default=$2@:>@])])dnl
+m4_define([_g_help],[AS_HELP_STRING([_g_switch$3],[$4 @<:@default=$2@:>@])])dnl
  AC_ARG_ENABLE([$1],m4_dquote(_g_help),
   m4_bmatch([$5],
    [^permit ],
@@ -2792,7 +2792,7 @@ AC_DEFUN([GLIBCXX_ENABLE_CLOCALE], [
   # default to on for easier handling.
   USE_NLS=no
   AC_ARG_ENABLE(nls,
-    AC_HELP_STRING([--enable-nls],[use Native Language Support (default)]),
+    AS_HELP_STRING([--enable-nls],[use Native Language Support (default)]),
     [],
     [enable_nls=yes])
 
@@ -3373,7 +3373,7 @@ dnl  _GLIBCXX_HOSTED   (always defined, either to 1 or 0)
 dnl
 AC_DEFUN([GLIBCXX_ENABLE_HOSTED], [
   AC_ARG_ENABLE([hosted-libstdcxx],
-    AC_HELP_STRING([--disable-hosted-libstdcxx],
+    AS_HELP_STRING([--disable-hosted-libstdcxx],
 		   [only build freestanding C++ runtime support]),
     [enable_hosted_libstdcxx_was_given=yes],
     [case "$host" in
@@ -3391,7 +3391,7 @@ AC_DEFUN([GLIBCXX_ENABLE_HOSTED], [
   # Because most configure args are --enable-libstdcxx-foo add an alias
   # of that form for --enable-hosted-libstdcxx.
   AC_ARG_ENABLE([libstdcxx-hosted],
-    AC_HELP_STRING([--disable-libstdcxx-hosted],
+    AS_HELP_STRING([--disable-libstdcxx-hosted],
 		   [alias for --disable-hosted-libstdcxx]),
     [if test "$enable_hosted_libstdcxx_was_given" = yes; then
       if test "$enable_hosted_libstdcxx" != "$enableval"; then
@@ -3435,7 +3435,7 @@ dnl  _GLIBCXX_VERBOSE (always defined, either to 1 or 0)
 dnl
 AC_DEFUN([GLIBCXX_ENABLE_VERBOSE], [
   AC_ARG_ENABLE([libstdcxx-verbose],
-    AC_HELP_STRING([--disable-libstdcxx-verbose],
+    AS_HELP_STRING([--disable-libstdcxx-verbose],
 		   [disable termination messages to standard error]),,
 		   [enable_libstdcxx_verbose=yes])
   if test x"$enable_libstdcxx_verbose" = xyes; then
@@ -3867,7 +3867,7 @@ dnl
 AC_DEFUN([GLIBCXX_ENABLE_LOCK_POLICY], [
 
   AC_ARG_WITH([libstdcxx-lock-policy],
-    AC_HELP_STRING([--with-libstdcxx-lock-policy={atomic,mutex,auto}],
+    AS_HELP_STRING([--with-libstdcxx-lock-policy={atomic,mutex,auto}],
       [synchronization policy for shared_ptr reference counting [default=auto]]),
               [libstdcxx_atomic_lock_policy=$withval],
               [libstdcxx_atomic_lock_policy=auto])
@@ -5527,7 +5527,7 @@ AC_DEFUN([GLIBCXX_EMERGENCY_EH_ALLOC], [
   eh_pool_static=
   eh_pool_nobjs=
   AC_ARG_ENABLE([libstdcxx-static-eh-pool],
-    AC_HELP_STRING([--enable-libstdcxx-static-eh-pool],
+    AS_HELP_STRING([--enable-libstdcxx-static-eh-pool],
 		   [use a fixed-size static buffer for allocating exceptions if malloc fails]),
     [if test "${enableval}" = yes; then
       eh_pool_static="-D_GLIBCXX_EH_POOL_STATIC"
@@ -5535,7 +5535,7 @@ AC_DEFUN([GLIBCXX_EMERGENCY_EH_ALLOC], [
     fi],)
 
   AC_ARG_WITH([libstdcxx-eh-pool-obj-count],
-    AC_HELP_STRING([--with-libstdcxx-eh-pool-obj-count],
+    AS_HELP_STRING([--with-libstdcxx-eh-pool-obj-count],
 		   [the number of exceptions that can be allocated from the pool if malloc fails]),
     [if test "${withval}" -ge 0 2>/dev/null; then
       eh_pool_obj_count="-D_GLIBCXX_EH_POOL_NOBJS=${withval}"
@@ -5566,7 +5566,7 @@ dnl    static copy of the tzdata.zi file.
 dnl
 AC_DEFUN([GLIBCXX_ZONEINFO_DIR], [
   AC_ARG_WITH([libstdcxx-zoneinfo],
-    AC_HELP_STRING([--with-libstdcxx-zoneinfo],
+    AS_HELP_STRING([--with-libstdcxx-zoneinfo],
 		   [the location to use for tzdata]),
     [],[with_libstdcxx_zoneinfo=yes])
 
