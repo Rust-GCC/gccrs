@@ -378,10 +378,10 @@ dnl # rather than hardcoding that information.
       tanhl tanl])
 
     # Support for iconv in newlib is configurable.
-    AC_TRY_COMPILE([#include <newlib.h>], [
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <newlib.h>]], [[
       #ifndef _ICONV_ENABLED
       #error
-      #endif], [ac_newlib_iconv_enabled=yes], [ac_newlib_iconv_enabled=no])
+      #endif]])], [ac_newlib_iconv_enabled=yes], [ac_newlib_iconv_enabled=no])
     if test "$ac_newlib_iconv_enabled" = yes; then
       AC_DEFINE(HAVE_ICONV)
     fi
@@ -461,10 +461,10 @@ dnl # rather than hardcoding that information.
     AC_DEFINE(HAVE_TANHF)
 
     # Support for iconv in picolibc is configurable.
-    AC_TRY_COMPILE([#include <picolibc.h>], [
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <picolibc.h>]], [[
       #ifndef _ICONV_ENABLED
       #error
-      #endif], [ac_picolibc_iconv_enabled=yes], [ac_picolibc_iconv_enabled=no])
+      #endif]])], [ac_picolibc_iconv_enabled=yes], [ac_picolibc_iconv_enabled=no])
     if test "$ac_picolibc_iconv_enabled" = yes; then
       AC_DEFINE(HAVE_ICONV)
     fi
@@ -472,10 +472,10 @@ dnl # rather than hardcoding that information.
     AC_DEFINE(HAVE_MEMALIGN)
 
     # Check for TLS
-    AC_TRY_COMPILE([#include <picolibc.h>], [
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <picolibc.h>]], [[
       #ifndef __THREAD_LOCAL_STORAGE
       #error
-      #endif], [ac_picolibc_tls_enabled=yes], [ac_picolibc_tls_enabled=no])
+      #endif]])], [ac_picolibc_tls_enabled=yes], [ac_picolibc_tls_enabled=no])
     if test "$ac_picolibc_tls_enabled" = yes; then
       AC_DEFINE(HAVE_TLS)
     fi
@@ -548,11 +548,11 @@ case "$target" in
   sparc*-*-linux* | \
   s390*-*-linux* | \
   alpha*-*-linux*)
-  AC_TRY_COMPILE(, [
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]], [[
 #if !defined __LONG_DOUBLE_128__ || (defined(__sparc__) && defined(__arch64__))
 #error no need for long double compatibility
 #endif
-  ], [ac_ldbl_compat=yes], [ac_ldbl_compat=no])
+  ]])], [ac_ldbl_compat=yes], [ac_ldbl_compat=no])
   if test "$ac_ldbl_compat" = yes; then
     AC_DEFINE([_GLIBCXX_LONG_DOUBLE_COMPAT],1,
 	      [Define if compatibility should be provided for -mlong-double-64.])
@@ -566,11 +566,11 @@ case "$target" in
                      [ac_ldbl_ieee128_in_libc=no])
         if test $ac_ldbl_ieee128_in_libc = yes; then
           # Determine which long double format is the compiler's default:
-          AC_TRY_COMPILE(, [
+          AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]], [[
             #ifndef __LONG_DOUBLE_IEEE128__
             #error compiler defaults to ibm128
             #endif
-          ], [ac_ldbl_ieee128_default=yes], [ac_ldbl_ieee128_default=no])
+          ]])], [ac_ldbl_ieee128_default=yes], [ac_ldbl_ieee128_default=no])
           # Library objects should use default long double format.
           if test "$ac_ldbl_ieee128_default" = yes; then
             LONG_DOUBLE_128_FLAGS="-mno-gnu-attribute"

@@ -14,12 +14,12 @@ AC_DEFUN([GLIBCXX_CHECK_MATH_DECL_1], [
     AC_CACHE_VAL(glibcxx_cv_func_$1_use, [
       AC_LANG_SAVE
       AC_LANG_CPLUSPLUS
-      AC_TRY_COMPILE([#include <math.h>
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <math.h>
 		      #ifdef HAVE_IEEEFP_H
 		      #include <ieeefp.h>
 		      #endif
-		     ],
-                     [ $1(0);],
+		     ]],
+                     [[ $1(0);]])],
                       [glibcxx_cv_func_$1_use=yes], [glibcxx_cv_func_$1_use=no])
       AC_LANG_RESTORE
     ])
@@ -59,8 +59,8 @@ AC_DEFUN([GLIBCXX_CHECK_MATH_DECLS_AND_LINKAGES_1], [
   AC_CACHE_VAL(glibcxx_cv_func_$2_use, [
     AC_LANG_SAVE
     AC_LANG_CPLUSPLUS
-    AC_TRY_COMPILE([#include <math.h>],
-                   patsubst(funclist,[\w+],[\& (0);]),
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <math.h>]],
+                   patsubst(funclist,[\w+],[\& (0);]))],
                    [glibcxx_cv_func_$2_use=yes],
                    [glibcxx_cv_func_$2_use=no])
     AC_LANG_RESTORE])
@@ -83,8 +83,8 @@ AC_DEFUN([GLIBCXX_CHECK_MATH_DECL_2], [
     AC_CACHE_VAL(glibcxx_cv_func_$1_use, [
       AC_LANG_SAVE
       AC_LANG_CPLUSPLUS
-      AC_TRY_COMPILE([#include <math.h>],
-                     [ $1(0, 0);],
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <math.h>]],
+                     [[ $1(0, 0);]])],
                      [glibcxx_cv_func_$1_use=yes], [glibcxx_cv_func_$1_use=no])
       AC_LANG_RESTORE
     ])
@@ -124,8 +124,8 @@ AC_DEFUN([GLIBCXX_CHECK_MATH_DECL_3], [
     AC_CACHE_VAL(glibcxx_cv_func_$1_use, [
       AC_LANG_SAVE
       AC_LANG_CPLUSPLUS
-      AC_TRY_COMPILE([#include <math.h>],
-                     [ $1(0, 0, 0);],
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <math.h>]],
+                     [[ $1(0, 0, 0);]])],
                      [glibcxx_cv_func_$1_use=yes], [glibcxx_cv_func_$1_use=no])
       AC_LANG_RESTORE
     ])
@@ -160,35 +160,6 @@ dnl 2) has "C" linkage
 dnl
 dnl argument 1 is name of function to check
 dnl
-dnl ASSUMES argument is a stdlib function without parameters
-dnl
-dnl GLIBCXX_CHECK_STDLIB_DECL_AND_LINKAGE_0
-AC_DEFUN([GLIBCXX_CHECK_STDLIB_DECL_AND_LINKAGE_0], [
-  AC_MSG_CHECKING([for $1 declaration])
-  if test x${glibcxx_cv_func_$1_use+set} != xset; then
-    AC_CACHE_VAL(glibcxx_cv_func_$1_use, [
-      AC_LANG_SAVE
-      AC_LANG_CPLUSPLUS
-      AC_TRY_COMPILE([#include <stdlib.h>],
-                     [ $1();],
-                     [glibcxx_cv_func_$1_use=yes], [glibcxx_cv_func_$1_use=no])
-      AC_LANG_RESTORE
-    ])
-  fi
-  AC_MSG_RESULT($glibcxx_cv_func_$1_use)
-  if test x$glibcxx_cv_func_$1_use = x"yes"; then
-    AC_CHECK_FUNCS($1)
-  fi
-])
-
-
-dnl
-dnl Check to see if the (stdlib function) argument passed is
-dnl 1) declared when using the c++ compiler
-dnl 2) has "C" linkage
-dnl
-dnl argument 1 is name of function to check
-dnl
 dnl ASSUMES argument is a stdlib function with ONE parameter
 dnl
 dnl GLIBCXX_CHECK_STDLIB_DECL_AND_LINKAGE_1
@@ -198,8 +169,8 @@ AC_DEFUN([GLIBCXX_CHECK_STDLIB_DECL_AND_LINKAGE_1], [
     AC_CACHE_VAL(glibcxx_cv_func_$1_use, [
       AC_LANG_SAVE
       AC_LANG_CPLUSPLUS
-      AC_TRY_COMPILE([#include <stdlib.h>],
-                     [ $1(0);],
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <stdlib.h>]],
+                     [[ $1(0);]])],
                      [glibcxx_cv_func_$1_use=yes], [glibcxx_cv_func_$1_use=no])
       AC_LANG_RESTORE
     ])
@@ -227,8 +198,8 @@ AC_DEFUN([GLIBCXX_CHECK_STDLIB_DECL_AND_LINKAGE_2], [
     AC_CACHE_VAL(glibcxx_cv_func_$1_use, [
       AC_LANG_SAVE
       AC_LANG_CPLUSPLUS
-      AC_TRY_COMPILE([#include <stdlib.h>],
-                     [ $1(0, 0);],
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <stdlib.h>]],
+                     [[ $1(0, 0);]])],
                      [glibcxx_cv_func_$1_use=yes], [glibcxx_cv_func_$1_use=no])
       AC_LANG_RESTORE
     ])
@@ -256,8 +227,8 @@ AC_DEFUN([GLIBCXX_CHECK_STDLIB_DECL_AND_LINKAGE_3], [
     AC_CACHE_VAL(glibcxx_cv_func_$1_use, [
       AC_LANG_SAVE
       AC_LANG_CPLUSPLUS
-      AC_TRY_COMPILE([#include <stdlib.h>],
-                     [ $1(0, 0, 0);],
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <stdlib.h>]],
+                     [[ $1(0, 0, 0);]])],
                      [glibcxx_cv_func_$1_use=yes], [glibcxx_cv_func_$1_use=no])
       AC_LANG_RESTORE
     ])

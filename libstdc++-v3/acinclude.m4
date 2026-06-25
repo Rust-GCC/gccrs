@@ -147,7 +147,9 @@ AC_DEFUN([GLIBCXX_CHECK_COMPILER_FEATURES], [
   # Check for -ffunction-sections -fdata-sections
   AC_MSG_CHECKING([for g++ that supports -ffunction-sections -fdata-sections])
   CXXFLAGS='-g -Werror -ffunction-sections -fdata-sections'
-  AC_TRY_COMPILE([int foo; void bar() { };],, [ac_fdsections=yes], [ac_fdsections=no])
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[int foo; void bar() { };]],[[]])],
+    [ac_fdsections=yes],
+    [ac_fdsections=no])
   if test "$ac_test_CXXFLAGS" = set; then
     CXXFLAGS="$ac_save_CXXFLAGS"
   else
@@ -323,12 +325,12 @@ dnl  various HAVE_LIMIT_* for individual limit names
 dnl
 AC_DEFUN([GLIBCXX_CHECK_SETRLIMIT_ancilliary], [
   AC_MSG_CHECKING([for RLIMIT_$1])
-  AC_TRY_COMPILE(
-    [#include <unistd.h>
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
+    [[#include <unistd.h>
      #include <sys/time.h>
      #include <sys/resource.h>
-    ],
-    [ int f = RLIMIT_$1 ; ],
+    ]],
+    [[ int f = RLIMIT_$1 ; ]])],
     [glibcxx_mresult=1], [glibcxx_mresult=0])
   AC_DEFINE_UNQUOTED(HAVE_LIMIT_$1, $glibcxx_mresult,
 		     [Only used in build directory testsuite_hooks.h.])
@@ -356,13 +358,13 @@ AC_DEFUN([GLIBCXX_CHECK_SETRLIMIT], [
     # Check for rlimit, setrlimit.
     AC_CACHE_CHECK([for testsuite resource limits support],
       glibcxx_cv_setrlimit, [
-      AC_TRY_COMPILE(
-	[#include <unistd.h>
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
+	[[#include <unistd.h>
 	 #include <sys/time.h>
 	 #include <sys/resource.h>
-	],
-	[struct rlimit r;
-	 setrlimit(0, &r);],
+	]],
+	[[struct rlimit r;
+	 setrlimit(0, &r);]])],
 	[glibcxx_cv_setrlimit=yes], [glibcxx_cv_setrlimit=no])
     ])
 
@@ -1048,38 +1050,38 @@ AC_DEFUN([GLIBCXX_ENABLE_C99], [
        test x"$ac_has_wctype_h" = xyes; then
       AC_CACHE_CHECK([for ISO C99 support in <wchar.h> for C++98],
 	glibcxx_cv_c99_wchar_cxx98, [
-        AC_TRY_COMPILE([#include <wchar.h>
+        AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <wchar.h>
           namespace test
           {
             using ::wcstold;
             using ::wcstoll;
             using ::wcstoull;
           }
-        ], [], [glibcxx_cv_c99_wchar_cxx98=yes], [glibcxx_cv_c99_wchar_cxx98=no])
+        ]], [[]])], [glibcxx_cv_c99_wchar_cxx98=yes], [glibcxx_cv_c99_wchar_cxx98=no])
       ])
 
       # Checks for wide character functions that may not be present.
       # Injection of these is wrapped with guard macros.
       # NB: only put functions here, instead of immediately above, if
       # absolutely necessary.
-      AC_TRY_COMPILE([#include <wchar.h>
-        namespace test { using ::vfwscanf; }], [],
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <wchar.h>
+        namespace test { using ::vfwscanf; }]], [[]])],
         [AC_DEFINE(HAVE_VFWSCANF, 1, [Defined if vfwscanf exists.])], [])
 
-      AC_TRY_COMPILE([#include <wchar.h>
-        namespace test { using ::vswscanf; }], [],
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <wchar.h>
+        namespace test { using ::vswscanf; }]], [[]])],
         [AC_DEFINE(HAVE_VSWSCANF, 1, [Defined if vswscanf exists.])], [])
 
-      AC_TRY_COMPILE([#include <wchar.h>
-        namespace test { using ::vwscanf; }], [],
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <wchar.h>
+        namespace test { using ::vwscanf; }]], [[]])],
         [AC_DEFINE(HAVE_VWSCANF, 1, [Defined if vwscanf exists.])], [])
 
-      AC_TRY_COMPILE([#include <wchar.h>
-        namespace test { using ::wcstof; }], [],
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <wchar.h>
+        namespace test { using ::wcstof; }]], [[]])],
         [AC_DEFINE(HAVE_WCSTOF, 1, [Defined if wcstof exists.])], [])
 
-      AC_TRY_COMPILE([#include <wctype.h>],
-        [wint_t t; int i = iswblank(t);],
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <wctype.h>]],
+        [[wint_t t; int i = iswblank(t);]])],
         [AC_DEFINE(HAVE_ISWBLANK, 1, [Defined if iswblank exists.])], [])
 
       if test x"$glibcxx_cv_c99_wchar_cxx98" = x"yes"; then
@@ -1130,10 +1132,10 @@ AC_DEFUN([GLIBCXX_ENABLE_C99], [
     # Check for the existence of <stdint.h> types.
     AC_CACHE_CHECK([for ISO C99 support in <stdint.h> for C++11],
     glibcxx_cv_c99_stdint, [
-    AC_TRY_COMPILE([#define __STDC_LIMIT_MACROS
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#define __STDC_LIMIT_MACROS
 		    #define __STDC_CONSTANT_MACROS
-		    #include <stdint.h>],
-		   [typedef int8_t          my_int8_t;
+		    #include <stdint.h>]],
+		   [[typedef int8_t          my_int8_t;
 		    my_int8_t               i8 = INT8_MIN;
 		    i8 = INT8_MAX;
 		    typedef int16_t         my_int16_t;
@@ -1217,8 +1219,8 @@ AC_DEFUN([GLIBCXX_ENABLE_C99], [
 		    typedef uintptr_t       my_uintptr_t;
 		    my_uintptr_t            uip = UINTPTR_MAX;
 		    uip = UINTPTR_MAX;
-		   ],[glibcxx_cv_c99_stdint=yes],
-		     [glibcxx_cv_c99_stdint=no])
+		   ]])],[glibcxx_cv_c99_stdint=yes],
+		        [glibcxx_cv_c99_stdint=no])
     ])
     if test x"$glibcxx_cv_c99_stdint" = x"yes"; then
       AC_DEFINE(_GLIBCXX_USE_C99_STDINT, 1,
@@ -1231,15 +1233,15 @@ AC_DEFUN([GLIBCXX_ENABLE_C99], [
     ac_c99_inttypes=no;
     if test x"$glibcxx_cv_c99_stdint" = x"yes"; then
       AC_MSG_CHECKING([for ISO C99 support for C++11 in <inttypes.h>])
-      AC_TRY_COMPILE([#include <inttypes.h>],
-		     [intmax_t i, numer, denom, base;
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <inttypes.h>]],
+		     [[intmax_t i, numer, denom, base;
 		      const char* s;
 		      char** endptr;
 		      intmax_t ret = imaxabs(i);
 		      imaxdiv_t dret = imaxdiv(numer, denom);
 		      ret = strtoimax(s, endptr, base);
 		      uintmax_t uret = strtoumax(s, endptr, base);
-		     ],[ac_c99_inttypes=yes], [ac_c99_inttypes=no])
+		     ]])],[ac_c99_inttypes=yes], [ac_c99_inttypes=no])
       AC_MSG_RESULT($ac_c99_inttypes)
     fi
     if test x"$ac_c99_inttypes" = x"yes"; then
@@ -1253,14 +1255,14 @@ AC_DEFUN([GLIBCXX_ENABLE_C99], [
     ac_c99_inttypes_wchar_t=no;
     if test x"$glibcxx_cv_c99_stdint" = x"yes"; then
       AC_MSG_CHECKING([for wchar_t ISO C99 support for C++11 in <inttypes.h>])
-      AC_TRY_COMPILE([#include <inttypes.h>],
-		     [intmax_t base;
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <inttypes.h>]],
+		     [[intmax_t base;
 		      const wchar_t* s;
 		      wchar_t** endptr;
 		      intmax_t ret = wcstoimax(s, endptr, base);
 		      uintmax_t uret = wcstoumax(s, endptr, base);
-		     ],[ac_c99_inttypes_wchar_t=yes],
-		       [ac_c99_inttypes_wchar_t=no])
+		     ]])],[ac_c99_inttypes_wchar_t=yes],
+		          [ac_c99_inttypes_wchar_t=no])
       AC_MSG_RESULT($ac_c99_inttypes_wchar_t)
     fi
     if test x"$ac_c99_inttypes_wchar_t" = x"yes"; then
@@ -1300,11 +1302,11 @@ AC_DEFUN([GLIBCXX_ENABLE_C99], [
     # Check for the existence of <math.h> typedefs.
     AC_CACHE_CHECK([for ISO C99 float types for C++11 in <math.h>],
     glibcxx_cv_c99_flt_eval_types, [
-    AC_TRY_COMPILE([#include <math.h>],
-		   [// Types
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <math.h>]],
+		   [[// Types
 		    typedef double_t  my_double_t;
 		    typedef float_t   my_float_t;
-		   ],
+		   ]])],
 		   [glibcxx_cv_c99_flt_eval_types=yes],
 		   [glibcxx_cv_c99_flt_eval_types=no])
     ])
@@ -1317,8 +1319,8 @@ AC_DEFUN([GLIBCXX_ENABLE_C99], [
     # Check for the existence of <math.h> functions.
     AC_CACHE_CHECK([for ISO C99 function support for C++11 in <math.h>],
     glibcxx_cv_c99_math_funcs, [
-    AC_TRY_COMPILE([#include <math.h>],
-		   [
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <math.h>]],
+		   [[
 		    // Hyperbolic
 		    acosh(0.0);
 		    acoshf(0.0f);
@@ -1435,7 +1437,7 @@ AC_DEFUN([GLIBCXX_ENABLE_C99], [
 		    fma(0.0, 0.0, 0.0);
 		    fmaf(0.0f, 0.0f, 0.0f);
 		    fmal(0.0l, 0.0l, 0.0l);
-		   ],
+		   ]])],
 		   [glibcxx_cv_c99_math_funcs=yes],
 		   [glibcxx_cv_c99_math_funcs=no])
     ])
@@ -1448,14 +1450,14 @@ AC_DEFUN([GLIBCXX_ENABLE_C99], [
 	darwin*)
 	  AC_CACHE_CHECK([for ISO C99 rounding functions in <math.h>],
 	    glibcxx_cv_c99_math_llround, [
-	    AC_TRY_COMPILE([#include <math.h>],
-		   [llrint(0.0);
+	    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <math.h>]],
+		   [[llrint(0.0);
 		    llrintf(0.0f);
 		    llrintl(0.0l);
 		    llround(0.0);
 		    llroundf(0.0f);
 		    llroundl(0.0l);
-		   ],
+		   ]])],
 		   [glibcxx_cv_c99_math_llround=yes],
 		   [glibcxx_cv_c99_math_llround=no])
 	    ])
@@ -1541,8 +1543,8 @@ AC_DEFUN([GLIBCXX_ENABLE_C99], [
     ac_c99_complex_arc=no;
     if test x"$ac_has_complex_h" = x"yes"; then
       AC_MSG_CHECKING([for ISO C99 support for inverse trig functions in <complex.h>])
-      AC_TRY_COMPILE([#include <complex.h>],
-		     [typedef __complex__ float float_type; float_type tmpf;
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <complex.h>]],
+		     [[typedef __complex__ float float_type; float_type tmpf;
 		      cacosf(tmpf);
 		      casinf(tmpf);
 		      catanf(tmpf);
@@ -1563,7 +1565,7 @@ AC_DEFUN([GLIBCXX_ENABLE_C99], [
 		      cacoshl(tmpld);
 		      casinhl(tmpld);
 		      catanhl(tmpld);
-		     ],[ac_c99_complex_arc=yes], [ac_c99_complex_arc=no])
+		     ]])],[ac_c99_complex_arc=yes], [ac_c99_complex_arc=no])
     fi
     AC_MSG_RESULT($ac_c99_complex_arc)
     if test x"$ac_c99_complex_arc" = x"yes"; then
@@ -1629,38 +1631,38 @@ AC_DEFUN([GLIBCXX_ENABLE_C99], [
        test x"$ac_has_wctype_h" = xyes; then
       AC_CACHE_CHECK([for ISO C99 support in <wchar.h> for C++11],
 	glibcxx_cv_c99_wchar_cxx11, [
-        AC_TRY_COMPILE([#include <wchar.h>
+        AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <wchar.h>
           namespace test
           {
             using ::wcstold;
             using ::wcstoll;
             using ::wcstoull;
           }
-        ], [], [glibcxx_cv_c99_wchar_cxx11=yes], [glibcxx_cv_c99_wchar_cxx11=no])
+        ]], [[]])], [glibcxx_cv_c99_wchar_cxx11=yes], [glibcxx_cv_c99_wchar_cxx11=no])
       ])
 
       # Checks for wide character functions that may not be present.
       # Injection of these is wrapped with guard macros.
       # NB: only put functions here, instead of immediately above, if
       # absolutely necessary.
-      AC_TRY_COMPILE([#include <wchar.h>
-        namespace test { using ::vfwscanf; }], [],
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <wchar.h>
+        namespace test { using ::vfwscanf; }]], [[]])],
         [AC_DEFINE(HAVE_VFWSCANF, 1, [Defined if vfwscanf exists.])], [])
 
-      AC_TRY_COMPILE([#include <wchar.h>
-        namespace test { using ::vswscanf; }], [],
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <wchar.h>
+        namespace test { using ::vswscanf; }]], [[]])],
         [AC_DEFINE(HAVE_VSWSCANF, 1, [Defined if vswscanf exists.])], [])
 
-      AC_TRY_COMPILE([#include <wchar.h>
-        namespace test { using ::vwscanf; }], [],
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <wchar.h>
+        namespace test { using ::vwscanf; }]], [[]])],
         [AC_DEFINE(HAVE_VWSCANF, 1, [Defined if vwscanf exists.])], [])
 
-      AC_TRY_COMPILE([#include <wchar.h>
-        namespace test { using ::wcstof; }], [],
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <wchar.h>
+        namespace test { using ::wcstof; }]], [[]])],
         [AC_DEFINE(HAVE_WCSTOF, 1, [Defined if wcstof exists.])], [])
 
-      AC_TRY_COMPILE([#include <wctype.h>],
-        [wint_t t; int i = iswblank(t);],
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <wctype.h>]],
+        [[wint_t t; int i = iswblank(t);]])],
         [AC_DEFINE(HAVE_ISWBLANK, 1, [Defined if iswblank exists.])], [])
 
       if test x"$glibcxx_cv_c99_wchar_cxx11" = x"yes"; then
@@ -1673,12 +1675,12 @@ AC_DEFUN([GLIBCXX_ENABLE_C99], [
     # Check for the existence of <ctype.h> functions.
     AC_CACHE_CHECK([for ISO C99 support for C++11 in <ctype.h>],
     glibcxx_cv_c99_ctype, [
-    AC_TRY_COMPILE([#include <ctype.h>],
-		   [int ch;
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <ctype.h>]],
+		   [[int ch;
 		    int ret;
 		    ret = isblank(ch);
-		   ],[glibcxx_cv_c99_ctype=yes],
-		     [glibcxx_cv_c99_ctype=no])
+		   ]])],[glibcxx_cv_c99_ctype=yes],
+		        [glibcxx_cv_c99_ctype=no])
     ])
     if test x"$glibcxx_cv_c99_ctype" = x"yes"; then
       AC_DEFINE(_GLIBCXX_USE_C99_CTYPE, 1,
@@ -1691,8 +1693,8 @@ AC_DEFUN([GLIBCXX_ENABLE_C99], [
     ac_c99_fenv=no;
     if test x"$ac_has_fenv_h" = x"yes"; then
       AC_MSG_CHECKING([for ISO C99 support for C++11 in <fenv.h>])
-      AC_TRY_COMPILE([#include <fenv.h>],
-		     [int except, mode;
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <fenv.h>]],
+		     [[int except, mode;
 		      fexcept_t* pflag;
 		      fenv_t* penv;
 		      int ret;
@@ -1707,7 +1709,7 @@ AC_DEFUN([GLIBCXX_ENABLE_C99], [
 		      ret = feholdexcept(penv);
 		      ret = fesetenv(penv);
 		      ret = feupdateenv(penv);
-		     ],[ac_c99_fenv=yes], [ac_c99_fenv=no])
+		     ]])],[ac_c99_fenv=yes], [ac_c99_fenv=no])
       AC_MSG_RESULT($ac_c99_fenv)
     fi
     if test x"$ac_c99_fenv" = x"yes"; then
@@ -1906,17 +1908,17 @@ AC_DEFUN([GLIBCXX_ENABLE_LIBSTDCXX_TIME], [
     case ${target_os} in
       linux* | uclinux*)
 	AC_MSG_CHECKING([for clock_gettime syscall])
-	AC_TRY_COMPILE(
-	  [#include <unistd.h>
+	AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
+	  [[#include <unistd.h>
 	   #include <time.h>
 	   #include <sys/syscall.h>
-	  ],
-	  [#if _POSIX_TIMERS > 0 && defined(_POSIX_MONOTONIC_CLOCK)
+	  ]],
+	  [[#if _POSIX_TIMERS > 0 && defined(_POSIX_MONOTONIC_CLOCK)
 	    timespec tp;
 	   #endif
 	   syscall(SYS_clock_gettime, CLOCK_MONOTONIC, &tp);
 	   syscall(SYS_clock_gettime, CLOCK_REALTIME, &tp);
-	  ], [ac_has_clock_gettime_syscall=yes], [ac_has_clock_gettime_syscall=no])
+	  ]])], [ac_has_clock_gettime_syscall=yes], [ac_has_clock_gettime_syscall=no])
 	AC_MSG_RESULT($ac_has_clock_gettime_syscall)
 	if test x"$ac_has_clock_gettime_syscall" = x"yes"; then
 	  AC_DEFINE(_GLIBCXX_USE_CLOCK_GETTIME_SYSCALL, 1,
@@ -1924,11 +1926,11 @@ AC_DEFUN([GLIBCXX_ENABLE_LIBSTDCXX_TIME], [
 	  ac_has_clock_monotonic=yes
 	  ac_has_clock_realtime=yes
 	  AC_MSG_CHECKING([for struct timespec that matches syscall])
-	  AC_TRY_COMPILE(
-	    [#include <time.h>
+	  AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
+	    [[#include <time.h>
 	     #include <sys/syscall.h>
-	    ],
-	    [#ifdef SYS_clock_gettime64
+	    ]],
+	    [[#ifdef SYS_clock_gettime64
 	     #if SYS_clock_gettime64 != SYS_clock_gettime
 	     // We need to use SYS_clock_gettime and libc appears to
 	     // also know about the SYS_clock_gettime64 syscall.
@@ -1937,7 +1939,7 @@ AC_DEFUN([GLIBCXX_ENABLE_LIBSTDCXX_TIME], [
 	       "struct timespec must be compatible with SYS_clock_gettime");
 	     #endif
 	     #endif
-	    ],
+	    ]])],
 	    [ac_timespec_matches_syscall=yes],
 	    [ac_timespec_matches_syscall=no])
 	  AC_MSG_RESULT($ac_timespec_matches_syscall)
@@ -1971,17 +1973,17 @@ AC_DEFUN([GLIBCXX_ENABLE_LIBSTDCXX_TIME], [
       [Defined if Sleep exists.])
   else
       AC_MSG_CHECKING([for sleep])
-      AC_TRY_COMPILE([#include <unistd.h>],
-                     [sleep(1)],
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <unistd.h>]],
+                     [[sleep(1)]])],
                      [ac_has_sleep=yes],[ac_has_sleep=no])
       if test x"$ac_has_sleep" = x"yes"; then
         AC_DEFINE(HAVE_SLEEP,1, [Defined if sleep exists.])
       fi
       AC_MSG_RESULT($ac_has_sleep)
       AC_MSG_CHECKING([for usleep])
-      AC_TRY_COMPILE([#include <unistd.h>],
-                     [sleep(1);
-                      usleep(100);],
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <unistd.h>]],
+                     [[sleep(1);
+                      usleep(100);]])],
                      [ac_has_usleep=yes],[ac_has_usleep=no])
       if test x"$ac_has_usleep" = x"yes"; then
         AC_DEFINE(HAVE_USLEEP,1, [Defined if usleep exists.])
@@ -2053,8 +2055,8 @@ AC_DEFUN([GLIBCXX_CHECK_C99_TR1], [
   ac_c99_complex_tr1=no;
   if test x"$ac_has_complex_h" = x"yes"; then
     AC_MSG_CHECKING([for ISO C99 support to TR1 in <complex.h>])
-    AC_TRY_COMPILE([#include <complex.h>],
-		   [typedef __complex__ float float_type; float_type tmpf;
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <complex.h>]],
+		   [[typedef __complex__ float float_type; float_type tmpf;
 		    cacosf(tmpf);
 		    casinf(tmpf);
 		    catanf(tmpf);
@@ -2075,7 +2077,7 @@ AC_DEFUN([GLIBCXX_CHECK_C99_TR1], [
 		    cacoshl(tmpld);
 		    casinhl(tmpld);
 		    catanhl(tmpld);
-		   ],[ac_c99_complex_tr1=yes], [ac_c99_complex_tr1=no])
+		   ]])],[ac_c99_complex_tr1=yes], [ac_c99_complex_tr1=no])
   fi
   AC_MSG_RESULT($ac_c99_complex_tr1)
   if test x"$ac_c99_complex_tr1" = x"yes"; then
@@ -2088,12 +2090,12 @@ AC_DEFUN([GLIBCXX_CHECK_C99_TR1], [
   # Check for the existence of <ctype.h> functions.
   AC_CACHE_CHECK([for ISO C99 support to TR1 in <ctype.h>],
   glibcxx_cv_c99_ctype_tr1, [
-  AC_TRY_COMPILE([#include <ctype.h>],
-		 [int ch;
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <ctype.h>]],
+		 [[int ch;
 		  int ret;
 		  ret = isblank(ch);
-		 ],[glibcxx_cv_c99_ctype_tr1=yes],
-		   [glibcxx_cv_c99_ctype_tr1=no])
+		 ]])],[glibcxx_cv_c99_ctype_tr1=yes],
+		      [glibcxx_cv_c99_ctype_tr1=no])
   ])
   if test x"$glibcxx_cv_c99_ctype_tr1" = x"yes"; then
     AC_DEFINE(_GLIBCXX_USE_C99_CTYPE_TR1, 1,
@@ -2106,8 +2108,8 @@ AC_DEFUN([GLIBCXX_CHECK_C99_TR1], [
   ac_c99_fenv_tr1=no;
   if test x"$ac_has_fenv_h" = x"yes"; then
     AC_MSG_CHECKING([for ISO C99 support to TR1 in <fenv.h>])
-    AC_TRY_COMPILE([#include <fenv.h>],
-		   [int except, mode;
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <fenv.h>]],
+		   [[int except, mode;
 		    fexcept_t* pflag;
 		    fenv_t* penv;
 		    int ret;
@@ -2122,7 +2124,7 @@ AC_DEFUN([GLIBCXX_CHECK_C99_TR1], [
 		    ret = feholdexcept(penv);
 		    ret = fesetenv(penv);
 		    ret = feupdateenv(penv);
-		   ],[ac_c99_fenv_tr1=yes], [ac_c99_fenv_tr1=no])
+		   ]])],[ac_c99_fenv_tr1=yes], [ac_c99_fenv_tr1=no])
     AC_MSG_RESULT($ac_c99_fenv_tr1)
   fi
   if test x"$ac_c99_fenv_tr1" = x"yes"; then
@@ -2134,10 +2136,10 @@ AC_DEFUN([GLIBCXX_CHECK_C99_TR1], [
   # Check for the existence of <stdint.h> types.
   AC_CACHE_CHECK([for ISO C99 support to TR1 in <stdint.h>],
   glibcxx_cv_c99_stdint_tr1, [
-  AC_TRY_COMPILE([#define __STDC_LIMIT_MACROS
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#define __STDC_LIMIT_MACROS
 		  #define __STDC_CONSTANT_MACROS
-		  #include <stdint.h>],
-		 [typedef int8_t          my_int8_t;
+		  #include <stdint.h>]],
+		 [[typedef int8_t          my_int8_t;
 		  my_int8_t               i8 = INT8_MIN;
 		  i8 = INT8_MAX;
 		  typedef int16_t         my_int16_t;
@@ -2221,8 +2223,8 @@ AC_DEFUN([GLIBCXX_CHECK_C99_TR1], [
 		  typedef uintptr_t       my_uintptr_t;
 		  my_uintptr_t            uip = UINTPTR_MAX;
 		  uip = UINTPTR_MAX;
-		 ],[glibcxx_cv_c99_stdint_tr1=yes],
-		   [glibcxx_cv_c99_stdint_tr1=no])
+		 ]])],[glibcxx_cv_c99_stdint_tr1=yes],
+		      [glibcxx_cv_c99_stdint_tr1=no])
   ])
   if test x"$glibcxx_cv_c99_stdint_tr1" = x"yes"; then
     AC_DEFINE(_GLIBCXX_USE_C99_STDINT_TR1, 1,
@@ -2233,8 +2235,8 @@ AC_DEFUN([GLIBCXX_CHECK_C99_TR1], [
   # Check for the existence of <math.h> functions.
   AC_CACHE_CHECK([for ISO C99 support to TR1 in <math.h>],
   glibcxx_cv_c99_math_tr1, [
-  AC_TRY_COMPILE([#include <math.h>],
-		 [typedef double_t  my_double_t;
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <math.h>]],
+		 [[typedef double_t  my_double_t;
 		  typedef float_t   my_float_t;
 		  acosh(0.0);
 		  acoshf(0.0f);
@@ -2343,7 +2345,7 @@ AC_DEFUN([GLIBCXX_CHECK_C99_TR1], [
 		  trunc(0.0);
 		  truncf(0.0f);
 		  truncl(0.0l);
-		 ],[glibcxx_cv_c99_math_tr1=yes], [glibcxx_cv_c99_math_tr1=no])
+		 ]])],[glibcxx_cv_c99_math_tr1=yes], [glibcxx_cv_c99_math_tr1=no])
   ])
   if test x"$glibcxx_cv_c99_math_tr1" = x"yes"; then
     AC_DEFINE(_GLIBCXX_USE_C99_MATH_TR1, 1,
@@ -2356,15 +2358,15 @@ AC_DEFUN([GLIBCXX_CHECK_C99_TR1], [
   ac_c99_inttypes_tr1=no;
   if test x"$glibcxx_cv_c99_stdint_tr1" = x"yes"; then
     AC_MSG_CHECKING([for ISO C99 support to TR1 in <inttypes.h>])
-    AC_TRY_COMPILE([#include <inttypes.h>],
-		   [intmax_t i, numer, denom, base;
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <inttypes.h>]],
+		   [[intmax_t i, numer, denom, base;
 		    const char* s;
 		    char** endptr;
 		    intmax_t ret = imaxabs(i);
 		    imaxdiv_t dret = imaxdiv(numer, denom);
 		    ret = strtoimax(s, endptr, base);
 		    uintmax_t uret = strtoumax(s, endptr, base);
-		   ],[ac_c99_inttypes_tr1=yes], [ac_c99_inttypes_tr1=no])
+		   ]])],[ac_c99_inttypes_tr1=yes], [ac_c99_inttypes_tr1=no])
     AC_MSG_RESULT($ac_c99_inttypes_tr1)
   fi
   if test x"$ac_c99_inttypes_tr1" = x"yes"; then
@@ -2378,14 +2380,14 @@ AC_DEFUN([GLIBCXX_CHECK_C99_TR1], [
   ac_c99_inttypes_wchar_t_tr1=no;
   if test x"$glibcxx_cv_c99_stdint_tr1" = x"yes"; then
     AC_MSG_CHECKING([for wchar_t ISO C99 support to TR1 in <inttypes.h>])
-    AC_TRY_COMPILE([#include <inttypes.h>],
-		   [intmax_t base;
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <inttypes.h>]],
+		   [[intmax_t base;
 		    const wchar_t* s;
 		    wchar_t** endptr;
 		    intmax_t ret = wcstoimax(s, endptr, base);
 		    uintmax_t uret = wcstoumax(s, endptr, base);
-		   ],[ac_c99_inttypes_wchar_t_tr1=yes],
-		     [ac_c99_inttypes_wchar_t_tr1=no])
+		   ]])],[ac_c99_inttypes_wchar_t_tr1=yes],
+		        [ac_c99_inttypes_wchar_t_tr1=no])
     AC_MSG_RESULT($ac_c99_inttypes_wchar_t_tr1)
   fi
   if test x"$ac_c99_inttypes_wchar_t_tr1" = x"yes"; then
@@ -2419,7 +2421,7 @@ AC_DEFUN([GLIBCXX_CHECK_UCHAR_H], [
 
   if test x"$ac_has_uchar_h" = x"yes"; then
     AC_MSG_CHECKING([for ISO C11 support for <uchar.h>])
-    AC_TRY_COMPILE([#include <uchar.h>
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <uchar.h>
 		    #ifdef __STDC_UTF_16__
 		    long i = __STDC_UTF_16__;
 		    #endif
@@ -2433,8 +2435,8 @@ AC_DEFUN([GLIBCXX_CHECK_UCHAR_H], [
 		      using ::mbrtoc16;
 		      using ::mbrtoc32;
 		    }
-		   ],
-		   [], [ac_c11_uchar_cxx11=yes], [ac_c11_uchar_cxx11=no])
+		   ]],
+		   [[]])], [ac_c11_uchar_cxx11=yes], [ac_c11_uchar_cxx11=no])
     AC_MSG_RESULT($ac_c11_uchar_cxx11)
   else
     ac_c11_uchar_cxx11=no
@@ -2448,15 +2450,15 @@ AC_DEFUN([GLIBCXX_CHECK_UCHAR_H], [
   CXXFLAGS="$CXXFLAGS -fchar8_t"
   if test x"$ac_has_uchar_h" = x"yes"; then
     AC_MSG_CHECKING([for c8rtomb and mbrtoc8 in <uchar.h> with -fchar8_t])
-    AC_TRY_COMPILE([#include <uchar.h>
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <uchar.h>
 		    namespace test
 		    {
 		      using ::c8rtomb;
 		      using ::mbrtoc8;
 		    }
-		   ],
-		   [], [ac_uchar_c8rtomb_mbrtoc8_fchar8_t=yes],
-		       [ac_uchar_c8rtomb_mbrtoc8_fchar8_t=no])
+		   ]],
+		   [[]])], [ac_uchar_c8rtomb_mbrtoc8_fchar8_t=yes],
+		           [ac_uchar_c8rtomb_mbrtoc8_fchar8_t=no])
     AC_MSG_RESULT($ac_uchar_c8rtomb_mbrtoc8_fchar8_t)
   else
     ac_uchar_c8rtomb_mbrtoc8_fchar8_t=no
@@ -2470,15 +2472,15 @@ AC_DEFUN([GLIBCXX_CHECK_UCHAR_H], [
   CXXFLAGS="$CXXFLAGS -std=c++20"
   if test x"$ac_has_uchar_h" = x"yes"; then
     AC_MSG_CHECKING([for c8rtomb and mbrtoc8 in <uchar.h> with -std=c++20])
-    AC_TRY_COMPILE([#include <uchar.h>
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <uchar.h>
 		    namespace test
 		    {
 		      using ::c8rtomb;
 		      using ::mbrtoc8;
 		    }
-		   ],
-		   [], [ac_uchar_c8rtomb_mbrtoc8_cxx20=yes],
-		       [ac_uchar_c8rtomb_mbrtoc8_cxx20=no])
+		   ]],
+		   [[]])], [ac_uchar_c8rtomb_mbrtoc8_cxx20=yes],
+		           [ac_uchar_c8rtomb_mbrtoc8_cxx20=no])
     AC_MSG_RESULT($ac_uchar_c8rtomb_mbrtoc8_cxx20)
   else
     ac_uchar_c8rtomb_mbrtoc8_cxx20=no
@@ -2845,18 +2847,18 @@ AC_DEFUN([GLIBCXX_ENABLE_CLOCALE], [
     CFLAGS="-Wimplicit-function-declaration -Werror"
 
     # Use strxfrm_l if available.
-    AC_TRY_COMPILE([#define _GNU_SOURCE 1
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#define _GNU_SOURCE 1
      		    #include <string.h>
-		    #include <locale.h>],
-		    [char s[128]; __locale_t loc; strxfrm_l(s, "C", 5, loc);],
+		    #include <locale.h>]],
+		    [[char s[128]; __locale_t loc; strxfrm_l(s, "C", 5, loc);]])],
 		    AC_DEFINE(HAVE_STRXFRM_L, 1,
 		    [Define if strxfrm_l is available in <string.h>.]),)
 
     # Use strerror_l if available.
-    AC_TRY_COMPILE([#define _GNU_SOURCE 1
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#define _GNU_SOURCE 1
 		    #include <string.h>
-		    #include <locale.h>],
-		    [__locale_t loc; strerror_l(5, loc);],
+		    #include <locale.h>]],
+		    [[__locale_t loc; strerror_l(5, loc);]])],
 		    AC_DEFINE(HAVE_STRERROR_L, 1,
 		    [Define if strerror_l is available in <string.h>.]),)
 
@@ -2866,10 +2868,10 @@ AC_DEFUN([GLIBCXX_ENABLE_CLOCALE], [
   # Perhaps use strerror_r if available, and strerror_l isn't.
   ac_save_CFLAGS="$CFLAGS"
   CFLAGS="-Wimplicit-function-declaration -Werror"
-  AC_TRY_COMPILE([#define _GNU_SOURCE 1
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#define _GNU_SOURCE 1
 	     	  #include <string.h>
-		  #include <locale.h>],
-		  [char s[128]; strerror_r(5, s, 128);],
+		  #include <locale.h>]],
+		  [[char s[128]; strerror_r(5, s, 128);]])],
 		  AC_DEFINE(HAVE_STRERROR_R, 1,
 		  [Define if strerror_r is available in <string.h>.]),)
   CFLAGS="$ac_save_CFLAGS"
@@ -3482,7 +3484,7 @@ dnl  _GLIBCXX_USE_DECIMAL_FLOAT
 dnl
 AC_DEFUN([GLIBCXX_ENABLE_DECIMAL_FLOAT], [
 
-  # Fake what AC_TRY_COMPILE does, without linking as this is
+  # Fake what AC_COMPILE_IFELSE does, without linking as this is
   # unnecessary for this test.
 
     cat > conftest.$ac_ext << EOF
@@ -3521,7 +3523,7 @@ AC_DEFUN([GLIBCXX_ENABLE_FLOAT128], [
   AC_LANG_SAVE
   AC_LANG_CPLUSPLUS
 
-  # Fake what AC_TRY_COMPILE does, without linking as this is
+  # Fake what AC_COMPILE_IFELSE does, without linking as this is
   # unnecessary for this test.
 
   cat > conftest.$ac_ext << EOF
@@ -3569,8 +3571,8 @@ AC_DEFUN([GLIBCXX_ENABLE_WCHAR_T], [
   # Test wchar.h for mbstate_t, which is needed for char_traits and fpos.
   AC_CHECK_HEADERS(wchar.h, ac_has_wchar_h=yes, ac_has_wchar_h=no)
   AC_MSG_CHECKING([for mbstate_t])
-  AC_TRY_COMPILE([#include <wchar.h>],
-  [mbstate_t teststate;],
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <wchar.h>]],
+  [[mbstate_t teststate;]])],
   have_mbstate_t=yes, have_mbstate_t=no)
   AC_MSG_RESULT($have_mbstate_t)
   if test x"$have_mbstate_t" = xyes; then
@@ -3588,7 +3590,7 @@ AC_DEFUN([GLIBCXX_ENABLE_WCHAR_T], [
 
     if test x"$ac_has_wchar_h" = xyes &&
        test x"$ac_has_wctype_h" = xyes; then
-      AC_TRY_COMPILE([#include <wchar.h>
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <wchar.h>
 		      #include <stddef.h>
 		      wint_t i;
 		      long l = WEOF;
@@ -3649,7 +3651,7 @@ AC_DEFUN([GLIBCXX_ENABLE_WCHAR_T], [
 			using ::wprintf;
 			using ::wscanf;
 		      }
-		     ],[],[], [enable_wchar_t=no])
+		     ]],[[]])],[], [enable_wchar_t=no])
     else
       enable_wchar_t=no
     fi
@@ -3787,7 +3789,7 @@ AC_DEFUN([GLIBCXX_ENABLE_ATOMIC_BUILTINS], [
     # Compile unoptimized.
     CXXFLAGS='-O0 -S'
 
-    # Fake what AC_TRY_COMPILE does.
+    # Fake what AC_COMPILE_IFELSE does.
 
     cat > conftest.$ac_ext << EOF
 [#]line __oline__ "configure"
@@ -3886,7 +3888,7 @@ AC_DEFUN([GLIBCXX_ENABLE_LOCK_POLICY], [
     dnl Why do we care about 2-byte CAS on targets with 4-byte _Atomic_word?!
     dnl Why don't we check 8-byte CAS for sparc64, where _Atomic_word is long?!
     dnl New targets should only check for CAS for the _Atomic_word type.
-    AC_TRY_COMPILE([
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
     #if defined __AMDGCN__ || defined __nvptx__
     /* Yes, please.  */
     #elif defined __riscv
@@ -3896,7 +3898,7 @@ AC_DEFUN([GLIBCXX_ENABLE_LOCK_POLICY], [
     #elif ! defined __GCC_HAVE_SYNC_COMPARE_AND_SWAP_4
     # error "No 4-byte compare-and-swap"
     #endif
-    ],,
+    ]],[])],
     [libstdcxx_atomic_lock_policy=atomic],
     [libstdcxx_atomic_lock_policy=mutex])
     AC_LANG_RESTORE
@@ -3931,9 +3933,10 @@ if test x$enable_libstdcxx_visibility = xyes ; then
 		 glibcxx_cv_have_attribute_visibility, [
   save_CFLAGS="$CFLAGS"
   CFLAGS="$CFLAGS -Werror"
-  AC_TRY_COMPILE([void __attribute__((visibility("hidden"))) foo(void) { }],
-		 [], glibcxx_cv_have_attribute_visibility=yes,
-		 glibcxx_cv_have_attribute_visibility=no)
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[void __attribute__((visibility("hidden"))) foo(void) { }]],
+		 [[]])],
+		 [glibcxx_cv_have_attribute_visibility=yes],
+		 [glibcxx_cv_have_attribute_visibility=no])
   CFLAGS="$save_CFLAGS"])
   if test $glibcxx_cv_have_attribute_visibility = no; then
     enable_libstdcxx_visibility=no
@@ -4140,9 +4143,11 @@ fi
 
 AC_CACHE_CHECK([whether the target supports .symver directive],
 	       glibcxx_cv_have_as_symver_directive, [
-  AC_TRY_COMPILE([void foo (void); __asm (".symver foo, bar@SYMVER");],
-		 [], glibcxx_cv_have_as_symver_directive=yes,
-		 glibcxx_cv_have_as_symver_directive=no)])
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
+		    [[void foo (void); __asm (".symver foo, bar@SYMVER");]],
+		    [[]])],
+		    [glibcxx_cv_have_as_symver_directive=yes],
+		    [glibcxx_cv_have_as_symver_directive=no])])
 if test $glibcxx_cv_have_as_symver_directive = yes; then
   AC_DEFINE(HAVE_AS_SYMVER_DIRECTIVE, 1,
     [Define to 1 if the target assembler supports .symver directive.])
@@ -4178,7 +4183,7 @@ fi
 AC_MSG_CHECKING([for size_t as unsigned int])
 ac_save_CFLAGS="$CFLAGS"
 CFLAGS="-Werror"
-AC_TRY_COMPILE(, [__SIZE_TYPE__* stp; unsigned int* uip; stp = uip;],
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]], [[__SIZE_TYPE__* stp; unsigned int* uip; stp = uip;]])],
 		 [glibcxx_size_t_is_i=yes], [glibcxx_size_t_is_i=no])
 CFLAGS=$ac_save_CFLAGS
 if test "$glibcxx_size_t_is_i" = yes; then
@@ -4189,7 +4194,7 @@ AC_MSG_RESULT([$glibcxx_size_t_is_i])
 AC_MSG_CHECKING([for ptrdiff_t as int])
 ac_save_CFLAGS="$CFLAGS"
 CFLAGS="-Werror"
-AC_TRY_COMPILE(, [__PTRDIFF_TYPE__* ptp; int* ip; ptp = ip;],
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]], [[__PTRDIFF_TYPE__* ptp; int* ip; ptp = ip;]])],
 		 [glibcxx_ptrdiff_t_is_i=yes], [glibcxx_ptrdiff_t_is_i=no])
 CFLAGS=$ac_save_CFLAGS
 if test "$glibcxx_ptrdiff_t_is_i" = yes; then
@@ -4257,8 +4262,8 @@ AC_DEFUN([GLIBCXX_CHECK_GTHREADS], [
 
   AC_MSG_CHECKING([whether it can be safely assumed that mutex_timedlock is available])
 
-  AC_TRY_COMPILE([#include <unistd.h>],
-    [
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <unistd.h>]],
+    [[
       // In case of POSIX threads check _POSIX_TIMEOUTS.
       #if (defined(_PTHREADS) \
 	  && (!defined(_POSIX_TIMEOUTS) || _POSIX_TIMEOUTS <= 0))
@@ -4267,7 +4272,7 @@ AC_DEFUN([GLIBCXX_CHECK_GTHREADS], [
       #elif defined(_WIN32_THREADS)
       #error
       #endif
-    ], [ac_gthread_use_mutex_timedlock=1], [ac_gthread_use_mutex_timedlock=0])
+    ]])], [ac_gthread_use_mutex_timedlock=1], [ac_gthread_use_mutex_timedlock=0])
 
   AC_DEFINE_UNQUOTED(_GTHREAD_USE_MUTEX_TIMEDLOCK, $ac_gthread_use_mutex_timedlock,
 		     [Define to 1 if mutex_timedlock is available.])
@@ -4278,12 +4283,12 @@ AC_DEFUN([GLIBCXX_CHECK_GTHREADS], [
 
   AC_MSG_CHECKING([for gthreads library])
 
-  AC_TRY_COMPILE([#include "gthr.h"],
-    [
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include "gthr.h"]],
+    [[
       #ifndef __GTHREADS_CXX0X
       #error
       #endif
-    ], [ac_has_gthreads=yes], [ac_has_gthreads=no])
+    ]])], [ac_has_gthreads=yes], [ac_has_gthreads=no])
   else
     ac_has_gthreads=no
   fi
@@ -4299,12 +4304,12 @@ AC_DEFUN([GLIBCXX_CHECK_GTHREADS], [
     # On VxWorks for example, pthread_rwlock_t is defined in sys/types.h
     # but the pthread library is not there by default and the gthread library
     # does not use it.
-    AC_TRY_COMPILE([#include "gthr.h"],
-    [
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include "gthr.h"]],
+    [[
       #if (!defined(_PTHREADS))
       #error
       #endif
-    ], [ac_gthread_use_pthreads=yes], [ac_gthread_use_pthreads=no])
+    ]])], [ac_gthread_use_pthreads=yes], [ac_gthread_use_pthreads=no])
     if test x"$ac_gthread_use_pthreads" = x"yes"; then
       AC_CHECK_TYPE([pthread_rwlock_t],
              [AC_DEFINE([_GLIBCXX_USE_PTHREAD_RWLOCK_T], 1,
@@ -4334,8 +4339,9 @@ AC_DEFUN([GLIBCXX_CHECK_GTHREADS], [
 AC_DEFUN([AC_LC_MESSAGES], [
   AC_CHECK_HEADER(locale.h, [
     AC_CACHE_CHECK([for LC_MESSAGES], ac_cv_val_LC_MESSAGES,
-      [AC_TRY_COMPILE([#include <locale.h>], [return LC_MESSAGES],
-       ac_cv_val_LC_MESSAGES=yes, ac_cv_val_LC_MESSAGES=no)])
+      [AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
+      [[#include <locale.h>]], [[return LC_MESSAGES]])],
+       [ac_cv_val_LC_MESSAGES=yes], [ac_cv_val_LC_MESSAGES=no])])
     if test $ac_cv_val_LC_MESSAGES = yes; then
       AC_DEFINE(HAVE_LC_MESSAGES, 1,
 		[Define if LC_MESSAGES is available in <locale.h>.])
@@ -4352,7 +4358,7 @@ AC_DEFUN([GLIBCXX_CHECK_X86_RDRAND], [
   case "$target" in
     i?86-*-* | \
     x86_64-*-*)
-    AC_TRY_COMPILE(, [asm("rdrand %eax");],
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]], [[asm("rdrand %eax");]])],
 		[ac_cv_x86_rdrand=yes], [ac_cv_x86_rdrand=no])
   esac
   ])
@@ -4371,7 +4377,7 @@ AC_DEFUN([GLIBCXX_CHECK_X86_RDSEED], [
   case "$target" in
     i?86-*-* | \
     x86_64-*-*)
-    AC_TRY_COMPILE(, [asm("rdseed %eax");],
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]], [[asm("rdseed %eax");]])],
 		[ac_cv_x86_rdseed=yes], [ac_cv_x86_rdseed=no])
   esac
   ])
@@ -5160,26 +5166,28 @@ dnl Check how size_t is mangled.  Copied from libitm.
 dnl
 AC_DEFUN([GLIBCXX_CHECK_SIZE_T_MANGLING], [
   AC_CACHE_CHECK([how size_t is mangled],
-                 glibcxx_cv_size_t_mangling, [
-    AC_TRY_COMPILE([], [extern __SIZE_TYPE__ x; extern unsigned long x;],
-                   [glibcxx_cv_size_t_mangling=m], [
-      AC_TRY_COMPILE([], [extern __SIZE_TYPE__ x; extern unsigned int x;],
-                     [glibcxx_cv_size_t_mangling=j], [
-        AC_TRY_COMPILE([],
-                       [extern __SIZE_TYPE__ x; extern unsigned long long x;],
-                       [glibcxx_cv_size_t_mangling=y], [
-          AC_TRY_COMPILE([],
-                         [extern __SIZE_TYPE__ x; extern unsigned short x;],
-                         [glibcxx_cv_size_t_mangling=t], [
-            AC_TRY_COMPILE([],
-                           [extern __SIZE_TYPE__ x; extern __int20 unsigned x;],
+                 glibcxx_cv_size_t_mangling,
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]],
+    		   [[extern __SIZE_TYPE__ x; extern unsigned long x;]])],
+                   [glibcxx_cv_size_t_mangling=m],
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]],
+      		     [[extern __SIZE_TYPE__ x; extern unsigned int x;]])],
+                     [glibcxx_cv_size_t_mangling=j],
+        AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]],
+                       [[extern __SIZE_TYPE__ x; extern unsigned long long x;]])],
+                       [glibcxx_cv_size_t_mangling=y],
+          AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]],
+                         [[extern __SIZE_TYPE__ x; extern unsigned short x;]])],
+                         [glibcxx_cv_size_t_mangling=t],
+            AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]],
+                           [[extern __SIZE_TYPE__ x; extern __int20 unsigned x;]])],
                            [glibcxx_cv_size_t_mangling=u6uint20],
                            [glibcxx_cv_size_t_mangling=x])
-          ])
-        ])
-      ])
-    ])
-  ])
+          )
+        )
+      )
+    )
+  )
   if test $glibcxx_cv_size_t_mangling = x; then
     AC_MSG_ERROR([Unknown underlying type for size_t])
   fi
@@ -5205,11 +5213,11 @@ AC_DEFUN([GLIBCXX_CHECK_EXCEPTION_PTR_SYMVER], [
       *)
         # If the value of this macro changes then we will need to hardcode
         # yes/no here for additional targets based on the original value.
-        AC_TRY_COMPILE([], [
+        AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]], [[
           #if __GCC_ATOMIC_INT_LOCK_FREE <= 1
           # error atomic int not always lock free
           #endif
-          ],
+          ]])],
           [ac_exception_ptr_since_gcc46=yes],
           [ac_exception_ptr_since_gcc46=no])
         ;;
@@ -5692,9 +5700,10 @@ AC_DEFUN([GLIBCXX_CHECK_ALIGNAS_CACHELINE], [
   AC_LANG_CPLUSPLUS
 
   AC_MSG_CHECKING([whether static objects can be aligned to the cacheline size])
-  AC_TRY_COMPILE(, [struct alignas(__GCC_DESTRUCTIVE_SIZE) Aligned { };
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]],
+		[[struct alignas(__GCC_DESTRUCTIVE_SIZE) Aligned { };
 		    alignas(Aligned) static char buf[sizeof(Aligned) * 16];
-		 ], [ac_alignas_cacheline=yes], [ac_alignas_cacheline=no])
+		 ]])], [ac_alignas_cacheline=yes], [ac_alignas_cacheline=no])
   if test "$ac_alignas_cacheline" = yes; then
     AC_DEFINE_UNQUOTED(_GLIBCXX_CAN_ALIGNAS_DESTRUCTIVE_SIZE, 1,
       [Define if global objects can be aligned to
@@ -5718,11 +5727,11 @@ AC_LANG_SAVE
   AC_LANG_CPLUSPLUS
 
   AC_MSG_CHECKING([whether init_priority attribute is supported])
-  AC_TRY_COMPILE(, [
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]], [[
   #if ! __has_attribute(init_priority)
   #error init_priority not supported
   #endif
-		 ], [ac_init_priority=yes], [ac_init_priority=no])
+		 ]])], [ac_init_priority=yes], [ac_init_priority=no])
   if test "$ac_init_priority" = yes; then
     AC_DEFINE_UNQUOTED(_GLIBCXX_USE_INIT_PRIORITY_ATTRIBUTE, 1,
       [Define if init_priority should be used for iostream initialization.])
@@ -5743,18 +5752,18 @@ AC_LANG_SAVE
   AC_LANG_CPLUSPLUS
 
   AC_MSG_CHECKING([whether _get_osfhandle is defined in <io.h>])
-  AC_TRY_COMPILE([
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
   #if defined(_WIN32) && !defined(__CYGWIN__)
   # include <stdint.h>
   # include <stdio.h>
   # include <io.h>
   #endif
-  ],[
+  ]],[[
     FILE* file = 0;
     int fd = fileno(file);
     intptr_t crt_handle = _get_osfhandle(fd);
     void* win32_handle = reinterpret_cast<void*>(crt_handle);
-  ], [ac_get_osfhandle=yes], [ac_get_osfhandle=no])
+  ]])], [ac_get_osfhandle=yes], [ac_get_osfhandle=no])
   if test "$ac_get_osfhandle" = yes; then
     AC_DEFINE_UNQUOTED(_GLIBCXX_USE__GET_OSFHANDLE, 1,
       [Define if _get_osfhandle should be used for filebuf::native_handle().])
@@ -5775,17 +5784,17 @@ AC_LANG_SAVE
   AC_LANG_CPLUSPLUS
 
   AC_MSG_CHECKING([whether nl_langinfo_l is defined in <langinfo.h>])
-  AC_TRY_COMPILE([
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
   #include <locale.h>
   #if __has_include(<xlocale.h>)
   # include <xlocale.h>
   #endif
   #include <langinfo.h>
-  ],[
+  ]],[[
     locale_t loc = newlocale(LC_ALL_MASK, "", (locale_t)0);
     const char* enc = nl_langinfo_l(CODESET, loc);
     freelocale(loc);
-  ], [ac_nl_langinfo_l=yes], [ac_nl_langinfo_l=no])
+  ]])], [ac_nl_langinfo_l=yes], [ac_nl_langinfo_l=no])
   AC_MSG_RESULT($ac_nl_langinfo_l)
   if test "$ac_nl_langinfo_l" = yes; then
     AC_DEFINE_UNQUOTED(_GLIBCXX_USE_NL_LANGINFO_L, 1,
@@ -5816,11 +5825,11 @@ AC_DEFUN([GLIBCXX_CHECK_DEBUGGING], [
   esac
 
   AC_MSG_CHECKING([whether ptrace(int, pid_t, int, int) is in <sys/ptrace.h>])
-  AC_TRY_COMPILE([
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
   #include <sys/ptrace.h>
-  ],[
+  ]],[[
     int i = ptrace(PTRACE_TRACEME, (pid_t)0, 1, 0);
-  ], [ac_ptrace=yes], [ac_ptrace=no])
+  ]])], [ac_ptrace=yes], [ac_ptrace=no])
   AC_MSG_RESULT($ac_ptrace)
   if test "$ac_ptrace" = yes; then
     AC_DEFINE_UNQUOTED(_GLIBCXX_USE_PTRACE, 1,
@@ -5842,7 +5851,7 @@ AC_LANG_SAVE
   AC_LANG_CPLUSPLUS
 
   AC_MSG_CHECKING([whether flockfile and putc_unlocked are defined in <stdio.h>])
-  AC_TRY_COMPILE([
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
   #include <stdio.h>
   #if __has_include(<newlib.h>)
   # ifdef __CYGWIN__
@@ -5851,13 +5860,13 @@ AC_LANG_SAVE
   #  error No usable flockfile on most newlib targets
   # endif
   #endif
-  ],[
+  ]],[[
     FILE* f = ::fopen("", "");
     ::flockfile(f);
     ::putc_unlocked(' ', f);
     ::funlockfile(f);
     ::fclose(f);
-  ],[ac_stdio_locking=yes],[ac_stdio_locking=no])
+  ]])],[ac_stdio_locking=yes],[ac_stdio_locking=no])
   AC_MSG_RESULT($ac_stdio_locking)
 
   if test "$ac_stdio_locking" = yes; then
@@ -5866,15 +5875,15 @@ AC_LANG_SAVE
 
     # This is not defined in POSIX, but is present in glibc, musl, and Solaris.
     AC_MSG_CHECKING([whether fwrite_unlocked is defined in <stdio.h>])
-    AC_TRY_COMPILE([
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
     #include <stdio.h>
-    ],[
+    ]],[[
       FILE* f = ::fopen("", "");
       ::flockfile(f);
       ::fwrite_unlocked("", 1, 1, f);
       ::funlockfile(f);
       ::fclose(f);
-    ], [ac_fwrite_unlocked=yes], [ac_fwrite_unlocked=no])
+    ]])], [ac_fwrite_unlocked=yes], [ac_fwrite_unlocked=no])
     AC_MSG_RESULT($ac_fwrite_unlocked)
     if test "$ac_fwrite_unlocked" = yes; then
       AC_DEFINE(HAVE_FWRITE_UNLOCKED, 1,
@@ -5884,14 +5893,14 @@ AC_LANG_SAVE
       case "${target_os}" in
 	gnu* | linux* | kfreebsd*-gnu | knetbsd*-gnu)
 	  AC_MSG_CHECKING([for FILE::_IO_write_ptr and <stdio_ext.h>])
-	  AC_TRY_COMPILE([
+	  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
 	  #include <stdio.h>
 	  #include <stdio_ext.h>
 	  extern "C" {
 	   using f1_type = int (*)(FILE*) noexcept;
 	   using f2_type = size_t (*)(FILE*) noexcept;
 	  }
-	  ],[
+	  ]],[[
 	  f1_type twritable = &::__fwritable;
 	  f1_type tblk = &::__flbf; 
 	  f2_type pbufsize = &::__fbufsize;
@@ -5904,7 +5913,7 @@ AC_LANG_SAVE
 	  char*& epptr = f->_IO_buf_end;
 	  ::fflush_unlocked(f);
 	  ::fclose(f);
-	  ], [ac_glibc_stdio=yes], [ac_glibc_stdio=no])
+	  ]])], [ac_glibc_stdio=yes], [ac_glibc_stdio=no])
 	  AC_MSG_RESULT($ac_glibc_stdio)
 	  if test "$ac_glibc_stdio" = yes; then
 	    AC_DEFINE_UNQUOTED(_GLIBCXX_USE_GLIBC_STDIO_EXT, 1,

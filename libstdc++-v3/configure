@@ -16474,7 +16474,7 @@ $as_echo "$glibcxx_cv_atomic_word" >&6; }
     # Compile unoptimized.
     CXXFLAGS='-O0 -S'
 
-    # Fake what AC_TRY_COMPILE does.
+    # Fake what AC_COMPILE_IFELSE does.
 
     cat > conftest.$ac_ext << EOF
 #line 16480 "configure"
@@ -16621,7 +16621,7 @@ $as_echo "mutex" >&6; }
 
 
 
-  # Fake what AC_TRY_COMPILE does, without linking as this is
+  # Fake what AC_COMPILE_IFELSE does, without linking as this is
   # unnecessary for this test.
 
     cat > conftest.$ac_ext << EOF
@@ -16663,7 +16663,7 @@ ac_link='$CXX -o conftest$ac_exeext $CXXFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ex
 ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
 
 
-  # Fake what AC_TRY_COMPILE does, without linking as this is
+  # Fake what AC_COMPILE_IFELSE does, without linking as this is
   # unnecessary for this test.
 
   cat > conftest.$ac_ext << EOF
@@ -54564,8 +54564,7 @@ $as_echo_n "checking how size_t is mangled... " >&6; }
 if ${glibcxx_cv_size_t_mangling+:} false; then :
   $as_echo_n "(cached) " >&6
 else
-
-    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
 int
@@ -54579,8 +54578,7 @@ _ACEOF
 if ac_fn_c_try_compile "$LINENO"; then :
   glibcxx_cv_size_t_mangling=m
 else
-
-      cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
 int
@@ -54594,8 +54592,7 @@ _ACEOF
 if ac_fn_c_try_compile "$LINENO"; then :
   glibcxx_cv_size_t_mangling=j
 else
-
-        cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
 int
@@ -54609,8 +54606,7 @@ _ACEOF
 if ac_fn_c_try_compile "$LINENO"; then :
   glibcxx_cv_size_t_mangling=y
 else
-
-          cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
 int
@@ -54624,8 +54620,7 @@ _ACEOF
 if ac_fn_c_try_compile "$LINENO"; then :
   glibcxx_cv_size_t_mangling=t
 else
-
-            cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
 int
