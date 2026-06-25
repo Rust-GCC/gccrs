@@ -1,5 +1,5 @@
 /* { dg-do compile { target fpic } } */
-/* { dg-options "-O2 -fno-pic -march=x86-64" } */
+/* { dg-options "-O2 -fno-pic -march=x86-64 -mno-stackrealign" } */
 /* Keep labels and directives ('.cfi_startproc', '.cfi_endproc').  */
 /* { dg-final { check-function-bodies "**" "" "" { target *-*-* } {^\t?\.} } } */
 
