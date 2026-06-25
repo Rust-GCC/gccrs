@@ -226,9 +226,9 @@ def evaluate_conditional_dependency(ext, dep, xlen, current_exts):
   else:
     # Report error for unhandled conditional dependencies
     import sys
-    print(f"ERROR: Unhandled conditional dependency: '{ext_name}' with condition:", file=sys.stderr)
-    print(f"  Condition code: {condition[:100]}...", file=sys.stderr)
-    print(f"  Current context: xlen={xlen}, exts={sorted(current_exts)}", file=sys.stderr)
+    print("ERROR: Unhandled conditional dependency: '%s' with condition:" % (ext_name,), file=sys.stderr)
+    print("  Condition code: %s..." % (condition[:100],), file=sys.stderr)
+    print("  Current context: xlen=%s, exts=%s" % (xlen, sorted(current_exts)), file=sys.stderr)
     # For now, return False to be safe
     return False
 
@@ -479,14 +479,14 @@ def dump_all_extensions():
         if dep['type'] == 'simple':
           dep_strs.append(dep['ext'])
         else:
-          dep_strs.append(f"{dep['ext']}*")  # Mark conditional deps with *
-      print(f"{ext_name:15} -> {', '.join(dep_strs)}")
+          dep_strs.append("%s*" % (dep['ext'],))  # Mark conditional deps with *
+      print("%s -> %s" % (ext_name[:15], ', '.join(dep_strs)))
     else:
-      print(f"{ext_name:15} -> (no dependencies)")
+      print("%s -> (no dependencies)" % (ext_name[:15],))
 
-  print(f"\nTotal extensions: {len(all_extensions)}")
-  print(f"Extensions with dependencies: {len(implied_ext)}")
-  print(f"Extensions without dependencies: {len(all_extensions) - len(implied_ext)}")
+  print("\nTotal extensions: %s" % (len(all_extensions),))
+  print("Extensions with dependencies: %s" % (len(implied_ext),))
+  print("Extensions without dependencies: %s" % (len(all_extensions) - len(implied_ext),))
 
 def run_unit_tests():
   """Run unit tests using pytest dynamically imported."""
@@ -589,21 +589,21 @@ def run_unit_tests():
 
   for i, test_func in enumerate(test_functions):
     try:
-      print(f"  Running {test_func.__name__}...", end=" ")
+      print("  Running %s..." % (test_func.__name__,), end=" ")
       test_func()
       print("PASSED")
       passed += 1
     except Exception as e:
-      print(f"FAILED: {e}")
+      print("FAILED: %s" % (e,))
       failed += 1
 
-  print(f"\nTest Summary: {passed} passed, {failed} failed")
+  print("\nTest Summary: %s passed, %s failed" % (passed, failed))
 
   if failed == 0:
     print("\nAll tests passed!")
     return 0
   else:
-    print(f"\n{failed} test(s) failed!")
+    print("\n%s test(s) failed!" % (failed,))
     return 1
 
 if __name__ == "__main__":
