@@ -1536,7 +1536,7 @@ DEFHOOK
 "This hook is called by tree reassociator to determine a level of\n\
 parallelism required in output calculations chain.",
 int, (tree_code opc, machine_mode mode),
-hook_int_uint_mode_1)
+default_reassociation_width)
 
 /* The following member value is a function that returns priority for
    fusion of each instruction via pointer parameters.  */

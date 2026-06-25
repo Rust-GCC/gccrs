@@ -2950,4 +2950,11 @@ default_memtag_untagged_pointer (rtx tagged_pointer, rtx target)
   return untagged_base;
 }
 
+/* The default implementation of TARGET_SCHED_REASSOCIATION_WIDTH.  */
+int
+default_reassociation_width (tree_code, machine_mode)
+{
+  return 1;
+}
+
 #include "gt-targhooks.h"

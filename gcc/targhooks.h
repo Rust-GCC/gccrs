@@ -320,5 +320,6 @@ extern rtx default_memtag_add_tag (rtx, poly_int64, uint8_t);
 extern rtx default_memtag_set_tag (rtx, rtx, rtx);
 extern rtx default_memtag_extract_tag (rtx, rtx);
 extern rtx default_memtag_untagged_pointer (rtx, rtx);
+extern int default_reassociation_width (tree_code, machine_mode);
 
 #endif /* GCC_TARGHOOKS_H */
