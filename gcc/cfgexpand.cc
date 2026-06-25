@@ -7246,13 +7246,15 @@ pass_expand::execute (function *fun)
       >= param_max_debug_marker_count)
     cfun->debug_nonbind_markers = false;
 
-  enable_ranger (fun);
+  if (optimize)
+    enable_ranger (fun);
   lab_rtx_for_bb = new hash_map<basic_block, rtx_code_label *>;
   head_end_for_bb.create (last_basic_block_for_fn (fun));
   FOR_BB_BETWEEN (bb, init_block->next_bb, EXIT_BLOCK_PTR_FOR_FN (fun),
 		  next_bb)
     bb = expand_gimple_basic_block (bb, var_ret_seq);
-  disable_ranger (fun);
+  if (optimize)
+    disable_ranger (fun);
   FOR_BB_BETWEEN (bb, init_block->next_bb, EXIT_BLOCK_PTR_FOR_FN (fun),
 		  next_bb)
     {
