@@ -1,6 +1,7 @@
 /* { dg-lto-do link } */
 /* { dg-lto-options { {-O2 -flto -flto-toplevel-asm-heuristics -flto-partition=1to1 -no-pie} {-O2 -flto -flto-toplevel-asm-heuristics -flto-partition=max -no-pie} {-O2 -flto -flto-toplevel-asm-heuristics -flto-partition=cache -no-pie}} } */
 /* { dg-skip-if "SPARC relocation overflow" { sparc*-*-solaris2* && lp64 } } */
+/* { dg-skip-if "no-pie unsupported" { *-*-darwin* } "" "" } */
 
 void asm_fn();
 void asm_fn_used();
