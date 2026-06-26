@@ -320,6 +320,29 @@ UnusedChecker::visit (HIR::MatchExpr &expr)
 			 "multiple ranges are one apart");
     }
 
+  // Every arm after an irrefutable one (a bare wildcard or binding without a
+  // guard) can never match.
+  bool seen_irrefutable = false;
+  for (auto &match_case : expr.get_match_cases ())
+    {
+      auto &arm = match_case.get_arm ();
+      if (seen_irrefutable)
+	{
+	  rust_warning_at (arm.get_pattern ()->get_locus (),
+			   OPT_Wunused_variable, "unreachable pattern");
+	  continue;
+	}
+
+      auto type = arm.get_pattern ()->get_pattern_type ();
+      if (!arm.has_match_arm_guard ()
+	  && (type == HIR::Pattern::PatternType::WILDCARD
+	      || (type == HIR::Pattern::PatternType::IDENTIFIER
+		  && !static_cast<HIR::IdentifierPattern &> (
+			*arm.get_pattern ())
+			.has_subpattern ())))
+	seen_irrefutable = true;
+    }
+
   walk (expr);
 }
 
