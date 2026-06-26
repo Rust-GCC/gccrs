@@ -50,6 +50,7 @@ private:
   virtual void visit (HIR::LifetimeParam &lft) override;
   virtual void visit (HIR::StructPatternFieldIdentPat &field) override;
   virtual void visit (HIR::MatchExpr &expr) override;
+  virtual void visit (HIR::ExprStmt &stmt) override;
   virtual void visit_loop_label (HIR::LoopLabel &label) override;
 };
 } // namespace Analysis

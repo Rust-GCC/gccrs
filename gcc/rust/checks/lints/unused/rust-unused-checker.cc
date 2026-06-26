@@ -323,5 +323,14 @@ UnusedChecker::visit (HIR::MatchExpr &expr)
   walk (expr);
 }
 
+void
+UnusedChecker::visit (HIR::ExprStmt &stmt)
+{
+  if (stmt.get_expr ().get_expression_type () == HIR::Expr::ExprType::Path)
+    rust_warning_at (stmt.get_locus (), OPT_Wunused_variable,
+		     "path statement with no effect");
+  walk (stmt);
+}
+
 } // namespace Analysis
 } // namespace Rust
