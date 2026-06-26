@@ -3977,13 +3977,15 @@ s390_rtx_costs (rtx x, machine_mode mode, int outer_code,
     case MEM:
       *total = 0;
       return true;
-      case SET: {
+    case SET:
+      {
 	rtx dst = SET_DEST (x);
 	rtx src = SET_SRC (x);
 
 	switch (GET_CODE (src))
 	  {
-	    case IF_THEN_ELSE: {
+	  case IF_THEN_ELSE:
+	    {
 	      /* Without this a conditional move instruction would be
 		 accounted as 3 * COSTS_N_INSNS (set, if_then_else,
 		 comparison operator).  That's a bit pessimistic.  */
@@ -3992,6 +3994,12 @@ s390_rtx_costs (rtx x, machine_mode mode, int outer_code,
 		return false;
 
 	      rtx cond = XEXP (src, 0);
+	      /* Intermediate RTXs may have a non-compare condition as e.g. a
+		 constant like r108={(0x1)?r113:r109} which get folded later
+		 on.  */
+	      if (GET_RTX_CLASS (GET_CODE (cond)) != RTX_COMPARE
+		  && GET_RTX_CLASS (GET_CODE (cond)) != RTX_COMM_COMPARE)
+		return false;
 	      if (!CC_REG_P (XEXP (cond, 0)) || !CONST_INT_P (XEXP (cond, 1)))
 		return false;
 
@@ -4050,7 +4058,8 @@ s390_rtx_costs (rtx x, machine_mode mode, int outer_code,
 	      /* Otherwise just cost the src.  */
 	      *total += rtx_cost (src, mode, SET, 1, speed);
 	    return true;
-	    case MEM: {
+	  case MEM:
+	    {
 	      rtx address = XEXP (dst, 0);
 	      rtx tmp;
 	      HOST_WIDE_INT tmp2;
