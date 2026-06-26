@@ -300,6 +300,11 @@ const std::unordered_map<std::string, IntrinsicRules>
     {IValue::FORGET, {1, {IRT::FirstGeneric}, IRT::Unit}},
     // pub fn black_box<T>(mut dummy: T) -> T
     {IValue::BLACK_BOX, {1, {IRT::FirstGeneric}, IRT::FirstGeneric}},
+
+    // fn write_bytes<T>(dst: *mut T, val: u8, count: usize)
+    {IValue::WRITE_BYTES,
+     {1, {IRT::MutPtrFirstGeneric, IRT::U8, IRT::Usize}, IRT::Unit}},
+
 };
 
 IntrinsicCheckResult
