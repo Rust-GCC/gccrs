@@ -301,6 +301,9 @@ const std::unordered_map<std::string, IntrinsicRules>
     // pub fn black_box<T>(mut dummy: T) -> T
     {IValue::BLACK_BOX, {1, {IRT::FirstGeneric}, IRT::FirstGeneric}},
 
+    // pub fn arith_offset<T>(dst: *const T, offset: isize) -> *const T;
+    {IValue::ARITH_OFFSET,
+     {1, {IRT::ConstPtrFirstGeneric, IRT::Isize}, IRT::ConstPtrFirstGeneric}},
     // fn write_bytes<T>(dst: *mut T, val: u8, count: usize)
     {IValue::WRITE_BYTES,
      {1, {IRT::MutPtrFirstGeneric, IRT::U8, IRT::Usize}, IRT::Unit}},

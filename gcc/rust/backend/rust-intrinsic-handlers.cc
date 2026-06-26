@@ -1935,6 +1935,45 @@ write_bytes_handler (Context *ctx, TyTy::FnType *fntype, location_t)
   return fndecl;
 }
 
+/**
+ * pub fn arith_offset<T>(dst: *const T, offset: isize) -> *const T;
+ */
+tree
+arith_offset_handler (Context *ctx, TyTy::FnType *fntype, location_t expr_locus)
+{
+  rust_assert (fntype->get_params ().size () == 2);
+
+  auto fndecl = compile_intrinsic_function (ctx, fntype);
+
+  auto locus = fntype->get_locus ();
+
+  std::vector<Bvariable *> param_vars;
+  compile_fn_params (ctx, fntype, fndecl, &param_vars);
+
+  auto &dst_param = param_vars.at (0);
+  auto &size_param = param_vars.at (1);
+  rust_assert (param_vars.size () == 2);
+  if (!Backend::function_set_parameters (fndecl, param_vars))
+    return error_mark_node;
+
+  enter_intrinsic_block (ctx, fndecl);
+
+  // BUILTIN arith_offset FN BODY BEGIN
+
+  tree dst = Backend::var_expression (dst_param, locus);
+  tree size = Backend::var_expression (size_param, locus);
+  tree pointer_offset_expr = pointer_offset_expression (dst, size, expr_locus);
+  auto return_statement
+    = Backend::return_statement (fndecl, pointer_offset_expr, locus);
+  ctx->add_statement (return_statement);
+
+  // BUILTIN arith_offset FN BODY END
+
+  finalize_intrinsic_block (ctx, fndecl);
+
+  return fndecl;
+}
+
 } // namespace handlers
 } // namespace Compile
 } // namespace Rust
