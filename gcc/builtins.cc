@@ -3589,7 +3589,7 @@ builtin_memcpy_read_str (void *data, void *, HOST_WIDE_INT offset,
    set it into PROBABLE_MAX_SIZE.  */
 
 static void
-determine_block_size (tree len, rtx len_rtx,
+determine_block_size (tree len, rtx &len_rtx,
 		      unsigned HOST_WIDE_INT *min_size,
 		      unsigned HOST_WIDE_INT *max_size,
 		      unsigned HOST_WIDE_INT *probable_max_size)
@@ -3650,9 +3650,13 @@ determine_block_size (tree len, rtx len_rtx,
 	    *probable_max_size = min.to_uhwi () - 1;
 	}
     }
-  gcc_checking_assert (*max_size <=
-		       (unsigned HOST_WIDE_INT)
-			  GET_MODE_MASK (GET_MODE (len_rtx)));
+
+  if (*min_size == *max_size)
+    len_rtx = GEN_INT (*min_size);
+  else
+    gcc_checking_assert (*max_size <=
+			 (unsigned HOST_WIDE_INT)
+			 GET_MODE_MASK (GET_MODE (len_rtx)));
 }
 
 /* Expand a call EXP to the memcpy builtin.
