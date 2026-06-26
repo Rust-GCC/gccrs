@@ -8760,6 +8760,10 @@ check_out_of_consteval_use_r (tree *tp, int *walk_subtrees, void *pset)
       || TREE_CODE (t) == DECL_EXPR
       /* Neither into USING_STMT.  */
       || TREE_CODE (t) == USING_STMT
+      /* The operand of a splice is a constant-expression, thus
+	 manifestly constant-evaluated, so consteval-only types are permitted
+	 here.  */
+      || TREE_CODE (t) == SPLICE_EXPR
       /* Blocks can appear in the TREE_VEC operand of OpenMP
 	 depend/affinity/map/to/from OMP_CLAUSEs when using iterators.  */
       || TREE_CODE (t) == BLOCK)
