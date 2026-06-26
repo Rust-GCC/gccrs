@@ -1865,6 +1865,76 @@ cttz_nonzero_handler (Context *ctx, TyTy::FnType *fntype, location_t)
   return inner::cttz_handler (ctx, fntype, true);
 }
 
+/**
+ * pub unsafe fn write_bytes<T>(dst: *mut T, val: u8, count: usize);
+ */
+tree
+write_bytes_handler (Context *ctx, TyTy::FnType *fntype, location_t)
+{
+  rust_assert (fntype->get_params ().size () == 3);
+
+  tree lookup = NULL_TREE;
+  if (check_for_cached_intrinsic (ctx, fntype, &lookup))
+    return lookup;
+
+  tree fndecl = compile_intrinsic_function (ctx, fntype);
+
+  auto locus = fntype->get_locus ();
+
+  std::vector<Bvariable *> param_vars;
+  compile_fn_params (ctx, fntype, fndecl, &param_vars);
+
+  auto &dst_param = param_vars.at (0);
+  auto &val_param = param_vars.at (1);
+  auto &count_param = param_vars.at (2);
+  rust_assert (param_vars.size () == 3);
+  if (!Backend::function_set_parameters (fndecl, param_vars))
+    return error_mark_node;
+
+  auto *monomorphized_type
+    = fntype->get_substs ().at (0).get_param_ty ()->resolve ();
+
+  tree template_parameter_type
+    = TyTyResolveCompile::compile (ctx, monomorphized_type);
+  tree dst_size_expr = TYPE_SIZE_UNIT (template_parameter_type);
+  rust_assert (dst_size_expr != NULL_TREE);
+
+  enter_intrinsic_block (ctx, fndecl);
+
+  // BUILTIN WRITE_BYTES FN BODY START
+
+  tree expr_dst = Backend::var_expression (dst_param, locus);
+  tree expr_val = Backend::var_expression (val_param, locus);
+  tree expr_count = Backend::var_expression (count_param, locus);
+
+  tree expr_count_final
+    = fold_build2_loc (locus, MULT_EXPR, size_type_node,
+		       fold_convert_loc (locus, size_type_node, expr_count),
+		       fold_convert_loc (locus, size_type_node, dst_size_expr));
+
+  tree write_bytes_raw = nullptr;
+  // void* memset( void* dest, int ch, size_t count );
+  bool ok = BuiltinsContext::get ().lookup_simple_builtin ("__builtin_memset",
+							   &write_bytes_raw);
+  rust_assert (ok);
+
+  tree write_bytes_fn = build_fold_addr_expr_loc (locus, write_bytes_raw);
+  tree write_bytes_call
+    = Backend::call_expression (write_bytes_fn,
+				{expr_dst, expr_val, expr_count_final},
+				NULL_TREE, locus);
+
+  ctx->add_statement (write_bytes_call);
+
+  // BUILTIN WRITE_BYTES FN BODY END
+
+  finalize_intrinsic_block (ctx, fndecl);
+
+  TREE_READONLY (fndecl) = 0;
+
+  return fndecl;
+}
+
 } // namespace handlers
 } // namespace Compile
 } // namespace Rust
