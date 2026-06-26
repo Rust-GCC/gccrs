@@ -347,5 +347,70 @@ UnusedChecker::visit (HIR::LetStmt &stmt)
   walk (stmt);
 }
 
+namespace {
+
+// Collects the value of a boolean literal expression, if the visited
+// expression is one.
+class BoolLiteral : public HIR::HIRFullVisitorBase
+{
+public:
+  bool found = false;
+  bool value = false;
+
+  using HIR::HIRFullVisitorBase::visit;
+  void visit (HIR::LiteralExpr &lit) override
+  {
+    if (lit.get_literal ().get_lit_type () == HIR::Literal::LitType::BOOL)
+      {
+	found = true;
+	value
+	  = lit.get_literal ().as_string () == Values::Keywords::TRUE_LITERAL;
+      }
+  }
+};
+
+// Detects a predicate that is constantly true: the `true` literal, or a
+// comparison of two boolean literals that always holds.
+class ConstantTruth : public HIR::HIRFullVisitorBase
+{
+public:
+  bool is_true = false;
+
+  using HIR::HIRFullVisitorBase::visit;
+  void visit (HIR::LiteralExpr &lit) override
+  {
+    if (lit.get_literal ().get_lit_type () == HIR::Literal::LitType::BOOL)
+      is_true
+	= lit.get_literal ().as_string () == Values::Keywords::TRUE_LITERAL;
+  }
+
+  void visit (HIR::ComparisonExpr &cmp) override
+  {
+    BoolLiteral lhs, rhs;
+    cmp.get_lhs ().accept_vis (lhs);
+    cmp.get_rhs ().accept_vis (rhs);
+    if (lhs.found && rhs.found)
+      {
+	if (cmp.get_kind () == ComparisonOperator::EQUAL)
+	  is_true = lhs.value == rhs.value;
+	else if (cmp.get_kind () == ComparisonOperator::NOT_EQUAL)
+	  is_true = lhs.value != rhs.value;
+      }
+  }
+};
+
+} // namespace
+
+void
+UnusedChecker::visit (HIR::WhileLoopExpr &expr)
+{
+  ConstantTruth predicate;
+  expr.get_predicate_expr ().accept_vis (predicate);
+  if (predicate.is_true)
+    rust_warning_at (expr.get_locus (), OPT_Wunused,
+		     "denote infinite loops with %<loop { ... }%>");
+  walk (expr);
+}
+
 } // namespace Analysis
 } // namespace Rust
