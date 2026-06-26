@@ -223,6 +223,7 @@ public:
 
   bool decimal_p () const { return m_format && m_format->b == 10; }
   bool can_represent_integral_type_p (tree type) const;
+  bool can_represent_range_value_p (const class irange *) const;
 
 private:
   const real_format *m_format;

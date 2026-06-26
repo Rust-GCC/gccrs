@@ -34,6 +34,7 @@ struct real_value;
 struct fixed_value;
 struct ptr_info_def;
 struct die_struct;
+class irange;
 
 
 /*---------------------------------------------------------------------------

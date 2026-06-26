@@ -7610,7 +7610,7 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 (for cmp  (lt le eq ne ge gt unordered ordered unlt unle ungt unge uneq ltgt)
      icmp (lt le eq ne ge gt unordered ordered lt   le   gt   ge   eq   ne)
  (simplify
-  (cmp (float@0 @1) (float @2))
+  (cmp (float@0 @1) (float@3 @2))
    (if (SCALAR_FLOAT_TYPE_P (TREE_TYPE (@0))
 	&& ! DECIMAL_FLOAT_TYPE_P (TREE_TYPE (@0)))
     (with
@@ -7618,11 +7618,21 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
        format_helper fmt (REAL_MODE_FORMAT (TYPE_MODE (TREE_TYPE (@0))));
        tree type1 = TREE_TYPE (@1);
        bool type1_signed_p = TYPE_SIGN (type1) == SIGNED;
+       bool type1_ok = fmt.can_represent_integral_type_p (type1);
        tree type2 = TREE_TYPE (@2);
        bool type2_signed_p = TYPE_SIGN (type2) == SIGNED;
+       bool type2_ok = fmt.can_represent_integral_type_p (type2);
+#if GIMPLE
+       int_range_max vr1, vr2;
+       if (!type1_ok
+	   && gimple_match_range_of_expr (vr1, @1, @0))
+	 type1_ok = fmt.can_represent_range_value_p (&vr1);
+       if (!type2_ok
+	   && gimple_match_range_of_expr (vr2, @2, @3))
+	 type2_ok = fmt.can_represent_range_value_p (&vr2);
+#endif
      }
-     (if (fmt.can_represent_integral_type_p (type1)
-	  && fmt.can_represent_integral_type_p (type2))
+     (if (type1_ok && type2_ok)
       (if (cmp == ORDERED_EXPR || cmp == UNORDERED_EXPR)
        { constant_boolean_node (cmp == ORDERED_EXPR, type); }
        (if (TYPE_PRECISION (type1) > TYPE_PRECISION (type2)
@@ -7639,13 +7649,15 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 (for cmp  (lt le eq ne ge gt)
      icmp (le le eq ne ge ge)
  (simplify
-  (cmp (float @0) REAL_CST@1)
+  (cmp (float@2 @0) REAL_CST@1)
    (if (SCALAR_FLOAT_TYPE_P (TREE_TYPE (@1))
 	&& ! DECIMAL_FLOAT_TYPE_P (TREE_TYPE (@1)))
     (with
      {
        tree itype = TREE_TYPE (@0);
        format_helper fmt (REAL_MODE_FORMAT (TYPE_MODE (TREE_TYPE (@1))));
+       bool itype_ok = fmt.can_represent_integral_type_p (itype);
+       bool value_ok = itype_ok;
        const REAL_VALUE_TYPE *cst = TREE_REAL_CST_PTR (@1);
        /* Be careful to preserve any potential exceptions due to NaNs.
 	  qNaNs are ok in == or != context.  */
@@ -7654,16 +7666,31 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
 			  && ((cmp != EQ_EXPR && cmp != NE_EXPR)
 			      || (cst->signalling
 				  && HONOR_SNANS (TREE_TYPE (@1))));
+#if GIMPLE
+       int_range_max vr;
+       if (!value_ok
+	   && gimple_match_range_of_expr (vr, @0, @2))
+	 value_ok = fmt.can_represent_range_value_p (&vr);
+#endif
      }
      /* TODO: allow non-fitting itype and SNaNs when
 	-fno-trapping-math.  */
-     (if (fmt.can_represent_integral_type_p (itype) && ! exception_p)
+     (if (value_ok && ! exception_p)
       (with
        {
 	 signop isign = TYPE_SIGN (itype);
+	 wide_int imin_val = wi::min_value (itype);
+	 wide_int imax_val = wi::max_value (itype);
+#if GIMPLE
+	 if (!itype_ok)
+	   {
+	     imin_val = vr.lower_bound ();
+	     imax_val = vr.upper_bound ();
+	   }
+#endif
 	 REAL_VALUE_TYPE imin, imax;
-	 real_from_integer (&imin, fmt, wi::min_value (itype), isign);
-	 real_from_integer (&imax, fmt, wi::max_value (itype), isign);
+	 real_from_integer (&imin, fmt, imin_val, isign);
+	 real_from_integer (&imax, fmt, imax_val, isign);
 
 	 REAL_VALUE_TYPE icst;
 	 if (cmp == GT_EXPR || cmp == GE_EXPR)

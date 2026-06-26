@@ -22,9 +22,13 @@
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
+#include "bitmap.h"
+#include "function.h"
 #include "tm.h"
 #include "rtl.h"
 #include "tree.h"
+#include "value-range.h"
+#include "vr-values.h"
 #include "realmpfr.h"
 #include "dfp.h"
 
@@ -5510,6 +5514,26 @@ bool format_helper::can_represent_integral_type_p (tree type) const
      only one mantissa bit.  */
   bool signed_p = TYPE_SIGN (type) == SIGNED;
   return TYPE_PRECISION (type) - signed_p <= significand_size (*this);
+}
+
+/* True if all values in integer range *VR can be represented by this
+   floating-point type exactly.  */
+
+bool
+format_helper::can_represent_range_value_p (const irange *vr) const
+{
+  gcc_assert (!decimal_p ());
+
+  if (vr->undefined_p () || vr->varying_p ())
+    return false;
+
+  tree type = vr->type ();
+  unsigned precision = significand_size (*this);
+
+  if (TYPE_SIGN (type) == SIGNED)
+    precision++;
+
+  return range_fits_type_p (vr, precision, TYPE_SIGN (type));
 }
 
 /* True if mode M has a NaN representation and
