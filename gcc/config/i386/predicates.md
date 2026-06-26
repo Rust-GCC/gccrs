@@ -1288,14 +1288,6 @@
        (match_operand 0 "vector_memory_operand")
        (match_code "const_vector")))
 
-; Return true when OP is register_operand, vector_memory_operand,
-; const_vector zero or const_vector all ones.
-(define_predicate "vector_or_0_or_1s_operand"
-  (ior (match_operand 0 "register_operand")
-       (match_operand 0 "vector_memory_operand")
-       (match_operand 0 "const0_operand")
-       (match_operand 0 "int_float_vector_all_ones_operand")))
-
 (define_predicate "bcst_mem_operand"
   (and (match_code "vec_duplicate")
        (and (match_test "TARGET_AVX512F")

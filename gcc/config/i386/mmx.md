@@ -2313,8 +2313,8 @@
 (define_expand "vcond_mask_<mode>v4hi"
   [(set (match_operand:V4F_64 0 "register_operand")
 	(vec_merge:V4F_64
-	  (match_operand:V4F_64 1 "register_operand")
-	  (match_operand:V4F_64 2 "register_operand")
+	  (match_operand:V4F_64 1 "vector_or_const_vector_operand")
+	  (match_operand:V4F_64 2 "vector_or_const_vector_operand")
 	  (match_operand:V4HI 3  "register_operand")))]
   "TARGET_MMX_WITH_SSE && TARGET_SSE4_1"
 {
@@ -2362,8 +2362,8 @@
 (define_expand "vcond_mask_<mode>v2hi"
   [(set (match_operand:V2F_32 0 "register_operand")
 	(vec_merge:V2F_32
-	  (match_operand:V2F_32 1 "register_operand")
-	  (match_operand:V2F_32 2 "register_operand")
+	  (match_operand:V2F_32 1 "vector_or_const_vector_operand")
+	  (match_operand:V2F_32 2 "vector_or_const_vector_operand")
 	  (match_operand:V2HI 3 "register_operand")))]
   "TARGET_SSE4_1"
 {
@@ -4313,8 +4313,8 @@
 (define_expand "vcond_mask_<mode><mmxintvecmodelower>"
   [(set (match_operand:MMXMODE124 0 "register_operand")
 	(vec_merge:MMXMODE124
-	  (match_operand:MMXMODE124 1 "register_operand")
-	  (match_operand:MMXMODE124 2 "register_operand")
+	  (match_operand:MMXMODE124 1 "vector_or_const_vector_operand")
+	  (match_operand:MMXMODE124 2 "vector_or_const_vector_operand")
 	  (match_operand:<mmxintvecmode> 3 "register_operand")))]
   "TARGET_MMX_WITH_SSE"
 {
@@ -4326,8 +4326,8 @@
 (define_expand "vcond_mask_<mode><mode>"
   [(set (match_operand:VI_16_32 0 "register_operand")
 	(vec_merge:VI_16_32
-	  (match_operand:VI_16_32 1 "register_operand")
-	  (match_operand:VI_16_32 2 "register_operand")
+	  (match_operand:VI_16_32 1 "vector_or_const_vector_operand")
+	  (match_operand:VI_16_32 2 "vector_or_const_vector_operand")
 	  (match_operand:VI_16_32 3 "register_operand")))]
   "TARGET_SSE2"
 {

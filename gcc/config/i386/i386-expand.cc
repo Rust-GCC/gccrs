@@ -4462,12 +4462,6 @@ ix86_expand_sse_movcc (rtx dest, rtx cmp, rtx op_true, rtx op_false)
   rtx (*gen) (rtx, rtx, rtx, rtx) = NULL;
   machine_mode blend_mode = mode;
 
-  if (GET_MODE_SIZE (mode) < 16
-      || !vector_operand (op_true, mode))
-    op_true = force_reg (mode, op_true);
-
-  op_false = force_reg (mode, op_false);
-
   switch (mode)
     {
     case E_V2SFmode:
@@ -4580,6 +4574,11 @@ ix86_expand_sse_movcc (rtx dest, rtx cmp, rtx op_true, rtx op_false)
 
   if (gen != NULL)
     {
+      if (GET_MODE_SIZE (mode) < 16
+	  || !vector_operand (op_true, mode))
+	op_true = force_reg (mode, op_true);
+      op_false = force_reg (mode, op_false);
+
       if (blend_mode == mode)
 	x = dest;
       else
@@ -4595,15 +4594,24 @@ ix86_expand_sse_movcc (rtx dest, rtx cmp, rtx op_true, rtx op_false)
       if (x != dest)
 	emit_move_insn (dest, gen_lowpart (mode, x));
     }
+  else if (CONST_VECTOR_P (op_true) && CONST_VECTOR_P (op_false))
+    {
+      rtx tmp = simplify_const_binary_operation (XOR, mode, op_true, op_false);
+      tmp = expand_simple_binop (mode, AND, cmp, tmp,
+				 NULL, 1, OPTAB_DIRECT);
+      tmp = expand_simple_binop (mode, XOR, tmp, op_false,
+				 dest, 1, OPTAB_DIRECT);
+      if (tmp != dest)
+	emit_move_insn (dest, tmp);
+    }
   else
     {
-      rtx t2, t3;
+      rtx t2 = expand_simple_binop (mode, AND, cmp, op_true,
+				    NULL, 1, OPTAB_DIRECT);
 
-      t2 = expand_simple_binop (mode, AND, op_true, cmp,
-				NULL, 1, OPTAB_DIRECT);
-
-      t3 = gen_reg_rtx (mode);
+      rtx t3 = gen_reg_rtx (mode);
       x = gen_rtx_NOT (mode, cmp);
+      op_false = force_reg (mode, op_false);
       ix86_emit_vec_binop (AND, mode, t3, x, op_false);
 
       x = expand_simple_binop (mode, IOR, t3, t2,
