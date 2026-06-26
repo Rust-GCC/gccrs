@@ -56,6 +56,7 @@
 ;; ---- [INT] Multi-register operations
 ;; ---- [INT] Clamp to minimum/maximum
 ;; ---- [INT] Multiplication
+;; ---- [INT] Unpredicated high-part multiplication
 ;; ---- [INT] Scaled high-part multiplication
 ;; ---- [INT] General binary arithmetic that maps to unspecs
 ;; ---- [INT] Saturating binary arithmetic
@@ -974,6 +975,22 @@
      [ w        , 0 , vsm ; *              ] mul\t%Z0.<Vetype>, %Z0.<Vetype>, #%2
      [ ?&w      , w , vsm ; yes            ] movprfx\t%Z0, %Z1\;mul\t%Z0.<Vetype>, %Z0.<Vetype>, #%2
   }
+  [(set_attr "sve_type" "sve_int_mul")]
+)
+
+;; -------------------------------------------------------------------------
+;; ---- [INT] Unpredicated high-part multiplication
+;; -------------------------------------------------------------------------
+
+;; SVE2 unpredicated SMULH/UMULH.
+(define_insn "@aarch64_sve2_<optab><mode>"
+  [(set (match_operand:SVE_I 0 "register_operand" "=w")
+	(unspec:SVE_I
+	  [(match_operand:SVE_I 1 "register_operand" "w")
+	   (match_operand:SVE_I 2 "register_operand" "w")]
+	  MUL_HIGHPART))]
+  "TARGET_SVE2"
+  "<su>mulh\t%0.<Vetype>, %1.<Vetype>, %2.<Vetype>"
   [(set_attr "sve_type" "sve_int_mul")]
 )
 

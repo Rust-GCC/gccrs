@@ -4897,7 +4897,7 @@
 )
 
 ;; Predicated highpart multiplication.
-(define_insn "@aarch64_pred_<optab><mode>"
+(define_insn_and_split "@aarch64_pred_<optab><mode>"
   [(set (match_operand:SVE_I 0 "register_operand")
 	(unspec:SVE_I
 	  [(match_operand:<VPRED> 1 "register_operand")
@@ -4911,6 +4911,13 @@
      [ w        , Upl , 0  , w ; *              ] <su>mulh\t%0.<Vetype>, %1/m, %0.<Vetype>, %3.<Vetype>
      [ ?&w      , Upl , w  , w ; yes            ] movprfx\t%0, %2\;<su>mulh\t%0.<Vetype>, %1/m, %0.<Vetype>, %3.<Vetype>
   }
+  "TARGET_SVE2"
+  [(set (match_dup 0)
+	(unspec:SVE_I
+	  [(match_dup 2)
+	   (match_dup 3)]
+	  MUL_HIGHPART))]
+  ""
   [(set_attr "sve_type" "sve_int_mul")]
 )
 
