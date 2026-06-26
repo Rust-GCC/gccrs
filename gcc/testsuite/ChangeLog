@@ -1,3 +1,214 @@
+2026-06-25  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR libfortran/118793
+	* gfortran.dg/namelist_40.f90: Update expected dg-output.
+	* gfortran.dg/namelist_47.f90: Likewise
+
+2026-06-25  Iain Sandoe  <iain@sandoe.co.uk>
+
+	* gcc.dg/lto/toplevel-extended-asm-1_0.c: Skip for Darwin.
+	* gcc.dg/lto/toplevel-extended-asm-2_0.c: Fix Mach-O syntax.
+	* gcc.dg/lto/toplevel-extended-asm-2_1.c: Likewise.
+	* gcc.dg/lto/toplevel-simple-asm-1_0.c: Skip for Darwin.
+	* gcc.dg/lto/toplevel-simple-asm-2_1.c: Fix Mach-O syntax.
+
+2026-06-25  Enes Cevik  <enes@nsvke.com>
+
+	* rust/compile/ctlz.rs: Fix incorrect intrinsic signature.
+	* rust/compile/ctlz_nonzero.rs: Likewise.
+	* rust/compile/cttz.rs: Likewise.
+	* rust/compile/cttz_nonzero.rs: Likewise.
+	* rust/compile/issue-4245.rs: Likewise.
+	* rust/compile/torture/intrinsics-3.rs: Likewise.
+	* rust/execute/torture/ctlz.rs: Likewise.
+	* rust/execute/torture/ctlz_i16.rs: Likewise.
+	* rust/execute/torture/ctlz_i32.rs: Likewise.
+	* rust/execute/torture/ctlz_i64.rs: Likewise.
+	* rust/execute/torture/ctlz_i8.rs: Likewise.
+	* rust/execute/torture/ctlz_nonzero.rs: Likewise.
+	* rust/execute/torture/ctlz_nonzero_i16.rs: Likewise.
+	* rust/execute/torture/ctlz_nonzero_i32.rs: Likewise.
+	* rust/execute/torture/ctlz_nonzero_i64.rs: Likewise.
+	* rust/execute/torture/ctlz_nonzero_i8.rs: Likewise.
+	* rust/execute/torture/ctlz_nonzero_u16.rs: Likewise.
+	* rust/execute/torture/ctlz_nonzero_u32.rs: Likewise.
+	* rust/execute/torture/ctlz_nonzero_u64.rs: Likewise.
+	* rust/execute/torture/ctlz_nonzero_u8.rs: Likewise.
+	* rust/execute/torture/ctlz_u16.rs: Likewise.
+	* rust/execute/torture/ctlz_u32.rs: Likewise.
+	* rust/execute/torture/ctlz_u64.rs: Likewise.
+	* rust/execute/torture/ctlz_u8.rs: Likewise.
+	* rust/execute/torture/cttz.rs: Likewise.
+	* rust/execute/torture/cttz_nonzero.rs: Likewise.
+	* rust/compile/intrinsic-checker.rs: New test.
+
+2026-06-25  Owen Avery  <powerboat9.gamer@gmail.com>
+
+	* rust/compile/attr-macro.rs: Move to...
+	* rust/compile/macros/mbe/macro_attr_expr.rs: ...here.
+
+2026-06-25  Enes Cevik  <enes@nsvke.com>
+
+	* rust/execute/min_align_of.rs: New test.
+
+2026-06-25  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* rust/compile/type-with-builtin-type-name.rs: New test.
+
+2026-06-25  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* rust/compile/issue-4563.rs: New test.
+
+2026-06-25  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* rust/compile/mod_in_types_ns.rs: New test.
+	* rust/compile/mod_in_types_ns2.rs: New test.
+
+2026-06-25  Yap Zhi Heng  <yapzhhg@gmail.com>
+
+	* rust/compile/name_resolution28.rs: New file.
+
+2026-06-25  lishin  <lishin1008@gmail.com>
+
+	* rust/execute/drop-function-scope-unit.rs: New test.
+	* rust/execute/drop-function-scope.rs: New test.
+
+2026-06-25  lishin  <lishin1008@gmail.com>
+
+	* rust/execute/drop-block-scope.rs: Extend test coverage for simple
+	immutable and mutable bindings.
+	* rust/compile/drop-ref-pattern.rs: New test.
+
+2026-06-25  lishin  <lishin1008@gmail.com>
+
+	* rust/execute/drop-block-scope.rs: New test.
+
+2026-06-25  Enes Cevik  <enes@nsvke.com>
+
+	* rust/compile/attr-allocator1.rs: New test.
+	* rust/compile/attr-allocator2.rs: New test.
+	* rust/compile/attr-allocator3.rs: New test.
+
+2026-06-25  Enes Cevik  <enes@nsvke.com>
+
+	* rust/compile/rustc_std_internal_symbol1.rs: New test.
+	* rust/compile/rustc_std_internal_symbol2.rs: New test.
+
+2026-06-25  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* rust/compile/float_literals.rs: New test.
+
+2026-06-25  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* rust/compile/torture/utf8_identifiers.rs: Use a more classical
+	looking float value to test our UTF-8 identifier.
+
+2026-06-25  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* rust/compile/import_in_type_ns6.rs: New test.
+	* rust/compile/import_in_type_ns7.rs: New test.
+
+2026-06-25  Yap Zhi Heng  <yapzhhg@gmail.com>
+
+	* rust/compile/extern_crate_self.rs: New file.
+
+2026-06-25  Enes Cevik  <enes@nsvke.com>
+
+	* rust/compile/exchange_malloc.rs: New test.
+
+2026-06-25  Owen Avery  <powerboat9.gamer@gmail.com>
+
+	* rust/compile/name_resolution27.rs: New test.
+
+2026-06-25  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125922
+	* g++.dg/reflect/error14.C: New test.
+
+2026-06-25  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/125832
+	* g++.dg/cpp29/lambda-order1.C: New test.
+	* g++.dg/cpp29/lambda-order2.C: New test.
+
+2026-06-25  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/125824
+	* lib/target-supports.exp
+	(check_effective_target_flt_dbl_ldbl_inf_nan): New.
+	* g++.dg/cpp29/ext-floating1.C: New test.
+	* g++.dg/cpp29/std-floating1.C: New test.
+
+2026-06-25  Manjunath Matti  <mmatti@linux.ibm.com>
+
+	* gcc.target/powerpc/ecc-builtin-1.c: New test for ECC builtins.
+
+2026-06-25  Milan Tripkovic  <Milan.Tripkovic@rt-rk.com>
+	    Jeff Law   <jeffrey.law@oss.qualcomm.com>
+
+	PR target/123884
+	PR target/106585
+	* gcc.target/riscv/pr123884-a.c: New test.
+	* gcc.target/riscv/pr123884-b.c: New test.
+	* gcc.target/riscv/pr123884-c.c: New test.
+
+2026-06-25  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+	     Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	PR target/124019
+	* gcc.target/riscv/pr124019.c: New test.
+
+2026-06-25  Konstantinos Eleftheriou  <konstantinos.eleftheriou@vrull.eu>
+
+	PR tree-optimization/102793
+	* g++.dg/tree-ssa/pr117123.C: --param logical-op-non-short-circuit=0.
+	* gcc.dg/tree-ssa/pr102793-1.c: New test.
+	* gcc.dg/tree-ssa/pr102793-2.c: New test.
+	* gcc.dg/uninit-pred-13.c: New test.
+
+2026-06-25  Christopher Bazley  <chris.bazley@arm.com>
+
+	* gcc.target/aarch64/popcnt-sve.c: Update test expectations
+	to allow both current and alternative valid mask
+	specifications.
+
+2026-06-25  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	PR target/125716
+	* gcc.target/aarch64/aarch64-json-tunings/gp2fp-2.json: New JSON
+	tuning file.
+	* gcc.target/aarch64/simd/pr125716.c: New test.
+
+2026-06-25  Jakub Jelinek  <jakub@redhat.com>
+
+	* c-c++-common/gomp/atomic-builtins-1.c: Add int128 effective target.
+
+2026-06-25  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125953
+	* gcc.dg/torture/pr125953.c: New testcase.
+
+2026-06-25  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* gcc.target/i386/pr125958.c (dg-options): Add -mno-stackrealign.
+
+2026-06-25  Martin Uecker  <uecker@tugraz.at>
+
+	* gcc.dg/builtin-call-info-1.c: New test.
+	* gcc.dg/builtin-call-info-2.c: New test.
+	* gcc.dg/builtin-call-info-3.c: New test.
+
+2026-06-25  Robert Dubner  <rdubner@symas.com>
+
+	* cobol.dg/group1/simple-classes.cob:
+	* cobol.dg/group1/simple-if.cob:
+	* cobol.dg/group2/Rounding_from_BINARY_signable_and_negative.cob: New test.
+	* cobol.dg/group2/Rounding_from_BINARY_signable_and_negative.out: New test.
+	* cobol.dg/group2/Rounding_from_BINARY_signable_and_positive.cob: New test.
+	* cobol.dg/group2/Rounding_from_BINARY_signable_and_positive.out: New test.
+	* cobol.dg/group2/Rounding_from_BINARY_unsignable.cob: New test.
+	* cobol.dg/group2/Rounding_from_BINARY_unsignable.out: New test.
+
 2026-06-24  Thomas Schwinge  <tschwinge@baylibre.com>
 
 	* gcc.dg/autopar/runtime-auto.c: Adjust.

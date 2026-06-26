@@ -1,3 +1,15 @@
+2026-06-25  Robert Dubner  <rdubner@symas.com>
+
+	* gengen.cc (gg_abs): Use fold_build1().
+	* genutil.cc (scale_and_round): Remove function.
+	(round_this_value): New function for rounding.
+	* genutil.h (scale_and_round): Remove function.
+	(round_this_value): New declaration.
+	* move.cc (cobol_wider_type_with_x_signedness): New function.
+	(mh_binary_to_numdisp): Faster routine.
+	(mh_binary_to_packed): Faster routine.
+	(move_helper): Use the faster routines.
+
 2026-06-24  James K. Lowden  <jklowden@cobolworx.com>
 
 	* parse.y: Modify grammar to accept list of intrinic function tokens.

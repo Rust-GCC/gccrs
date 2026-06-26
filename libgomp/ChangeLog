@@ -1,3 +1,27 @@
+2026-06-25  Paul-Antoine Arras  <parras@baylibre.com>
+
+	* libgomp.texi (Implementing MASKED and MASTER construct): Fix
+	@end smallexample.
+	(Implementing FOR construct): Likewise.
+
+2026-06-25  Paul-Antoine Arras  <parras@baylibre.com>
+
+	* libgomp.texi (Implementing MASKED and MASTER construct): Update
+	pseudocode; describe GOMP_has_masked_thread_num.
+	(Implementing ATOMIC construct): Fix stale function names; note
+	exclusivity to explicit atomic constructs.
+	(Implementing BARRIER construct): Document GOMP_barrier_ext and
+	GOMP_barrier_cancel_ext; describe the kind parameter.
+	(Implementing REDUCTION clause): Document GOMP_reduction_start and
+	GOMP_reduction_end.
+	(Implementing FOR construct): Document GOMP_loop_static_worksharing
+	and GOMP_distribute_static_worksharing.
+
+2026-06-25  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	* libgomp_g.h (GOMP_reduction_start, GOMP_reduction_end): Sort
+	correctly.
+
 2026-06-24  Paul-Antoine Arras  <parras@baylibre.com>
 
 	* atomic.c (GOMP_reduction_start): New function.

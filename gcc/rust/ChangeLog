@@ -1,3 +1,436 @@
+2026-06-25  Enes Cevik  <enes@nsvke.com>
+
+	* Make-lang.in: Add rust-hir-type-check-intrinsic.o.
+	* typecheck/rust-hir-type-check-implitem.cc
+	(TypeCheckTopLevelExternItem::visit): Check intrinsic signature.
+	* typecheck/rust-hir-type-check-intrinsic.cc: New file.
+	* typecheck/rust-hir-type-check-intrinsic.h: New file.
+
+2026-06-25  Enes Cevik  <enes@nsvke.com>
+
+	* backend/rust-builtins.cc
+	(BuiltinsContext::register_rust_mappings): Use Values::Intrinsics
+	constants instead of raw strings.
+	* util/rust-intrinsic-values.h (class Intrinsics): Add missing
+	builtin intrinsics.
+
+2026-06-25  Enes Cevik  <enes@nsvke.com>
+
+	* backend/rust-compile-intrinsic.cc (generic_intrinsics): Add
+	min_align_of to map.
+	* backend/rust-intrinsic-handlers.cc (min_align_of_handler):
+	New function.
+	* backend/rust-intrinsic-handlers.h (min_align_of_handler):
+	New declaration.
+
+2026-06-25  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* typecheck/rust-hir-type-check-type.cc (TypeCheckType::resolve_root_path): Add
+	special casing for resolving to the builtin type definition if the found type
+	has the same name and is a module.
+
+2026-06-25  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* resolve/rust-name-resolution-context.hxx: Remove hacks.
+
+2026-06-25  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* util/rust-hir-map.cc (Mappings::insert_module_id): New function.
+	(Mappings::is_module): Likewise.
+	* util/rust-hir-map.h: Store a set of AST modules, declare functions for adding and
+	retrieving them.
+	* resolve/rust-toplevel-name-resolver-2.0.cc (TopLevel::visit): Insert modules in the type
+	namespace and store them in mappings.
+	* resolve/rust-late-name-resolver-2.0.cc (resolve_type_path_like): Error out when an
+	expected type resolves to a module.
+	* resolve/rust-name-resolution.h: Add empty Definition constructor.
+	* resolve/rust-resolve-builtins.cc (find_builtin_node_id): New function.
+	* resolve/rust-resolve-builtins.h: Declare it.
+
+2026-06-25  Yap Zhi Heng  <yapzhhg@gmail.com>
+
+	* resolve/rust-name-resolution-context.h (NameResolutionContext): Add new function
+	definition for `should_search_prelude`.
+	* resolve/rust-name-resolution-context.hxx (NameResolutionContext::should_search_prelude):
+	Add implementation.
+	(NameResolutionContext::resolve_segments): Update the check to trigger lang_prelude search
+	during name resolution in modules.
+
+2026-06-25  Lishin  <lishin1008@gmail.com>
+
+	* backend/rust-compile-context.h: Include
+	rust-compile-drop-candidate.h instead of rust-compile-drop.h.
+	* backend/rust-compile-drop.cc: Add copyright header.
+	(CompileDrop::compile_drop_call): Assert that Drop lookup returns a
+	single function candidate.
+	* backend/rust-compile-drop.h: Add copyright header. Include
+	rust-compile-context.h.
+	(RUST_COMPILE_DROP): Rename to...
+	(RUST_COMPILE_DROP_H): ...this.
+	(DropCandidate): Move to...
+	* backend/rust-compile-drop-candidate.h: ...this new file.
+
+2026-06-25  lishin  <lishin1008@gmail.com>
+
+	* backend/rust-compile-base.cc (HIRCompileBase::compile_function_body):
+	Add drop calls at the end of function bodies.
+
+2026-06-25  Lishin  <lishin1008@gmail.com>
+
+	* Make-lang.in: Add rust-compile-drop.o.
+	* backend/rust-compile-block.cc (compile_drop_call): Move to CompileDrop.
+	(CompileBlock::visit): Use CompileDrop to emit scope drop calls.
+	* backend/rust-compile-context.h (struct DropCandidate): Move to rust-compile-drop.h.
+	* backend/rust-compile-pattern.cc (type_has_drop_impl): Move to CompileDrop.
+	(CompilePatternLet::visit): Use CompileDrop to check Drop impls.
+	* backend/rust-compile-drop.cc: New file.
+	* backend/rust-compile-drop.h: New file.
+
+2026-06-25  lishin  <lishin1008@gmail.com>
+
+	* backend/rust-compile-pattern.cc (CompilePatternLet::visit): Check ref
+	pattern base types and emit a sorry for unsupported Drop ref/subpatterns.
+
+2026-06-25  lishin  <lishin1008@gmail.com>
+
+	* backend/rust-compile-block.cc (compile_drop_call): New helper to
+	build a drop call.
+	(CompileBlock::visit): Add drop calls for candidates.
+	* backend/rust-compile-pattern.cc (type_has_drop_impl): New helper to
+	check whether a type implements Drop.
+	(CompilePatternLet::visit): Save initialized simple drop candidates.
+
+2026-06-25  lishin  <lishin1008@gmail.com>
+
+	* backend/rust-compile-context.h (struct DropCandidate): New struct
+	for tracking block-local drop candidates.
+
+2026-06-25  Enes Cevik  <enes@nsvke.com>
+
+	* backend/rust-compile-base.cc (HIRCompileBase::setup_fndecl): Dispatch the new
+	attributes.
+	(HIRCompileBase::handle_rustc_allocator_on_fndecl): New function.
+	(HIRCompileBase::handle_rustc_allocator_nounwind_on_fndecl): New function.
+	* backend/rust-compile-base.h (handle_rustc_allocator_on_fndecl): New declaration.
+	(handle_rustc_allocator_nounwind_on_fndecl): Likewise.
+	* util/rust-attribute-values.h (Attributes): Add RUSTC_ALLOCATOR and
+	RUSTC_ALLOCATOR_NOUNWIND constexprs.
+	* util/rust-attributes.cc (__definitions): Register rustc_allocator and
+	rustc_allocator_nounwind in the BuiltinAttributes list.
+	* checks/errors/rust-builtin-attribute-checker.cc (rustc_allocator): New function.
+	(rustc_allocator_nounwind): New function.
+	(attribute_checking_handlers): Add rustc_allocator and rustc_allocator_nounwind
+	functions.
+
+2026-06-25  Enes Cevik  <enes@nsvke.com>
+
+	* backend/rust-compile-base.cc (should_mangle_item): Bypass
+	mangling for rustc_std_internal_symbol.
+	(HIRCompileBase::setup_fndecl): Dispatch the new attribute.
+	(HIRCompileBase::handle_rustc_std_internal_symbol_attribute_on_fndecl):
+	New function.
+	* backend/rust-compile-base.h:
+	(handle_rustc_std_internal_symbol_attribute_on_fndecl): New declaration.
+	* util/rust-attribute-values.h (Attributes): Add
+	RUSTC_STD_INTERNAL_SYMBOL constexpr.
+	* util/rust-attributes.cc (__definitions): Register
+	rustc_std_internal_symbol in the BuiltinAttributes list.
+	* checks/errors/rust-builtin-attribute-checker.cc (rustc_std_internal_symbol):
+	New function.
+	(attribute_checking_handlers): Add rustc_std_internal_symbol function.
+
+2026-06-25  Enes Cevik  <enes@nsvke.com>
+
+	* backend/rust-compile-base.cc (HIRCompileBase::setup_fndecl):
+	Remove reduntant as_string calls.
+
+2026-06-25  Pierre-Emmanuel Patry  <pierre-emmanuel.patry@embecosm.com>
+
+	* lex/rust-lex.cc (Lexer::parse_decimal_int_or_float): Prevent use
+	after move.
+
+2026-06-25  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* backend/rust-compile-expr.cc (CompileExpr::visit): Call the new name.
+	(CompileExpr::lookup_temp_var): Rename it to...
+	(CompileExpr::lookup_label_temp_var): ...this.
+	* backend/rust-compile-expr.h: Likewise.
+
+2026-06-25  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* checks/errors/rust-unsafe-checker.cc (UnsafeChecker::visit): Add Types as a
+	namespace in which to lookup PathInExpressions.
+
+2026-06-25  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* checks/errors/privacy/rust-privacy-reporter.cc
+	(PrivacyReporter::check_for_privacy_violation): Add new overload for two namespaces.
+	(PrivacyReporter::visit): Call it.
+	(PrivacyReporter::check_violation_inner): New function.
+	* checks/errors/privacy/rust-privacy-reporter.h: Declare it.
+
+2026-06-25  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* resolve/rust-finalized-name-resolution-context.cc
+	(FinalizedNameResolutionContext::lookup): New function.
+	* resolve/rust-finalized-name-resolution-context.h: Declare it.
+	* resolve/rust-name-resolution-context.cc (NameResolutionContext::lookup): New function.
+	* resolve/rust-name-resolution-context.h: Declare it.
+
+2026-06-25  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* resolve/rust-early-name-resolver-2.0.cc (Early::finalize_simple_import): Cleanup
+	dead code.
+	(Early::finalize_rebind_import): Likewise.
+	* resolve/rust-finalized-name-resolution-context.h: Add class documentation.
+
+2026-06-25  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* resolve/rust-forever-stack.h: Comment out flatten with an explanation.
+	* resolve/rust-forever-stack.hxx: Likewise.
+	* resolve/rust-name-resolution-context.cc (NameResolutionContext::flatten): Likewise.
+	* resolve/rust-name-resolution-context.h: Likewise.
+
+2026-06-25  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* resolve/rust-early-name-resolver-2.0.cc
+	(Early::finalize_rebind_import): Remove locus variable.
+
+2026-06-25  Enes Cevik  <nsvke@proton.me>
+
+	* checks/lints/rust-lint-marklive.cc (MarkLive::visit_path_segment): Add Types namespace
+	lookup.
+	* checks/lints/unused/rust-unused-checker.cc (UnusedChecker::visit): Use safe optional
+	unwrapping.
+	* checks/lints/unused/rust-unused-collector.cc (UnusedCollector::visit): Likewise.
+	* checks/lints/unused/rust-unused-collector.h: Use helper for multiple namespace lookups.
+	* resolve/rust-early-name-resolver-2.0.cc (Early::finalize_simple_import): Prevent ICE on
+	single self imports.
+	(Early::finalize_rebind_import): Return early to prevent ICE.
+	* resolve/rust-name-resolution-context.hxx: Use value_or for safe leaf module lookup.
+	* rust-session-manager.cc (Session::compile_crate): Remove obsolete flatten() calls.
+	* typecheck/rust-hir-type-check-pattern.cc (TypeCheckPattern::visit): Look up enum variants
+	in Types namespace.
+
+2026-06-25  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* resolve/rust-early-name-resolver-2.0.cc (Early::try_insert_once): Use new
+	Usage -> Definition map for macros.
+	* resolve/rust-finalized-name-resolution-context.cc
+	(FinalizedNameResolutionContext::map_usage): Dispatch to proper resolution map.
+	* resolve/rust-forever-stack.h (enum class LookupFinalizeError): Move here.
+	* resolve/rust-forever-stack.hxx: Make resolution take a resolve_segment lambda with
+	an extra namespace parameter.
+	* resolve/rust-name-resolution-context.hxx: Likewise.
+	* resolve/rust-name-resolution-context.cc (find_leaf_definition_inner): Move here...
+	(NameResolutionContext::find_leaf_definition): Likewise.
+	(NameResolutionContext::flatten): Likewise.
+	* resolve/rust-name-resolution-context.h: ...from here.
+
+2026-06-25  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* resolve/rust-early-name-resolver-2.0.h: Properly insert resolutions in
+	the returned vector as that was previously missing.
+
+2026-06-25  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* checks/lints/rust-lint-marklive.cc (MarkLive::find_value_definition): Use Types NS
+	alongside Values NS for lookup.
+
+2026-06-25  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* resolve/rust-finalized-name-resolution-context.cc
+	(FinalizedNameResolutionContext::lookup): New function.
+	* resolve/rust-finalized-name-resolution-context.h: Declare it.
+	* resolve/rust-forever-stack.h: Remove assertion in map_usage.
+	* resolve/rust-name-resolution-context.h: Add new NSLookup return type.
+	* resolve/rust-name-resolution-context.cc (NameResolutionContext::lookup): Use it.
+	* typecheck/rust-hir-type-check-path.cc (TypeCheckExpr::resolve_root_path): Likewise.
+
+2026-06-25  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* backend/rust-compile-implitem.cc (CompileTraitItem::visit): Adapt for new NR APIs.
+	* backend/rust-compile-item.cc (CompileItem::visit): Likewise.
+	* backend/rust-compile-resolve-path.cc (ResolvePathRef::resolve): Likewise.
+	* checks/errors/borrowck/rust-bir-builder-internal.h: Likewise.
+	* checks/errors/privacy/rust-privacy-reporter.cc
+	(PrivacyReporter::check_for_privacy_violation): Likewise.
+	(PrivacyReporter::check_base_type_privacy): Likewise.
+	(PrivacyReporter::visit): Likewise.
+	* checks/errors/privacy/rust-privacy-reporter.h: Likewise.
+	* checks/errors/privacy/rust-visibility-resolver.cc
+	(VisibilityResolver::resolve_module_path): Likewise.
+	* checks/errors/rust-const-checker.cc (ConstChecker::visit): Likewise.
+	* checks/errors/rust-hir-pattern-analysis.cc (PatternChecker::visit): Likewise.
+	* checks/errors/rust-readonly-check.cc (ReadonlyChecker::visit): Likewise.
+	* checks/errors/rust-unsafe-checker.cc (UnsafeChecker::visit): Likewise.
+	* checks/lints/rust-lint-marklive.cc (MarkLive::visit): Likewise.
+	(MarkLive::visit_path_segment): Likewise.
+	(MarkLive::find_ref_node_id): Likewise.
+	(MarkLive::find_value_definition): Likewise.
+	* checks/lints/rust-lint-marklive.h: Likewise.
+	* checks/lints/unused/rust-unused-checker.cc (UnusedChecker::visit): Likewise.
+	* checks/lints/unused/rust-unused-collector.cc (UnusedCollector::visit): Likewise.
+	* checks/lints/unused/rust-unused-collector.h: Likewise.
+	* resolve/rust-early-name-resolver-2.0.cc (Early::resolve_glob_import): Likewise.
+	(Early::resolve_rebind_import): Likewise.
+	(Early::visit): Likewise.
+	(Early::visit_derive_attribute): Likewise.
+	(Early::visit_non_builtin_attribute): Likewise.
+	(Early::finalize_simple_import): Likewise.
+	(Early::finalize_rebind_import): Likewise.
+	* resolve/rust-early-name-resolver-2.0.h: Likewise.
+	* resolve/rust-finalized-name-resolution-context.cc
+	(FinalizedNameResolutionContext::map_usage): Likewise.
+	(FinalizedNameResolutionContext::lookup): Likewise.
+	(FinalizedNameResolutionContext::to_canonical_path): Likewise.
+	* resolve/rust-finalized-name-resolution-context.h: Likewise.
+	* resolve/rust-forever-stack.h: Likewise.
+	* resolve/rust-late-name-resolver-2.0.cc (visit_identifier_as_pattern): Likewise.
+	(Late::visit): Likewise.
+	(Late::resolve_label): Likewise.
+	(resolve_type_path_like): Likewise.
+	* resolve/rust-name-resolution-context.cc
+	(CanonicalPathRecordCrateRoot::as_path): Likewise.
+	(CanonicalPathRecordNormal::as_path): Likewise.
+	(CanonicalPathRecordLookup::as_path): Likewise.
+	(CanonicalPathRecordImpl::as_path): Likewise.
+	(CanonicalPathRecordTraitImpl::as_path): Likewise.
+	(NameResolutionContext::map_usage): Likewise.
+	(NameResolutionContext::lookup): Likewise.
+	* resolve/rust-name-resolution-context.h: Likewise.
+	* typecheck/rust-hir-trait-resolve.cc (TraitResolver::resolve_path_to_trait): Likewise.
+	* typecheck/rust-hir-type-check-enumitem.cc (TypeCheckEnumItem::visit): Likewise.
+	* typecheck/rust-hir-type-check-expr.cc (TypeCheckExpr::visit): Likewise.
+	(TypeCheckExpr::resolve_fn_trait_call): Likewise.
+	* typecheck/rust-hir-type-check-implitem.cc (TypeCheckImplItem::visit): Likewise.
+	* typecheck/rust-hir-type-check-item.cc (TypeCheckItem::visit): Likewise.
+	* typecheck/rust-hir-type-check-path.cc (TypeCheckExpr::visit): Likewise.
+	(TypeCheckExpr::resolve_root_path): Likewise.
+	(TypeCheckExpr::resolve_segments): Likewise.
+	* typecheck/rust-hir-type-check-pattern.cc (TypeCheckPattern::visit): Likewise.
+	* typecheck/rust-hir-type-check-type.cc (TypeCheckType::resolve_root_path): Likewise.
+	(ResolveWhereClauseItem::visit): Likewise.
+	* typecheck/rust-hir-type-check.cc (TraitItemReference::get_type_from_fn): Likewise.
+	* typecheck/rust-type-util.cc (query_type): Likewise.
+	* backend/rust-compile-expr.h (CompileExpr::resolve_nodeid): Likewise.
+	* backend/rust-compile-expr.cc (CompileExpr::visit): Likewise.
+	(CompileExpr::lookup_label): Likewise.
+	(CompileExpr::lookup_temp_var): Likewise.
+	(CompileExpr::resolve_NodeId): Likewise, and rename to...
+	(CompileExpr::resolve_nodeid): ...this.
+
+2026-06-25  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* resolve/rust-early-name-resolver-2.0.cc (Early::insert_once): Rename...
+	(Early::try_insert_once): ...to this, and improve logic.
+	(Early::go): Use new API.
+	(Early::visit): Likewise.
+	(Early::finalize_simple_import): Likewise.
+	(Early::finalize_rebind_import): Likewise.
+	* resolve/rust-early-name-resolver-2.0.h: Declare the new API.
+
+2026-06-25  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* rust-session-manager.cc (Session::compile_crate): Call nr_ctx.flatten()
+
+2026-06-25  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* Make-lang.in: Rename.
+	* backend/rust-compile-base.cc: Use new name and API.
+	* backend/rust-compile-context.h: Likewise.
+	* backend/rust-compile-expr.cc (CompileExpr::visit): Likewise.
+	(CompileExpr::generate_closure_function): Likewise.
+	* backend/rust-compile-implitem.cc (CompileTraitItem::visit): Likewise.
+	* backend/rust-compile-item.cc (CompileItem::visit): Likewise.
+	* backend/rust-compile-resolve-path.cc (ResolvePathRef::resolve): Likewise.
+	* checks/errors/borrowck/rust-bir-builder-internal.h (struct BuilderContext): Likewise.
+	* checks/errors/privacy/rust-privacy-check.cc (Resolver::resolve): Likewise.
+	* checks/errors/privacy/rust-privacy-reporter.cc: Likewise.
+	* checks/errors/privacy/rust-privacy-reporter.h: Likewise.
+	* checks/errors/privacy/rust-visibility-resolver.cc: Likewise.
+	* checks/errors/privacy/rust-visibility-resolver.h: Likewise.
+	* checks/errors/rust-const-checker.cc (ConstChecker::visit): Likewise.
+	* checks/errors/rust-hir-pattern-analysis.cc (PatternChecker::PatternChecker): Likewise.
+	* checks/errors/rust-hir-pattern-analysis.h: Likewise.
+	* checks/errors/rust-readonly-check.cc (ReadonlyChecker::visit): Likewise.
+	* checks/errors/rust-unsafe-checker.cc (UnsafeChecker::visit): Likewise.
+	* checks/lints/rust-lint-marklive.cc (MarkLive::visit_path_segment): Likewise.
+	(MarkLive::visit): Likewise.
+	(MarkLive::find_ref_node_id): Likewise.
+	* checks/lints/unused/rust-unused-checker.cc (UnusedChecker::UnusedChecker): Likewise.
+	* checks/lints/unused/rust-unused-checker.h: Likewise.
+	* checks/lints/unused/rust-unused-collector.cc (UnusedCollector::UnusedCollector): Likewise.
+	* checks/lints/unused/rust-unused-collector.h: Likewise.
+	* resolve/rust-immutable-name-resolution-context.cc: Move to...
+	* resolve/rust-finalized-name-resolution-context.cc: ...here.
+	* resolve/rust-name-resolution-context.h: Likewise.
+	* rust-session-manager.cc (Session::compile_crate): Likewise.
+	* typecheck/rust-hir-trait-resolve.cc (TraitResolver::resolve_path_to_trait): Likewise.
+	* typecheck/rust-hir-type-check-enumitem.cc (TypeCheckEnumItem::visit): Likewise.
+	* typecheck/rust-hir-type-check-expr.cc (TypeCheckExpr::visit): Likewise.
+	(TypeCheckExpr::resolve_fn_trait_call): Likewise.
+	* typecheck/rust-hir-type-check-implitem.cc (TypeCheckImplItem::visit): Likewise.
+	* typecheck/rust-hir-type-check-item.cc (TypeCheckItem::visit): Likewise.
+	* typecheck/rust-hir-type-check-path.cc (TypeCheckExpr::visit): Likewise.
+	(TypeCheckExpr::resolve_root_path): Likewise.
+	(TypeCheckExpr::resolve_segments): Likewise.
+	* typecheck/rust-hir-type-check-pattern.cc (TypeCheckPattern::visit): Likewise.
+	* typecheck/rust-hir-type-check-type.cc (TypeCheckType::resolve_root_path): Likewise.
+	(ResolveWhereClauseItem::visit): Likewise.
+	* typecheck/rust-hir-type-check.cc (TraitItemReference::get_type_from_fn): Likewise.
+	* typecheck/rust-type-util.cc (query_type): Likewise.
+	* checks/errors/rust-const-checker.h: Likewise.
+	* checks/errors/rust-unsafe-checker.h: Likewise.
+	* checks/lints/rust-lint-marklive.h: Likewise.
+	* resolve/rust-immutable-name-resolution-context.h: Removed.
+	* resolve/rust-finalized-name-resolution-context.h: New file.
+
+2026-06-25  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* resolve/rust-early-name-resolver-2.0.cc (Early::finalize_rebind_import): Insert imports
+	as possible glob containers.
+	* resolve/rust-name-resolution-context.cc (NameResolutionContext::map_usage): Allow
+	multiple mappings of the same usage.
+	* resolve/rust-name-resolution-context.hxx: Properly handle imports and modules in segments.
+
+2026-06-25  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* resolve/rust-forever-stack.h: Move resolve_segments and resolve_final_segment to...
+	* resolve/rust-forever-stack.hxx: Likewise.
+	* resolve/rust-name-resolution-context.h: ...here.
+	* resolve/rust-name-resolution-context.hxx: Likewise.
+
+2026-06-25  Arthur Cohen  <arthur.cohen@embecosm.com>
+
+	* resolve/rust-early-name-resolver-2.0.cc: Properly resolve and insert imports in the
+	types NS.
+	* resolve/rust-name-resolution-context.cc (find_leaf_definition_inner): New.
+	(NameResolutionContext::find_leaf_definition): New.
+	(NameResolutionContext::flatten): New.
+	* resolve/rust-name-resolution-context.h: Declare flattening functions.
+	* rust-session-manager.cc (Session::compile_crate): Call NR flattening.
+
+2026-06-25  Yap Zhi Heng  <yapzhhg@gmail.com>
+
+	* resolve/rust-default-resolver.h (DefaultResolver): Add new visited_crates
+	member for recursion protection.
+	* resolve/rust-default-resolver.cc (DefaultResolver::visit(ExternCrate)):
+	Make references of `self` resolve to the current crate.
+
+2026-06-25  Enes Cevik  <enes@nsvke.com>
+
+	* util/rust-lang-item.cc (Rust::LangItem::lang_items): Register
+	exchange_malloc to BiMap.
+	* util/rust-lang-item.h (LangItem::Kind): Add EXCHANGE_MALLOC.
+
+2026-06-25  Owen Avery  <powerboat9.gamer@gmail.com>
+
+	* resolve/rust-finalize-imports-2.0.cc (GlobbingVisitor::visit):
+	Add overrides for more items.
+	* resolve/rust-finalize-imports-2.0.h (GlobbingVisitor::visit):
+	Likewise.
+
 2026-06-01  Yap Zhi Heng  <yapzhhg@gmail.com>
 
 	* parse/rust-parse-impl.hxx(parse_expr_stmt): Return error early when

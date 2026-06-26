@@ -1,3 +1,16 @@
+2026-06-25  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR libfortran/118793
+	* io/file_pos.c (st_rewind): Reset line and column numbers.
+	* io/io.h: Add line and column number to the gfc_unit
+	structure.
+	* io/list_read.c (next_char_default): Increment the column
+	position and line number as needed.
+	(next_char_internal): Likewise.
+	(next_char_utf8): Likewise.
+	(nml_err_ret): Build the expanded diagnostic message.
+	* io/unit.c (insert_unit): Initialize the line_number.
+
 2026-06-22  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
 
 	PR libfortran/118774

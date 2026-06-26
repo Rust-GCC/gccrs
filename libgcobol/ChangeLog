@@ -1,3 +1,24 @@
+2026-06-25  Robert Dubner  <rdubner@symas.com>
+
+	* charmaps.cc (__gg__miconverter): Use table instead of a map.
+	(__gg__get_charmap): Likewise.
+	* charmaps.h (ebcdic_zero): New constant.
+	(ebcdic_plus): Likewise.
+	(ebcdic_minus): Likewise.
+	* encodings.h (enum cbl_encoding_t): Guardrail for table.
+	(ASCII_e): Remove trailing spaces.
+	* stringbin.cc (string_from_combined): Improved routine.
+	(defined): Likewise.
+	(FALLTHROUGH): Likewise.
+	(uint_to_8_digits): Improve speed.
+	(__gg__binary_to_string_ascii): Likewise.
+	(binary_to_string): Likewise.
+	(__gg__binary_to_string_ebcdic): Likewise.
+	(__gg__binary_to_string_encoded): Likewise.
+	(packed_from_combined): Likewise.
+	(__gg__binary_to_packed): Likewise.
+	(__gg__packed_to_binary): Likewise.
+
 2026-06-20  Robert Dubner  <rdubner@symas.com>
 
 	* charmaps.cc: Eliminate rt_encoding_t.

@@ -1,3 +1,269 @@
+2026-06-25  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	* config/riscv/riscv.md (seq_sne_qi): Mark name for debugging purposes
+	only.
+
+2026-06-25  Peter Bergner  <bergner@tenstorrent.com>
+
+	PR target/87466
+	* config/riscv/riscv.cc (TARGET_SETJMP_PRESERVES_NONVOLATILE_REGS_P):
+	Define.
+
+2026-06-25  Manjunath Matti  <mmatti@linux.ibm.com>
+
+	* config/rs6000/predicates.md (const_0_to_6_operand): New predicate.
+	* config/rs6000/rs6000-builtins.def (__builtin_vsx_xxmulmul): Add new
+	builtin definitions under [future] stanza.
+	(__builtin_vsx_xxmulmulhiadd): Likewise.
+	(__builtin_vsx_xxmulmulloadd): Likewise.
+	(__builtin_vsx_xxssumudm): Likewise.
+	(__builtin_vsx_xxssumudmc): Likewise.
+	(__builtin_vsx_xxssumudmcext): Likewise.
+	(__builtin_vsx_xsaddadduqm): Likewise.
+	(__builtin_vsx_xsaddaddsuqm): Likewise.
+	(__builtin_vsx_xsaddsubuqm): Likewise.
+	(__builtin_vsx_xsaddsubsuqm): Likewise.
+	(__builtin_vsx_xsmerge2t1uqm): Likewise.
+	(__builtin_vsx_xsmerge2t2uqm): Likewise.
+	(__builtin_vsx_xsmerge2t3uqm): Likewise.
+	(__builtin_vsx_xsmerge3t1uqm): Likewise.
+	(__builtin_vsx_xsrebase2t1uqm): Likewise.
+	(__builtin_vsx_xsrebase2t2uqm): Likewise.
+	(__builtin_vsx_xsrebase2t3uqm): Likewise.
+	(__builtin_vsx_xsrebase2t4uqm): Likewise.
+	(__builtin_vsx_xsrebase3t1uqm): Likewise.
+	(__builtin_vsx_xsrebase3t2uqm): Likewise.
+	(__builtin_vsx_xsrebase3t3uqm): Likewise.
+	* config/rs6000/vsx.md (UNSPEC_XXMULMUL): Add UNSPEC entry.
+	(UNSPEC_XXMULMULHIADD): Likewise.
+	(UNSPEC_XXMULMULLOADD): Likewise.
+	(UNSPEC_XXSSUMUDM): Likewise.
+	(UNSPEC_XXSSUMUDMC): Likewise.
+	(UNSPEC_XXSSUMUDMCEXT): Likewise.
+	(UNSPEC_XSADDADDUQM): Likewise.
+	(UNSPEC_XSADDADDSUQM): Likewise.
+	(UNSPEC_XSADDSUBUQM): Likewise.
+	(UNSPEC_XSADDSUBSUQM): Likewise.
+	(UNSPEC_XSMERGE2T1UQM): Likewise.
+	(UNSPEC_XSMERGE2T2UQM): Likewise.
+	(UNSPEC_XSMERGE2T3UQM): Likewise.
+	(UNSPEC_XSMERGE3T1UQM): Likewise.
+	(UNSPEC_XSREBASE2T1UQM): Likewise.
+	(UNSPEC_XSREBASE2T2UQM): Likewise.
+	(UNSPEC_XSREBASE2T3UQM): Likewise.
+	(UNSPEC_XSREBASE2T4UQM): Likewise.
+	(UNSPEC_XSREBASE3T1UQM): Likewise.
+	(UNSPEC_XSREBASE3T2UQM): Likewise.
+	(UNSPEC_XSREBASE3T3UQM): Likewise.
+	(vsx_xxmulmul): New define_insn.
+	(vsx_xxmulmulhiadd): Likewise.
+	(vsx_xxmulmulloadd): Likewise.
+	(vsx_xxssumudm): Likewise.
+	(vsx_xxssumudmc): Likewise.
+	(vsx_xxssumudmcext): Likewise.
+	(vsx_xsaddadduqm): Likewise.
+	(vsx_xsaddaddsuqm): Likewise.
+	(vsx_xsaddsubuqm): Likewise.
+	(vsx_xsaddsubsuqm): Likewise.
+	(vsx_xsmerge2t1uqm): Likewise.
+	(vsx_xsmerge2t2uqm): Likewise.
+	(vsx_xsmerge2t3uqm): Likewise.
+	(vsx_xsmerge3t1uqm): Likewise.
+	(vsx_xsrebase2t1uqm): Likewise.
+	(vsx_xsrebase2t2uqm): Likewise.
+	(vsx_xsrebase2t3uqm): Likewise.
+	(vsx_xsrebase2t4uqm): Likewise.
+	(vsx_xsrebase3t1uqm): Likewise.
+	(vsx_xsrebase3t2uqm): Likewise.
+	(vsx_xsrebase3t3uqm): Likewise.
+	* doc/extend.texi (PowerPC AltiVec/VSX Built-in Functions): Add
+	documentation for ECC cryptography builtins available on
+	future ISA.
+
+2026-06-25  Milan Tripkovic  <Milan.Tripkovic@rt-rk.com>
+	    Jeff Law   <jeffrey.law@oss.qualcomm.com>
+
+	PR target/123884
+	PR target/106585
+	* config/riscv/bitmanip.md: Add new splits for single bit manipulation
+	cases followed by a sign extension.
+
+2026-06-25  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+	     Daniel Barboza  <daniel.barboza@oss.qualcomm.com>
+
+	PR target/124019
+	* config/riscv/riscv.md (seq_sne_qi): New define_insn_and_split.
+
+2026-06-25  Konstantinos Eleftheriou  <konstantinos.eleftheriou@vrull.eu>
+
+	PR tree-optimization/102793
+	* tree-ssa-ifcombine.cc (bb_guards_loop_p): New function.
+	(ifcombine_ifandif): Use it to avoid combining the conditions
+	guarding a loop.
+	* tree-ssa-tail-merge.cc: Include tree-ssa-ifcombine.h and
+	tree-ssa.h.
+	(ifcombine_candidate_bbs): New static bitmap.
+	(apply_clusters): Collect the merged block's predecessors as
+	ifcombine candidates.
+	(tail_merge_optimize): Run tree_ssa_ifcombine_bb on the candidates;
+	return TODO_cleanup_cfg when it changed the CFG.
+
+2026-06-25  Konstantinos Eleftheriou  <konstantinos.eleftheriou@vrull.eu>
+
+	* gimple-predicate-analysis.cc (get_pred_info_from_cond_edge):
+	New function.
+	(predicate::init_from_control_deps): Use it.
+	(predicate::drop_conjuncts_implied_by): New method.
+	(uninit_analysis::is_use_guarded): Retry the superset test
+	after relaxing the definition predicate by the maybe-undef
+	edge conditions.
+	* gimple-predicate-analysis.h (class predicate): Declare
+	drop_conjuncts_implied_by.
+
+2026-06-25  Konstantinos Eleftheriou  <konstantinos.eleftheriou@vrull.eu>
+
+	* tree-ssa-ifcombine.cc: Include tree-ssa-ifcombine.h.
+	(recognize_if_then_else): Removed 'static'.
+	(tree_ssa_ifcombine_bb): Removed 'static'.
+	* tree-ssa-ifcombine.h: New file.
+
+2026-06-25  Richard Biener  <rguenther@suse.de>
+
+	PR middle-end/125977
+	* cfgexpand.cc (pass_expand::execute): Guard ranger use
+	on optimize.
+
+2026-06-25  Artemiy Volkov  <artemiy.volkov@arm.com>
+
+	PR target/125716
+	* config/aarch64/aarch64-simd.md (*aarch64_simd_mov<mode>): Add
+	(?w,r) alternative for VSUB64 types.
+
+2026-06-25  Xi Ruoyao  <xry111@xry111.site>
+
+	Revert:
+	2026-06-25  Xi Ruoyao  <xry111@xry111.site>
+
+	PR target/125077
+	* config/mips/predicates.md (ssp_gp_operand): New
+	define_predicate.
+	(ssp_operand): New define_predicate.
+	(ssp_normal_operand): New define_predicate.
+	* config/mips/constraints.md (ZA): New define_constraint.
+	(ZB): New define_constraint.
+	* config/mips/mips.md (UNSPEC_SSP): New unspec.
+	(UNSPEC_SSP_GP): New unspec.
+	(cbranch<mode>4): Add '@' to generate the helper function taking
+	mode as a parameter.
+	(@stack_protect_combined_set_normal_<mode>): New define_insn.
+	(stack_protect_combined_set_abs64): New define_insn.
+	(@stack_protect_combined_test_internal_<mode>): New define_insn.
+	(stack_protect_combined_set): New define_expand.
+	(stack_protect_combined_test): New define_expand.
+	* config/mips/mips-protos.h (mips_canary_expose_gp_use):
+	Declare.
+	(mips_output_asm_load_canary): Declare.
+	* config/mips/mips.cc (mips_small_data_pattern_1): Don't rewrite
+	GP-relative symbol wrapped in UNSPEC_SSP_GP.
+	(mips_canary_expose_gp_use): Implement.
+	(mips_output_asm_load_canary): Implement.
+	(mips_print_operand): Allow 'w' to print d/w for DImode/SImode.
+
+2026-06-25  Xi Ruoyao  <xry111@xry111.site>
+
+	PR target/125628
+	* config/mips/sync.md (sync_old_<optab><mode>): Fix
+	uninitialized operand use.
+	(sync_new_<optab><mode>): Fix uninitialized operand use, use the
+	same expression for the set source of operand 0 and 1.
+
+2026-06-25  Xi Ruoyao  <xry111@xry111.site>
+
+	PR target/125077
+	* config/mips/predicates.md (ssp_gp_operand): New
+	define_predicate.
+	(ssp_operand): New define_predicate.
+	(ssp_normal_operand): New define_predicate.
+	* config/mips/constraints.md (ZA): New define_constraint.
+	(ZB): New define_constraint.
+	* config/mips/mips.md (UNSPEC_SSP): New unspec.
+	(UNSPEC_SSP_GP): New unspec.
+	(cbranch<mode>4): Add '@' to generate the helper function taking
+	mode as a parameter.
+	(@stack_protect_combined_set_normal_<mode>): New define_insn.
+	(stack_protect_combined_set_abs64): New define_insn.
+	(@stack_protect_combined_test_internal_<mode>): New define_insn.
+	(stack_protect_combined_set): New define_expand.
+	(stack_protect_combined_test): New define_expand.
+	* config/mips/mips-protos.h (mips_canary_expose_gp_use):
+	Declare.
+	(mips_output_asm_load_canary): Declare.
+	* config/mips/mips.cc (mips_small_data_pattern_1): Don't rewrite
+	GP-relative symbol wrapped in UNSPEC_SSP_GP.
+	(mips_canary_expose_gp_use): Implement.
+	(mips_output_asm_load_canary): Implement.
+	(mips_print_operand): Allow 'w' to print d/w for DImode/SImode.
+
+2026-06-25  Richard Biener  <rguenther@suse.de>
+
+	* target.def (reassociation_width): Use default_reassociation_width.
+	* targhooks.h (default_reassociation_width): Declare.
+	* targhooks.cc (default_reassociation_width): Define.
+
+2026-06-25  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/125953
+	* gimple-range.cc (gimple_ranger::range_of_expr): Document.
+	Fall back to global ranges if 'stmt' is not in the IL.
+
+2026-06-25  Richard Biener  <rguenther@suse.de>
+
+	* tree-vect-patterns.cc (vect_recog_divmod_pattern): Pass
+	the division stmt as context for the range query on op0.
+	Use the active ranger.
+
+2026-06-25  Richard Biener  <rguenther@suse.de>
+
+	* coretypes.h (enum tree_code): Declare.
+	* tree-core.h (enum tree_code): Adjust.
+	* target.def (reassociation_width): Get a tree_code instead
+	of unsigned int.
+	* doc/tm.texi: Regenerate.
+	* genmatch.cc (enum tree_code): Adjust.
+	* gimple-loop-versioning.cc (address_info_hasher::hash): Likewise.
+	* config/aarch64/aarch64.cc (aarch64_reassociation_width):
+	Likewise.
+	* config/loongarch/loongarch.cc
+	(loongarch_cpu_sched_reassociation_width): Likewise.
+	* config/mips/mips.cc (mips_sched_reassociation_width): Likewise.
+	* config/rs6000/rs6000.cc (rs6000_reassociation_width): Likewise.
+	* config/i386/i386.cc (ix86_reassociation_width): Likewise
+	and fix bogus compares.
+
+2026-06-25  Martin Uecker  <uecker@tugraz.at>
+
+	* doc/extend.texi (Constructing Calls): Document
+	__builtin_call_static_chain and __builtin_call_code_address
+	and update __builtin_call_with_static_chain.
+	(Nested Functions): Update.
+
+2026-06-25  Martin Uecker  <uecker@tugraz.at>
+
+	* builtins.def (BUILT_IN_CALL_CODE_ADDRESS,
+	BUILT_IN_CALL_STATIC_CHAIN): New.
+	* builtins.cc (expand_builtin): Emit errors for invalid uses.
+	(is_simple_builtin): Add new built-in functions.
+	* gimple-fold.cc (gimple_fold_builtin_call_info): New function.
+	(gimple_fold_builtin): Expand new built-ins for non-nested functions.
+	* tree-nested.cc (convert_tramp_reference_stmt): Ingore new built-ins.
+	(convert_gimple_call): Expand built-ins for nested functions.
+	* tree-inline.cc (initialize_inlined_parameters): Set a missing
+	static chain to NULL.
+
+2026-06-25  Jan Beulich  <jbeulich@suse.com>
+
+	* config/riscv/arch-canonicalize: Avoid f"..." strings.
+
 2026-06-24  Oleg Tolmatcev  <oleg.tolmatcev@gmail.com>
 
 	* config/i386/prfchwintrin.h (_m_prefetchw): Take

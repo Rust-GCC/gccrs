@@ -1,3 +1,161 @@
+2026-06-25  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/version.def (stds): Add C++29 value and adjust
+	C++23 and C++26 values.
+	* include/bits/version.h: Regenerate.
+	* testsuite/lib/libstdc++.exp (v3_max_std): Update to 29.
+
+2026-06-25  Jonathan Wakely  <jwakely@redhat.com>
+
+	* acinclude.m4 (GLIBCXX_CHECK_STDIO_LOCKING): Remove trailing
+	whitespace.
+
+2026-06-25  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	PR bootstrap/103459
+	* configure.ac: Update AC_FOREACH to m4_foreach_w.
+
+2026-06-25  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	PR bootstrap/103459
+	* configure: Regenerate.
+	* configure.ac: Update AM_PROG_LIBTOOL to LT_INIT.
+
+2026-06-25  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	PR bootstrap/103459
+	* acinclude.m4 (GLIBCXX_CHECK_COMPILER_FEATURES): Replace
+	AC_LANG_SAVE AC_LANG_CPLUSPLUS (...) AC_LANG_RESTORE with
+	AC_LANG_PUSH([C++]) (...) AC_LANG_POP([C++]).
+	(GLIBCXX_CHECK_SETRLIMIT): Likewise.
+	(GLIBCXX_CHECK_S_ISREG_OR_S_IFREG): Likewise.
+	(GLIBCXX_CHECK_POLL): Likewise.
+	(GLIBCXX_CHECK_WRITEV): Likewise.
+	(GLIBCXX_CHECK_LFS): Likewise.
+	(GLIBCXX_ENABLE_C99): Likewise.
+	(GLIBCXX_ENABLE_LIBSTDCXX_TIME): Likewise.
+	(GLIBCXX_CHECK_GETTIMEOFDAY): Likewise.
+	(GLIBCXX_CHECK_C99_TR1): Likewise.
+	(GLIBCXX_CHECK_UCHAR_H): Likewise.
+	(GLIBCXX_CHECK_STDIO_PROTO): Likewise.
+	(GLIBCXX_CHECK_MATH11_PROTO): Likewise.
+	(GLIBCXX_ENABLE_FLOAT128): Likewise.
+	(GLIBCXX_ENABLE_WCHAR_T): Likewise.
+	(GLIBCXX_ENABLE_PCH): Likewise.
+	(GLIBCXX_ENABLE_ATOMIC_BUILTINS): Likewise.
+	(GLIBCXX_ENABLE_LOCK_POLICY): Likewise.
+	(GLIBCXX_CHECK_GTHREADS): Likewise.
+	(GLIBCXX_CHECK_GET_NPROCS): Likewise.
+	(GLIBCXX_CHECK_SC_NPROCESSORS_ONLN): Likewise.
+	(GLIBCXX_CHECK_SC_NPROC_ONLN): Likewise.
+	(GLIBCXX_CHECK_PTHREADS_NUM_PROCESSORS_NP): Likewise.
+	(GLIBCXX_CHECK_PTHREAD_COND_CLOCKWAIT): Likewise.
+	(GLIBCXX_CHECK_PTHREAD_MUTEX_CLOCKLOCK): Likewise.
+	(GLIBCXX_CHECK_PTHREAD_RWLOCK_CLOCKLOCK): Likewise.
+	(GLIBCXX_CHECK_SYSCTL_HW_NCPU): Likewise.
+	(GLIBCXX_CHECK_TMPNAM): Likewise.
+	(GLIBCXX_CHECK_SDT_H): Likewise.
+	(GLIBCXX_CHECK_FILESYSTEM_DEPS): Likewise.
+	(GLIBCXX_CHECK_GETENTROPY): Likewise.
+	(GLIBCXX_CHECK_ARC4RANDOM): Likewise.
+	(GLIBCXX_ENABLE_BACKTRACE): Likewise.
+	(GLIBCXX_STRUCT_TM_TM_ZONE): Likewise.
+	(GLIBCXX_CHECK_ALIGNAS_CACHELINE): Likewise.
+	(GLIBCXX_CHECK_INIT_PRIORITY): Likewise.
+	(GLIBCXX_CHECK_FILEBUF_NATIVE_HANDLES): Likewise.
+	(GLIBCXX_CHECK_TEXT_ENCODING): Likewise.
+	(GLIBCXX_CHECK_DEBUGGING): Likewise.
+	(GLIBCXX_CHECK_STDIO_LOCKING): Likewise.
+	* configure: Regenerate.
+	* crossconfig.m4 (GLIBCXX_CHECK_MATH_DECL): Replace
+	AC_LANG_SAVE AC_LANG_C with AC_LANG_PUSH([C]).
+	* linkage.m4 (GLIBCXX_CHECK_MATH_DECL_1): Replace
+	AC_LANG_SAVE AC_LANG_CPLUSPLUS (...) AC_LANG_RESTORE with
+	AC_LANG_PUSH([C++]) (...) AC_LANG_POP([C++]).
+	(GLIBCXX_CHECK_MATH_DECLS_AND_LINKAGES_1) Likewise.
+	(GLIBCXX_CHECK_MATH_DECL_2): Likewise.
+	(GLIBCXX_CHECK_MATH_DECL_3): Likewise.
+	(GLIBCXX_CHECK_STDLIB_DECL_AND_LINKAGE_1): Likewise.
+	(GLIBCXX_CHECK_STDLIB_DECL_AND_LINKAGE_2): Likewise.
+	(GLIBCXX_CHECK_STDLIB_DECL_AND_LINKAGE_3): Likewise.
+
+2026-06-25  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	PR bootstrap/103459
+	* acinclude.m4 (GLIBCXX_CHECK_COMPILER_FEATURES): Update
+	AC_TRY_COMPILE to AC_COMPILE_IFELSE.
+	(GLIBCXX_CHECK_SETRLIMIT_ancilliary): Likewise.
+	(GLIBCXX_CHECK_SETRLIMIT): Likewise.
+	(GLIBCXX_ENABLE_C99): Likewise.
+	(GLIBCXX_ENABLE_LIBSTDCXX_TIME): Likewise.
+	(GLIBCXX_CHECK_C99_TR1): Likewise.
+	(GLIBCXX_CHECK_UCHAR_H): Likewise.
+	(GLIBCXX_ENABLE_CLOCALE): Likewise.
+	(GLIBCXX_ENABLE_WCHAR_T): Likewise.
+	(GLIBCXX_ENABLE_ATOMIC_BUILTINS): Likewise.
+	(GLIBCXX_ENABLE_LOCK_POLICY): Likewise.
+	(GLIBCXX_ENABLE_LIBSTDCXX_VISIBILITY): Likewise.
+	(GLIBCXX_ENABLE_SYMVERS): Likewise.
+	(GLIBCXX_CHECK_GTHREADS): Likewise.
+	(GLIBCXX_CHECK_X86_RDRAND): Likewise.
+	(GLIBCXX_CHECK_X86_RDSEED): Likewise.
+	(GLIBCXX_CHECK_SIZE_T_MANGLING): Likewise.
+	(GLIBCXX_CHECK_EXCEPTION_PTR_SYMVER): Likewise.
+	(GLIBCXX_CHECK_ALIGNAS_CACHELINE): Likewise.
+	(GLIBCXX_CHECK_INIT_PRIORITY): Likewise.
+	(GLIBCXX_CHECK_FILEBUF_NATIVE_HANDLES): Likewise.
+	(GLIBCXX_CHECK_TEXT_ENCODING): Likewise.
+	(GLIBCXX_CHECK_DEBUGGING): Likewise.
+	(GLIBCXX_CHECK_STDIO_LOCKING): Likewise.
+	* configure: Regenerate.
+	* configure.ac: Update AC_TRY_COMPILE to AC_COMPILE_IFELSE.
+	* crossconfig.m4 (GLIBCXX_CHECK_MATH_DECL): Likewise.
+	* linkage.m4 (GLIBCXX_CHECK_MATH_DECL_1): Likewise.
+	(GLIBCXX_CHECK_MATH_DECLS_AND_LINKAGES_1): Likewise.
+	(GLIBCXX_CHECK_MATH_DECL_2): Likewise.
+	(GLIBCXX_CHECK_MATH_DECL_3): Likewise.
+	(GLIBCXX_CHECK_STDLIB_DECL_AND_LINKAGE_0): Delete.
+	(GLIBCXX_CHECK_STDLIB_DECL_AND_LINKAGE_1): Update
+	AC_TRY_COMPILE to AC_COMPILE_IFELSE.
+	(GLIBCXX_CHECK_STDLIB_DECL_AND_LINKAGE_2): Likewise.
+	(GLIBCXX_CHECK_STDLIB_DECL_AND_LINKAGE_3): Likewise.
+
+2026-06-25  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	PR bootstrap/103459
+	* acinclude.m4 (GLIBCXX_CHECK_LINKER_FEATURES): Update
+	AC_TRY_LINK to AC_LINK_IFELSE.
+	(GLIBCXX_ENABLE_LIBSTDCXX_TIME): Likewise.
+	(GLIBCXX_ENABLE_ATOMIC_BUILTINS): Likewise.
+	(GLIBCXX_ENABLE_BACKTRACE): Likewise.
+
+2026-06-25  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	PR bootstrap/103459
+	* acinclude.m4 (GLIBCXX_EXPORT_INSTALL_INFO): Update
+	AC_HELP_STRING to AS_HELP_STRING.
+	(GLIBCXX_ENABLE): Likewise.
+	(GLIBCXX_ENABLE_CLOCALE): Likewise.
+	(GLIBCXX_ENABLE_HOSTED): Likewise.
+	(GLIBCXX_ENABLE_VERBOSE): Likewise.
+	(GLIBCXX_ENABLE_LOCK_POLICY): Likewise.
+	(GLIBCXX_EMERGENCY_EH_ALLOC): Likewise.
+	(GLIBCXX_ZONEINFO_DIR): Likewise.
+
+2026-06-25  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/125956
+	* src/c++20/format.cc [_GLIBCXX_HAVE_ICONV] (iconv_input): New
+	concept.
+	(__encoding::conv) [_GLIBCXX_HAVE_ICONV]: Use iconv_input to
+	decide which type to cast the input pointer to.
+
+2026-06-25  Jakub Jelinek  <jakub@redhat.com>
+
+	* src/c++23/Makefile.am (stamp-modules-bits): Use abs_builddir instead
+	of abs_srcdir.
+	* src/c++23/Makefile.in: Regenerate.
+
 2026-06-24  Jonathan Wakely  <jwakely@redhat.com>
 
 	* testsuite/27_io/filesystem/operations/copy_symlink/1.cc: Add
