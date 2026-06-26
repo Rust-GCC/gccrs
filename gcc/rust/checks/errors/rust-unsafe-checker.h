@@ -51,7 +51,13 @@ private:
    */
   void check_function_attr (HirId node_id, location_t locus);
 
+  /**
+   * Mark the current unsafe block as required by an unsafe operation
+   */
+  void mark_unsafe_used ();
+
   StackedContexts<HirId> unsafe_context;
+  std::set<HirId> used_unsafe_blocks;
 
   Resolver::TypeCheckContext &context;
   const Resolver2_0::FinalizedNameResolutionContext &resolver;
