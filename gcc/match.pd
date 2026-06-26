@@ -11702,19 +11702,15 @@ and,
      machine_mode result_mode = TYPE_MODE (type);
      machine_mode op_mode = TYPE_MODE (TREE_TYPE (@2));
      int nelts = TYPE_VECTOR_SUBPARTS (type).to_constant ();
-     vec_perm_builder builder0;
-     vec_perm_builder builder1;
-     vec_perm_builder builder2 (nelts, nelts, 1);
+     vec_perm_indices sel0, sel1;
    }
-   (if (tree_to_vec_perm_builder (&builder0, @4)
-	&& tree_to_vec_perm_builder (&builder1, @5)
+   (if (tree_to_vec_perm_indices (&sel0, @2, @3, @4)
+	&& tree_to_vec_perm_indices (&sel1, @0, @0, @5)
 	&& TYPE_SIZE (TREE_TYPE (TREE_TYPE (@0)))
 	   == TYPE_SIZE (TREE_TYPE (TREE_TYPE (@1))))
     (with
      {
-       vec_perm_indices sel0 (builder0, 2, nelts);
-       vec_perm_indices sel1 (builder1, 2, nelts);
-
+       vec_perm_builder builder2 (nelts, nelts, 1);
        for (int i = 0; i < nelts; i++)
 	 builder2.quick_push (sel0[sel1[i].to_constant ()]);
 
@@ -11728,9 +11724,9 @@ and,
 	  number of VEC_PERM_EXPRs that can't be handled.  */
        if (can_vec_perm_const_p (result_mode, op_mode, sel2, false)
 	   || (single_use (@0)
-	       ? (!can_vec_perm_const_p (result_mode, op_mode, sel0, false)
-		  || !can_vec_perm_const_p (result_mode, op_mode, sel1, false))
-	       : !can_vec_perm_const_p (result_mode, op_mode, sel1, false)))
+	       ? (!can_vec_perm_const_p (result_mode, op_mode, sel0, true)
+		  || !can_vec_perm_const_p (result_mode, op_mode, sel1, true))
+	       : !can_vec_perm_const_p (result_mode, op_mode, sel1, true)))
 	 op0 = vec_perm_indices_to_tree (TREE_TYPE (@5), sel2);
      }
      (if (op0)
@@ -11752,18 +11748,15 @@ and,
      machine_mode result_mode = TYPE_MODE (type);
      machine_mode op_mode = TYPE_MODE (TREE_TYPE (@1));
      int nelts = TYPE_VECTOR_SUBPARTS (type).to_constant ();
-     vec_perm_builder builder0;
-     vec_perm_builder builder1;
-     vec_perm_builder builder2 (nelts, nelts, 2);
+     vec_perm_indices sel0, sel1;
    }
-   (if (tree_to_vec_perm_builder (&builder0, @3)
-	&& tree_to_vec_perm_builder (&builder1, @4))
+   (if (tree_to_vec_perm_indices (&sel0, @1, @2, @3)
+        && tree_to_vec_perm_indices (&sel1, @5, @0, @4))
     (with
      {
-       vec_perm_indices sel0 (builder0, 2, nelts);
-       vec_perm_indices sel1 (builder1, 2, nelts);
        bool use_1 = false, use_2 = false;
 
+       vec_perm_builder builder2 (nelts, nelts, 2);
        for (int i = 0; i < nelts; i++)
          {
 	   if (known_lt ((poly_uint64)sel1[i], sel1.nelts_per_input ()))
@@ -11795,9 +11788,9 @@ and,
 	    number of VEC_PERM_EXPRs that can't be handled.  */
 	 if (can_vec_perm_const_p (result_mode, op_mode, sel2, false)
 	     || (single_use (@0)
-		 ? (!can_vec_perm_const_p (result_mode, op_mode, sel0, false)
-		    || !can_vec_perm_const_p (result_mode, op_mode, sel1, false))
-		 : !can_vec_perm_const_p (result_mode, op_mode, sel1, false)))
+		 ? (!can_vec_perm_const_p (result_mode, op_mode, sel0, true)
+		    || !can_vec_perm_const_p (result_mode, op_mode, sel1, true))
+		 : !can_vec_perm_const_p (result_mode, op_mode, sel1, true)))
 	   op0 = vec_perm_indices_to_tree (TREE_TYPE (@4), sel2);
        }
        (if (op0)
@@ -11817,18 +11810,15 @@ and,
      machine_mode result_mode = TYPE_MODE (type);
      machine_mode op_mode = TYPE_MODE (TREE_TYPE (@1));
      int nelts = TYPE_VECTOR_SUBPARTS (type).to_constant ();
-     vec_perm_builder builder0;
-     vec_perm_builder builder1;
-     vec_perm_builder builder2 (nelts, nelts, 2);
+     vec_perm_indices sel0, sel1;
    }
-   (if (tree_to_vec_perm_builder (&builder0, @3)
-	&& tree_to_vec_perm_builder (&builder1, @4))
+   (if (tree_to_vec_perm_indices (&sel0, @1, @2, @3)
+        && tree_to_vec_perm_indices (&sel1, @0, @5, @4))
     (with
      {
-       vec_perm_indices sel0 (builder0, 2, nelts);
-       vec_perm_indices sel1 (builder1, 2, nelts);
        bool use_1 = false, use_2 = false;
 
+       vec_perm_builder builder2 (nelts, nelts, 2);
        for (int i = 0; i < nelts; i++)
          {
 	   if (known_ge ((poly_uint64)sel1[i], sel1.nelts_per_input ()))
@@ -11859,9 +11849,9 @@ and,
 	    number of VEC_PERM_EXPRs that can't be handled.  */
 	 if (can_vec_perm_const_p (result_mode, op_mode, sel2, false)
 	     || (single_use (@0)
-		 ? (!can_vec_perm_const_p (result_mode, op_mode, sel0, false)
-		    || !can_vec_perm_const_p (result_mode, op_mode, sel1, false))
-		 : !can_vec_perm_const_p (result_mode, op_mode, sel1, false)))
+		 ? (!can_vec_perm_const_p (result_mode, op_mode, sel0, true)
+		    || !can_vec_perm_const_p (result_mode, op_mode, sel1, true))
+		 : !can_vec_perm_const_p (result_mode, op_mode, sel1, true)))
 	   op0 = vec_perm_indices_to_tree (TREE_TYPE (@4), sel2);
        }
        (if (op0)
