@@ -96,6 +96,9 @@ tree prefetch_write_data (Context *ctx, TyTy::FnType *fntype,
 			  location_t expr_locus);
 tree sorry (Context *ctx, TyTy::FnType *fntype, location_t expr_locus);
 
+tree write_bytes_handler (Context *ctx, TyTy::FnType *fntype,
+			  location_t expr_locus);
+
 } // namespace handlers
 
 } // namespace Compile

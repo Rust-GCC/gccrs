@@ -157,6 +157,7 @@ public:
   static constexpr auto &TYPE_NAME = "type_name";
   static constexpr auto &FORGET = "forget";
   static constexpr auto &BLACK_BOX = "black_box";
+  static constexpr auto &WRITE_BYTES = "write_bytes";
 };
 } // namespace Values
 } // namespace Rust
