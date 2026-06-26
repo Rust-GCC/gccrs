@@ -198,5 +198,22 @@ UnusedChecker::visit_loop_label (HIR::LoopLabel &label)
 		     "unused label %qs", lifetime.to_string ().c_str ());
 }
 
+void
+UnusedChecker::visit (HIR::StructPatternFieldIdentPat &field)
+{
+  auto &pattern = field.get_pattern ();
+  if (pattern.get_pattern_type () == HIR::Pattern::PatternType::IDENTIFIER)
+    {
+      auto &ident = static_cast<HIR::IdentifierPattern &> (pattern);
+      if (!ident.has_subpattern ()
+	  && ident.get_identifier ().as_string ()
+	       == field.get_identifier ().as_string ())
+	rust_warning_at (field.get_locus (), OPT_Wunused_variable,
+			 "the %qs in this pattern is redundant",
+			 (field.get_identifier ().as_string () + ":").c_str ());
+    }
+  walk (field);
+}
+
 } // namespace Analysis
 } // namespace Rust
