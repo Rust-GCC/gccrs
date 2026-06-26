@@ -2321,7 +2321,7 @@ emit_block_move_via_pattern (rtx x, rtx y, rtx size, unsigned int align,
 		create_fixed_operand (&ops[8], NULL);
 	    }
 	  gcc_assert (min_size != max_size
-		      || rtx_equal_p (ops[2].value, ops[6].value));
+		      || rtx_equal_p (ops[2].value, GEN_INT (min_size)));
 	  if (maybe_expand_insn (code, nops, ops))
 	    return true;
 	}
@@ -4048,7 +4048,7 @@ set_storage_via_setmem (rtx object, rtx size, rtx val, unsigned int align,
 		create_fixed_operand (&ops[8], NULL);
 	    }
 	  gcc_assert (min_size != max_size
-		      || rtx_equal_p (ops[1].value, ops[6].value));
+		      || rtx_equal_p (ops[1].value, GEN_INT (min_size)));
 	  if (maybe_expand_insn (code, nops, ops))
 	    return true;
 	}
