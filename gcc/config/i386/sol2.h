@@ -94,11 +94,6 @@ along with GCC; see the file COPYING3.  If not see
 #undef LOCAL_LABEL_PREFIX
 #define LOCAL_LABEL_PREFIX "."
 
-/* The 32-bit Solaris assembler does not support .quad.  Do not use it.  */
-#ifndef HAVE_AS_IX86_QUAD
-#undef ASM_QUAD
-#endif
-
 /* The Solaris assembler wants a .local for non-exported aliases.  */
 #define ASM_OUTPUT_DEF_FROM_DECLS(FILE, DECL, TARGET)	\
   do {							\
