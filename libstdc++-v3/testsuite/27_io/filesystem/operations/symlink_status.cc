@@ -125,6 +125,27 @@ test04()
   VERIFY( is_directory(st) );
 }
 
+void
+test05()
+{
+#ifndef NO_SYMLINKS
+  struct scoped_dir
+  {
+    scoped_dir() { fs::create_directory(d); }
+    ~scoped_dir() { remove_all(d); }
+    fs::path d = __gnu_test::nonexistent_path();
+    fs::path operator/(const char* p) const { return d/p; }
+  };
+  const scoped_dir d;
+  fs::create_directory(d/"dir");
+  const fs::path link = d/"link";
+  fs::create_directory_symlink("dir", link);
+  auto st = fs::symlink_status(link);
+  VERIFY( ! is_directory(st) );
+  VERIFY( is_symlink(st) );
+#endif
+}
+
 int
 main()
 {
@@ -132,4 +153,5 @@ main()
   test02();
   test03();
   test04();
+  test05();
 }
