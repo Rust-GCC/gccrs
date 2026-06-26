@@ -26,17 +26,6 @@ along with GCC; see the file COPYING3.  If not see
 #undef STACK_REALIGN_DEFAULT
 #define STACK_REALIGN_DEFAULT (TARGET_64BIT ? 0 : 1)
 
-/* Old versions of the Solaris assembler cannot handle the difference of
-   labels in different sections, so force DW_EH_PE_datarel if so.  */
-#ifndef HAVE_AS_IX86_DIFF_SECT_DELTA
-#undef ASM_PREFERRED_EH_DATA_FORMAT
-#define ASM_PREFERRED_EH_DATA_FORMAT(CODE,GLOBAL)			\
-  (flag_pic ? ((GLOBAL ? DW_EH_PE_indirect : 0)				\
-	       | (TARGET_64BIT ? DW_EH_PE_pcrel | DW_EH_PE_sdata4	\
-		  : DW_EH_PE_datarel))					\
-   : DW_EH_PE_absptr)
-#endif
-
 /* The Solaris linker will not merge a read-only .eh_frame section
    with a read-write .eh_frame section.  None of the encodings used
    with non-PIC code require runtime relocations.  In 64-bit mode,
@@ -108,23 +97,6 @@ along with GCC; see the file COPYING3.  If not see
 /* The 32-bit Solaris assembler does not support .quad.  Do not use it.  */
 #ifndef HAVE_AS_IX86_QUAD
 #undef ASM_QUAD
-#endif
-
-/* The native Solaris assembler can't calculate the difference between
-   symbols in different sections, which causes problems for -fPIC jump
-   tables in .rodata.  */
-#ifndef HAVE_AS_IX86_DIFF_SECT_DELTA
-#undef JUMP_TABLES_IN_TEXT_SECTION
-#define JUMP_TABLES_IN_TEXT_SECTION 1
-
-/* The native Solaris assembler cannot handle the SYMBOL-. syntax, but
-   requires SYMBOL@rel/@rel64 instead.  */
-#define ASM_OUTPUT_DWARF_PCREL(FILE, SIZE, LABEL)	\
-  do {							\
-    fputs (integer_asm_op (SIZE, FALSE), FILE);		\
-    assemble_name (FILE, LABEL);			\
-    fputs (SIZE == 8 ? "@rel64" : "@rel", FILE);	\
-  } while (0)
 #endif
 
 /* The Solaris assembler wants a .local for non-exported aliases.  */
