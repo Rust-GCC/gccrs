@@ -1,4 +1,4 @@
-/* { dg-do compile { target int128 } } */
+/* { dg-do compile { target { int128 && { ! sync_int_128 } } } } */
 /* { dg-additional-options "-fdump-tree-ompexp" } */
 
 /* Check that an GIMPLE_OMP_ATOMIC statement expands to GOMP_atomic_start/end

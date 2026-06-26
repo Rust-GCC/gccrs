@@ -10364,7 +10364,15 @@ proc check_effective_target_section_anchors { } {
 # Return 1 if the target supports atomic operations on "int_128" values.
 
 proc check_effective_target_sync_int_128 { } {
-    return 0
+    return [check_no_messages_and_pattern sync_int_128 \
+	    "!__atomic_compare_exchange_16" assembly {
+	__int128 v;
+	void foo (__int128 *expected, __int128 desired)
+	  {
+	    __atomic_compare_exchange_n (&v, expected, desired, 0,
+					__ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+	  }
+    } "" ]
 }
 
 # Return 1 if the target supports atomic operations on "int_128" values
