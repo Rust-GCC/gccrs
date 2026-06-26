@@ -1976,7 +1976,7 @@ static bool
 has_class_alloc_comp (gfc_symbol *der)
 {
   for (gfc_component *c = der->components; c; c = c->next)
-    if (c->ts.type == BT_CLASS && !c->attr.pointer)
+    if (c->ts.type == BT_CLASS && !c->attr.class_pointer)
       return true;
   return false;
 }
