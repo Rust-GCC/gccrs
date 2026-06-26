@@ -36,6 +36,14 @@ UnusedChecker::UnusedChecker ()
     context (*Resolver::TypeCheckContext::get ()),
     unused_context (UnusedContext ())
 {}
+
+static bool
+is_numeric (TyTy::BaseType *type)
+{
+  auto kind = type->get_kind ();
+  return kind == TyTy::INT || kind == TyTy::UINT || kind == TyTy::FLOAT
+	 || kind == TyTy::USIZE || kind == TyTy::ISIZE;
+}
 void
 UnusedChecker::go (HIR::Crate &crate)
 {
@@ -535,6 +543,30 @@ UnusedChecker::visit (HIR::ComparisonExpr &expr)
   if (useless)
     rust_warning_at (expr.get_locus (), OPT_Wtype_limits,
 		     "comparison is useless due to type limits");
+  walk (expr);
+}
+
+void
+UnusedChecker::visit (HIR::TypeCastExpr &expr)
+{
+  TyTy::BaseType *from;
+  TyTy::BaseType *to;
+  bool found_from
+    = context.lookup_type (expr.get_casted_expr ().get_mappings ().get_hirid (),
+			   &from);
+  bool found_to = context.lookup_type (expr.get_mappings ().get_hirid (), &to);
+
+  if (found_from && found_to)
+    {
+      bool is_numeric_cast = is_numeric (from) && is_numeric (to);
+      bool type_names_match = from->as_string () == to->as_string ();
+
+      if (is_numeric_cast && type_names_match)
+	rust_warning_at (expr.get_locus (), OPT_Wunused,
+			 "trivial numeric cast: %qs as %qs",
+			 from->as_string ().c_str (),
+			 to->as_string ().c_str ());
+    }
   walk (expr);
 }
 

@@ -60,6 +60,7 @@ private:
   virtual void visit (HIR::WhileLoopExpr &expr) override;
   virtual void visit (HIR::ExprStmt &stmt) override;
   virtual void visit (HIR::ComparisonExpr &expr) override;
+  virtual void visit (HIR::TypeCastExpr &expr) override;
   virtual void visit_loop_label (HIR::LoopLabel &label) override;
 };
 } // namespace Analysis
