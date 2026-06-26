@@ -10038,7 +10038,7 @@ loongarch_cpu_sched_reassociation_width (struct loongarch_target *target,
 /* Implement TARGET_SCHED_REASSOCIATION_WIDTH.  */
 
 static int
-loongarch_sched_reassociation_width (unsigned int opc, machine_mode mode)
+loongarch_sched_reassociation_width (tree_code opc, machine_mode mode)
 {
   return loongarch_cpu_sched_reassociation_width (&la_target, opc, mode);
 }
