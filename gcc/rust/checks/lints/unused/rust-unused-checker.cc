@@ -26,13 +26,24 @@
 #include "rust-keyword-values.h"
 #include "rust-attribute-values.h"
 #include "rust-rib.h"
+#include "rust-tyty.h"
 
 namespace Rust {
 namespace Analysis {
 UnusedChecker::UnusedChecker ()
   : nr_context (Resolver2_0::FinalizedNameResolutionContext::get ()),
-    mappings (Analysis::Mappings::get ()), unused_context (UnusedContext ())
+    mappings (Analysis::Mappings::get ()),
+    context (*Resolver::TypeCheckContext::get ()),
+    unused_context (UnusedContext ())
 {}
+
+static bool
+is_numeric (TyTy::BaseType *type)
+{
+  auto kind = type->get_kind ();
+  return kind == TyTy::INT || kind == TyTy::UINT || kind == TyTy::FLOAT
+	 || kind == TyTy::USIZE || kind == TyTy::ISIZE;
+}
 void
 UnusedChecker::go (HIR::Crate &crate)
 {
@@ -345,6 +356,22 @@ UnusedChecker::visit (HIR::LetStmt &stmt)
 	break;
       }
   walk (stmt);
+}
+
+void
+UnusedChecker::visit (HIR::TypeCastExpr &expr)
+{
+  TyTy::BaseType *from;
+  TyTy::BaseType *to;
+  if (context.lookup_type (expr.get_casted_expr ().get_mappings ().get_hirid (),
+			   &from)
+      && context.lookup_type (expr.get_mappings ().get_hirid (), &to)
+      && is_numeric (from) && is_numeric (to)
+      && from->as_string () == to->as_string ())
+    rust_warning_at (expr.get_locus (), OPT_Wunused,
+		     "trivial numeric cast: %qs as %qs",
+		     from->as_string ().c_str (), to->as_string ().c_str ());
+  walk (expr);
 }
 
 } // namespace Analysis
