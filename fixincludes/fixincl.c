@@ -741,18 +741,19 @@ quoted_file_exists (const char* pz_src_path,
 
 static void
 extract_quoted_files (char* pz_data,
-                      char* pz_fixed_file,
+                      char* pz_file,
                       regmatch_t* p_re_match)
 {
-  char *pz_dir_end = strrchr (pz_fixed_file, '/');
+  char *pz_dir_end = strrchr (pz_file, '/');
   char *pz_incl_quot = pz_data;
 
   if (VLEVEL( VERB_APPLIES ))
-    fprintf (stderr, "Quoted includes in %s\n", pz_fixed_file);
+    fprintf (stderr, "Quoted includes in %s\n", pz_file);
 
   /*  Set "pz_fixed_file" to point to the containing subdirectory of the source
       If there is none, then it is in our current directory, ".".   */
 
+  const char *pz_fixed_file = pz_file;
   if (pz_dir_end == (char *) NULL)
     pz_fixed_file = ".";
   else
