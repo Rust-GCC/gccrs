@@ -208,6 +208,24 @@ static const struct zstd_test tests[] =
      "\x4c\x1f\xf9\xf1"),
     30,
   },
+  {
+    "rle-sequence-tables",
+    "AAAA",
+    0,
+    ("\x28\xb5\x2f\xfd"
+     "\x20" /* Single_Segment_flag; Frame_Content_Size_flag = 0 */
+     "\x04" /* Frame_Content_Size */
+     "\x45\x00\x00" /* Last_Block, Compressed_Block, size 8 */
+     "\x08" /* Raw_Literals_Block, Regenerated_Size 1 */
+     "A"
+     "\x01" /* Number_of_Sequences */
+     "\x54" /* RLE literals length, offset, and match length tables */
+     "\x01" /* literal length code: 1 */
+     "\x00" /* offset code: repeat offset 1 */
+     "\x00" /* match length code: 3 */
+     "\x80"), /* bitstream end marker */
+    17,
+  },
 };
 
 /* Test the hand coded samples.  */
