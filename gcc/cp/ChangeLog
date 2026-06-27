@@ -1,3 +1,9 @@
+2026-06-26  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125900
+	* reflect.cc (check_out_of_consteval_use_r): Don't walk
+	SPLICE_EXPR.
+
 2026-06-25  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/125922

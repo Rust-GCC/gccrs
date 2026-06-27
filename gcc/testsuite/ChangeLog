@@ -1,3 +1,99 @@
+2026-06-26  H.J. Lu  <hjl.tools@gmail.com>
+	    Hongtao Liu  <hongtao.liu@intel.com>
+
+	PR target/125856
+	PR target/125865
+	* gcc.target/i386/builtin-memcpy-1a.c: New test.
+	* gcc.target/i386/builtin-memcpy-1b.c: Likewise.
+	* gcc.target/i386/builtin-memcpy-2a.c: Likewise.
+	* gcc.target/i386/builtin-memcpy-2b.c: Likewise.
+	* gcc.target/i386/builtin-memcpy-2c.c: Likewise.
+	* gcc.target/i386/builtin-memcpy-3a.c: Likewise.
+	* gcc.target/i386/builtin-memcpy-3b.c: Likewise.
+	* gcc.target/i386/builtin-memcpy-3c.c: Likewise.
+	* gcc.target/i386/builtin-memcpy-4a.c: Likewise.
+	* gcc.target/i386/builtin-memcpy-4b.c: Likewise.
+	* gcc.target/i386/builtin-memcpy-4c.c: Likewise.
+	* gcc.target/i386/builtin-memcpy-5a.c: Likewise.
+	* gcc.target/i386/builtin-memcpy-5b.c: Likewise.
+	* gcc.target/i386/builtin-memcpy-5c.c: Likewise.
+	* gcc.target/i386/builtin-memcpy-6.c: Likewise.
+	* gcc.target/i386/builtin-memcpy-bounded-1a.c: Likewise.
+	* gcc.target/i386/builtin-memcpy-bounded-1b.c: Likewise.
+	* gcc.target/i386/builtin-memset-1a.c: Likewise.
+	* gcc.target/i386/builtin-memset-1b.c: Likewise.
+	* gcc.target/i386/builtin-memset-2a.c: Likewise.
+	* gcc.target/i386/builtin-memset-2b.c: Likewise.
+	* gcc.target/i386/builtin-memset-2c.c: Likewise.
+	* gcc.target/i386/builtin-memset-3a.c: Likewise.
+	* gcc.target/i386/builtin-memset-3b.c: Likewise.
+	* gcc.target/i386/builtin-memset-3c.c: Likewise.
+	* gcc.target/i386/builtin-memset-4a.c: Likewise.
+	* gcc.target/i386/builtin-memset-4b.c: Likewise.
+	* gcc.target/i386/builtin-memset-4c.c: Likewise.
+	* gcc.target/i386/builtin-memset-5a.c: Likewise.
+	* gcc.target/i386/builtin-memset-5b.c: Likewise.
+	* gcc.target/i386/builtin-memset-5c.c: Likewise.
+	* gcc.target/i386/builtin-memset-6a.c: Likewise.
+	* gcc.target/i386/builtin-memset-6b.c: Likewise.
+	* gcc.target/i386/builtin-memset-6c.c: Likewise.
+	* gcc.target/i386/builtin-memset-7a.c: Likewise.
+	* gcc.target/i386/builtin-memset-7b.c: Likewise.
+	* gcc.target/i386/builtin-memset-7c.c: Likewise.
+	* gcc.target/i386/builtin-memset-8.c: Likewise.
+	* gcc.target/i386/builtin-memset-bounded-1a.c: Likewise.
+	* gcc.target/i386/builtin-memset-bounded-1b.c: Likewise.
+
+2026-06-26  Andi Kleen  <ak@gcc.gnu.org>
+
+	* lib/profopt.exp (profopt-execute): Check if CREATE_GCOV env
+	variable exists and use it when there.
+
+2026-06-26  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/125900
+	* g++.dg/reflect/expr18.C: New test.
+
+2026-06-26  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/125902
+	* gfortran.dg/c-prototypes_2.F90: New test.
+
+2026-06-26  Roger Sayle  <roger@nextmovesoftware.com>
+	    Hongtao Liu  <hongtao.liu@intel.com>
+
+	PR target/123238
+	* gcc.target/i386/pr123238-2.c: New test case.
+
+2026-06-26  vekumar  <Venkataramanan.Kumar@amd.com>
+
+	PR target/125949
+	* gcc.target/i386/pr125949.c: New test.
+
+2026-06-26  Stefan Schulze Frielinghaus  <stefansf@gcc.gnu.org>
+
+	PR target/125972
+	* gcc.target/s390/pr125972.c: New test.
+
+2026-06-26  Richard Biener  <rguenther@suse.de>
+
+	PR middle-end/125875
+	* gcc.dg/torture/pr125875.c: New testcase.
+
+2026-06-26  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR middle-end/125977
+	* g++.dg/pr125977.C: New test.
+
+2026-06-26  Pengfei Li  <Pengfei.Li2@arm.com>
+
+	* gcc.target/aarch64/dispatch_sched_1.c: New test.
+
+2026-06-26  H.J. Lu  <hjl.tools@gmail.com>
+
+	* gcc.target/i386/builtin-memmove-bounded-1a.c: New test.
+	* gcc.target/i386/builtin-memmove-bounded-1b.c: Likewise.
+
 2026-06-25  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
 
 	PR libfortran/118793

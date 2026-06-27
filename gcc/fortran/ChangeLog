@@ -1,3 +1,16 @@
+2026-06-26  Harald Anlauf  <anlauf@gmx.de>
+
+	PR fortran/125902
+	* dump-parse-tree.cc (needs_CFI_cdesc): New helper function to
+	determine when struct CFI_cdesc_t is used.
+	(has_cfi_cdesc): Use it here...
+	(get_c_type_name): ... and here.
+
+2026-06-26  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/121972
+	* trans-array.cc (has_class_alloc_comp): Change to atte.class_pointer.
+
 2026-06-24  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
 
 	PR fortran/125761

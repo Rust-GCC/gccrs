@@ -1,3 +1,30 @@
+2026-06-26  Jonathan Wakely  <jwakely@redhat.com>
+
+	* testsuite/27_io/filesystem/operations/status.cc: Check
+	handling of directory symlink.
+	* testsuite/27_io/filesystem/operations/symlink_status.cc:
+	Likewise.
+
+2026-06-26  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/bits/stl_bvector.h: Add _GLIBCXX_RESOLVE_LIB_DEFECTS
+	comment for 3638.
+	(vector<bool, _Alloc>::operator=(bool) const)
+	[__glibcxx_ranges_zip]: Adjust guard.
+	(vector<bool, _Alloc>::swap): Add deprected attribute via
+	_GLIBCXX26_DEPRECATED_SUGGEST.
+	* include/std/bitset (bitset::operator=(bool) const)
+	[__glibcxx_ranges_zip]: Define.
+	(bistset::reference::swap) [__cplusplus >= 201103L]: Define.
+	* testsuite/20_util/bitset/access/range_proxy.cc: New test.
+	* testsuite/20_util/bitset/access/ref_swap.cc: New test.
+	* testsuite/23_containers/vector/bool/element_access/range_proxy.cc:
+	New test.
+	* testsuite/23_containers/vector/bool/element_access/ref_swap.cc:
+	New test.
+	* testsuite/23_containers/vector/bool/modifiers/swap/constexpr.cc:
+	Check for deprecated warning on static swap.
+
 2026-06-25  Jonathan Wakely  <jwakely@redhat.com>
 
 	* include/bits/version.def (stds): Add C++29 value and adjust

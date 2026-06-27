@@ -1,3 +1,144 @@
+2026-06-26  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR middle-end/125977
+	* expr.cc (emit_block_move_via_pattern): Replace ops[6].value
+	in assert with GEN_INT (min_size).
+
+2026-06-26  H.J. Lu  <hjl.tools@gmail.com>
+	    Hongtao Liu  <hongtao.liu@intel.com>
+
+	PR target/125856
+	PR target/125865
+	* config/i386/i386-expand.cc (ix86_expand_set_or_cpymem):
+	Call ix86_expand_set_or_movmem for
+	TARGET_MISALIGNED_MOVE_STRING_PRO_EPILOGUES.
+	(ix86_expand_memset_val): New.
+	(ix86_expand_n_move_movmem): Renamed to ...
+	(ix86_expand_n_move_set_or_movmem): This.  Add a pointer to rtx
+	argument for memset.  Also expand memset.
+	(ix86_expand_n_overlapping_move_movmem): Renamed to ...
+	(ix86_expand_n_overlapping_move_set_or_movmem): This.  Add a
+	pointer to rtx argument for memset.  Also expand memset.
+	(ix86_expand_less_move_movmem): Renamed to ...
+	(ix86_expand_less_move_set_or_movmem): This.  Add a pointer to
+	rtx argument for memset.  Also expand memset.
+	(ix86_expand_movmem): Renamed to ...
+	(ix86_expand_set_or_movmem): This.  Add bool arguments for memcpy
+	and memset.  Also expand memcpy and memset.
+	* config/i386/i386-protos.h (ix86_expand_movmem): Renamed to ...
+	(ix86_expand_set_or_movmem): This.  Add bool arguments for memcpy
+	and memset.
+	* config/i386/i386.md (movmem<mode>): Replace ix86_expand_movmem
+	with ix86_expand_set_or_movmem.
+
+2026-06-26  Roger Sayle  <roger@nextmovesoftware.com>
+	    Hongtao Liu  <hongtao.liu@intel.com>
+
+	PR target/123238
+	* config/i386/i386-expand.cc: Delay calling force_reg on
+	op_true and op_false.  Generate an AND then XOR sequence
+	if op_true and op_false are both CONST_VECTOR_P.
+	* config/i386/mmx.md (vcond_mask_<mode>v4hi): Allow operands
+	1 and 2 to be vector_or_const_vector_operand.
+	(vcond_mask_<mode>v2hi): Likewise.
+	(vcond_mask_<mode><mmxintvecmodelower>): Likewise.
+	(vcond_mask_<mode><mode>): Likewise.
+	* config/i386/sse.md (vcond_mask_<mode><sseintvecmodelower>):
+	Likewise.
+	(vcond_mask_<mode><sseintvecmodelower>): Likewise.
+	(vcond_mask_v1tiv1ti): Likewise.
+	(vcond_mask_<mode><sseintvecmodelower>): Likewise.
+	(vcond_mask_<mode><sseintvecmodelower>): Likewise.
+	* config/i386/predicates.md (vector_or_0_or_1s_operand): Delete
+	predicate with no remaining uses.
+
+2026-06-26  vekumar  <Venkataramanan.Kumar@amd.com>
+
+	PR target/125949
+	* config/i386/i386.md ("isa"): Add avxvnniint8.
+	("enabled"): Adjust for avxvnniint8.
+	* config/i386/sse.md (vpdp<vpdotprodtype>_<mode>): Adjust for
+	AVXVNNIINT8.
+
+2026-06-26  Stefan Schulze Frielinghaus  <stefansf@gcc.gnu.org>
+
+	PR target/125972
+	* config/s390/s390.cc (s390_rtx_costs): Deal with non-compare
+	conditions during costing.  Also fix some indentation.
+
+2026-06-26  Richard Biener  <rguenther@suse.de>
+
+	PR middle-end/125875
+	* match.pd: When checking for !can_vec_perm_const_p also
+	allow variable permutes and use the vec_perm_indices CTOR
+	with the original tree operands.
+
+2026-06-26  Richard Biener  <rguenther@suse.de>
+
+	* vec-perm-indices.h (vec_perm_indices::new_vector): New overload.
+	(vec_perm_indices::input_bitwise_zero_p): New method.
+	(vec_perm_indices::m_input0_bitwise_zero_p,
+	vec_perm_indices::m_input1_bitwise_zero_p): New members.
+	(vec_perm_indices::vec_perm_indices): Adjust.
+	(tree_to_vec_perm_indices): Declare.
+	* vec-perm-indices.cc (vec_perm_indices::new_vector): New overload.
+	(vec_perm_indices::new_expanded_vector): Adjust.
+	(tree_to_vec_perm_indices): New function.
+	* optabs-query.cc (can_vec_perm_const_p): Handle permute
+	patterns mapping to vec_shl/vec_shr.
+	* tree-vect-generic.cc (lower_vec_perm): Move vec_shl/vec_shr
+	detection to can_vec_perm_const_p and simplify.
+
+2026-06-26  Andrew MacLeod  <amacleod@redhat.com>
+
+	PR tree-optimization/125979
+	* dbgcnt.def: Add ranger_cnt.
+	* gimple-range.cc (gimple_ranger::range_of_expr): Add debug_cnt.
+	(gimple_ranger::range_on_entry): Likewise.
+	(gimple_ranger::range_on_exit): Likewise.
+	(gimple_ranger::range_on_edge); Likewise.
+	(gimple_ranger::range_of_stmt): Likewise
+	(dom_ranger::range_of_expr): Likewise.
+	(dom_ranger::range_on_edge): Likewise.
+	(dom_ranger::range_of_stmt): Likewise.
+
+2026-06-26  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR middle-end/125977
+	* builtins.cc (determine_block_size): Change len_rtx to reference
+	and set it to min size if min size == max size.
+	* expr.cc (emit_block_move_via_pattern): Assert count == min_size
+	if min_size == max_size.
+	(set_storage_via_setmem): Likewise.
+
+2026-06-26  Pengfei Li  <Pengfei.Li2@arm.com>
+
+	* config/aarch64/aarch64.cc
+	(aarch64_sched_first_cycle_multipass_dfa_lookahead): Return 0
+	when dispatch scheduling is enabled.
+
+2026-06-26  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.ac (gcc_cv_as_ix86_quad): Remove.
+	* configure: Regenerate.
+	* config.in: Likewise.
+	* config/i386/sol2.h [!HAVE_AS_IX86_QUAD] (ASM_QUAD): Don't undefine.
+
+2026-06-26  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.ac (gcc_cv_as_ix86_diff_sect_delta): Remove.
+	* configure: Regenerate.
+	* config.in: Likewise.
+	* config/i386/sol2.h [!HAVE_AS_IX86_DIFF_SECT_DELTA]
+	(ASM_PREFERRED_EH_DATA_FORMAT): Remove.
+	(JUMP_TABLES_IN_TEXT_SECTION): Likewise.
+	(ASM_OUTPUT_DWARF_PCREL): Likewise.
+
+2026-06-26  Jiahao Xu  <xujiahao@loongson.cn>
+
+	* config/loongarch/loongarch.cc (loongarch_sched_reassociation_width):
+	Get a tree_code instead of unsigned int.
+
 2026-06-25  Jeff Law  <jeffrey.law@oss.qualcomm.com>
 
 	* config/riscv/riscv.md (seq_sne_qi): Mark name for debugging purposes
