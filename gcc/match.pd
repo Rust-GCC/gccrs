@@ -4738,15 +4738,14 @@ DEFINE_INT_AND_FLOAT_ROUND_FN (RINT)
   (cmp (minmax @0 INTEGER_CST@1) INTEGER_CST@2)
   (comb (cmp @0 @2) (cmp @1 @2))))
 
-/* MAX (A, B) == 0 -> (A|B) == 0 iff unsigned.
-   MAX (A, B) != 0 -> (A|B) != 0 iff unsigned.  */
+/* MAX (A, B) == 0 -> (A|B) == 0 iff non-negative.
+   MAX (A, B) != 0 -> (A|B) != 0 iff non-negative.  */
 (for cmp (eq ne)
  (simplify
-  (cmp (max @0 @1) integer_zerop)
-  (if (TYPE_UNSIGNED (TREE_TYPE (@0)))
-   (with { tree utype = unsigned_type_for (TREE_TYPE (@0)); }
-    (cmp (bit_ior (convert:utype @0) (convert:utype @1))
-         { build_zero_cst (utype); } )))))
+  (cmp (max tree_expr_nonnegative_p@0 tree_expr_nonnegative_p@1) integer_zerop)
+  (with { tree utype = unsigned_type_for (TREE_TYPE (@0)); }
+   (cmp (bit_ior (convert:utype @0) (convert:utype @1))
+        { build_zero_cst (utype); } ))))
 
 /* Undo fancy ways of writing max/min or other ?: expressions, like
    a - ((a - b) & -(a < b))  and  a - (a - b) * (a < b) into (a < b) ? b : a.
