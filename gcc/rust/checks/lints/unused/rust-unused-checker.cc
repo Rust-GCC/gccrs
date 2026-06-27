@@ -347,5 +347,18 @@ UnusedChecker::visit (HIR::LetStmt &stmt)
   walk (stmt);
 }
 
+void
+UnusedChecker::visit (HIR::BreakExpr &expr)
+{
+  if (expr.has_label () && expr.has_break_expr ()
+      && expr.get_expr ().get_expression_type ()
+	   == HIR::Expr::ExprType::BaseLoop)
+    rust_warning_at (
+      expr.get_locus (), OPT_Wunused,
+      "this labeled %<break%> expression is easy to confuse with "
+      "an unlabeled %<break%> with a labeled value expression");
+  walk (expr);
+}
+
 } // namespace Analysis
 } // namespace Rust
