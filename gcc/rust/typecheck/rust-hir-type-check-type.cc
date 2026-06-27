@@ -407,6 +407,11 @@ TypeCheckType::resolve_root_path (HIR::TypePath &path, size_t *offset,
 	  return root_tyty;
 	}
 
+      if (flag_unused_check_2_0 && lookup->is<TyTy::DynamicObjectType> ())
+	rust_warning_at (
+	  seg->get_locus (), OPT_Wdeprecated,
+	  "trait objects without an explicit %<dyn%> are deprecated");
+
       // if we have a previous segment type
       if (root_tyty != nullptr)
 	{
@@ -625,6 +630,14 @@ TypeCheckType::resolve_segments (
 void
 TypeCheckType::visit (HIR::TraitObjectType &type)
 {
+  // The bare_trait_objects lint: a trait object with more than one bound
+  // written without an explicit %<dyn%> (a single bare trait is a type-path,
+  // handled in resolve_root_path).
+  if (flag_unused_check_2_0 && !type.get_has_dyn ())
+    rust_warning_at (
+      type.get_locus (), OPT_Wdeprecated,
+      "trait objects without an explicit %<dyn%> are deprecated");
+
   std::vector<TyTy::TypeBoundPredicate> specified_bounds;
   for (auto &bound : type.get_type_param_bounds ())
     {
