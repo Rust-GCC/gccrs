@@ -228,6 +228,13 @@ TypeCheckItem::validate_trait_impl_block (
 void
 TypeCheckItem::visit (HIR::TypeAlias &alias)
 {
+  auto lifetime_pin = context->push_clean_lifetime_resolver ();
+
+  std::vector<TyTy::SubstitutionParamMapping> substitutions;
+  if (alias.has_generics ())
+    resolve_generic_params (HIR::Item::ItemKind::TypeAlias, alias.get_locus (),
+			    alias.get_generic_params (), substitutions);
+
   TyTy::BaseType *actual_type
     = TypeCheckType::Resolve (alias.get_type_aliased ());
 
