@@ -58,6 +58,12 @@ UnusedChecker::visit (HIR::ConstantItem &item)
     rust_warning_at (item.get_locus (), OPT_Wunused_variable,
 		     "unused variable %qs",
 		     item.get_identifier ().as_string ().c_str ());
+
+  // The unused_visibilities lint: a visibility qualifier on a `const _` item
+  // has no effect.
+  if (var_name == "_" && item.get_visibility ().is_public ())
+    rust_warning_at (item.get_locus (), OPT_Wunused_variable,
+		     "visibility qualifier on a %<const _%> item is unused");
 }
 
 void
