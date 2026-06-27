@@ -794,6 +794,10 @@ CompileExpr::visit (HIR::LoopExpr &expr)
       ctx->add_statement (label_decl);
       ctx->insert_label_decl (
 	loop_label.get_lifetime ().get_mappings ().get_hirid (), label);
+      // Associate the loop's result temporary with the label so that a
+      // `break 'label value` can locate it (see visit (HIR::BreakExpr)).
+      ctx->insert_var_decl (
+	loop_label.get_lifetime ().get_mappings ().get_hirid (), tmp);
     }
 
   tree loop_begin_label
