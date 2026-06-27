@@ -347,5 +347,14 @@ UnusedChecker::visit (HIR::LetStmt &stmt)
   walk (stmt);
 }
 
+void
+UnusedChecker::visit (HIR::RangePattern &pattern)
+{
+  if (pattern.get_has_ellipsis_syntax ())
+    rust_warning_at (pattern.get_locus (), OPT_Wdeprecated,
+		     "%<...%> range patterns are deprecated");
+  walk (pattern);
+}
+
 } // namespace Analysis
 } // namespace Rust

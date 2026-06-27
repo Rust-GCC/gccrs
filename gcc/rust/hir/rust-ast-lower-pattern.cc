@@ -297,9 +297,10 @@ ASTLoweringPattern::visit (AST::RangePattern &pattern)
 
   bool is_inclusive = (pattern.get_range_kind () == AST::RangeKind::INCLUDED);
 
-  translated = new HIR::RangePattern (mapping, std::move (lower_bound),
-				      std::move (upper_bound),
-				      pattern.get_locus (), is_inclusive);
+  translated
+    = new HIR::RangePattern (mapping, std::move (lower_bound),
+			     std::move (upper_bound), pattern.get_locus (),
+			     is_inclusive, pattern.get_has_ellipsis_syntax ());
 }
 
 void
