@@ -8,7 +8,7 @@
 **.LFB[0-9]+:
 **	.cfi_startproc
 **	movabsq	\$4758053007424749568, %rax
-**	movq	%rax, \(%rdi\)
+**	movq	%rax, \(%[re]di\)
 **	ret
 **	.cfi_endproc
 **...
