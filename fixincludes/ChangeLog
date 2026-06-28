@@ -1,3 +1,8 @@
+2026-06-27  Filip Kastl  <fkastl@suse.cz>
+
+	* fixincl.c (extract_quoted_files): Add a const char * helper
+	variable.
+
 2026-06-22  Filip Kastl  <fkastl@suse.cz>
 
 	* fixincl.c (cksum_test): Remove trailing whitespace.

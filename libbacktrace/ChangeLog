@@ -1,3 +1,15 @@
+2026-06-27  Ian Lance Taylor  <iant@golang.org>
+
+	* elf.c (elf_zstd_unpack_seq_decode): Set table field for RLE
+	sequence.
+	* zstdtest.c (tests): Add rle-sequence-tables test.
+
+2026-06-27  Ian Lance Taylor  <iant@golang.org>
+
+	* elf.c (elf_zstd_decompress_frame): Support a compressed block
+	that does not set the single segment flag.
+	* zstdtest.c (tests): Add tests without single segment.
+
 2026-06-02  Ian Lance Taylor  <iant@golang.org>
 
 	* elf.c (elf_zstd_decompress_frame): Support a compressed block

@@ -1,3 +1,13 @@
+2026-06-27  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/30438
+	PR fortran/125801
+	* io.cc (gfc_resolve_dt): Set internal unit as used on read.o
+	* resolve.cc (resolve_transfer): Move setting value as used
+	before possible early return.
+	(gfc_resolve): Only call warn_unused_vs_set if there are no
+	pending errors.
+
 2026-06-26  Harald Anlauf  <anlauf@gmx.de>
 
 	PR fortran/125902

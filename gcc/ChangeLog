@@ -1,3 +1,19 @@
+2026-06-27  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/125992
+	* config/s390/s390.md (*brx_stage1_<GPR:mode>): Add CC_REGNUM clobber.
+
+2026-06-27  Eikansh Gupta  <eikansh.gupta@oss.qualcomm.com>
+
+	PR tree-optimization/125385
+	* match.pd ((FTYPE) N CMP (FTYPE) M): Use range information
+	to decide whether integer operands are exactly representable.
+	((FTYPE) N CMP CST): Likewise.
+	* real.cc: Include backend.h and vr-values.h.
+	(format_helper::can_represent_range_value_p): New function.
+	* real.h (format_helper::can_represent_range_value_p): Declare.
+	* tree-core.h (class irange): Forward declare.
+
 2026-06-26  H.J. Lu  <hjl.tools@gmail.com>
 
 	PR middle-end/125977

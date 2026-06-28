@@ -1,3 +1,26 @@
+2026-06-27  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/125992
+	* gcc.target/s390/pr125992.c: New test.
+
+2026-06-27  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/30438
+	PR fortran/125801
+	* gfortran.dg/warn_unused_but_set_error_1.f90: New test.
+	* gfortran.dg/warn_unused_intent_out_2.f90: New test.
+
+2026-06-27  Eikansh Gupta  <eikansh.gupta@oss.qualcomm.com>
+
+	PR tree-optimization/125385
+	* gcc.dg/tree-ssa/pr125385.c: New test.
+
+2026-06-27  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/125100
+	* gcc.target/i386/pr125100-4.c: Replace "movq  %rax, \(%rdi\)"
+	with "movq  %rax, \(%[re]di\)" to support x32.
+
 2026-06-26  H.J. Lu  <hjl.tools@gmail.com>
 	    Hongtao Liu  <hongtao.liu@intel.com>
 
