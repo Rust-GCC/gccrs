@@ -28,35 +28,33 @@
 namespace Rust {
 namespace Resolver2_0 {
 
-template <Namespace N>
 bool
-ForeverStack<N>::Node::is_root () const
+ForeverStackBase::Node::is_root () const
 {
   return !parent.has_value ();
 }
 
-template <Namespace N>
 bool
-ForeverStack<N>::Node::is_prelude () const
+ForeverStackBase::Node::is_prelude () const
 {
   return rib.kind == Rib::Kind::Prelude;
 }
 
-template <Namespace N>
 bool
-ForeverStack<N>::Node::is_leaf () const
+ForeverStackBase::Node::is_leaf () const
 {
   return children.empty ();
 }
 
-template <Namespace N>
 void
-ForeverStack<N>::Node::insert_child (Link link, Node child)
+ForeverStackBase::Node::insert_child (Link link, Node child)
 {
   auto res = children.insert ({link, child});
 
+  // TODO
   // Do we want to error if the child already exists? Probably not, right?
   // That's kinda the point, isn't it. So this method always succeeds, right?
+  (void) res;
 }
 
 template <Namespace N>
