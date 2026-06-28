@@ -20,6 +20,7 @@
 #include "rust-hir-expr.h"
 #include "rust-hir-generic-param.h"
 #include "rust-hir-item.h"
+#include "rust-hir-pattern.h"
 
 #include "options.h"
 #include "rust-keyword-values.h"
@@ -213,6 +214,113 @@ UnusedChecker::visit (HIR::StructPatternFieldIdentPat &field)
 			 (field.get_identifier ().as_string () + ":").c_str ());
     }
   walk (field);
+}
+
+namespace {
+
+bool
+literal_int_value (const HIR::Literal &lit, bool minus, int64_t &out)
+{
+  if (lit.get_lit_type () != HIR::Literal::LitType::INT)
+    return false;
+
+  std::string digits = lit.as_string ();
+  digits.erase (std::remove (digits.begin (), digits.end (), '_'),
+		digits.end ());
+
+  char *end = nullptr;
+  long long value = std::strtoll (digits.c_str (), &end, 10);
+  if (end == digits.c_str () || *end != '\0')
+    return false;
+
+  out = minus ? -value : value;
+  return true;
+}
+
+bool
+range_bound_int (HIR::RangePatternBound &bound, int64_t &out)
+{
+  if (bound.get_bound_type ()
+      != HIR::RangePatternBound::RangePatternBoundType::LITERAL)
+    return false;
+
+  auto &lit = static_cast<HIR::RangePatternBoundLiteral &> (bound);
+  return literal_int_value (lit.get_literal (), lit.get_has_minus (), out);
+}
+
+} // namespace
+
+void
+UnusedChecker::visit (HIR::MatchExpr &expr)
+{
+  struct Range
+  {
+    int64_t lo;
+    int64_t hi;
+    bool inclusive;
+    location_t locus;
+  };
+  std::vector<Range> ranges;
+  std::vector<int64_t> starts;
+
+  for (auto &match_case : expr.get_match_cases ())
+    {
+      auto &pattern = match_case.get_arm ().get_pattern ();
+      if (!pattern)
+	continue;
+
+      if (pattern->get_pattern_type () == HIR::Pattern::PatternType::RANGE)
+	{
+	  auto &range = static_cast<HIR::RangePattern &> (*pattern);
+	  int64_t lo, hi;
+	  if (range_bound_int (range.get_lower_bound (), lo)
+	      && range_bound_int (range.get_upper_bound (), hi))
+	    {
+	      ranges.push_back (
+		{lo, hi, range.is_inclusive_range (), range.get_locus ()});
+	      starts.push_back (lo);
+	    }
+	}
+      else if (pattern->get_pattern_type ()
+	       == HIR::Pattern::PatternType::LITERAL)
+	{
+	  auto &lit = static_cast<HIR::LiteralPattern &> (*pattern);
+	  int64_t value;
+	  if (literal_int_value (lit.get_literal (), lit.get_has_minus (),
+				 value))
+	    starts.push_back (value);
+	}
+    }
+
+  // A value is covered if a range matches it or some arm starts exactly on it.
+  auto covered = [&] (int64_t value) {
+    if (std::find (starts.begin (), starts.end (), value) != starts.end ())
+      return true;
+    for (auto &range : ranges)
+      {
+	int64_t top = range.inclusive ? range.hi : range.hi - 1;
+	if (value >= range.lo && value <= top)
+	  return true;
+      }
+    return false;
+  };
+
+  // An exclusive range `lo..hi` leaves `hi` unmatched. If another arm picks up
+  // at `hi + 1`, that single value was almost certainly meant to be included.
+  for (auto &range : ranges)
+    {
+      if (range.inclusive)
+	continue;
+
+      int64_t missed = range.hi;
+      if (!covered (missed)
+	  && std::find (starts.begin (), starts.end (), missed + 1)
+	       != starts.end ())
+	rust_warning_at (range.locus, OPT_Wunused_variable,
+			 "multiple ranges are one apart");
+    }
+
+  walk (expr);
 }
 
 } // namespace Analysis
