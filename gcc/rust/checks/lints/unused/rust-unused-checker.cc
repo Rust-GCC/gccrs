@@ -189,6 +189,16 @@ UnusedChecker::visit (HIR::LifetimeParam &lft)
 }
 
 void
+UnusedChecker::visit (HIR::ExternBlock &block)
+{
+  if (!block.has_abi ())
+    rust_warning_at (block.get_locus (), OPT_Wunused_variable,
+		     "extern declarations without an explicit ABI are "
+		     "deprecated");
+  walk (block);
+}
+
+void
 UnusedChecker::visit_loop_label (HIR::LoopLabel &label)
 {
   auto lifetime = label.get_lifetime ();
