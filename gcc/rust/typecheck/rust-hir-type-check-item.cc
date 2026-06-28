@@ -18,9 +18,12 @@
 
 #include "rust-hir-type-check-item.h"
 #include "optional.h"
+#include "options.h"
 #include "rust-canonical-path.h"
 #include "rust-diagnostics.h"
 #include "rust-hir-item.h"
+#include "rust-hir-expr.h"
+#include "rust-hir-visitor.h"
 #include "rust-hir-type-check-enumitem.h"
 #include "rust-hir-type-check-implitem.h"
 #include "rust-hir-type-check-type.h"
@@ -385,6 +388,113 @@ TypeCheckItem::visit (HIR::StructStruct &struct_decl)
   context->get_variance_analysis_ctx ().add_type_constraints (*type);
 }
 
+namespace {
+
+class DiscriminantEvaluator : public HIR::HIRFullVisitorBase
+{
+public:
+  bool known = false;
+  int64_t value = 0;
+
+  using HIR::HIRFullVisitorBase::visit;
+
+  void visit (HIR::LiteralExpr &expr) override
+  {
+    if (expr.get_lit_type () != HIR::Literal::LitType::INT)
+      return;
+
+    std::string digits = expr.get_literal ().as_string ();
+    digits.erase (std::remove (digits.begin (), digits.end (), '_'),
+		  digits.end ());
+
+    int base = 10;
+    if (digits.size () > 2 && digits[0] == '0')
+      {
+	switch (digits[1])
+	  {
+	  case 'x':
+	  case 'X':
+	    base = 16;
+	    break;
+	  case 'o':
+	  case 'O':
+	    base = 8;
+	    break;
+	  case 'b':
+	  case 'B':
+	    base = 2;
+	    break;
+	  default:
+	    break;
+	  }
+	if (base != 10)
+	  digits = digits.substr (2);
+      }
+
+    errno = 0;
+    char *end = nullptr;
+    unsigned long long magnitude = std::strtoull (digits.c_str (), &end, base);
+    if (end == digits.c_str () || *end != '\0')
+      return;
+
+    known = true;
+    if (errno == ERANGE
+	|| magnitude
+	     > (unsigned long long) std::numeric_limits<int64_t>::max ())
+      value = negate ? std::numeric_limits<int64_t>::min ()
+		     : std::numeric_limits<int64_t>::max ();
+    else
+      value = negate ? -(int64_t) magnitude : (int64_t) magnitude;
+  }
+
+  void visit (HIR::NegationExpr &expr) override
+  {
+    if (expr.get_expr_type () != NegationOperator::NEGATE)
+      return;
+    negate = !negate;
+    expr.get_expr ().accept_vis (*this);
+  }
+
+private:
+  bool negate = false;
+};
+
+void
+check_repr_c_enum_discriminants (HIR::Enum &enum_decl)
+{
+  const int64_t c_int_min = -2147483648LL;
+  const int64_t c_uint_max = 4294967295LL;
+
+  int64_t next = 0;
+  bool next_known = true;
+  for (auto &variant : enum_decl.get_variants ())
+    {
+      int64_t value = next;
+      bool known = next_known;
+
+      if (variant->get_enum_item_kind ()
+	  == HIR::EnumItem::EnumItemKind::Discriminant)
+	{
+	  auto &discriminant
+	    = static_cast<HIR::EnumItemDiscriminant &> (*variant);
+	  DiscriminantEvaluator evaluator;
+	  discriminant.get_discriminant_expression ().accept_vis (evaluator);
+	  known = evaluator.known;
+	  value = evaluator.value;
+	}
+
+      if (known && (value < c_int_min || value > c_uint_max))
+	rust_warning_at (variant->get_locus (), OPT_Wunused_variable,
+			 "%<repr(C)%> enum discriminant does not fit into C "
+			 "%<int%> nor into C %<unsigned int%>");
+
+      next_known = known;
+      next = value + 1;
+    }
+}
+
+} // namespace
+
 void
 TypeCheckItem::visit (HIR::Enum &enum_decl)
 {
@@ -409,6 +519,9 @@ TypeCheckItem::visit (HIR::Enum &enum_decl)
       discriminant_value++;
       variants.push_back (field_type);
     }
+
+  if (flag_unused_check_2_0 && repr.repr_kind == TyTy::ADTType::ReprKind::C)
+    check_repr_c_enum_discriminants (enum_decl);
 
   // Check for zero-variant enum compatibility
   if (enum_decl.is_zero_variant ())
