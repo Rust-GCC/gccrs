@@ -186,8 +186,9 @@ MacroExpander::expand_eager_invocations (AST::MacroInvocation &invoc)
 
   // we want to build a substitution map - basically, associating a `start` and
   // `end` index for each of the pending macro invocations
-  std::map<std::pair<size_t, size_t>, std::unique_ptr<AST::MacroInvocation> &>
-    substitution_map;
+  std::map<std::pair<size_t, size_t>, AST::MacroInvocation *> substitution_map;
+
+  auto &pending = invoc.get_pending_eager_invocations ();
 
   for (size_t i = 0; i < stream.size (); i++)
     {
@@ -199,20 +200,29 @@ MacroExpander::expand_eager_invocations (AST::MacroInvocation &invoc)
       // offset and store them in the substitution map. Otherwise, we skip one
       // token and try parsing again
       if (invocation)
-	substitution_map.insert (
-	  {{i, parser.get_token_source ().get_offs ()},
-	   invoc.get_pending_eager_invocations ()[current_pending++]});
+	substitution_map.insert ({{i, parser.get_token_source ().get_offs ()},
+				  pending[current_pending++].get ()});
       else
 	parser.skip_token (stream[i]->get_id ());
     }
 
+  auto pending_it = pending.begin ();
   size_t current_idx = 0;
   for (auto kv : substitution_map)
     {
-      auto &to_expand = kv.second;
+      AST::MacroInvocation *to_expand = kv.second;
       expand_invoc (*to_expand, AST::InvocKind::Expr);
 
       auto fragment = take_expanded_fragment ();
+
+      if (fragment.is_error ())
+	{
+	  // skip expansion of this macro
+	  // leave current_idx as-is, and continue
+	  pending_it++;
+	  continue;
+	}
+
       auto &new_tokens = fragment.get_tokens ();
 
       auto start = kv.first.first;
@@ -233,6 +243,7 @@ MacroExpander::expand_eager_invocations (AST::MacroInvocation &invoc)
 	new_stream.emplace_back (tok->clone_token ());
 
       current_idx = end;
+      pending_it = pending.erase (pending_it);
     }
 
   // Once all of that is done, we copy the last remaining tokens from the
@@ -243,7 +254,6 @@ MacroExpander::expand_eager_invocations (AST::MacroInvocation &invoc)
   auto new_dtt
     = AST::DelimTokenTree (dtt.get_delim_type (), std::move (new_stream));
 
-  invoc.get_pending_eager_invocations ().clear ();
   invoc.get_invoc_data ().set_delim_tok_tree (new_dtt);
 }
 
@@ -263,6 +273,13 @@ MacroExpander::expand_invoc (AST::MacroInvocation &invoc,
       push_context (ContextType::EXPR);
       expand_eager_invocations (invoc);
       pop_context ();
+
+      // if we have pending eager invocations still, don't expand
+      if (!invoc.get_pending_eager_invocations ().empty ())
+	{
+	  set_expanded_fragment (AST::Fragment::create_error ());
+	  return;
+	}
     }
 
   AST::MacroInvocData &invoc_data = invoc.get_invoc_data ();
@@ -314,7 +331,11 @@ MacroExpander::expand_invoc (AST::MacroInvocation &invoc,
   // If there's no rule associated with the invocation, we can simply return
   // early. The early name resolver will have already emitted an error.
   if (!rules_def)
-    return;
+    {
+      // error fragment
+      set_expanded_fragment (std::move (fragment));
+      return;
+    }
 
   auto rdef = rules_def.value ();
 
@@ -331,14 +352,7 @@ MacroExpander::expand_invoc (AST::MacroInvocation &invoc,
   else
     fragment
       = expand_decl_macro (invoc.get_locus (), invoc_data, *rdef, semicolon);
-  // fix: if the expansion is failing, we must replace the marco with an empty
-  // error or node
-  // makes sure that it doesn't panic on Rouge macro (it -> Lowering Phase)
-  // added the parsing errors in gcc/testsuite/rust/compile/issue-4213.rs
-  if (fragment.is_error ())
-    {
-      fragment = AST::Fragment::create_empty ();
-    }
+
   set_expanded_fragment (std::move (fragment));
 }
 
