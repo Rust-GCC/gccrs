@@ -50,7 +50,14 @@ private:
   virtual void visit (HIR::LifetimeParam &lft) override;
   virtual void visit (HIR::StructPatternFieldIdentPat &field) override;
   virtual void visit (HIR::MatchExpr &expr) override;
+  virtual void visit (HIR::ImplBlock &impl) override;
+  virtual void visit (HIR::Trait &trait) override;
+  virtual void visit (HIR::PathInExpression &path) override;
   virtual void visit_loop_label (HIR::LoopLabel &label) override;
+
+  bool in_associated_scope = false;
+  int impl_trait_nesting = 0;
+  bool self_ctor_from_outer = false;
 };
 } // namespace Analysis
 } // namespace Rust
