@@ -1001,17 +1001,18 @@ ExternalTypeItem::ExternalTypeItem (ExternalTypeItem const &other)
 {}
 
 ExternBlock::ExternBlock (
-  Analysis::NodeMapping mappings, ABI abi,
+  Analysis::NodeMapping mappings, ABI abi, bool explicit_abi,
   std::vector<std::unique_ptr<ExternalItem>> extern_items, Visibility vis,
   AST::AttrVec inner_attrs, AST::AttrVec outer_attrs, location_t locus)
   : VisItem (std::move (mappings), std::move (vis), std::move (outer_attrs)),
     WithInnerAttrs (std::move (inner_attrs)), abi (abi),
-    extern_items (std::move (extern_items)), locus (locus)
+    explicit_abi (explicit_abi), extern_items (std::move (extern_items)),
+    locus (locus)
 {}
 
 ExternBlock::ExternBlock (ExternBlock const &other)
   : VisItem (other), WithInnerAttrs (other.inner_attrs), abi (other.abi),
-    locus (other.locus)
+    explicit_abi (other.explicit_abi), locus (other.locus)
 {
   extern_items.reserve (other.extern_items.size ());
   for (const auto &e : other.extern_items)
@@ -1023,6 +1024,7 @@ ExternBlock::operator= (ExternBlock const &other)
 {
   VisItem::operator= (other);
   abi = other.abi;
+  explicit_abi = other.explicit_abi;
   inner_attrs = other.inner_attrs;
   locus = other.locus;
 
