@@ -222,7 +222,6 @@
 #define f7_sqrt16_floor_asm __f7_sqrt16_floor_asm
 #define f7_lshrdi3_asm __f7_lshrdi3_asm
 #define f7_ashldi3_asm __f7_ashldi3_asm
-#define f7_d_to_fx64_asm __f7_d_to_fx64_asm
 #define f7_ufx64_to_d_asm __f7_ufx64_to_d_asm
 #define f7_sfx64_to_d_asm __f7_sfx64_to_d_asm
 #define f7_class_D_asm __f7_class_D_asm

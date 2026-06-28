@@ -2465,48 +2465,56 @@ _DEFUN __fractdfusa
 _ENDF __fractdfusa
 #endif /* F7MOD_D2usa_ */
 
+#ifdef F7MOD_D2da_
+_DEFUN __fractdfda
+    ;; Multiply with 2^FBIT to get a DA result in r25:r18.
+    subi    r24, dex_lo (-__DA_FBIT__)
+    sbci    r25, dex_hi (-__DA_FBIT__)
+    XJMP    __fixdfdi
+_ENDF __fractdfda
+#endif /* F7MOD_D2da_ */
 
-#ifdef F7MOD_D2fx_
-;;; Convert double R18 to a 64-bit fixed point value.
-;;; R18 d_to_fx64 (double R18, int8_t fbit R16);
-;;; |FBIT| accounts for the extra fbits compared to [u]int64_t.
-;;; FBIT < 0 indicates a signed conversion.
-;;; FBIT > 0 indicates an unsigned conversion.
-DEFUN d_to_fx64
-    do_prologue_saves  4, F7_SIZEOF
+#ifdef F7MOD_D2uda_
+_DEFUN __fractdfuda
+    ;; Multiply with 2^FBIT to get an UDA result in r25:r18.
+    subi    r25, dex_hi (-__UDA_FBIT__)
+    XJMP    __fixunsdfdi
+_ENDF __fractdfuda
+#endif /* F7MOD_D2uda_ */
 
-    ;; Y = FramePointer + 1
-    adiw    Y,      1
+#ifdef F7MOD_D2ta_
+_DEFUN __fractdfta
+    ;; Multiply with 2^FBIT to get a TA result in r25:r18.
+    subi    r24, dex_lo (-__TA_FBIT__)
+    sbci    r25, dex_hi (-__TA_FBIT__)
+    XJMP    __fixdfdi
+_ENDF __fractdfta
+#endif /* F7MOD_D2ta_ */
 
-    ;; FP + 1 = (f7_t) arg
-    wmov    r16,    Y
+#ifdef F7MOD_D2uta_
+_DEFUN __fractdfuta
+    ;; Multiply with 2^FBIT to get an UTA result in r25:r18.
+    subi    r25, dex_hi (-__UTA_FBIT__)
+    XJMP    __fixunsdfdi
+_ENDF __fractdfuta
+#endif /* F7MOD_D2uta_ */
 
-    ;; Convert double R18 to f7_t *R16.
-    XCALL   F7_NAME (set_double_impl)
+#ifdef F7MOD_D2dq_
+_DEFUN __fractdfdq
+    ;; Multiply with 2^FBIT to get a DQ result in r25:r18.
+    subi    r24, dex_lo (-__DQ_FBIT__)
+    sbci    r25, dex_hi (-__DQ_FBIT__)
+    XJMP    __fixdfdi
+_ENDF __fractdfdq
+#endif /* F7MOD_D2dq_ */
 
-    ;; Prepare for *R24 = ldexp (*R24, R22).  ldexp() accounts for the
-    ;; fractional bits of the fixed point value, i.e. we have to <<= FBIT.
-    wmov    r24,    r16
-    ;; Zero-extend FBIT.
-    clr     r23
-    ;; R16 has been clobbered.  Fetch it from where prologue_saves put it.
-    ldd     r22,    Y + F7_SIZEOF + 3       ; Saved R16
-    tst     r22
-    brmi 1f
-
-    ;; Positive FBIT indicates an unsigned conversion.
-    XCALL   F7_NAME (Ildexp)
-    XCALL   F7_NAME (get_u64)
-    rjmp 9f
-
-1:  ;; Negative FBIT indicates a signed conversion.
-    neg     r22                 ; FBIT := |FBIT|
-    XCALL   F7_NAME (Ildexp)
-    XCALL   F7_NAME (get_s64)
-
-9:  do_epilogue_restores  4, F7_SIZEOF
-ENDF d_to_fx64
-#endif /* F7MOD_D2fx_ */
+#ifdef F7MOD_D2udq_
+_DEFUN __fractdfudq
+    ;; Multiply with 2^FBIT to get an UDQ result in r25:r18.
+    subi    r25, dex_hi (-__UDQ_FBIT__)
+    XJMP    __fixunsdfdi
+_ENDF __fractdfudq
+#endif /* F7MOD_D2udq_ */
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

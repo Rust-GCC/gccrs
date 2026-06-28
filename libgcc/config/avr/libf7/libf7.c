@@ -140,58 +140,6 @@ f7_double_t __floatdidf (int64_t x)
 #endif // F7MOD_floatdidf_
 
 
-extern uint64_t d_to_ufx (f7_double_t, int8_t) F7ASM(f7_d_to_fx64_asm);
-extern int64_t  d_to_sfx (f7_double_t, int8_t) F7ASM(f7_d_to_fx64_asm);
-
-#ifdef F7MOD_fractdfda_
-F7_WEAK
-int64_t __fractdfda (f7_double_t d)
-{
-  return d_to_sfx (d, -__DA_FBIT__);
-}
-#endif // F7MOD_fractdfda_
-
-#ifdef F7MOD_fractdfuda_
-F7_WEAK
-uint64_t __fractdfuda (f7_double_t d)
-{
-  return d_to_ufx (d, __UDA_FBIT__);
-}
-#endif // F7MOD_fractdfuda_
-
-#ifdef F7MOD_fractdfta_
-F7_WEAK
-int64_t __fractdfta (f7_double_t d)
-{
-  return d_to_sfx (d, -__TA_FBIT__);
-}
-#endif // F7MOD_fractdfta_
-
-#ifdef F7MOD_fractdfuta_
-F7_WEAK
-uint64_t __fractdfuta (f7_double_t d)
-{
-  return d_to_ufx (d, __UTA_FBIT__);
-}
-#endif // F7MOD_fractdfuta_
-
-#ifdef F7MOD_fractdfdq_
-F7_WEAK
-int64_t __fractdfdq (f7_double_t d)
-{
-  return d_to_sfx (d, -__DQ_FBIT__);
-}
-#endif // F7MOD_fractdfdq_
-
-#ifdef F7MOD_fractdfudq_
-F7_WEAK
-uint64_t __fractdfudq (f7_double_t d)
-{
-  return d_to_ufx (d, __UDQ_FBIT__);
-}
-#endif // F7MOD_fractdfudq_
-
-
 #ifdef F7MOD_init_
 f7_t* f7_init_impl (uint64_t mant, uint8_t flags, f7_t *cc, int16_t expo)
 {

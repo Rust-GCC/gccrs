@@ -9,8 +9,6 @@ F7_PREFIX = __f7_
 include $(libf7)/libf7-common.mk
 
 LIBF7_DF_CONV +=  floatundidf floatdidf # floatunsidf floatsidf
-LIBF7_DF_CONV +=  fractdfda fractdfta fractdfdq
-LIBF7_DF_CONV +=  fractdfuda fractdfuta fractdfudq
 
 # Wrappers like f7_lt_impl for f7_lt etc. because the latter is inline.
 LIBF7_DF_CMP  += lt le gt ge ne eq unord
