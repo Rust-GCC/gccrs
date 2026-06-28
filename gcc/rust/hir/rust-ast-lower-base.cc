@@ -1071,8 +1071,9 @@ ASTLoweringBase::lower_extern_block (AST::ExternBlock &extern_block)
     }
 
   HIR::ExternBlock *hir_extern_block
-    = new HIR::ExternBlock (mapping, abi, std::move (extern_items),
-			    std::move (vis), extern_block.get_inner_attrs (),
+    = new HIR::ExternBlock (mapping, abi, extern_block.has_abi (),
+			    std::move (extern_items), std::move (vis),
+			    extern_block.get_inner_attrs (),
 			    extern_block.get_outer_attrs (),
 			    extern_block.get_locus ());
 
