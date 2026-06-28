@@ -30,7 +30,7 @@ namespace AST {
 static TypePath
 get_eq_trait_path (Builder &builder)
 {
-  return builder.type_path ({"core", "cmp", "Eq"}, true);
+  return builder.type_path_core ({"cmp", "Eq"});
 }
 
 DeriveEq::DeriveEq (location_t loc) : DeriveVisitor (loc) {}

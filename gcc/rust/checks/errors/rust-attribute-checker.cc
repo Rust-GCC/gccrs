@@ -148,10 +148,6 @@ AttributeChecker::visit (AST::LiteralExpr &)
 {}
 
 void
-AttributeChecker::visit (AST::AttrInputLiteral &)
-{}
-
-void
 AttributeChecker::visit (AST::MetaItemLitExpr &)
 {}
 

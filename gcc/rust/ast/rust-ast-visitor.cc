@@ -203,12 +203,6 @@ DefaultASTVisitor::visit (AST::Attribute &attribute)
 }
 
 void
-DefaultASTVisitor::visit (AST::AttrInputLiteral &attr_input)
-{
-  visit (attr_input.get_literal ());
-}
-
-void
 DefaultASTVisitor::visit (AST::AttrInputExpr &attr_input)
 {
   visit (attr_input.get_expr ());
@@ -1502,6 +1496,15 @@ void
 DefaultASTVisitor::visit (AST::FormatArgs &)
 {
   // FIXME: Do we have anything to do? any subnodes to visit? Probably, right?
+}
+
+void
+DefaultASTVisitor::visit (AST::FormatArgsEager &fmt)
+{
+  // FIXME: Do we have anything to do? any subnodes to visit? Probably, right?
+
+  // we need this to resolve/expand macros, at least
+  visit (fmt.get_template ());
 }
 
 void

@@ -34,7 +34,7 @@ namespace HIR {
 static std::set<HirId> already_assigned_variables = {};
 
 ReadonlyChecker::ReadonlyChecker ()
-  : resolver (*Resolver::Resolver::get ()),
+  : resolver (Resolver2_0::FinalizedNameResolutionContext::get ()),
     mappings (Analysis::Mappings::get ()),
     context (*Resolver::TypeCheckContext::get ())
 {}
@@ -64,8 +64,7 @@ ReadonlyChecker::visit (PathInExpression &expr)
   NodeId ast_node_id = expr.get_mappings ().get_nodeid ();
   NodeId def_id;
 
-  auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
-  if (auto id = nr_ctx.lookup (ast_node_id, Resolver2_0::Namespace::Values))
+  if (auto id = resolver.lookup (ast_node_id, Resolver2_0::Namespace::Values))
     def_id = *id;
   else
     return;

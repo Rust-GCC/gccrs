@@ -104,7 +104,6 @@ public:
 
   // rust-expr.h
   virtual void visit (AST::LiteralExpr &expr) override;
-  virtual void visit (AST::AttrInputLiteral &attr_input) override;
   virtual void visit (AST::AttrInputExpr &attr_input) override;
   virtual void visit (AST::MetaItemLitExpr &meta_item) override;
   virtual void visit (AST::MetaItemPathExpr &meta_item) override;
@@ -266,6 +265,7 @@ public:
   virtual void visit (AST::SelfParam &param) override;
 
   virtual void visit (AST::FormatArgs &fmt) override;
+  virtual void visit (AST::FormatArgsEager &fmt) override;
   virtual void visit (AST::OffsetOf &offset_of) override;
 
 protected:

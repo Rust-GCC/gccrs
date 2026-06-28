@@ -36,10 +36,10 @@ format_arg (const AST::Builder &builder, std::unique_ptr<AST::Expr> &&to_format,
 	    const std::string &trait)
 {
   auto formatter_fn = std::unique_ptr<AST::Expr> (new AST::PathInExpression (
-    builder.path_in_expression ({"core", "fmt", trait, "fmt"})));
+    builder.path_in_expression_core ({"fmt", trait, "fmt"})));
 
   auto path = std::unique_ptr<AST::Expr> (new AST::PathInExpression (
-    builder.path_in_expression ({"core", "fmt", "ArgumentV1", "new"})));
+    builder.path_in_expression_core ({"fmt", "ArgumentV1", "new"})));
 
   auto args = std::vector<std::unique_ptr<AST::Expr>> ();
   args.emplace_back (std::move (to_format));
@@ -65,9 +65,38 @@ get_trait_name (ffi::FormatSpec format_specifier)
   return it->second;
 }
 
-tl::optional<AST::Fragment>
-expand_format_args (AST::FormatArgs &fmt,
-		    std::vector<std::unique_ptr<AST::Token>> &&tokens)
+tl::optional<std::unique_ptr<AST::Expr>>
+expand_format_args_eager (AST::FormatArgsEager &fmt_eager)
+{
+  if (!fmt_eager.get_template ().is_literal ())
+    {
+      if (fmt_eager.get_template ().get_expr_kind () != AST::Expr::Kind::MacroInvocation)
+        rust_error_at (fmt_eager.get_locus (), "format argument must be a string literal");
+      return tl::nullopt;
+    }
+
+  auto &literal = static_cast<AST::LiteralExpr &> (fmt_eager.get_template ());
+
+  // TODO: is special handling for RAW_STRING needed?
+  rust_assert (literal.get_lit_type () == AST::Literal::STRING || literal.get_lit_type () == AST::Literal::RAW_STRING);
+
+  // TODO: does this handle escapes in STRING properly?
+  auto fmt_str = literal.get_literal ().as_string ();
+
+  bool append_newline = fmt_eager.get_newline () == AST::FormatArgs::Newline::Yes;
+
+  if (append_newline)
+    fmt_str += '\n';
+
+  auto pieces = Fmt::Pieces::collect (fmt_str, append_newline, Fmt::ffi::ParseMode::Format);
+
+  auto fmt_args_node = AST::FormatArgs (fmt_eager.get_locus (), std::move (pieces), std::move (fmt_eager.get_arguments ()));
+
+  return Fmt::expand_format_args (fmt_args_node);
+}
+
+std::unique_ptr<AST::Expr>
+expand_format_args (AST::FormatArgs &fmt)
 {
   auto loc = fmt.get_locus ();
   auto builder = AST::Builder (loc);
@@ -123,7 +152,7 @@ expand_format_args (AST::FormatArgs &fmt,
   auto args_slice = builder.ref (builder.array (std::move (args_array)));
 
   auto final_path = std::make_unique<AST::PathInExpression> (
-    builder.path_in_expression ({"core", "fmt", "Arguments", "new_v1"}));
+    builder.path_in_expression_core ({"fmt", "Arguments", "new_v1"}));
   auto final_args = std::vector<std::unique_ptr<AST::Expr>> ();
   final_args.emplace_back (std::move (pieces));
   final_args.emplace_back (std::move (args_slice));
@@ -131,9 +160,7 @@ expand_format_args (AST::FormatArgs &fmt,
   auto final_call
     = builder.call (std::move (final_path), std::move (final_args));
 
-  auto node = AST::SingleASTNode (std::move (final_call));
-
-  return AST::Fragment ({node}, std::move (tokens));
+  return final_call;
 }
 
 } // namespace Fmt

@@ -343,7 +343,6 @@ Attribute::get_traits_to_derive ()
       }
       break;
     case AST::AttrInput::TOKEN_TREE:
-    case AST::AttrInput::LITERAL:
     case AST::AttrInput::EXPR:
       rust_unreachable ();
       break;
@@ -3365,7 +3364,7 @@ AttrInputExpr::operator= (const AttrInputExpr &oth)
 std::string
 AttrInputExpr::as_string () const
 {
-  return expr->as_string ();
+  return " = " + expr->as_string ();
 }
 
 void
@@ -4124,14 +4123,14 @@ Token::to_token_stream () const
 Attribute
 MetaNameValueStr::to_attribute () const
 {
-  LiteralExpr lit_expr (str, Literal::LitType::STRING,
-			PrimitiveCoreType::CORETYPE_UNKNOWN, {}, str_locus);
+  auto lit_expr = std::make_unique<AST::LiteralExpr> (str, Literal::LitType::STRING,
+			PrimitiveCoreType::CORETYPE_UNKNOWN, std::vector<Attribute> (), str_locus);
   // FIXME: What location do we put here? Is the literal above supposed to have
   // an empty location as well?
   // Should MetaNameValueStr keep a location?
   return Attribute (SimplePath::from_str (ident.as_string (), ident_locus),
-		    std::unique_ptr<AttrInputLiteral> (
-		      new AttrInputLiteral (std::move (lit_expr))));
+		    std::unique_ptr<AttrInputExpr> (
+		      new AttrInputExpr (std::move (lit_expr))));
 }
 
 Attribute
@@ -4197,6 +4196,7 @@ MetaListNameValueStr::to_attribute () const
 Attribute
 MetaItemPathExpr::to_attribute () const
 {
+  // TODO: should we move expr, instead of cloning it?
   auto input = std::make_unique<AttrInputExpr> (expr->clone_expr ());
   return Attribute (path, std::move (input));
 }
@@ -4341,12 +4341,6 @@ LifetimeParam::accept_vis (ASTVisitor &vis)
 
 void
 LiteralExpr::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-AttrInputLiteral::accept_vis (ASTVisitor &vis)
 {
   vis.visit (*this);
 }
@@ -5096,6 +5090,59 @@ FormatArgs::clone_expr_impl () const
   std::cerr << "[ARTHUR] cloning FormatArgs! " << std::endl;
 
   return new FormatArgs (*this);
+}
+
+void
+FormatArgsEager::accept_vis (ASTVisitor &vis)
+{
+  vis.visit (*this);
+}
+
+std::string
+FormatArgsEager::as_string () const
+{
+  // FIXME(Arthur): Improve
+  return "FormatArgsEager";
+}
+
+bool
+FormatArgsEager::is_expr_without_block () const
+{
+  return false;
+}
+
+void
+FormatArgsEager::mark_for_strip ()
+{
+  marked_for_strip = true;
+}
+
+bool
+FormatArgsEager::is_marked_for_strip () const
+{
+  return marked_for_strip;
+}
+
+std::vector<Attribute> &
+FormatArgsEager::get_outer_attrs ()
+{
+  rust_unreachable ();
+}
+
+void
+FormatArgsEager::set_outer_attrs (std::vector<Attribute>)
+{
+  rust_unreachable ();
+}
+
+FormatArgsEager *
+FormatArgsEager::clone_expr_impl () const
+{
+  // based on FormatArgs::clone_expr_impl
+  // TODO: should this be happening?
+  rust_debug_loc (get_locus (), "[ARTHUR/OWEN] cloning FormatArgsEager!");
+
+  return new FormatArgsEager (*this);
 }
 
 std::vector<Attribute> &

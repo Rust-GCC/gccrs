@@ -76,7 +76,7 @@ class QualifiedPathInType;
 // rust-expr.h
 class ExprWithBlock;
 class LiteralExpr;
-class AttrInputLiteral;
+class AttrInputExpr;
 class MetaItemLitExpr;
 class MetaItemPathExpr;
 class OperatorExpr;
@@ -271,6 +271,7 @@ class BareFunctionType;
 
 // rust-builtin-ast-nodes.h
 class FormatArgs;
+class FormatArgsEager;
 } // namespace AST
 } // namespace Rust
 

@@ -221,8 +221,6 @@ public:
   void visit (AST::LifetimeParam &) override;
   void visit (AST::ConstGenericParam &) override;
 
-  void visit (AST::Attribute &attribute) override;
-
   void visit (AST::MacroInvocation &macro_invoc) override;
 
   void visit (AST::PathInExpression &path) override;
@@ -232,7 +230,6 @@ public:
   void visit (AST::QualifiedPathInType &path) override;
 
   void visit (AST::LiteralExpr &expr) override;
-  void visit (AST::AttrInputLiteral &) override;
   void visit (AST::AttrInputExpr &) override;
   void visit (AST::MetaItemLitExpr &) override;
   void visit (AST::MetaItemPathExpr &) override;
@@ -285,6 +282,9 @@ public:
   void visit (AST::FunctionParam &param) override;
   void visit (AST::VariadicParam &param) override;
   void visit (AST::SelfParam &type) override;
+
+  // expand these if possible
+  void visit (AST::FormatArgsEager &fmt) override;
 
   template <typename T>
   void expand_inner_attribute (T &item, AST::SimplePath &Path);

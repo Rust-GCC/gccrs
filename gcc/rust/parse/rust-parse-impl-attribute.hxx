@@ -41,7 +41,7 @@ Parser<ManagedTokenSource>::parse_doc_comment ()
   AST::LiteralExpr lit_expr (token->get_str (), AST::Literal::STRING,
 			     PrimitiveCoreType::CORETYPE_STR, {}, locus);
   std::unique_ptr<AST::AttrInput> attr_input (
-    new AST::AttrInputLiteral (std::move (lit_expr)));
+    new AST::AttrInputExpr (std::make_unique<AST::Expr> (std::move (lit_expr))));
   lexer.skip_token ();
 
   return Parse::AttributeBody{std::move (attr_path), std::move (attr_input),
@@ -288,75 +288,27 @@ Parser<ManagedTokenSource>::parse_attr_input ()
       }
     case EQUAL:
       {
-	// = LiteralExpr
+	// = Expr
 	lexer.skip_token ();
 
-	t = lexer.peek_token ();
-
-	/* Ensure token is a "literal expression" (literally only a literal
-	 * token of any type) */
-	if (!t->is_literal ())
+	auto expr = parse_expr ();
+	if (!expr.has_value ())
 	  {
-	    Error error (
-	      t->get_locus (),
-	      "arbitrary expressions in key-value attributes are unstable");
-	    collect_potential_gating_error (
-	      Feature::Name::EXTENDED_KEY_VALUE_ATTRIBUTES, std::move (error));
-	  }
-	// attempt to parse macro
-	// TODO: macros may/may not be allowed in attributes
-	// this is needed for "#[doc = include_str!(...)]"
-	if (Parse::Utils::is_simple_path_segment (t->get_id ()))
-	  {
-	    std::unique_ptr<AST::MacroInvocation> invoke
-	      = parse_macro_invocation ({});
-
-	    if (!invoke)
-	      return Parse::Error::AttrInput::make_bad_macro_invocation ();
-
-	    return std::make_unique<AST::AttrInputExpr> (std::move (invoke));
-	  }
-
-	AST::Literal::LitType lit_type = AST::Literal::STRING;
-	// Crappy mapping of token type to literal type
-	switch (t->get_id ())
-	  {
-	  case INT_LITERAL:
-	    lit_type = AST::Literal::INT;
-	    break;
-	  case FLOAT_LITERAL:
-	    lit_type = AST::Literal::FLOAT;
-	    break;
-	  case CHAR_LITERAL:
-	    lit_type = AST::Literal::CHAR;
-	    break;
-	  case BYTE_CHAR_LITERAL:
-	    lit_type = AST::Literal::BYTE;
-	    break;
-	  case BYTE_STRING_LITERAL:
-	    lit_type = AST::Literal::BYTE_STRING;
-	    break;
-	  case RAW_STRING_LITERAL:
-	    lit_type = AST::Literal::RAW_STRING;
-	    break;
-	  case STRING_LITERAL:
-	    lit_type = AST::Literal::STRING;
-	    break; // TODO: raw string? don't eliminate it from lexer?
-	  default:
-	    rust_sorry_at (t->get_locus (),
-			   "Unsupported attribute input, only literals and "
-			   "macros are supported for now");
 	    skip_after_end_attribute ();
 	    return Parse::Error::AttrInput::make_malformed ();
 	  }
 
-	// create actual LiteralExpr
-	AST::LiteralExpr lit_expr (t->get_str (), lit_type, t->get_type_hint (),
-				   {}, t->get_locus ());
-	lexer.skip_token ();
+	if (expr->get_expr_kind () != AST::Expr::Kind::Literal && expr->get_expr_kind () != AST::Expr::Kind::MacroInvocation)
+	  {
+	    Error error (
+	      expr->get_locus (),
+	      "arbitrary expressions in key-value attributes are unstable");
+	    collect_potential_gating_error (
+	      Feature::Name::EXTENDED_KEY_VALUE_ATTRIBUTES, std::move (error));
+	  }
 
-	std::unique_ptr<AST::AttrInput> attr_input_lit (
-	  new AST::AttrInputLiteral (std::move (lit_expr)));
+	std::unique_ptr<AST::AttrInput> attr_input_expr (
+	  new AST::AttrInputExpr (std::move (expr)));
 
 	// do checks or whatever? none required, really
 
@@ -364,7 +316,7 @@ Parser<ManagedTokenSource>::parse_attr_input ()
 
 	return tl::expected<std::unique_ptr<AST::AttrInput>,
 			    Parse::Error::AttrInput>{
-	  std::move (attr_input_lit)};
+	  std::move (attr_input_expr)};
       }
       break;
     case RIGHT_PAREN:

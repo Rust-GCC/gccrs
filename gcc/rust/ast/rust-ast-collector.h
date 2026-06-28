@@ -290,7 +290,6 @@ public:
 
   // rust-expr.h
   void visit (LiteralExpr &expr);
-  void visit (AttrInputLiteral &attr_input);
   void visit (AttrInputExpr &attr_input);
   void visit (MetaItemLitExpr &meta_item);
   void visit (MetaItemPathExpr &meta_item);
@@ -451,6 +450,7 @@ public:
   void visit (BareFunctionType &type);
 
   void visit (FormatArgs &fmt);
+  void visit (FormatArgsEager &fmt);
   void visit (OffsetOf &offset_of);
 };
 } // namespace AST

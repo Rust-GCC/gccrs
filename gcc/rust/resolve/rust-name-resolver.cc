@@ -272,53 +272,5 @@ Scope::decl_was_declared_here (NodeId def) const
   return found;
 }
 
-Resolver::Resolver () {}
-
-Resolver *
-Resolver::get ()
-{
-  static Resolver *instance;
-  if (instance == nullptr)
-    instance = new Resolver ();
-
-  return instance;
-}
-
-void
-Resolver::insert_resolved_name (NodeId refId, NodeId defId)
-{
-  rust_unreachable ();
-}
-
-bool
-Resolver::lookup_resolved_name (NodeId refId, NodeId *defId)
-{
-  rust_unreachable ();
-}
-
-void
-Resolver::insert_resolved_type (NodeId refId, NodeId defId)
-{
-  rust_unreachable ();
-}
-
-bool
-Resolver::lookup_resolved_type (NodeId refId, NodeId *defId)
-{
-  rust_unreachable ();
-}
-
-void
-Resolver::insert_resolved_misc (NodeId refId, NodeId defId)
-{
-  rust_unreachable ();
-}
-
-bool
-Resolver::lookup_resolved_misc (NodeId refId, NodeId *defId)
-{
-  rust_unreachable ();
-}
-
 } // namespace Resolver
 } // namespace Rust

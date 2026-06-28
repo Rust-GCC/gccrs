@@ -25,6 +25,7 @@
 #include "rust-ast.h"
 #include "rust-type.h"
 #include "rust-derive.h"
+#include "rust-expand-format-args.h"
 
 namespace Rust {
 
@@ -336,24 +337,6 @@ ExpandVisitor::expand_inner_stmts (AST::BlockExpr &expr)
 }
 
 void
-ExpandVisitor::visit (AST::Attribute &attr)
-{
-  // An attribute input containing a macro may have been expanded to a literal
-  if (attr.has_attr_input ()
-      && attr.get_attr_input ().get_attr_input_type ()
-	   == AST::AttrInput::AttrInputType::EXPR)
-    {
-      auto &expr = static_cast<AST::AttrInputExpr &> (attr.get_attr_input ());
-      if (expr.get_expr ().is_literal ())
-	{
-	  auto &lit = static_cast<AST::LiteralExpr &> (expr.get_expr ());
-	  attr.set_attr_input (std::make_unique<AST::AttrInputLiteral> (lit));
-	}
-    }
-  AST::DefaultASTVisitor::visit (attr);
-}
-
-void
 ExpandVisitor::maybe_expand_expr (std::unique_ptr<AST::Expr> &expr)
 {
   NodeId old_expect = expr->get_node_id ();
@@ -597,10 +580,6 @@ ExpandVisitor::visit (AST::QualifiedPathInType &path)
 
 void
 ExpandVisitor::visit (AST::LiteralExpr &expr)
-{}
-
-void
-ExpandVisitor::visit (AST::AttrInputLiteral &)
 {}
 
 void
@@ -962,6 +941,20 @@ ExpandVisitor::visit (AST::SelfParam &param)
    * lifetime? */
   if (param.has_type ())
     maybe_expand_type (param.get_type_ptr ());
+}
+
+void
+ExpandVisitor::visit (AST::FormatArgsEager &fmt)
+{
+  maybe_expand_expr (fmt.get_template_ptr ());
+  auto res = Fmt::expand_format_args_eager (fmt);
+  if (res.has_value ())
+    {
+      // TODO: is it alright to have an empty token list?
+      std::vector<std::unique_ptr<AST::Token>> fragment_tokens;
+
+      expander.set_expanded_fragment (AST::Fragment ({AST::SingleASTNode (std::move (*res))}, std::move(fragment_tokens)));
+    }
 }
 
 template <typename T>

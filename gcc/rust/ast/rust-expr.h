@@ -131,44 +131,6 @@ protected:
   }
 };
 
-// Literal expression attribute body (non-macro attribute)
-class AttrInputLiteral : public AttrInput
-{
-  LiteralExpr literal_expr;
-
-public:
-  AttrInputLiteral (LiteralExpr lit_expr) : literal_expr (std::move (lit_expr))
-  {}
-
-  std::string as_string () const override
-  {
-    return " = " + literal_expr.as_string ();
-  }
-
-  void accept_vis (ASTVisitor &vis) override;
-
-  /* this can never be a cfg predicate - cfg and cfg_attr require a token-tree
-   * cfg */
-  bool check_cfg_predicate (const Session &) const override { return false; }
-
-  bool is_meta_item () const override { return false; }
-
-  LiteralExpr &get_literal () { return literal_expr; }
-
-  AttrInputType get_attr_input_type () const final override
-  {
-    return AttrInput::AttrInputType::LITERAL;
-  }
-
-protected:
-  /* Use covariance to implement clone function as returning this object rather
-   * than base */
-  AttrInputLiteral *clone_attr_input_impl () const override
-  {
-    return new AttrInputLiteral (*this);
-  }
-};
-
 class AttrInputExpr : public AttrInput
 {
   std::unique_ptr<Expr> expr;
@@ -178,20 +140,10 @@ public:
 
   AttrInputExpr (const AttrInputExpr &oth);
 
-  AttrInputExpr (AttrInputExpr &&oth) : expr (std::move (oth.expr)) {}
-
-  AttrInputType get_attr_input_type () const final override
-  {
-    return AttrInput::AttrInputType::EXPR;
-  }
-
   AttrInputExpr &operator= (const AttrInputExpr &oth);
 
-  AttrInputExpr &operator= (AttrInputExpr &&oth)
-  {
-    expr = std::move (oth.expr);
-    return *this;
-  }
+  AttrInputExpr (AttrInputExpr &&oth) = default;
+  AttrInputExpr &operator= (AttrInputExpr &&oth) = default;
 
   std::string as_string () const override;
 
@@ -206,6 +158,12 @@ public:
 
   std::unique_ptr<Expr> &get_expr_ptr () { return expr; }
 
+  AttrInputType get_attr_input_type () const final override
+  {
+    return AttrInput::AttrInputType::EXPR;
+  }
+
+protected:
   AttrInputExpr *clone_attr_input_impl () const override
   {
     return new AttrInputExpr (*this);
