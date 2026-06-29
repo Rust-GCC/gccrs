@@ -6,7 +6,7 @@
 
 #define section(S) __attribute__((section(S)))
 #define weak __attribute__((weak))
-#define noinline __attribute__((noinline))
+#define noipa __attribute__((noipa))
 #define long_call __attribute__((long_call))
 #define short_call __attribute__((short_call))
 
@@ -15,12 +15,12 @@
   const char *CALL_ATTRS call_##ID (void) { return ID () + 1; }
 
 #define EXTERN_CALL(ID, TARGET_ATTRS, CALL_ATTRS)			\
-  const char *TARGET_ATTRS noinline ID (void) { return #ID; }		\
+  const char *TARGET_ATTRS noipa ID (void) { return #ID; }		\
   const char *CALL_ATTRS call_##ID (void) { return ID () + 1; }		\
   const char *CALL_ATTRS sibcall_##ID (void) { return ID (); }
 
 #define STATIC_CALL(ID, TARGET_ATTRS, CALL_ATTRS)			\
-  static const char *TARGET_ATTRS noinline ID (void) { return #ID; }	\
+  static const char *TARGET_ATTRS noipa ID (void) { return #ID; }	\
   const char *CALL_ATTRS call_##ID (void) { return ID () + 1; }		\
   const char *CALL_ATTRS sibcall_##ID (void) { return ID (); }
 
