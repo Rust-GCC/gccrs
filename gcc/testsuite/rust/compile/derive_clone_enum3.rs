@@ -1,6 +1,5 @@
 #![feature(no_core)]
 #![no_core]
-
 #![feature(lang_items)]
 
 #[lang = "clone"]
@@ -15,7 +14,7 @@ impl Clone for i32 {
 }
 
 #[derive(Clone)]
-enum StructEnum {
+pub enum StructEnum {
     A { i0: i32 },
-    B { i0: i32, i1: i32, i2: i32 }
+    B { i0: i32, i1: i32, i2: i32 },
 }

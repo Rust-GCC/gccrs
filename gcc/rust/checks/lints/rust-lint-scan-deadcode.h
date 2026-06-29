@@ -21,6 +21,7 @@
 
 #include "rust-hir-full-decls.h"
 #include "rust-hir-map.h"
+#include "rust-hir-visibility.h"
 #include "rust-lint-marklive.h"
 #include "rust-name-resolver.h"
 #include "rust-diagnostics.h"
@@ -29,12 +30,13 @@ namespace Rust {
 namespace Analysis {
 
 // Scan item symbols and warn the symbol if it is not in the live_symbols set.
-// There are three kinds of item we should handle in this pass.
+// There are four kinds of item we should handle in this pass.
 // 1. Function item
 // 2. The function item in the impl block without trait
 // 3. StructStruct, e.g., `Struct Foo{one: 1, two: 2}`. Furthermore, the unused
 //    struct fields will be warned too.
 // 4. TupleStruct, e.g., `Struct Foo(i32, i32)`
+// 5. Enum, e.g., `enum Foo { A, B }`
 class ScanDeadcode : public MarkLiveBase
 {
   using Rust::Analysis::MarkLiveBase::visit;
@@ -48,13 +50,16 @@ public:
       it.get ()->accept_vis (sdc);
   };
 
+  bool name_starts_with_underscore (const Identifier &identifier)
+  {
+    return identifier.as_string ().rfind ('_', 0) == 0;
+  }
+
   void visit (HIR::Function &function) override
   {
     HirId hirId = function.get_mappings ().get_hirid ();
-    auto starts_with_underscore
-      = function.get_function_name ().as_string ().rfind ('_', 0) == 0;
-    if (should_warn (hirId) && !function.get_visibility ().is_public ()
-	&& !starts_with_underscore)
+    if (should_warn (hirId, function.get_function_name (),
+		     function.get_visibility ()))
       {
 	if (mappings.is_impl_item (hirId))
 	  {
@@ -77,46 +82,48 @@ public:
       }
   }
 
-  void visit (HIR::StructStruct &stct) override
+  void visit (HIR::StructStruct &strukt) override
   {
-    HirId hirId = stct.get_mappings ().get_hirid ();
-    if (should_warn (hirId) && !stct.get_visibility ().is_public ())
+    HirId hirId = strukt.get_mappings ().get_hirid ();
+    if (should_warn (hirId, strukt.get_identifier (), strukt.get_visibility ()))
       {
-	bool name_starts_underscore
-	  = stct.get_identifier ().as_string ().at (0) == '_';
-	if (!name_starts_underscore)
-	  rust_warning_at (stct.get_locus (), 0,
-			   "struct is never constructed: %qs",
-			   stct.get_identifier ().as_string ().c_str ());
+	rust_warning_at (strukt.get_locus (), 0,
+			 "struct is never constructed: %qs",
+			 strukt.get_identifier ().as_string ().c_str ());
       }
-    else
+    else if (!name_starts_with_underscore (strukt.get_identifier ()))
       {
-	// only warn the unused fields when in unwarned struct.
-	for (auto &field : stct.get_fields ())
+	// only warn the unused fields when in unwarned struct and if its name
+	// doesn't start with an underscore
+
+	for (auto &field : strukt.get_fields ())
 	  {
 	    HirId field_hir_id = field.get_mappings ().get_hirid ();
-	    if (should_warn (field_hir_id)
-		&& !field.get_visibility ().is_public ()
-		&& field.get_field_name ().as_string ().at (0) != '_')
-	      {
-		rust_warning_at (field.get_locus (), 0,
-				 "field is never read: %qs",
-				 field.get_field_name ().as_string ().c_str ());
-	      }
+	    if (should_warn (field_hir_id, field.get_field_name (),
+			     field.get_visibility ()))
+	      rust_warning_at (field.get_locus (), 0,
+			       "field is never read: %qs",
+			       field.get_field_name ().as_string ().c_str ());
 	  }
       }
   }
 
-  void visit (HIR::TupleStruct &stct) override
+  void visit (HIR::TupleStruct &strukt) override
   {
     // only warn tuple struct unconstructed, and ignoring unused field
-    HirId hirId = stct.get_mappings ().get_hirid ();
-    if (should_warn (hirId) && !stct.get_visibility ().is_public ())
-      {
-	rust_warning_at (stct.get_locus (), 0,
-			 "struct is never constructed: %qs",
-			 stct.get_identifier ().as_string ().c_str ());
-      }
+    HirId hirId = strukt.get_mappings ().get_hirid ();
+    if (should_warn (hirId, strukt.get_identifier (), strukt.get_visibility ()))
+      rust_warning_at (strukt.get_locus (), 0,
+		       "struct is never constructed: %qs",
+		       strukt.get_identifier ().as_string ().c_str ());
+  }
+
+  void visit (HIR::Enum &enm) override
+  {
+    HirId hirId = enm.get_mappings ().get_hirid ();
+    if (should_warn (hirId, enm.get_identifier (), enm.get_visibility ()))
+      rust_warning_at (enm.get_locus (), 0, "enum is never used: %qs",
+		       enm.get_identifier ().as_string ().c_str ());
   }
 
   void visit (HIR::ImplBlock &blc) override
@@ -145,11 +152,16 @@ private:
     : live_symbols (live_symbols), resolver (Resolver::Resolver::get ()),
       mappings (Analysis::Mappings::get ()){};
 
-  bool should_warn (HirId hirId)
+  bool should_warn (HirId hir_id, const Identifier &identifier,
+		    HIR::Visibility visibility)
   {
-    // TODO: There are more condition to check if should warn, i.e visibility,
-    // attributes.
-    return live_symbols.find (hirId) == live_symbols.end ();
+    if (name_starts_with_underscore (identifier))
+      return false;
+
+    if (visibility.is_public ())
+      return false;
+
+    return live_symbols.find (hir_id) == live_symbols.end ();
   }
 };
 

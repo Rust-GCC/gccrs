@@ -1,8 +1,8 @@
 #![feature(no_core)]
 #![no_core]
-enum E {
+pub enum E {
     A = {
-        enum Foo {
+        pub enum Foo {
             Bar(isize),
             Baz,
         }

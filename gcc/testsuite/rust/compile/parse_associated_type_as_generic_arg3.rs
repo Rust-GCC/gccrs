@@ -1,6 +1,5 @@
 #![feature(no_core)]
 #![no_core]
-
 #![feature(lang_items)]
 #[lang = "sized"]
 pub trait Sized {}
@@ -54,7 +53,7 @@ impl Foo for S {
     fn foo() {}
 }
 
-enum Maybe<T> {
+pub enum Maybe<T> {
     Something(T),
     Nothing,
 }

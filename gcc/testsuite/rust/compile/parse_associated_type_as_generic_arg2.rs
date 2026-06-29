@@ -19,7 +19,7 @@ impl Foo for S {
     fn foo() {}
 }
 
-enum Maybe<T> {
+pub enum Maybe<T> {
     Something(T),
     Nothing,
 }
