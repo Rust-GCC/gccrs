@@ -4611,6 +4611,23 @@
    (set_attr "prefix" "orig,vex")
    (set_attr "mode" "<MODE>")])
 
+(define_insn "*<sse>_imaskcmp<mode>3_comm"
+  [(set (match_operand:<sseintvecmode> 0 "register_operand" "=x,x")
+	(match_operator:<sseintvecmode> 3 "sse_comparison_operator"
+	  [(match_operand:VF_128_256 1 "register_operand" "%0,x")
+	   (match_operand:VF_128_256 2 "vector_operand" "xBm,xjm")]))]
+  "TARGET_SSE
+   && GET_RTX_CLASS (GET_CODE (operands[3])) == RTX_COMM_COMPARE"
+  "@
+   cmp%D3<ssemodesuffix>\t{%2, %0|%0, %2}
+   vcmp%D3<ssemodesuffix>\t{%2, %1, %0|%0, %1, %2}"
+  [(set_attr "isa" "noavx,avx")
+   (set_attr "addr" "*,gpr16")
+   (set_attr "type" "ssecmp")
+   (set_attr "length_immediate" "1")
+   (set_attr "prefix" "orig,vex")
+   (set_attr "mode" "<MODE>")])
+
 (define_insn "<sse>_maskcmp<mode>3"
   [(set (match_operand:VF_128_256 0 "register_operand" "=x,x")
 	(match_operator:VF_128_256 3 "sse_comparison_operator"

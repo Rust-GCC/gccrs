@@ -941,10 +941,34 @@ simplify_context::simplify_unary_operation_1 (rtx_code code, machine_mode mode,
       /* (not (eq X Y)) == (ne X Y), etc. if BImode or the result of the
 	 comparison is all ones.   */
       if (COMPARISON_P (op)
-	  && (mode == BImode || STORE_FLAG_VALUE == -1)
+	  && ((SCALAR_INT_MODE_P (mode) && STORE_FLAG_VALUE == -1)
+#ifdef VECTOR_STORE_FLAG_VALUE
+	      || (GET_MODE_CLASS (mode) == MODE_VECTOR_INT
+		  && VECTOR_STORE_FLAG_VALUE (mode) == constm1_rtx)
+#endif
+	      || mode == BImode)
 	  && ((reversed = reversed_comparison_code (op, NULL)) != UNKNOWN))
 	return simplify_gen_relational (reversed, mode, VOIDmode,
 					XEXP (op, 0), XEXP (op, 1));
+
+      /* (not (neg (eq X Y))) is (neg (ne X Y)), etc. if the result of
+	 the comparison is one.  */
+      if (GET_CODE (op) == NEG
+	  && COMPARISON_P (XEXP (op, 0))
+	  && ((SCALAR_INT_MODE_P (mode) && STORE_FLAG_VALUE == 1)
+#ifdef VECTOR_STORE_FLAG_VALUE
+	      || (GET_MODE_CLASS (mode) == MODE_VECTOR_INT
+		  && VECTOR_STORE_FLAG_VALUE (mode) == const1_rtx)
+#endif
+	     )
+	  && ((reversed = reversed_comparison_code (XEXP (op, 0), NULL))
+	      != UNKNOWN))
+	{
+	  temp = simplify_gen_relational (reversed, mode, VOIDmode,
+					  XEXP (XEXP (op, 0), 0),
+					  XEXP (XEXP (op, 0), 1));
+	  return simplify_gen_unary (NEG, mode, temp, mode);
+	}
 
       /* (not (plus X -1)) can become (neg X).  */
       if (GET_CODE (op) == PLUS
