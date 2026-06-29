@@ -3358,7 +3358,7 @@ namespace __format
 		__cd._M_zone_abbrev = *__zt._M_abbrev;
 	      else
 		{
-		  // TODO: use resize_for_override
+		  // TODO: use resize_and_overwrite
 		  __zone_store.resize(__zt._M_abbrev->size());
 		  auto& __ct = use_facet<ctype<_CharT>>(_M_f._M_locale(__fc));
 		  __ct.widen(__zt._M_abbrev->data(),
