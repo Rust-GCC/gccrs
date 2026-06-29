@@ -151,6 +151,25 @@ TypeCheckType::visit (HIR::TypePath &path)
       return;
     }
 
+  // The bare_trait_objects lint: a type-path that resolves directly to a trait
+  // definition is a trait object written without an explicit %<dyn%> (the
+  // explicit form is lowered to a TraitObjectType and handled separately).
+  if (flag_unused_check_2_0 && root->get_kind () == TyTy::TypeKind::DYNAMIC)
+    {
+      auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
+      NodeId ast_node_id
+	= path.get_final_segment ().get_mappings ().get_nodeid ();
+      nr_ctx.lookup (ast_node_id, Resolver2_0::Namespace::Types)
+	.map ([&] (NodeId resolved) {
+	  if (auto hid = mappings.lookup_node_to_hir (resolved))
+	    if (auto item = mappings.lookup_hir_item (hid.value ()))
+	      if (item.value ()->get_item_kind () == HIR::Item::ItemKind::Trait)
+		rust_warning_at (
+		  path.get_locus (), OPT_Wunused_variable,
+		  "trait objects without an explicit %<dyn%> are deprecated");
+	});
+    }
+
   TyTy::BaseType *path_type = root->clone ();
   path_type->set_ref (path.get_mappings ().get_hirid ());
   context->insert_implicit_type (path.get_mappings ().get_hirid (), path_type);
@@ -625,6 +644,14 @@ TypeCheckType::resolve_segments (
 void
 TypeCheckType::visit (HIR::TraitObjectType &type)
 {
+  // The bare_trait_objects lint: a trait object with more than one bound
+  // written without an explicit %<dyn%> (a single bare trait is a TypePath,
+  // handled in visit (HIR::TypePath)).
+  if (flag_unused_check_2_0 && !type.get_has_dyn ())
+    rust_warning_at (
+      type.get_locus (), OPT_Wunused_variable,
+      "trait objects without an explicit %<dyn%> are deprecated");
+
   std::vector<TyTy::TypeBoundPredicate> specified_bounds;
   for (auto &bound : type.get_type_param_bounds ())
     {
