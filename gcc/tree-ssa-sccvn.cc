@@ -1507,6 +1507,9 @@ vn_reference_maybe_forwprop_address (vec<vn_reference_op_s> *ops,
 		      = wide_int_to_tree (TREE_TYPE (mem_op->op0),
 					  wi::to_poly_wide (new_mem_op->op0));
 		}
+	      /* Do not forward addresses of TARGET_MEM_REF.  */
+	      else if (tem[0].opcode == TARGET_MEM_REF)
+		return changed;
 	      else
 		gcc_assert (tem.last ().opcode == STRING_CST);
 	      ops->pop ();

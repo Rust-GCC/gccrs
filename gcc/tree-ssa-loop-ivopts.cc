@@ -7639,11 +7639,10 @@ rewrite_use_address (struct ivopts_data *data,
   else
     {
       /* When we end up confused enough and have no suitable base but
-	 stuffed everything to index2 use a LEA for the address and
+	 stuffed everything to indexes use a LEA for the address and
 	 create a plain MEM_REF to avoid basing a memory reference
 	 on address zero which create_mem_ref_raw does as fallback.  */
       if (TREE_CODE (ref) == TARGET_MEM_REF
-	  && TMR_INDEX2 (ref) != NULL_TREE
 	  && integer_zerop (TREE_OPERAND (ref, 0)))
 	{
 	  ref = fold_build1 (ADDR_EXPR, TREE_TYPE (TREE_OPERAND (ref, 0)), ref);
