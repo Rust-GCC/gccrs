@@ -323,5 +323,21 @@ UnusedChecker::visit (HIR::MatchExpr &expr)
   walk (expr);
 }
 
+void
+UnusedChecker::visit (HIR::WhileLoopExpr &expr)
+{
+  auto &predicate = expr.get_predicate_expr ();
+  if (predicate.get_expression_type () == HIR::Expr::ExprType::Lit)
+    {
+      auto &literal
+	= static_cast<HIR::LiteralExpr &> (predicate).get_literal ();
+      if (literal.get_lit_type () == HIR::Literal::LitType::BOOL
+	  && literal.as_string () == "true")
+	rust_warning_at (expr.get_locus (), OPT_Wunused_variable,
+			 "denote infinite loops with %<loop { ... }%>");
+    }
+  walk (expr);
+}
+
 } // namespace Analysis
 } // namespace Rust
