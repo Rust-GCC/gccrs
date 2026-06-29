@@ -786,17 +786,19 @@ public:
 
     bool compare (const Link &other) const { return id < other.id; }
 
+    bool operator== (const Link &other) const { return id == other.id; }
+
     NodeId id;
     tl::optional<Identifier> path;
   };
 
-  /* Link comparison class, which we use in a Node's `children` map */
-  class LinkCmp
+  /* Link hash class, which we use in a Node's `children` map */
+  class LinkHash
   {
   public:
-    bool operator() (const Link &lhs, const Link &rhs) const
+    bool operator() (const Link &key) const
     {
-      return lhs.compare (rhs);
+      return std::hash<NodeId> () (key.id);
     }
   };
 
@@ -812,14 +814,25 @@ public:
     bool is_prelude () const;
     bool is_leaf () const;
 
+    /**
+     * Insert a new child in the list of children using the Link as the path
+     * that binds them. A `Link` does not necessarily have a path (e.g. a block
+     * scope) but always has a NodeId. Links match the scope/rib organization
+     * found in the source
+     */
     void insert_child (Link link, Node child);
 
-    Rib rib; // this is the "value" of the node - the data it keeps.
-    std::map<Link, Node, LinkCmp> children; // all the other nodes it links to
+    /* this is the "value" of the node - the data it keeps. */
+    Rib rib;
 
-    NodeId id; // The node id of the Node's scope
+    /* all the other nodes it links to, in a trie-like fashion */
+    std::unordered_map<Link, Node, LinkHash> children;
 
-    tl::optional<Node &> parent; // `None` only if the node is a root
+    /* The node id of the Node's scope */
+    NodeId id;
+
+    /* `None` only if the node is a root */
+    tl::optional<Node &> parent;
   };
 
   tl::optional<Rib::Definition> get (Node &start, const Identifier &name);
