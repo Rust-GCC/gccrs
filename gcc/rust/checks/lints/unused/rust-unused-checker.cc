@@ -323,5 +323,24 @@ UnusedChecker::visit (HIR::MatchExpr &expr)
   walk (expr);
 }
 
+void
+UnusedChecker::visit (HIR::TypeAlias &type_alias)
+{
+  bool has_bounds = type_alias.has_where_clause ();
+  for (auto &param : type_alias.get_generic_params ())
+    if (param->get_kind () == HIR::GenericParam::GenericKind::TYPE)
+      {
+	auto &type_param = static_cast<HIR::TypeParam &> (*param);
+	if (type_param.has_type_param_bounds ())
+	  has_bounds = true;
+      }
+
+  if (has_bounds)
+    rust_warning_at (type_alias.get_locus (), OPT_Wunused_variable,
+		     "bounds on generic parameters in type aliases are not "
+		     "enforced");
+  walk (type_alias);
+}
+
 } // namespace Analysis
 } // namespace Rust
