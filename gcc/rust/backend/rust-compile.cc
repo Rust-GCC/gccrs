@@ -314,6 +314,15 @@ HIRCompileBase::compute_address_for_trait_item (
 
       rust_assert (ok);
 
+      TyTy::BaseType *mut_receiver = const_cast<TyTy::BaseType *> (receiver);
+      bool receiver_matches = Resolver::types_compatable (
+	TyTy::TyWithLocation (self, self->get_locus ()),
+	TyTy::TyWithLocation (mut_receiver, mut_receiver->get_locus ()),
+	UNDEF_LOCATION, false);
+
+      if (!receiver_matches)
+	continue;
+
       // Look through the relevant bounds on our type, and find which one our
       // impl block satisfies
       TyTy::TypeBoundPredicate *self_bound = nullptr;
