@@ -18498,6 +18498,7 @@ resolve_symbol (gfc_symbol *sym)
   gfc_component *c;
   symbol_attribute class_attr;
   gfc_array_spec *as;
+  bool declared_has_coarray_comp = false;
 
   if (sym->resolve_symbol_called >= 1)
     return;
@@ -18691,6 +18692,8 @@ skip_interfaces:
       as = CLASS_DATA (sym)->as;
       class_attr = CLASS_DATA (sym)->attr;
       class_attr.pointer = class_attr.class_pointer;
+      declared_has_coarray_comp = CLASS_DATA (sym)->ts.u.derived
+				  && CLASS_DATA (sym)->ts.u.derived->attr.coarray_comp;
     }
   else
     {
@@ -19158,9 +19161,8 @@ skip_interfaces:
   /* F2008, C541.  */
   if ((((sym->ts.type == BT_DERIVED && sym->ts.u.derived->attr.coarray_comp)
 	|| (sym->ts.type == BT_CLASS && sym->attr.class_ok
-	    && sym->ts.u.derived && CLASS_DATA (sym)
-	    && CLASS_DATA (sym)->attr.coarray_comp))
-       || (class_attr.codimension && class_attr.allocatable))
+	    && declared_has_coarray_comp))
+	|| (class_attr.codimension && class_attr.allocatable))
       && sym->attr.dummy && sym->attr.intent == INTENT_OUT)
     {
       gfc_error ("Variable %qs at %L is INTENT(OUT) and can thus not be an "
