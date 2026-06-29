@@ -16402,13 +16402,8 @@ gfc_resolve_finalizers (gfc_symbol* derived, bool *finalizable)
 	      tmp = gfc_get_finalizer ();
 	      *tmp = *list;
 	      tmp->next = NULL;
-	      if (*prev_link)
-		{
-		  (*prev_link)->next = tmp;
-		  prev_link = &tmp;
-		}
-	      else
-		*prev_link = tmp;
+	      *prev_link = tmp;
+	      prev_link = &(tmp->next);
 	      list->proc_tree = gfc_find_sym_in_symtree (list->proc_sym);
 	    }
 	}

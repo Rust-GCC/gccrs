@@ -3,6 +3,12 @@
 ! PR104650
 ! Contributed by Gerhard Steinmetz  <gscfq@t-online.de>
 !
+! Sometime later, after the original fix, it was noted that this test
+! leaked memory. This was originally because subroutine finalize_t1m
+! was unavailable. Adding it, resulted in the first in the FINAL list
+! not being called. This has been retained and a dimension-3 variable
+! 'e' added.
+!
 module m1
    type t1
       integer :: i
@@ -30,7 +36,7 @@ module m2
     integer, kind :: k
     real(k), pointer :: vector(:) => NULL ()
   contains
-    final :: finalize_t1s, finalize_t1v, finalize_t2e
+    final :: finalize_t1s, finalize_t1v, finalize_t1m, finalize_t2e
   end type
 
   integer :: flag = 0
@@ -48,6 +54,16 @@ contains
     do i = lbound(x,1), ubound(x,1)
       if (associated(x(i)%vector)) deallocate(x(i)%vector)
       flag = flag + 1
+    end do
+  end subroutine
+
+  impure subroutine finalize_t1m(x)
+    type(t(kind(0.0))) x(:,:)
+    do i = lbound(x,1), ubound(x,1)
+      do j = lbound(x,2), ubound(x,2)
+        if (associated(x(i,j)%vector)) deallocate(x(i,j)%vector)
+        flag = flag + 1
+      end do
     end do
   end subroutine
 
@@ -80,7 +96,7 @@ end module
 
 ! Test the standard example
   call example (dims)
-  if (flag /= 11 + dims**2) stop 2
+  if (flag /= 11 + 2 * dims**2) stop 2
 
 contains
 
@@ -94,19 +110,20 @@ contains
 ! Returning from 'example' will effectively do
 !    call finalize_t1s(a)
 !    call finalize_t1v(b)
+!    call finalize_t1m(c)
 !    call finalize_t2e(d)
-! No final subroutine will be called for variable C because the user
+! No final subroutine will be called for variable e because the user
 ! omitted to define a suitable specific procedure for it.
   subroutine example(n)
-  type(t(kind(0.0))) a, b(10), c(n,2)
+  type(t(kind(0.0))) a, b(10), c(n,2), e(2,2,2)
   type(t(kind(0.0d0))) d(n,n)
-  real(kind(0.0)),target :: tgt(1)
 
   ! Explicit allocation to provide a valid memory refence for deallocation.
   call alloc_ts(a)
   call alloc_ts(b)
   call alloc_ts(c)
   call alloc_td(d)
+  call alloc_ts(e)
   end subroutine
 
 end
