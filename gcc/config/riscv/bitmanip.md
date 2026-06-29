@@ -1177,8 +1177,14 @@
 ;; If we have the ZBA extension, then we can clear the upper half of a 64
 ;; bit object with a zext.w.  So if we have AND where the constant would
 ;; require synthesis of two or more instructions, but 32->64 sign extension
-;; of the constant is a simm12, then we can use zext.w+andi.  If the adjusted
-;; constant is a single bit constant, then we can use zext.w+bclri
+;; of the constant is a simm12, then we can use zext.w+andi.
+;;
+;; If the adjusted constant is a single bit constant, then we can use
+;; zext.w+bclri
+;;
+;; If the original constant uppermost bit was bit 31 and is a consecutive
+;; run of bits, leave the original form alone since it compresses better
+;; a srliw+slli
 ;;
 ;; With the mvconst_internal pattern claiming a single insn to synthesize
 ;; constants, this must be a define_insn_and_split.
@@ -1197,7 +1203,9 @@
       implement with andi or bclri.  */
    && ((SMALL_OPERAND (sext_hwi (INTVAL (operands[2]), 32))
         || (TARGET_ZBS && popcount_hwi (INTVAL (operands[2])) == 31))
-       && INTVAL (operands[2]) != 0x7fffffff)"
+       && INTVAL (operands[2]) != 0x7fffffff)
+   && !(clz_hwi (UINTVAL (operands[2])) == 32
+        && consecutive_bits_operand (operands[2], word_mode))"
   "#"
   "&& 1"
   [(set (match_dup 0) (zero_extend:DI (match_dup 3)))

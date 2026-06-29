@@ -15951,6 +15951,32 @@ synthesize_and (rtx operands[3])
       return true;
     }
 
+  /* For RV64 we can exploit srlw to mask off bits on both the
+     high and low ends, then shift it back into position.  So
+     a two instruction sequence.  */
+  t = UINTVAL (operands[2]);
+  if (TARGET_64BIT
+      && consecutive_bits_operand (operands[2], word_mode)
+      && budget >= 2
+      && clz_hwi (t) == 32)
+    {
+      /* The srliw will wipe the upper 32 bits and low bits at the
+	 same time.  */
+      rtx x = gen_rtx_LSHIFTRT (SImode,
+				gen_lowpart (SImode, operands[1]),
+				GEN_INT (ctz_hwi (t)));
+      x = gen_rtx_SIGN_EXTEND (DImode, x);
+      output = gen_reg_rtx (word_mode);
+      emit_insn (gen_rtx_SET (output, x));
+      input = output;
+
+      /* Now shift it back to its proper position.  */
+      x = gen_rtx_ASHIFT (DImode, input, GEN_INT (ctz_hwi (t)));
+      emit_insn (gen_rtx_SET (operands[0], x));
+      return true;
+    }
+
+
   /* If we shift right to eliminate the trailing zeros and
      the result is a SMALL_OPERAND, then it's a shift right,
      andi and shift left.  */
