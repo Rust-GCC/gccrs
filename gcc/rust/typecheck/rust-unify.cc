@@ -591,6 +591,11 @@ UnifyRules::expect_adt (TyTy::ADTType *ltype, TyTy::BaseType *rtype)
 	    return unify_error_type_node ();
 	  }
 
+	if (ltype->get_id () != type.get_id ())
+	  {
+	    return unify_error_type_node ();
+	  }
+
 	if (ltype->get_identifier ().compare (type.get_identifier ()) != 0)
 	  {
 	    return unify_error_type_node ();
