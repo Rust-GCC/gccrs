@@ -332,6 +332,9 @@ mmt
 Target Var(TARGET_MT)
 Allow the use of MT instructions.
 
+mmxu
+Driver Target Undocumented
+
 mno-float
 Target RejectNegative Var(TARGET_NO_FLOAT) Condition(TARGET_SUPPORTS_NO_FLOAT)
 Prevent the use of all floating-point operations.
