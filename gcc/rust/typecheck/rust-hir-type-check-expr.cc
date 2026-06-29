@@ -692,6 +692,7 @@ TypeCheckExpr::visit (HIR::UnsafeBlockExpr &expr)
 void
 TypeCheckExpr::visit (HIR::BlockExpr &expr)
 {
+  bool has_label = expr.has_label ();
   if (expr.has_label ())
     context->push_new_loop_context (expr.get_mappings ().get_hirid (),
 				    expr.get_locus ());
@@ -718,6 +719,8 @@ TypeCheckExpr::visit (HIR::BlockExpr &expr)
 	{
 	  rust_error_at (s->get_locus (), "failure to resolve type");
 	  context->pop_expected_type ();
+	  if (has_label)
+	    context->pop_loop_context ();
 	  return;
 	}
 
@@ -732,27 +735,48 @@ TypeCheckExpr::visit (HIR::BlockExpr &expr)
 
   context->pop_expected_type ();
 
+  TyTy::BaseType *tail_expr_type = nullptr;
   if (expr.has_expr ())
     {
       context->push_expected_type (outer_expected);
-      infered = TypeCheckExpr::Resolve (expr.get_final_expr ())->clone ();
+      tail_expr_type = TypeCheckExpr::Resolve (expr.get_final_expr ());
       context->pop_expected_type ();
     }
+
+  TyTy::BaseType *label_context_type = nullptr;
+  bool label_context_type_infered = false;
+  if (has_label)
+    {
+      label_context_type = context->pop_loop_context ();
+
+      label_context_type_infered
+	= (label_context_type->get_kind () != TyTy::TypeKind::INFER)
+	  || ((label_context_type->get_kind () == TyTy::TypeKind::INFER)
+	      && (((TyTy::InferType *) label_context_type)->get_infer_kind ()
+		  != TyTy::InferType::GENERAL));
+    }
+
+  if (tail_expr_type != nullptr)
+    {
+      if (label_context_type_infered)
+	{
+	  if (tail_expr_type->get_kind () == TyTy::TypeKind::NEVER)
+	    infered = label_context_type;
+	  else
+	    infered = unify_site (
+	      expr.get_mappings ().get_hirid (),
+	      TyTy::TyWithLocation (label_context_type),
+	      TyTy::TyWithLocation (tail_expr_type,
+				    expr.get_final_expr ().get_locus ()),
+	      expr.get_locus ());
+	}
+      else
+	infered = tail_expr_type;
+    }
+  else if (label_context_type_infered)
+    infered = label_context_type;
   else if (expr.is_tail_reachable ())
     infered = TyTy::TupleType::get_unit_type ();
-  else if (expr.has_label ())
-    {
-      TyTy::BaseType *loop_context_type = context->pop_loop_context ();
-
-      bool loop_context_type_infered
-	= (loop_context_type->get_kind () != TyTy::TypeKind::INFER)
-	  || ((loop_context_type->get_kind () == TyTy::TypeKind::INFER)
-	      && (((TyTy::InferType *) loop_context_type)->get_infer_kind ()
-		  != TyTy::InferType::GENERAL));
-
-      infered = loop_context_type_infered ? loop_context_type
-					  : TyTy::TupleType::get_unit_type ();
-    }
   else
     {
       // FIXME this seems wrong
