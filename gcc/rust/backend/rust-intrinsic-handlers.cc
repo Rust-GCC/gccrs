@@ -1610,6 +1610,108 @@ sizeof_handler (Context *ctx, TyTy::FnType *fntype, location_t)
 }
 
 /**
+ * pub fn size_of_val<T: ?Sized>(_: *const T) -> usize;
+ */
+tree
+size_of_val_handler (Context *ctx, TyTy::FnType *fntype, location_t)
+{
+  rust_assert (fntype->get_params ().size () == 1);
+
+  tree lookup = NULL_TREE;
+  if (check_for_cached_intrinsic (ctx, fntype, &lookup))
+    return lookup;
+
+  auto fndecl = compile_intrinsic_function (ctx, fntype);
+
+  auto locus = fntype->get_locus ();
+
+  std::vector<Bvariable *> param_vars;
+  compile_fn_params (ctx, fntype, fndecl, &param_vars);
+
+  auto &__param = param_vars.at (0);
+  rust_assert (param_vars.size () == 1);
+  if (!Backend::function_set_parameters (fndecl, param_vars))
+    return error_mark_node;
+
+  rust_assert (fntype->get_num_substitutions () == 1);
+  auto &param_mapping = fntype->get_substs ().at (0);
+  const auto param_tyty = param_mapping.get_param_ty ();
+  auto resolved_tyty = param_tyty->resolve ();
+  tree template_parameter_type
+    = TyTyResolveCompile::compile (ctx, resolved_tyty);
+
+  enter_intrinsic_block (ctx, fndecl);
+
+  // BUILTIN size_of FN BODY BEGIN
+
+  tree size_expr = NULL_TREE;
+  if (RS_DST_FLAG_P (template_parameter_type))
+    {
+      tree param = Backend::var_expression (__param, UNDEF_LOCATION);
+      tree param_ty = TREE_TYPE (param);
+      tree data_field = TYPE_FIELDS (param_ty);
+      tree meta_field = DECL_CHAIN (data_field);
+      tree meta_field_expr
+	= build3_loc (locus, COMPONENT_REF, TREE_TYPE (meta_field), param,
+		      meta_field, NULL_TREE);
+
+      if (resolved_tyty->get_kind () == TyTy::TypeKind::SLICE
+	  || resolved_tyty->get_kind () == TyTy::TypeKind::STR)
+	{
+	  tree elem_type = NULL_TREE;
+	  if (resolved_tyty->get_kind () == TyTy::TypeKind::SLICE)
+	    {
+	      auto slice_tyty = static_cast<TyTy::SliceType *> (resolved_tyty);
+	      elem_type
+		= TyTyResolveCompile::compile (ctx,
+					       slice_tyty->get_element_type ());
+	    }
+	  else
+	    elem_type = char_type_node;
+
+	  tree elem_size = TYPE_SIZE_UNIT (elem_type);
+	  size_expr
+	    = build2_loc (locus, MULT_EXPR, size_type_node,
+			  fold_convert_loc (locus, size_type_node,
+					    meta_field_expr),
+			  fold_convert_loc (locus, size_type_node, elem_size));
+	}
+      else if (resolved_tyty->get_kind () == TyTy::TypeKind::DYNAMIC)
+	{
+	  tree vtable_ptr_ty = TREE_TYPE (meta_field_expr);
+	  tree vtable_ty = TREE_TYPE (vtable_ptr_ty);
+
+	  tree vtable_ref
+	    = build1_loc (locus, INDIRECT_REF, vtable_ty, meta_field_expr);
+
+	  tree vtable_field_0 = TYPE_FIELDS (vtable_ty);
+	  tree vtable_field_size = DECL_CHAIN (vtable_field_0);
+	  rust_assert (vtable_field_size != NULL_TREE);
+
+	  size_expr
+	    = build3_loc (locus, COMPONENT_REF, TREE_TYPE (vtable_field_size),
+			  vtable_ref, vtable_field_size, NULL_TREE);
+	}
+      else
+	{
+	  rust_unreachable ();
+	}
+    }
+  else
+    size_expr = TYPE_SIZE_UNIT (template_parameter_type);
+
+  auto return_statement
+    = Backend::return_statement (fndecl, size_expr, UNDEF_LOCATION);
+  ctx->add_statement (return_statement);
+
+  // BUILTIN size_of FN BODY END
+
+  finalize_intrinsic_block (ctx, fndecl);
+
+  return fndecl;
+}
+
+/**
  * pub fn min_align_of<T>() -> usize;
  */
 tree

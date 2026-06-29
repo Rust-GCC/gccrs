@@ -128,6 +128,8 @@ const std::unordered_map<std::string, IntrinsicRules>
      {1, {IRT::ConstPtrFirstGeneric, IRT::Isize}, IRT::ConstPtrFirstGeneric}},
     // pub fn size_of<T>() -> usize;
     {IValue::SIZE_OF, {1, {}, IRT::Usize}},
+    // pub fn size_of_val<T: ?Sized>(_: *const T) -> usize;
+    {IValue::SIZE_OF_VAL, {1, {IRT::ConstPtrFirstGeneric}, IRT::Usize}},
     // pub fn transmute<T, U>(e: T) -> U;
     {IValue::TRANSMUTE, {2, {IRT::FirstGeneric}, IRT::SecondGeneric}},
     // pub fn add_with_overflow<T: Copy>(x: T, y: T) -> (T, bool);

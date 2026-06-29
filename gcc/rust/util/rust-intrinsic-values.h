@@ -84,6 +84,7 @@ public:
   static constexpr auto &ABORT = "abort";
   static constexpr auto &OFFSET = "offset";
   static constexpr auto &SIZE_OF = "size_of";
+  static constexpr auto &SIZE_OF_VAL = "size_of_val";
   static constexpr auto &TRANSMUTE = "transmute";
 
   static constexpr auto &ADD_WITH_OVERFLOW = "add_with_overflow";
