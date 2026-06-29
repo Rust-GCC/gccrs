@@ -421,9 +421,11 @@ TypeCheckItem::visit (HIR::Enum &enum_decl)
     {
       TyTy::VariantDef *field_type
 	= TypeCheckEnumItem::Resolve (*variant, discriminant_value);
-
-      discriminant_value++;
-      variants.push_back (field_type);
+      if (field_type)
+	{
+	  discriminant_value++;
+	  variants.push_back (field_type);
+	}
     }
 
   // Check for zero-variant enum compatibility
