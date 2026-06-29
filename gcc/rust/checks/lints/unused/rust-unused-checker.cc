@@ -21,6 +21,7 @@
 #include "rust-hir-generic-param.h"
 #include "rust-hir-item.h"
 #include "rust-hir-pattern.h"
+#include "rust-hir-path.h"
 
 #include "options.h"
 #include "rust-keyword-values.h"
@@ -165,7 +166,48 @@ UnusedChecker::visit (HIR::Function &fct)
     rust_warning_at (fct.get_locus (), OPT_Wunused_variable,
 		     "function %qs should have a snake case name",
 		     fct.get_function_name ().as_string ().c_str ());
+
+  bool is_associated = in_associated_scope;
+  bool saved_associated = in_associated_scope;
+  bool saved_self_ctor = self_ctor_from_outer;
+  in_associated_scope = false;
+  self_ctor_from_outer = impl_trait_nesting > 0 && !is_associated;
   walk (fct);
+  in_associated_scope = saved_associated;
+  self_ctor_from_outer = saved_self_ctor;
+}
+
+void
+UnusedChecker::visit (HIR::ImplBlock &impl)
+{
+  impl_trait_nesting++;
+  bool saved_associated = in_associated_scope;
+  in_associated_scope = true;
+  walk (impl);
+  in_associated_scope = saved_associated;
+  impl_trait_nesting--;
+}
+
+void
+UnusedChecker::visit (HIR::Trait &trait)
+{
+  impl_trait_nesting++;
+  bool saved_associated = in_associated_scope;
+  in_associated_scope = true;
+  walk (trait);
+  in_associated_scope = saved_associated;
+  impl_trait_nesting--;
+}
+
+void
+UnusedChecker::visit (HIR::PathInExpression &path)
+{
+  if (self_ctor_from_outer && path.get_segments ().size () == 1
+      && path.get_segments ()[0].get_segment ().to_string ()
+	   == Values::Keywords::SELF_ALIAS)
+    rust_warning_at (path.get_locus (), OPT_Wunused_variable,
+		     "cannot reference %<Self%> constructor from outer item");
+  walk (path);
 }
 
 void
