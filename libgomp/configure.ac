@@ -144,7 +144,7 @@ AM_CONDITIONAL(BUILD_INFO, test $gcc_cv_prog_makeinfo_modern = "yes")
 
 
 # Configure libtool
-AM_PROG_LIBTOOL
+LT_INIT
 ACX_LT_HOST_FLAGS
 AC_SUBST(enable_shared)
 AC_SUBST(enable_static)
@@ -178,7 +178,7 @@ libtool_VERSION=1:0:0
 AC_SUBST(libtool_VERSION)
 
 # Check header files.
-AC_STDC_HEADERS
+AC_HEADER_STDC
 AC_HEADER_TIME
 ACX_HEADER_STRING
 AC_CHECK_HEADERS(pthread.h unistd.h semaphore.h sys/loadavg.h sys/sysctl.h sys/time.h)
@@ -423,20 +423,20 @@ for i in $config_path; do
   fi
 done
 
-_AC_COMPUTE_INT([sizeof (__INTPTR_TYPE__)], [INTPTR_T_KIND])
-_AC_COMPUTE_INT([sizeof (__int128)], [OMP_INT128_SIZE],,[OMP_INT128_SIZE=0])
-_AC_COMPUTE_INT([2*sizeof (__INTPTR_TYPE__)], [OMP_DEPEND_KIND],,
-		[OMP_DEPEND_KIND=0])
-_AC_COMPUTE_INT([sizeof (omp_lock_t)], [OMP_LOCK_SIZE],,
+AC_COMPUTE_INT([INTPTR_T_KIND], [sizeof (__INTPTR_TYPE__)])
+AC_COMPUTE_INT([OMP_INT128_SIZE], [sizeof (__int128)],,[OMP_INT128_SIZE=0])
+AC_COMPUTE_INT([OMP_DEPEND_KIND], [2*sizeof (__INTPTR_TYPE__)],,
+	       [OMP_DEPEND_KIND=0])
+AC_COMPUTE_INT([OMP_LOCK_SIZE], [sizeof (omp_lock_t)],,
   [AC_MSG_ERROR([unsupported system, cannot find sizeof (omp_lock_t)])])
-_AC_COMPUTE_INT([__alignof (omp_lock_t)], [OMP_LOCK_ALIGN])
-_AC_COMPUTE_INT([sizeof (omp_nest_lock_t)], [OMP_NEST_LOCK_SIZE])
-_AC_COMPUTE_INT([__alignof (omp_nest_lock_t)], [OMP_NEST_LOCK_ALIGN])
-_AC_COMPUTE_INT([sizeof (omp_lock_25_t)], [OMP_LOCK_25_SIZE],,
+AC_COMPUTE_INT([OMP_LOCK_ALIGN], [__alignof (omp_lock_t)])
+AC_COMPUTE_INT([OMP_NEST_LOCK_SIZE], [sizeof (omp_nest_lock_t)])
+AC_COMPUTE_INT([OMP_NEST_LOCK_ALIGN], [__alignof (omp_nest_lock_t)])
+AC_COMPUTE_INT([OMP_LOCK_25_SIZE], [sizeof (omp_lock_25_t)],,
   [AC_MSG_ERROR([unsupported system, cannot find sizeof (omp_lock_25_t)])])
-_AC_COMPUTE_INT([__alignof (omp_lock_25_t)], [OMP_LOCK_25_ALIGN])
-_AC_COMPUTE_INT([sizeof (omp_nest_lock_25_t)], [OMP_NEST_LOCK_25_SIZE])
-_AC_COMPUTE_INT([__alignof (omp_nest_lock_25_t)], [OMP_NEST_LOCK_25_ALIGN])
+AC_COMPUTE_INT([OMP_LOCK_25_ALIGN], [__alignof (omp_lock_25_t)])
+AC_COMPUTE_INT([OMP_NEST_LOCK_25_SIZE], [sizeof (omp_nest_lock_25_t)])
+AC_COMPUTE_INT([OMP_NEST_LOCK_25_ALIGN], [__alignof (omp_nest_lock_25_t)])
 
 # If the lock fits in an integer, then arrange for Fortran to use that
 # integer.  If it doesn't, then arrange for Fortran to use a pointer.

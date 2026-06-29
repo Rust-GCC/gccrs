@@ -23,7 +23,8 @@ dnl   Ulrich Drepper <drepper@cygnus.com>, 1995.
 AC_DEFUN([AM_LC_MESSAGES],
 [
   AC_CACHE_CHECK([for LC_MESSAGES], am_cv_val_LC_MESSAGES,
-    [AC_TRY_LINK([#include <locale.h>], [return LC_MESSAGES],
+    [AC_LINK_IFELSE(
+      [AC_LANG_PROGRAM([[#include <locale.h>]], [[return LC_MESSAGES]])],
        am_cv_val_LC_MESSAGES=yes, am_cv_val_LC_MESSAGES=no)])
   if test $am_cv_val_LC_MESSAGES = yes; then
     AC_DEFINE(HAVE_LC_MESSAGES, 1,

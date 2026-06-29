@@ -177,7 +177,7 @@ AC_SUBST(slibdir)
 # Command-line options.
 # Very limited version of AC_MAINTAINER_MODE.
 AC_ARG_ENABLE([maintainer-mode],
-  [AC_HELP_STRING([--enable-maintainer-mode],
+  [AS_HELP_STRING([--enable-maintainer-mode],
                  [enable make rules and dependencies not useful (and
                   sometimes confusing) to the casual installer])],
   [case ${enable_maintainer_mode} in
@@ -255,7 +255,6 @@ AC_CHECK_TOOL(RANLIB, ranlib, ranlib-not-found-in-path-error)
 AC_PROG_MAKE_SET
 AC_PROG_INSTALL
 
-AM_PROG_LIBTOOL
 LT_INIT
 AC_LIBTOOL_DLOPEN
 
@@ -290,7 +289,7 @@ if (test "$ac_cv_struct_tm_gmtoff" = "yes"); then
   AC_DEFINE(HAVE_TM_TM_GMTOFF, 1, [Define if struct tm has a tm_gmtoff field.])
 fi
 
-AC_LANG_C
+AC_LANG([C])
 # Check the compiler.
 # The same as in boehm-gc and libstdc++. Have to borrow it from there.
 # We must force CC to /not/ be precious variables; otherwise
@@ -505,7 +504,7 @@ GCC_BASE_VER
 AC_CONFIG_SRCDIR([Makefile.am])
 AC_CONFIG_FILES([Makefile])
 
-AC_CONFIG_FILES(AC_FOREACH([DIR], [libm2min libm2pim libm2iso libm2cor libm2log], [DIR/Makefile ]),
+AC_CONFIG_FILES(m4_foreach_w([DIR], [libm2min libm2pim libm2iso libm2cor libm2log], [DIR/Makefile ]),
  [ cat > vpsed$$ << \_EOF
 s!`test -f '$<' || echo '$(srcdir)/'`!!
 _EOF

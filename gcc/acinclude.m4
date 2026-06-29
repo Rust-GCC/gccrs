@@ -41,7 +41,7 @@ dnl Arrange to define HAVE_DECL_<FUNCTION> to 0 or 1 as appropriate.
 dnl gcc_AC_CHECK_DECLS(SYMBOLS,
 dnl 	[ACTION-IF-NEEDED [, ACTION-IF-NOT-NEEDED [, INCLUDES]]])
 AC_DEFUN([gcc_AC_CHECK_DECLS],
-[AC_FOREACH([gcc_AC_Func], [$1],
+[m4_foreach_w([gcc_AC_Func], [$1],
   [AH_TEMPLATE(AS_TR_CPP(HAVE_DECL_[]gcc_AC_Func),
   [Define to 1 if we found a declaration for ']gcc_AC_Func[', otherwise
    define to 0.])])dnl
@@ -444,10 +444,11 @@ AC_DEFUN([gcc_CHECK_ATTRIBUTE_ALIAS], [
   AC_CACHE_CHECK([whether the host/build supports symbol aliases],
                  gcc_cv_have_attribute_alias, [
   if test "x${build}" = "x${host}"; then
-    AC_TRY_LINK([
+    AC_LINK_IFELSE([AC_LANG_PROGRAM([[
 extern "C" void foo(void) { }
-extern void bar(void) __attribute__((alias("foo")));],
-    [bar();], gcc_cv_have_attribute_alias=yes, gcc_cv_have_attribute_alias=no)
+extern void bar(void) __attribute__((alias("foo")));]],
+    [[bar();]])],
+    [gcc_cv_have_attribute_alias=yes], [gcc_cv_have_attribute_alias=no])
   else
     gcc_cv_have_attribute_alias=no
   fi])

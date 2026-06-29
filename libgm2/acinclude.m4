@@ -76,15 +76,15 @@ AC_DEFUN([GLIBCXX_CONFIGURE], [
   # We use these options to decide which functions to include.  They are
   # set from the top level.
   AC_ARG_WITH([target-subdir],
-    AC_HELP_STRING([--with-target-subdir=SUBDIR],
+    AS_HELP_STRING([--with-target-subdir=SUBDIR],
 		   [configuring in a subdirectory]))
 
   AC_ARG_WITH([cross-host],
-    AC_HELP_STRING([--with-cross-host=HOST],
+    AS_HELP_STRING([--with-cross-host=HOST],
 		   [configuring with a cross compiler]))
 
   AC_ARG_WITH([newlib],
-    AC_HELP_STRING([--with-newlib],
+    AS_HELP_STRING([--with-newlib],
 		   [assume newlib as a system C library]))
 
   # Will set LN_S to either 'ln -s', 'ln', or 'cp -p' (if linking isn't
@@ -136,7 +136,7 @@ dnl documentation.
 dnl
 m4_define([GLIBCXX_ENABLE],[dnl
 m4_define([_g_switch],[--enable-$1])dnl
-m4_define([_g_help],[AC_HELP_STRING([_g_switch$3],[$4 @<:@default=$2@:>@])])dnl
+m4_define([_g_help],[AS_HELP_STRING([_g_switch$3],[$4 @<:@default=$2@:>@])])dnl
  AC_ARG_ENABLE([$1],m4_dquote(_g_help),
   m4_bmatch([$5],
    [^permit ],
@@ -193,8 +193,7 @@ AC_DEFUN([GLIBCXX_ENABLE_LIBSTDCXX_TIME], [
     [use KIND for check type],
     [permit yes|no|rt])
 
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   ac_save_CXXFLAGS="$CXXFLAGS"
   CXXFLAGS="$CXXFLAGS -fno-exceptions"
   ac_save_LIBS="$LIBS"
@@ -295,41 +294,41 @@ AC_DEFUN([GLIBCXX_ENABLE_LIBSTDCXX_TIME], [
 
     if test x"$ac_has_unistd_h" = x"yes"; then
       AC_MSG_CHECKING([for monotonic clock])
-      AC_TRY_LINK(
-	[#include <unistd.h>
+      AC_LINK_IFELSE([AC_LANG_PROGRAM(
+	[[#include <unistd.h>
 	 #include <time.h>
-	],
-	[#if _POSIX_TIMERS > 0 && defined(_POSIX_MONOTONIC_CLOCK)
+	]],
+	[[#if _POSIX_TIMERS > 0 && defined(_POSIX_MONOTONIC_CLOCK)
 	  timespec tp;
 	 #endif
 	  clock_gettime(CLOCK_MONOTONIC, &tp);
-	], [ac_has_clock_monotonic=yes], [ac_has_clock_monotonic=no])
+	]])], [ac_has_clock_monotonic=yes], [ac_has_clock_monotonic=no])
 
       AC_MSG_RESULT($ac_has_clock_monotonic)
 
       AC_MSG_CHECKING([for realtime clock])
-      AC_TRY_LINK(
-	[#include <unistd.h>
+      AC_LINK_IFELSE([AC_LANG_PROGRAM(
+	[[#include <unistd.h>
 	 #include <time.h>
-	],
-	[#if _POSIX_TIMERS > 0
+	]],
+	[[#if _POSIX_TIMERS > 0
 	  timespec tp;
 	 #endif
 	  clock_gettime(CLOCK_REALTIME, &tp);
-	], [ac_has_clock_realtime=yes], [ac_has_clock_realtime=no])
+	]])], [ac_has_clock_realtime=yes], [ac_has_clock_realtime=no])
 
       AC_MSG_RESULT($ac_has_clock_realtime)
 
       AC_MSG_CHECKING([for nanosleep])
-      AC_TRY_LINK(
-	[#include <unistd.h>
+      AC_LINK_IFELSE([AC_LANG_PROGRAM(
+	[[#include <unistd.h>
 	 #include <time.h>
-	],
-	[#if _POSIX_TIMERS > 0
+	]],
+	[[#if _POSIX_TIMERS > 0
 	  timespec tp;
 	 #endif
 	  nanosleep(&tp, 0);
-	], [ac_has_nanosleep=yes], [ac_has_nanosleep=no])
+	]])], [ac_has_nanosleep=yes], [ac_has_nanosleep=no])
 
       AC_MSG_RESULT($ac_has_nanosleep)
     fi
@@ -339,17 +338,17 @@ AC_DEFUN([GLIBCXX_ENABLE_LIBSTDCXX_TIME], [
     case ${target_os} in
       linux* | uclinux*)
 	AC_MSG_CHECKING([for clock_gettime syscall])
-	AC_TRY_COMPILE(
-	  [#include <unistd.h>
+	AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
+	  [[#include <unistd.h>
 	   #include <time.h>
 	   #include <sys/syscall.h>
-	  ],
-	  [#if _POSIX_TIMERS > 0 && defined(_POSIX_MONOTONIC_CLOCK)
+	  ]],
+	  [[#if _POSIX_TIMERS > 0 && defined(_POSIX_MONOTONIC_CLOCK)
 	    timespec tp;
 	   #endif
 	   syscall(SYS_clock_gettime, CLOCK_MONOTONIC, &tp);
 	   syscall(SYS_clock_gettime, CLOCK_REALTIME, &tp);
-	  ], [ac_has_clock_gettime_syscall=yes], [ac_has_clock_gettime_syscall=no])
+	  ]])], [ac_has_clock_gettime_syscall=yes], [ac_has_clock_gettime_syscall=no])
 	AC_MSG_RESULT($ac_has_clock_gettime_syscall)
 	if test x"$ac_has_clock_gettime_syscall" = x"yes"; then
 	  AC_DEFINE(_GLIBCXX_USE_CLOCK_GETTIME_SYSCALL, 1,
@@ -357,11 +356,11 @@ AC_DEFUN([GLIBCXX_ENABLE_LIBSTDCXX_TIME], [
 	  ac_has_clock_monotonic=yes
 	  ac_has_clock_realtime=yes
 	  AC_MSG_CHECKING([for struct timespec that matches syscall])
-	  AC_TRY_COMPILE(
-	    [#include <time.h>
+	  AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
+	    [[#include <time.h>
 	     #include <sys/syscall.h>
-	    ],
-	    [#ifdef SYS_clock_gettime64
+	    ]],
+	    [[#ifdef SYS_clock_gettime64
 	     #if SYS_clock_gettime64 != SYS_clock_gettime
 	     // We need to use SYS_clock_gettime and libc appears to
 	     // also know about the SYS_clock_gettime64 syscall.
@@ -370,7 +369,7 @@ AC_DEFUN([GLIBCXX_ENABLE_LIBSTDCXX_TIME], [
 	       "struct timespec must be compatible with SYS_clock_gettime");
 	     #endif
 	     #endif
-	    ],
+	    ]])],
 	    [ac_timespec_matches_syscall=yes],
 	    [ac_timespec_matches_syscall=no])
 	  AC_MSG_RESULT($ac_timespec_matches_syscall)
@@ -404,17 +403,17 @@ AC_DEFUN([GLIBCXX_ENABLE_LIBSTDCXX_TIME], [
       [Defined if Sleep exists.])
   else
       AC_MSG_CHECKING([for sleep])
-      AC_TRY_COMPILE([#include <unistd.h>],
-                     [sleep(1)],
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <unistd.h>]],
+                     [[sleep(1)]])],
                      [ac_has_sleep=yes],[ac_has_sleep=no])
       if test x"$ac_has_sleep" = x"yes"; then
         AC_DEFINE(HAVE_SLEEP,1, [Defined if sleep exists.])
       fi
       AC_MSG_RESULT($ac_has_sleep)
       AC_MSG_CHECKING([for usleep])
-      AC_TRY_COMPILE([#include <unistd.h>],
-                     [sleep(1);
-                      usleep(100);],
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <unistd.h>]],
+                     [[sleep(1);
+                      usleep(100);]])],
                      [ac_has_usleep=yes],[ac_has_usleep=no])
       if test x"$ac_has_usleep" = x"yes"; then
         AC_DEFINE(HAVE_USLEEP,1, [Defined if usleep exists.])
@@ -430,7 +429,7 @@ AC_DEFUN([GLIBCXX_ENABLE_LIBSTDCXX_TIME], [
 
   CXXFLAGS="$ac_save_CXXFLAGS"
   LIBS="$ac_save_LIBS"
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 dnl
@@ -442,8 +441,7 @@ AC_DEFUN([GLIBCXX_CHECK_GETTIMEOFDAY], [
 
   AC_MSG_CHECKING([for gettimeofday])
 
-  AC_LANG_SAVE
-  AC_LANG_CPLUSPLUS
+  AC_LANG_PUSH([C++])
   ac_save_CXXFLAGS="$CXXFLAGS"
   CXXFLAGS="$CXXFLAGS -fno-exceptions"
 
@@ -464,7 +462,7 @@ AC_DEFUN([GLIBCXX_CHECK_GETTIMEOFDAY], [
   fi
 
   CXXFLAGS="$ac_save_CXXFLAGS"
-  AC_LANG_RESTORE
+  AC_LANG_POP([C++])
 ])
 
 dnl

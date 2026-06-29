@@ -32,7 +32,7 @@ test "$host_noncanonical" = "$target_noncanonical" &&
     NONENONEs,x,x, &&
   program_transform_name=s,y,y,
 
-AC_CANONICAL_SYSTEM
+AC_CANONICAL_TARGET
 AC_ARG_PROGRAM
 
 AM_INIT_AUTOMAKE([1.9.3 no-define foreign no-dist -Wall -Wno-portability])

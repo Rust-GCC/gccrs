@@ -294,7 +294,7 @@ elif test "${with_sysroot+set}" = set; then
 fi
 
 AC_ARG_WITH(cpp_install_dir,
-[AC_HELP_STRING([--with-cpp-install-dir=DIR],
+[AS_HELP_STRING([--with-cpp-install-dir=DIR],
                 [install the user visible C preprocessor in DIR
                  (relative to PREFIX) as well as PREFIX/bin])],
 [if test x$withval = xyes; then
@@ -2693,7 +2693,7 @@ AC_DEFINE_UNQUOTED(LTOPLUGINSONAME,"${host_lto_plugin_soname}",
 # exec-tool will fail.
 
 m4_defun([_LT_CONFIG_COMMANDS], [])
-AC_PROG_LIBTOOL
+LT_INIT
 AC_SUBST(objdir)
 AC_SUBST(enable_fast_install)
 
@@ -7562,7 +7562,7 @@ fi
 
 # Specify what hash style to use by default.
 AC_ARG_WITH([linker-hash-style],
-[AC_HELP_STRING([--with-linker-hash-style={sysv,gnu,both}],
+[AS_HELP_STRING([--with-linker-hash-style={sysv,gnu,both}],
                 [specify the linker hash style])],
 [case x"$withval" in
    xsysv)
@@ -7586,7 +7586,7 @@ fi
 
 # Specify what should be the default of -fdiagnostics-color option.
 AC_ARG_WITH([diagnostics-color],
-[AC_HELP_STRING([--with-diagnostics-color={never,auto,auto-if-env,always}],
+[AS_HELP_STRING([--with-diagnostics-color={never,auto,auto-if-env,always}],
                 [specify the default of -fdiagnostics-color option
                  auto-if-env stands for -fdiagnostics-color=auto if
                  GCC_COLOR environment variable is present and
@@ -7614,7 +7614,7 @@ AC_DEFINE_UNQUOTED(DIAGNOSTICS_COLOR_DEFAULT, $DIAGNOSTICS_COLOR_DEFAULT,
 
 # Specify what should be the default of -fdiagnostics-urls option.
 AC_ARG_WITH([diagnostics-urls],
-[AC_HELP_STRING([--with-diagnostics-urls={never,auto,auto-if-env,always}],
+[AS_HELP_STRING([--with-diagnostics-urls={never,auto,auto-if-env,always}],
                 [specify the default of -fdiagnostics-urls option
                  auto-if-env stands for -fdiagnostics-urls=auto if
                  GCC_URLS or TERM_URLS environment variable is present and

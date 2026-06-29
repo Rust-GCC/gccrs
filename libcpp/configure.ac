@@ -4,7 +4,7 @@
 AC_INIT(cpplib, [ ], https://gcc.gnu.org/bugs/, cpplib)
 AC_CONFIG_SRCDIR(ucnid.h)
 AC_CONFIG_MACRO_DIR(../config)
-AC_CANONICAL_SYSTEM
+AC_CANONICAL_TARGET
 
 # Checks for programs.
 AC_PROG_MAKE_SET
@@ -92,11 +92,11 @@ AM_LANGINFO_CODESET
 ZW_GNU_GETTEXT_SISTER_DIR
 
 AC_CACHE_CHECK(for uchar, gcc_cv_type_uchar,
-[AC_TRY_COMPILE([
+[AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
 #include <sys/types.h>
-],
-[if ((uchar *)0) return 0;
- if (sizeof(uchar)) return 0;],
+]],
+[[if ((uchar *)0) return 0;
+ if (sizeof(uchar)) return 0;]])],
 ac_cv_type_uchar=yes, ac_cv_type_uchar=no)])
 if test $ac_cv_type_uchar = yes; then
   AC_DEFINE(HAVE_UCHAR, 1,
@@ -197,7 +197,7 @@ fi
 
 case $target in
   i?86-* | x86_64-*)
-    AC_TRY_COMPILE([], [asm ("pshufb %xmm0, %xmm1")],
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]], [[asm ("pshufb %xmm0, %xmm1")]])],
       [AC_DEFINE([HAVE_SSSE3], [1],
 		 [Define to 1 if you can assemble SSSE3 insns.])])
 esac

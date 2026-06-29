@@ -17357,13 +17357,11 @@ if ac_fn_c_compute_int "$LINENO" "sizeof (__INTPTR_TYPE__)" "INTPTR_T_KIND"     
 
 fi
 
-
 if ac_fn_c_compute_int "$LINENO" "sizeof (__int128)" "OMP_INT128_SIZE"        ""; then :
 
 else
   OMP_INT128_SIZE=0
 fi
-
 
 if ac_fn_c_compute_int "$LINENO" "2*sizeof (__INTPTR_TYPE__)" "OMP_DEPEND_KIND"        ""; then :
 
@@ -17371,28 +17369,23 @@ else
   OMP_DEPEND_KIND=0
 fi
 
-
 if ac_fn_c_compute_int "$LINENO" "sizeof (omp_lock_t)" "OMP_LOCK_SIZE"        ""; then :
 
 else
   as_fn_error $? "unsupported system, cannot find sizeof (omp_lock_t)" "$LINENO" 5
 fi
 
-
 if ac_fn_c_compute_int "$LINENO" "__alignof (omp_lock_t)" "OMP_LOCK_ALIGN"        ""; then :
 
 fi
-
 
 if ac_fn_c_compute_int "$LINENO" "sizeof (omp_nest_lock_t)" "OMP_NEST_LOCK_SIZE"        ""; then :
 
 fi
 
-
 if ac_fn_c_compute_int "$LINENO" "__alignof (omp_nest_lock_t)" "OMP_NEST_LOCK_ALIGN"        ""; then :
 
 fi
-
 
 if ac_fn_c_compute_int "$LINENO" "sizeof (omp_lock_25_t)" "OMP_LOCK_25_SIZE"        ""; then :
 
@@ -17400,21 +17393,17 @@ else
   as_fn_error $? "unsupported system, cannot find sizeof (omp_lock_25_t)" "$LINENO" 5
 fi
 
-
 if ac_fn_c_compute_int "$LINENO" "__alignof (omp_lock_25_t)" "OMP_LOCK_25_ALIGN"        ""; then :
 
 fi
-
 
 if ac_fn_c_compute_int "$LINENO" "sizeof (omp_nest_lock_25_t)" "OMP_NEST_LOCK_25_SIZE"        ""; then :
 
 fi
 
-
 if ac_fn_c_compute_int "$LINENO" "__alignof (omp_nest_lock_25_t)" "OMP_NEST_LOCK_25_ALIGN"        ""; then :
 
 fi
-
 
 
 # If the lock fits in an integer, then arrange for Fortran to use that

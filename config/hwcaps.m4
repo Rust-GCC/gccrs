@@ -17,7 +17,8 @@ AC_DEFUN([GCC_CHECK_ASSEMBLER_HWCAP], [
       CFLAGS="$CFLAGS -Wa,-nH"
 
       AC_MSG_CHECKING([for as that supports -Wa,-nH])
-      AC_TRY_COMPILE([], [return 0;], [ac_hwcap_flags=yes],[ac_hwcap_flags=no])
+      AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]], [[return 0;]])],
+			[ac_hwcap_flags=yes],[ac_hwcap_flags=no])
       if test "$ac_hwcap_flags" = "yes"; then
 	HWCAP_CFLAGS="-Wa,-nH $HWCAP_CFLAGS"
       fi
@@ -47,7 +48,8 @@ AC_DEFUN([GCC_CHECK_LINKER_HWCAP], [
   LDFLAGS="$LFLAGS -mclear-hwcap"
 
   AC_MSG_CHECKING([for -mclear-hwcap])
-  AC_TRY_LINK([], [return 0;], [ac_hwcap_ldflags=yes],[ac_hwcap_ldflags=no])
+  AC_LINK_IFELSE([AC_LANG_PROGRAM([[]], [[return 0;]])],
+		 [ac_hwcap_ldflags=yes],[ac_hwcap_ldflags=no])
   if test "$ac_hwcap_ldflags" = "yes"; then
     HWCAP_LDFLAGS="-mclear-hwcap $HWCAP_LDFLAGS"
   fi

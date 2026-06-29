@@ -115,7 +115,7 @@ AC_SUBST(toolexeclibdir)
 # Create a spec file, so that compile/link tests don't fail
 test -f libgfortran.spec || touch libgfortran.spec
 
-AC_LANG_C
+AC_LANG([C])
 # Check the compiler.
 # The same as in boehm-gc and libstdc++. Have to borrow it from there.
 # We must force CC to /not/ be precious variables; otherwise
@@ -259,7 +259,7 @@ AC_PROG_INSTALL
 # Configure libtool
 #AC_MSG_NOTICE([====== Starting libtool configuration])
 AC_LIBTOOL_DLOPEN
-AM_PROG_LIBTOOL
+LT_INIT
 LT_LIB_M
 ACX_LT_HOST_FLAGS
 AC_SUBST(enable_shared)

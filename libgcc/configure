@@ -5658,8 +5658,7 @@ else
 int
 main ()
 {
-			asm(".arch armv8-a+lse\n\tcas w0, w1, [x2]");
-
+asm(".arch armv8-a+lse\n\tcas w0, w1, [x2]");
   ;
   return 0;
 }

@@ -55,7 +55,7 @@ AM_CONDITIONAL(BUILD_INFO, test $gcc_cv_prog_makeinfo_modern = "yes")
 ACX_BUGURL([https://gcc.gnu.org/bugs/])
 
 # Configure libtool
-AM_PROG_LIBTOOL
+LT_INIT
 ACX_LT_HOST_FLAGS
 AC_SUBST(enable_shared)
 AC_SUBST(enable_static)
@@ -63,7 +63,7 @@ AM_CONDITIONAL([ENABLE_DARWIN_AT_RPATH], [test x$enable_darwin_at_rpath = xyes])
 
 AM_MAINTAINER_MODE
 
-AC_LANG_C
+AC_LANG([C])
 # The same as in boehm-gc and libstdc++. Have to borrow it from there.
 # We must force CC to /not/ be precious variables; otherwise
 # the wrong, non-multilib-adjusted value will be used in multilibs.
@@ -178,8 +178,8 @@ fi
 saved_CFLAGS="$CFLAGS"
 CFLAGS="$CFLAGS -Werror"
 AC_MSG_CHECKING([whether hidden visibility is supported])
-AC_TRY_COMPILE([
-void __attribute__((visibility ("hidden"))) bar (void) {}],,
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+void __attribute__((visibility ("hidden"))) bar (void) {}]] [[]])],
 [quadmath_hidden=yes],[quadmath_hidden=no])
 AC_MSG_RESULT($quadmath_hidden)
 if test x$quadmath_hidden = xyes; then
@@ -207,7 +207,10 @@ FOO_1.0 {
   global: *foo*; bar; local: *;
 };
 EOF
-    AC_TRY_LINK([int foo;],[],[quadmath_use_symver=gnu],[quadmath_use_symver=no])
+    AC_LINK_IFELSE(
+      [AC_LANG_PROGRAM([[int foo;]], [[]])],
+      [quadmath_use_symver=gnu],
+      [quadmath_use_symver=no])
     if test x$quadmath_use_symver = xno; then
       case "$target_os" in
         solaris2*)
@@ -219,7 +222,10 @@ FOO_1.0 {
   global: foo; local: *;
 };
 EOF
-          AC_TRY_LINK([int foo;],[],[quadmath_use_symver=sun],[quadmath_use_symver=no])
+          AC_LINK_IFELSE(
+            [AC_LANG_PROGRAM([[int foo;]], [[]])],
+            [quadmath_use_symver=sun],
+            [quadmath_use_symver=no])
           ;;
       esac
     fi
@@ -271,19 +277,19 @@ AM_CONDITIONAL(BUILD_LIBQUADMATH, [test "x$libquad_cv_have_float128" = xyes])
 
 # Check for printf hook support.
 AC_MSG_CHECKING([whether printf hooks are supported])
-AC_TRY_COMPILE([
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
 #include <printf.h>
 #include <stdarg.h>
 #include <stdlib.h>
 extern void flt128_va (void *, va_list *);
 extern int flt128_ais (const struct printf_info *, size_t, int *, int *);
 extern int flt128_printf_fp (FILE *, const struct printf_info *, const void *const *);
-],[
+]], [[
 int pa_flt128 = register_printf_type (flt128_va);
 int mod_Q = register_printf_modifier (L"Q");
 int res = register_printf_specifier ('f', flt128_printf_fp, flt128_ais);
 struct printf_info info = { .user = -1 };
-],
+]])],
 [quadmath_printf_hooks=yes],[quadmath_printf_hooks=no])
 AC_MSG_RESULT($quadmath_printf_hooks)
 if test x$quadmath_printf_hooks = xyes; then
@@ -293,7 +299,7 @@ fi
 # Check for whether locale support for quadmath_snprintf or Q printf hooks
 # should be provided.
 AC_MSG_CHECKING([whether nl_langinfo should be used])
-AC_TRY_COMPILE([#include <langinfo.h>],[
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <langinfo.h>]], [[
 const char *s;
 s = nl_langinfo (DECIMAL_POINT);
 s = nl_langinfo (MON_DECIMAL_POINT);
@@ -302,7 +308,7 @@ s = nl_langinfo (MON_GROUPING);
 s = nl_langinfo (THOUSANDS_SEP);
 s = nl_langinfo (MON_THOUSANDS_SEP);
 (void) s;
-],
+]])],
 [quadmath_use_nl_langinfo=yes],[quadmath_use_nl_langinfo=no])
 AC_MSG_RESULT($quadmath_use_nl_langinfo)
 if test x$quadmath_use_nl_langinfo = xyes; then
@@ -310,14 +316,14 @@ if test x$quadmath_use_nl_langinfo = xyes; then
 fi
 
 AC_MSG_CHECKING([whether nl_langinfo should be used for wide char locale info])
-AC_TRY_COMPILE([#include <langinfo.h>],[
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <langinfo.h>]], [[
 const char *s;
 s = nl_langinfo (_NL_NUMERIC_DECIMAL_POINT_WC);
 s = nl_langinfo (_NL_MONETARY_DECIMAL_POINT_WC);
 s = nl_langinfo (_NL_NUMERIC_THOUSANDS_SEP_WC);
 s = nl_langinfo (_NL_MONETARY_THOUSANDS_SEP_WC);
 (void) s;
-],
+]])],
 [quadmath_use_nl_langinfo_wc=yes],[quadmath_use_nl_langinfo_wc=no])
 AC_MSG_RESULT($quadmath_use_nl_langinfo_wc)
 if test x$quadmath_use_nl_langinfo_wc = xyes; then
@@ -325,7 +331,7 @@ if test x$quadmath_use_nl_langinfo_wc = xyes; then
 fi
 
 AC_MSG_CHECKING([whether localeconv should be used])
-AC_TRY_COMPILE([#include <locale.h>],[
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <locale.h>]], [[
 const struct lconv *l = localeconv ();
 const char *s;
 s = l->decimal_point;
@@ -335,7 +341,7 @@ s = l->mon_grouping;
 s = l->thousands_sep;
 s = l->mon_thousands_sep;
 (void) s;
-],
+]])],
 [quadmath_use_localeconv=yes],[quadmath_use_localeconv=no])
 AC_MSG_RESULT($quadmath_use_localeconv)
 if test x$quadmath_use_localeconv = xyes; then
@@ -345,11 +351,11 @@ fi
 # Check for whether i18n number rewriting support for quadmath_snprintf
 # or Q printf hooks should be provided.
 AC_MSG_CHECKING([whether i18n number rewriting support for quadmath_snprintf should be added])
-AC_TRY_COMPILE([#include <langinfo.h>
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <langinfo.h>
 #include <limits.h>
 #include <string.h>
 #include <wchar.h>
-#include <wctype.h>],[
+#include <wctype.h>]], [[
 const char *s;
 char decimal[MB_LEN_MAX];
 wctrans_t map = wctrans ("to_outpunct");
@@ -361,7 +367,7 @@ s = nl_langinfo (_NL_CTYPE_OUTDIGIT0_MB);
 s = nl_langinfo (_NL_CTYPE_OUTDIGIT0_WC);
 s = nl_langinfo (_NL_CTYPE_MB_CUR_MAX);
 (void) s;
-],
+]])],
 [quadmath_use_i18n_number_h=yes],[quadmath_use_i18n_number_h=no])
 AC_MSG_RESULT($quadmath_use_i18n_number_h)
 if test x$quadmath_use_i18n_number_h = xyes; then

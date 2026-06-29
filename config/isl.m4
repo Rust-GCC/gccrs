@@ -107,8 +107,8 @@ AC_DEFUN([ISL_CHECK_VERSION],
     LIBS="${_isl_saved_LIBS} -lisl -lgmp"
 
     AC_MSG_CHECKING([for isl 0.15 or later])
-    AC_TRY_LINK([#include <isl/schedule.h>],
-                [isl_options_set_schedule_serialize_sccs (NULL, 0);],
+    AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <isl/schedule.h>]],
+                [[isl_options_set_schedule_serialize_sccs (NULL, 0);]])],
                 [gcc_cv_isl=yes],
                 [gcc_cv_isl=no])
     AC_MSG_RESULT([$gcc_cv_isl])

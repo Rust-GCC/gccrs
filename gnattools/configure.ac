@@ -25,7 +25,7 @@ AC_CONFIG_SRCDIR([Makefile.in])
 # Command-line options.
 # Very limited version of AC_MAINTAINER_MODE.
 AC_ARG_ENABLE([maintainer-mode],
-  [AC_HELP_STRING([--enable-maintainer-mode],
+  [AS_HELP_STRING([--enable-maintainer-mode],
                  [enable make rules and dependencies not useful (and
                   sometimes confusing) to the casual installer])],
   [case ${enable_maintainer_mode} in

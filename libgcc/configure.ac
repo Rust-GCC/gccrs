@@ -133,7 +133,7 @@ AC_SUBST(slibdir)
 # Command-line options.
 # Very limited version of AC_MAINTAINER_MODE.
 AC_ARG_ENABLE([maintainer-mode],
-  [AC_HELP_STRING([--enable-maintainer-mode],
+  [AS_HELP_STRING([--enable-maintainer-mode],
                  [enable make rules and dependencies not useful (and
                   sometimes confusing) to the casual installer])],
   [case ${enable_maintainer_mode} in
@@ -284,7 +284,7 @@ GCC_CET_FLAGS(CET_FLAGS)
 AC_SUBST(CET_FLAGS)
 
 AC_ARG_ENABLE([explicit-exception-frame-registration],
-  [AC_HELP_STRING([--enable-explicit-exception-frame-registration],
+  [AS_HELP_STRING([--enable-explicit-exception-frame-registration],
      [register exception tables explicitly at module start, for use
       e.g. for compatibility with installations without PT_GNU_EH_FRAME support])],
 [
@@ -633,7 +633,7 @@ AC_DEFUN([LIBGCC_CHECK_AS_AVX], [
 case "${target}" in
 i[[34567]]86-*-* | x86_64-*-*)
   AC_CACHE_CHECK([if the assembler supports AVX], libgcc_cv_as_avx, [
-    AC_TRY_COMPILE([], [asm("vzeroupper");],
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]], [[asm("vzeroupper");]])],
 		   [libgcc_cv_as_avx=yes], [libgcc_cv_as_avx=no])
   ])
   if test x$libgcc_cv_as_avx = xyes; then
@@ -648,11 +648,9 @@ AC_DEFUN([LIBGCC_CHECK_AS_LSE], [
 case "${target}" in
 aarch64*-*-*)
   AC_CACHE_CHECK([if the assembler supports LSE], libgcc_cv_as_lse, [
-    AC_TRY_COMPILE([],
-changequote(,)dnl
-			asm(".arch armv8-a+lse\n\tcas w0, w1, [x2]");
-changequote([,])dnl
-		       ,
+    AC_COMPILE_IFELSE(
+      [AC_LANG_PROGRAM([[]],
+			[[asm(".arch armv8-a+lse\n\tcas w0, w1, [x2]");]])],
 		   [libgcc_cv_as_lse=yes], [libgcc_cv_as_lse=no])
   ])
   if test x$libgcc_cv_as_lse = xyes; then

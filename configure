@@ -5637,8 +5637,6 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 fi
 
 
-
-
 if test -n "$ac_tool_prefix"; then
   # Extract the first word of "${ac_tool_prefix}gnatbind", so it can be a program name with args.
 set dummy ${ac_tool_prefix}gnatbind; ac_word=$2
@@ -5860,7 +5858,6 @@ else
 fi
 
 
-
 if test -n "$ac_tool_prefix"; then
   # Extract the first word of "${ac_tool_prefix}ga68", so it can be a program name with args.
 set dummy ${ac_tool_prefix}ga68; ac_word=$2
@@ -5952,7 +5949,6 @@ esac
 else
   A68="$ac_cv_prog_A68"
 fi
-
 
 
 if test -n "$ac_tool_prefix"; then

@@ -164,7 +164,7 @@ AC_CHECK_TOOL(RANLIB, ranlib, ranlib-not-found-in-path-error)
 AC_PROG_INSTALL
 
 # Configure libtool
-AM_PROG_LIBTOOL
+LT_INIT
 ACX_LT_HOST_FLAGS
 AC_SUBST(enable_shared)
 AC_SUBST(enable_static)
@@ -205,7 +205,7 @@ AC_DEFINE_UNQUOTED(IFUNC_RESOLVER_ARGS, $IFUNC_RESOLVER_ARGS,
 CFLAGS="$__libatomic_save_CFLAGS__ -fno-sync-libcalls $XCFLAGS"
 
 # Check header files.
-AC_STDC_HEADERS
+AC_HEADER_STDC
 ACX_HEADER_STRING
 GCC_HEADER_STDINT(gstdint.h)
 AC_CHECK_HEADERS([fenv.h])

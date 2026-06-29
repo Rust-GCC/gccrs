@@ -5170,8 +5170,6 @@ ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $
 ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 
-
-
 if test -n "$ac_tool_prefix"; then
   # Extract the first word of "${ac_tool_prefix}gnatbind", so it can be a program name with args.
 set dummy ${ac_tool_prefix}gnatbind; ac_word=$2
@@ -5391,7 +5389,6 @@ if test "x$GNATBIND" != xno && test "x$GNATMAKE" != xno && test x$acx_cv_cc_gcc_
 else
   have_gnat=no
 fi
-
 
 
 if test -n "$ac_tool_prefix"; then
@@ -13826,7 +13823,7 @@ $as_echo "found xgettext program is not GNU xgettext; ignore it" >&6; }
         rm -f messages.po
   fi
 
-  ac_config_commands="$ac_config_commands default-1"
+  ac_config_commands="$ac_config_commands posubdirs"
 
 
 
@@ -21975,7 +21972,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 21978 "configure"
+#line 21975 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -22081,7 +22078,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 22084 "configure"
+#line 22081 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -36040,7 +36037,7 @@ do
     "auto-host.h") CONFIG_HEADERS="$CONFIG_HEADERS auto-host.h:config.in" ;;
     "depdir") CONFIG_COMMANDS="$CONFIG_COMMANDS depdir" ;;
     "gccdepdir") CONFIG_COMMANDS="$CONFIG_COMMANDS gccdepdir" ;;
-    "default-1") CONFIG_COMMANDS="$CONFIG_COMMANDS default-1" ;;
+    "posubdirs") CONFIG_COMMANDS="$CONFIG_COMMANDS posubdirs" ;;
     "as") CONFIG_FILES="$CONFIG_FILES as:exec-tool.in" ;;
     "collect-ld") CONFIG_FILES="$CONFIG_FILES collect-ld:exec-tool.in" ;;
     "nm") CONFIG_FILES="$CONFIG_FILES nm:exec-tool.in" ;;
@@ -36681,7 +36678,7 @@ $as_echo "$as_me: executing $ac_file commands" >&6;}
   do
       ${CONFIG_SHELL-/bin/sh} $ac_aux_dir/mkinstalldirs $lang/$DEPDIR
   done ;;
-    "default-1":C)
+    "posubdirs":C)
     for ac_file in $CONFIG_FILES; do
       # Support "outfile[:infile[:infile...]]"
       case "$ac_file" in

@@ -56,7 +56,7 @@ AC_ARG_ENABLE(version-specific-runtime-libs,
 
 # Very limited version of AC_MAINTAINER_MODE.
 AC_ARG_ENABLE([maintainer-mode],
-  [AC_HELP_STRING([--enable-maintainer-mode],
+  [AS_HELP_STRING([--enable-maintainer-mode],
                  [enable make rules and dependencies not useful (and
                   sometimes confusing) to the casual installer])],
   [case ${enable_maintainer_mode} in
@@ -122,7 +122,7 @@ m4_rename_force([real_PRECIOUS],[_AC_ARG_VAR_PRECIOUS])
 AC_SUBST(CFLAGS)
 
 AC_ARG_ENABLE([shared],
-[AC_HELP_STRING([--disable-shared],
+[AS_HELP_STRING([--disable-shared],
                 [don't provide a shared libgnat])],
 [
 case $enable_shared in

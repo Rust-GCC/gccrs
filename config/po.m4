@@ -86,7 +86,7 @@ AC_DEFUN([AM_PO_SUBDIRS],
     rm -f messages.po
   fi
 
-  AC_OUTPUT_COMMANDS([
+  AC_CONFIG_COMMANDS([posubdirs], [[
     for ac_file in $CONFIG_FILES; do
       # Support "outfile[:infile[:infile...]]"
       case "$ac_file" in
@@ -186,12 +186,12 @@ AC_DEFUN([AM_PO_SUBDIRS],
         fi
         ;;
       esac
-    done],
-   [# Capture the value of obsolete ALL_LINGUAS because we need it to compute
+    done]],
+   [[# Capture the value of obsolete ALL_LINGUAS because we need it to compute
     # POFILES, GMOFILES, UPDATEPOFILES, DUMMYPOFILES, CATALOGS. But hide it
     # from automake.
     eval 'OBSOLETE_ALL_LINGUAS''="$ALL_LINGUAS"'
     # Capture the value of LINGUAS because we need it to compute CATALOGS.
     LINGUAS="${LINGUAS-%UNSET%}"
-   ])
+   ]])
 ])

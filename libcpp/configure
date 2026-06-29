@@ -2813,7 +2813,6 @@ test -n "$target_alias" &&
     NONENONEs,x,x, &&
   program_prefix=${target_alias}-
 
-
 # Checks for programs.
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether ${MAKE-make} sets \$(MAKE)" >&5
 $as_echo_n "checking whether ${MAKE-make} sets \$(MAKE)... " >&6; }
@@ -6908,7 +6907,7 @@ $as_echo "found xgettext program is not GNU xgettext; ignore it" >&6; }
         rm -f messages.po
   fi
 
-  ac_config_commands="$ac_config_commands default-1"
+  ac_config_commands="$ac_config_commands posubdirs"
 
 
 
@@ -10132,7 +10131,7 @@ for ac_config_target in $ac_config_targets
 do
   case $ac_config_target in
     "depdir") CONFIG_COMMANDS="$CONFIG_COMMANDS depdir" ;;
-    "default-1") CONFIG_COMMANDS="$CONFIG_COMMANDS default-1" ;;
+    "posubdirs") CONFIG_COMMANDS="$CONFIG_COMMANDS posubdirs" ;;
     "config.h") CONFIG_HEADERS="$CONFIG_HEADERS config.h:config.in" ;;
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
 
@@ -10691,7 +10690,7 @@ $as_echo "$as_me: executing $ac_file commands" >&6;}
 
   case $ac_file$ac_mode in
     "depdir":C) $SHELL $ac_aux_dir/mkinstalldirs $DEPDIR ;;
-    "default-1":C)
+    "posubdirs":C)
     for ac_file in $CONFIG_FILES; do
       # Support "outfile[:infile[:infile...]]"
       case "$ac_file" in

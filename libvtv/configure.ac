@@ -117,10 +117,10 @@ esac
 AC_SUBST(toolexecdir)
 AC_SUBST(toolexeclibdir)
 
-AC_GNU_SOURCE
+AC_USE_SYSTEM_EXTENSIONS
 AC_CHECK_FUNCS([__secure_getenv])
 
-AC_GNU_SOURCE
+AC_USE_SYSTEM_EXTENSIONS
 AC_CHECK_FUNCS([secure_getenv])
 
 AC_CHECK_FUNCS([getexecname __fortify_fail])
@@ -149,7 +149,7 @@ AC_CHECK_TOOL(RANLIB, ranlib, :)
 
 # Configure libtool
 AC_LIBTOOL_DLOPEN
-AM_PROG_LIBTOOL
+LT_INIT
 ACX_LT_HOST_FLAGS
 AC_SUBST(enable_shared)
 AC_SUBST(enable_static)
@@ -176,7 +176,7 @@ fi
 AC_CONFIG_FILES([Makefile])
 
 if test "x$VTV_SUPPORTED" = "xyes"; then
-  AC_CONFIG_FILES(AC_FOREACH([DIR], [testsuite], [DIR/Makefile ]), 
+  AC_CONFIG_FILES(m4_foreach_w([DIR], [testsuite], [DIR/Makefile ]),
     [cat > vpsed$$ << \_EOF
 s!`test -f '$<' || echo '$(srcdir)/'`!!
 _EOF

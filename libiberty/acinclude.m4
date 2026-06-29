@@ -21,7 +21,7 @@ dnl a SEGV in some cases.
 AC_DEFUN([libiberty_AC_FUNC_STRNCMP],
 [AC_REQUIRE([AC_FUNC_MMAP])
 AC_CACHE_CHECK([for working strncmp], ac_cv_func_strncmp_works,
-[AC_TRY_RUN([
+[AC_RUN_IFELSE([AC_LANG_SOURCE([[
 /* Test by Jim Wilson and Kaveh Ghazi.
    Check whether strncmp reads past the end of its string parameters. */
 #include <stdlib.h>
@@ -84,8 +84,8 @@ main (void)
 #endif /* HAVE_MMAP || HAVE_MMAP_ANYWHERE */
   exit (0);
 }
-], ac_cv_func_strncmp_works=yes, ac_cv_func_strncmp_works=no,
-  ac_cv_func_strncmp_works=yes)
+]])], [ac_cv_func_strncmp_works=yes], [ac_cv_func_strncmp_works=no],
+  [ac_cv_func_strncmp_works=yes])
 rm -f core core.* *.core])
 if test $ac_cv_func_strncmp_works = no ; then
   AC_LIBOBJ([strncmp])
@@ -95,11 +95,11 @@ fi
 dnl See if errno must be declared even when <errno.h> is included.
 AC_DEFUN([libiberty_AC_DECLARE_ERRNO],
 [AC_CACHE_CHECK(whether errno must be declared, libiberty_cv_declare_errno,
-[AC_TRY_COMPILE(
-[#include <errno.h>],
-[int x = errno;],
-libiberty_cv_declare_errno=no,
-libiberty_cv_declare_errno=yes)])
+[AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
+[[#include <errno.h>]],
+[[int x = errno;]])],
+[libiberty_cv_declare_errno=no],
+[libiberty_cv_declare_errno=yes])])
 if test $libiberty_cv_declare_errno = yes
 then AC_DEFINE(NEED_DECLARATION_ERRNO, 1,
   [Define if errno must be declared even when <errno.h> is included.])
@@ -110,7 +110,7 @@ dnl See whether we need a declaration for a function.
 AC_DEFUN([libiberty_NEED_DECLARATION],
 [AC_MSG_CHECKING([whether $1 must be declared])
 AC_CACHE_VAL(libiberty_cv_decl_needed_$1,
-[AC_TRY_COMPILE([
+[AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
 #include "confdefs.h"
 #include <stdio.h>
 #ifdef HAVE_STRING_H
@@ -125,9 +125,10 @@ AC_CACHE_VAL(libiberty_cv_decl_needed_$1,
 #endif
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
-#endif],
-[char *(*pfn) = (char *(*)) $1],
-libiberty_cv_decl_needed_$1=no, libiberty_cv_decl_needed_$1=yes)])
+#endif]],
+[[char *(*pfn) = (char *(*)) $1]])],
+[libiberty_cv_decl_needed_$1=no],
+[libiberty_cv_decl_needed_$1=yes])])
 AC_MSG_RESULT($libiberty_cv_decl_needed_$1)
 if test $libiberty_cv_decl_needed_$1 = yes; then
   AC_DEFINE([NEED_DECLARATION_]translit($1, [a-z], [A-Z]), 1,
@@ -160,7 +161,7 @@ if test $ac_cv_os_cray = yes; then
 fi
 
 AC_CACHE_CHECK(stack direction for C alloca, ac_cv_c_stack_direction,
-[AC_TRY_RUN([#include <stdlib.h>
+[AC_RUN_IFELSE([AC_LANG_SOURCE([[#include <stdlib.h>
 
 int
 find_stack_direction (void)
@@ -180,10 +181,10 @@ int
 main (void)
 {
   exit (find_stack_direction() < 0);
-}],
-  ac_cv_c_stack_direction=1,
-  ac_cv_c_stack_direction=-1,
-  ac_cv_c_stack_direction=0)])
+}]])],
+  [ac_cv_c_stack_direction=1],
+  [ac_cv_c_stack_direction=-1],
+  [ac_cv_c_stack_direction=0])])
 AC_DEFINE_UNQUOTED(STACK_DIRECTION, $ac_cv_c_stack_direction,
   [Define if you know the direction of stack growth for your system;
    otherwise it will be automatically deduced at run-time.

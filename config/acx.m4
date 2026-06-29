@@ -389,8 +389,7 @@ ac_c_preproc_warn_flag=yes])# AC_PROG_CPP_WERROR
 # Sets the shell variable have_gnat to yes or no as appropriate, and
 # substitutes GNATBIND and GNATMAKE.
 AC_DEFUN([ACX_PROG_GNAT],
-[AC_REQUIRE([AC_CHECK_TOOL_PREFIX])
-AC_REQUIRE([AC_PROG_CC])
+[AC_REQUIRE([AC_PROG_CC])
 AC_CHECK_TOOL(GNATBIND, gnatbind, no)
 AC_CHECK_TOOL(GNATMAKE, gnatmake, no)
 AC_CACHE_CHECK([whether compiler driver understands Ada and is recent enough],
@@ -436,14 +435,12 @@ fi])
 
 # Test for Algol 68
 AC_DEFUN([ACX_PROG_A68],
-[AC_REQUIRE([AC_CHECK_TOOL_PREFIX])
-AC_REQUIRE([AC_PROG_CC])
+[AC_REQUIRE([AC_PROG_CC])
 AC_CHECK_TOOL(A68, ga68, no)])
 
 # Test for D.
 AC_DEFUN([ACX_PROG_GDC],
-[AC_REQUIRE([AC_CHECK_TOOL_PREFIX])
-AC_REQUIRE([AC_PROG_CC])
+[AC_REQUIRE([AC_PROG_CC])
 AC_CHECK_TOOL(GDC, gdc, no)
 AC_CACHE_CHECK([whether the D compiler works],
 		 acx_cv_d_compiler_works,
@@ -500,8 +497,9 @@ dnl See whether we can include both string.h and strings.h.
 AC_DEFUN([ACX_HEADER_STRING],
 [AC_CACHE_CHECK([whether string.h and strings.h may both be included],
   gcc_cv_header_string,
-[AC_TRY_COMPILE([#include <string.h>
-#include <strings.h>], , gcc_cv_header_string=yes, gcc_cv_header_string=no)])
+[AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <string.h>
+#include <strings.h>]], [[]])],
+		   [gcc_cv_header_string=yes], [gcc_cv_header_string=no])])
 if test $gcc_cv_header_string = yes; then
   AC_DEFINE(STRING_WITH_STRINGS, 1, [Define if you can safely include both <string.h> and <strings.h>.])
 fi

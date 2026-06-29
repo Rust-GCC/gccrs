@@ -2647,7 +2647,6 @@ test -n "$target_alias" &&
   test "$program_prefix$program_suffix$program_transform_name" = \
     NONENONEs,x,x, &&
   program_prefix=${target_alias}-
-
 # Expand $ac_aux_dir to an absolute path.
 am_aux_dir=`cd "$ac_aux_dir" && pwd`
 
@@ -12253,7 +12252,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 12256 "configure"
+#line 12255 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -12359,7 +12358,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 12362 "configure"
+#line 12361 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -12594,7 +12593,6 @@ CC="$lt_save_CC"
 
 
 # Only expand once:
-
 
 
 

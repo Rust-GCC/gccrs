@@ -75,7 +75,7 @@ AM_PROG_AS
 AC_PROG_RANLIB
 
 AC_LIBTOOL_DLOPEN
-AM_PROG_LIBTOOL
+LT_INIT
 
 AC_PROG_AWK
 case "$AWK" in
@@ -163,12 +163,12 @@ case "$target" in
   *-*-linux*)
     # Some old Linux distributions miss required syscalls.
     sanitizer_supported=no
-    AC_TRY_COMPILE([#include <sys/syscall.h>
-#include <unistd.h>],[
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <sys/syscall.h>
+#include <unistd.h>]], [[
       syscall (__NR_gettid);
       syscall (__NR_futex);
       syscall (__NR_exit_group);
-    ], [sanitizer_supported=yes])
+    ]])], [sanitizer_supported=yes])
     ;;
   *)
     sanitizer_supported=yes
@@ -370,7 +370,7 @@ AH_BOTTOM([#include "libbacktrace/backtrace-rename.h"])
 AC_CONFIG_FILES([Makefile libsanitizer.spec libbacktrace/backtrace-supported.h])
 AC_CONFIG_HEADER(config.h)
 
-AC_CONFIG_FILES(AC_FOREACH([DIR], [interception sanitizer_common libbacktrace lsan asan ubsan], [DIR/Makefile ]),
+AC_CONFIG_FILES(m4_foreach_w([DIR], [interception sanitizer_common libbacktrace lsan asan ubsan], [DIR/Makefile ]),
   [cat > vpsed$$ << \_EOF
 s!`test -f '$<' || echo '$(srcdir)/'`!!
 _EOF
@@ -384,7 +384,7 @@ _EOF
 ])
 
 if test "x$TSAN_SUPPORTED" = "xyes"; then
-  AC_CONFIG_FILES(AC_FOREACH([DIR], [tsan], [DIR/Makefile ]), 
+  AC_CONFIG_FILES(m4_foreach_w([DIR], [tsan], [DIR/Makefile ]),
     [cat > vpsed$$ << \_EOF
 s!`test -f '$<' || echo '$(srcdir)/'`!!
 _EOF
@@ -399,7 +399,7 @@ _EOF
 fi
 
 if test "x$HWASAN_SUPPORTED" = "xyes"; then
-  AC_CONFIG_FILES(AC_FOREACH([DIR], [hwasan], [DIR/Makefile ]), 
+  AC_CONFIG_FILES(m4_foreach_w([DIR], [hwasan], [DIR/Makefile ]),
     [cat > vpsed$$ << \_EOF
 s!`test -f '$<' || echo '$(srcdir)/'`!!
 _EOF

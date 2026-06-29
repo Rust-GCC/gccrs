@@ -153,7 +153,7 @@ AM_CONDITIONAL(BUILD_INFO, test $gcc_cv_prog_makeinfo_modern = "yes")
 
 
 # Configure libtool
-AM_PROG_LIBTOOL
+LT_INIT
 AC_SUBST(enable_shared)
 AC_SUBST(enable_static)
 AM_CONDITIONAL([ENABLE_DARWIN_AT_RPATH], [test x$enable_darwin_at_rpath = xyes])
@@ -165,7 +165,7 @@ libtool_VERSION=1:0:0
 AC_SUBST(libtool_VERSION)
 
 # Check header files.
-AC_STDC_HEADERS
+AC_HEADER_STDC
 AC_HEADER_TIME
 ACX_HEADER_STRING
 AC_CHECK_HEADERS(unistd.h semaphore.h sys/time.h sys/auxv.h malloc.h)

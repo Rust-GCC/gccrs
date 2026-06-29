@@ -63,15 +63,15 @@ AC_DEFUN([DRUNTIME_ENABLE_ATOMIC_BUILTINS],
   # used should be checked.
   AC_MSG_CHECKING([for atomic builtins for byte])
   AC_CACHE_VAL(druntime_cv_atomic_byte, [
-    AC_TRY_LINK(
-      [import gcc.builtins;], [
+    AC_LINK_IFELSE([AC_LANG_PROGRAM(
+      [[import gcc.builtins;]], [[
       shared(byte) c1;
        byte c2, c3;
        __atomic_compare_exchange_1(&c1, &c2, c3, false, 5, 5);
        __atomic_load_1(&c1, 5);
        __atomic_store_1(&c1, c2, 5);
        return 0;
-      ],
+      ]])],
       [druntime_cv_atomic_byte=yes],
       [druntime_cv_atomic_byte=no])
   ])
@@ -79,15 +79,15 @@ AC_DEFUN([DRUNTIME_ENABLE_ATOMIC_BUILTINS],
 
   AC_MSG_CHECKING([for atomic builtins for short])
   AC_CACHE_VAL(druntime_cv_atomic_short, [
-    AC_TRY_LINK(
-      [import gcc.builtins;], [
+    AC_LINK_IFELSE([AC_LANG_PROGRAM(
+      [[import gcc.builtins;]], [[
       shared(short) c1;
        short c2, c3;
        __atomic_compare_exchange_2(&c1, &c2, c3, false, 5, 5);
        __atomic_load_2(&c1, 5);
        __atomic_store_2(&c1, c2, 5);
        return 0;
-      ],
+      ]])],
       [druntime_cv_atomic_short=yes],
       [druntime_cv_atomic_short=no])
   ])
@@ -95,15 +95,15 @@ AC_DEFUN([DRUNTIME_ENABLE_ATOMIC_BUILTINS],
 
   AC_MSG_CHECKING([for atomic builtins for int])
   AC_CACHE_VAL(druntime_cv_atomic_int, [
-    AC_TRY_LINK(
-      [import gcc.builtins;], [
+    AC_LINK_IFELSE([AC_LANG_PROGRAM(
+      [[import gcc.builtins;]], [[
       shared(int) c1;
        int c2, c3;
        __atomic_compare_exchange_4(&c1, &c2, c3, false, 5, 5);
        __atomic_load_4(&c1, 5);
        __atomic_store_4(&c1, c2, 5);
        return 0;
-      ],
+      ]])],
       [druntime_cv_atomic_int=yes],
       [druntime_cv_atomic_int=no])
   ])
@@ -111,15 +111,15 @@ AC_DEFUN([DRUNTIME_ENABLE_ATOMIC_BUILTINS],
 
   AC_MSG_CHECKING([for atomic builtins for long])
   AC_CACHE_VAL(druntime_cv_atomic_long, [
-    AC_TRY_LINK(
-      [import gcc.builtins;], [
+    AC_LINK_IFELSE([AC_LANG_PROGRAM(
+      [[import gcc.builtins;]], [[
        shared(long) c1;
        long c2, c3;
        __atomic_compare_exchange_8(&c1, &c2, c3, false, 5, 5);
        __atomic_load_8(&c1, 5);
        __atomic_store_8(&c1, c2, 5);
        return 0;
-      ],
+      ]])],
       [druntime_cv_atomic_long=yes],
       [druntime_cv_atomic_long=no])
   ])

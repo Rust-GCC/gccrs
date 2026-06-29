@@ -12,7 +12,8 @@ AC_DEFUN([GCC_CHECK_TLS], [
       LDFLAGS="-static $LDFLAGS"
       AC_LINK_IFELSE([AC_LANG_SOURCE([int main() { return 0; }])],
 	[AC_RUN_IFELSE([AC_LANG_SOURCE([__thread int a; int b; int main() { return a = b; }])],
-		       [gcc_cv_have_tls=yes], [gcc_cv_have_tls=no],[])],
+		       [gcc_cv_have_tls=yes], [gcc_cv_have_tls=no],
+		       [AC_MSG_FAILURE(cannot run test program while cross compiling)])],
 	[gcc_cv_have_tls=yes])
       LDFLAGS="$chktls_save_LDFLAGS"
       if test $gcc_cv_have_tls = yes; then
@@ -64,7 +65,8 @@ AC_DEFUN([GCC_CHECK_TLS], [
 		if (pthread_join (thread, &thread_retval))
 		  return 0;
 		return (a_in_other_thread == a_in_main_thread);])],
-	     [gcc_cv_have_tls=yes], [gcc_cv_have_tls=no], [])
+	     [gcc_cv_have_tls=yes], [gcc_cv_have_tls=no],
+	     [AC_MSG_FAILURE(cannot run test program while cross compiling)])
 	  CFLAGS="$chktls_save_CFLAGS"
 	fi
       fi],

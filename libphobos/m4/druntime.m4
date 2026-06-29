@@ -62,7 +62,7 @@ AC_DEFUN([DRUNTIME_INSTALL_DIRECTORIES],
   AC_SUBST(gcc_version)
 
   AC_ARG_WITH([cross-host],
-    AC_HELP_STRING([--with-cross-host=HOST],
+    AS_HELP_STRING([--with-cross-host=HOST],
                    [configuring with a cross compiler]))
 
   libphobos_toolexecdir=no
@@ -70,7 +70,7 @@ AC_DEFUN([DRUNTIME_INSTALL_DIRECTORIES],
 
   AC_MSG_CHECKING([for --enable-version-specific-runtime-libs])
   AC_ARG_ENABLE([version-specific-runtime-libs],
-    AC_HELP_STRING([--enable-version-specific-runtime-libs],
+    AS_HELP_STRING([--enable-version-specific-runtime-libs],
 		   [Specify that runtime libraries should be installed in a compiler-specific directory]),
     [case "$enableval" in
       yes) version_specific_libs=yes ;;
@@ -125,8 +125,8 @@ AC_DEFUN([DRUNTIME_SECTION_FLAGS],
   WITH_LOCAL_DRUNTIME([
     AC_LANG_PUSH([D])
     GDCFLAGS="$GDCFLAGS -g -Werror -ffunction-sections -fdata-sections"
-    AC_TRY_COMPILE([int foo; void bar() { }],[return 0;],
-		   [ac_fdsections=yes], [ac_fdsections=no])
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[int foo; void bar() { }]], [[return 0;]])],
+		      [ac_fdsections=yes], [ac_fdsections=no])
     if test "x$ac_fdsections" = "xyes"; then
       SECTION_FLAGS='-ffunction-sections -fdata-sections'
     fi
