@@ -5131,7 +5131,7 @@ mangle_decomp (const tree decl, vec<tree> &decls)
 
    We use the production
 
-    <special-name> ::= CT <type> <offset number> _ <base type>  */
+    <special-name> ::= TC <type> <offset number> _ <base type>  */
 
 tree
 mangle_ctor_vtbl_for_type (const tree type, const tree binfo)
