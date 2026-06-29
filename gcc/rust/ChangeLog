@@ -1,3 +1,10 @@
+2026-06-28  Kevin Stefanov  <kevinstefanov15@gmail.com>
+
+	PR middle-end/125274
+	* backend/rust-tree.h (saved_scope): Likewise.
+	(rust_cp_binding_level): Likewise.
+	(language_function): Likewise.
+
 2026-06-25  Enes Cevik  <enes@nsvke.com>
 
 	* Make-lang.in: Add rust-hir-type-check-intrinsic.o.

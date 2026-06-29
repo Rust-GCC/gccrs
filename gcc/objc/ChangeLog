@@ -1,3 +1,8 @@
+2026-06-28  Kevin Stefanov  <kevinstefanov15@gmail.com>
+
+	PR middle-end/125274
+	* objc-act.h (imp_entry): Likewise.
+
 2026-06-19  Léo Hardt  <leom.hardt@inf.ufrgs.br>
 
 	* objc-act.cc: Removed orphaned comment from 69f293c

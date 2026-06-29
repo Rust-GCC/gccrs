@@ -1,3 +1,13 @@
+2026-06-28  Kevin Stefanov  <kevinstefanov15@gmail.com>
+
+	PR middle-end/125274
+	* c-decl.cc (c_binding): Replace BOOL_BITFIELD with bool.
+	(c_scope): Likewise.
+	* c-parser.cc (c_parser): Likewise.
+	* c-tree.h (c_declspecs): Likewise.
+	(c_arg_info): Likewise.
+	(c_declarator): Likewise.
+
 2026-06-23  Kwok Cheung Yeung  <kcyeung@baylibre.com>
 	    Sandra Loosemore  <sloosemore@baylibre.com>
 

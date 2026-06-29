@@ -1,3 +1,18 @@
+2026-06-28  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR target/125752
+	* libf7.c (d_to_ufx, d_to_sfx): Remove prototypes.
+	(__fractdfda, __fractdfuda, __fractdfta, __fractdfuta)
+	(__fractdfdq, __fractdfudq): Move implementation to...
+	* libf7-asm.sx: ...here.
+	(d_to_fx64): Remove.
+	* libf7-common.mk (F7_ASM_PARTS): Add D2dq, D2udq, D2da,
+	D2uda, D2ta, D2uta.
+	(F7F_asm): Remove d_to_fx64.
+	* t-libf7 (LIBF7_DF_CONV): Remove fractdfda, fractdfta,
+	fractdfdq, fractdfuda, fractdfuta, fractdfudq.
+	* f7-renames.h: Rebuild.
+
 2026-06-13  Georg-Johann Lay  <avr@gjlay.de>
 
 	* asm-defs.h (REGNO): New .macro.

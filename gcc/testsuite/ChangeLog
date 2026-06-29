@@ -1,3 +1,20 @@
+2026-06-28  Oleg Endo  <olegendo@gcc.gnu.org>
+
+	PR target/55212
+	* gcc.target/sh/torture/pr55212-c464-1.c: New.
+	* gcc.target/sh/torture/pr55212-c464-2.c: New.
+
+2026-06-28  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/115571
+	* gcc.dg/tree-ssa/float-conv-1.c: New test.
+
+2026-06-28  Kael Andrew Alonzo Franco  <kaelfandrew@gmail.com>
+
+	PR tree-optimization/125749
+	PR tree-optimization/125749
+	* gcc.dg/pr125749.c: New test.
+
 2026-06-27  Jakub Jelinek  <jakub@redhat.com>
 
 	PR target/125992

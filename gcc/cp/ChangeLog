@@ -1,3 +1,13 @@
+2026-06-28  Kevin Stefanov  <kevinstefanov15@gmail.com>
+
+	PR middle-end/125274
+	* call.cc (conversion): Likewise.
+	* cp-tree.h (saved_scope): Likewise.
+	(language_function): Likewise.
+	(cp_decl_specifier_seq): Likewise.
+	(cp_declarator): Likewise.
+	* name-lookup.h (cp_binding_level): Likewise.
+
 2026-06-26  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/125900

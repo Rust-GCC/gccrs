@@ -1,3 +1,7 @@
+2026-06-28  Gerald Pfeifer  <gerald@pfeifer.com>
+
+	* libgomp.texi (nvptx): Update NVIDIA CUDA link.
+
 2026-06-25  Paul-Antoine Arras  <parras@baylibre.com>
 
 	* libgomp.texi (Implementing MASKED and MASTER construct): Fix

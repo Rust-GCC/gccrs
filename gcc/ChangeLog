@@ -1,3 +1,34 @@
+2026-06-28  Kevin Stefanov  <kevinstefanov15@gmail.com>
+
+	PR middle-end/125274
+	* ctfc.h (ctf_dtdef): Likewise.
+	* dwarf2out.cc (die_struct): Likewise.
+	* dwarf2out.h (dw_cfa_location): Likewise.
+	* gengtype-lex.l (IWORD): Remove BOOL_BITFIELD.
+	* gimple-walk.h (walk_stmt_info): Replace BOOL_BITFIELD with bool.
+	* opts.h (cl_option): Likewise.
+	* config/i386/i386.h (machine_frame_state): Likewise.
+	(machine_function): Likewise.
+	* sched-int.h (deps_desc): Likewise.
+	* sel-sched-ir.h (_expr): Likewise.
+	(_fence): Likewise.
+	(transformed_insns): Likewise.
+	(_sel_insn_data): Likewise.
+	* sel-sched.cc (cmpd_local_params): Likewise.
+	* system.h: Remove #define for BOOL_BITFIELD.
+
+2026-06-28  Andrew Pinski  <andrew.pinski@oss.qualcomm.com>
+
+	PR tree-optimization/115571
+	* match.pd (`(float)(a CMP b)`): New pattern.
+
+2026-06-28  Kael Andrew Alonzo Franco  <kaelfandrew@gmail.com>
+
+	PR tree-optimization/125749
+	PR tree-optimization/125749
+	* match.pd: Use tree_expr_nonnegative_p for MAX (A, B) (==,!=) 0 ->
+	(A|B) (==,!=) 0.
+
 2026-06-27  Jakub Jelinek  <jakub@redhat.com>
 
 	PR target/125992
