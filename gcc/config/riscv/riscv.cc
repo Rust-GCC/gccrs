@@ -13372,6 +13372,11 @@ bool
 riscv_support_vector_misalignment (machine_mode mode, int misalignment,
 				   bool is_packed, bool is_gather_scatter)
 {
+  /* For vectorization in scalar registers, consider slow unaligned
+     access.  */
+  if (!riscv_vector_mode_p (mode))
+    return !riscv_slow_unaligned_access_p;
+
   /* IS_PACKED is true if the corresponding scalar element is not naturally
      aligned.  If the misalignment is unknown and the access is packed
      we defer to the default hook which will check if movmisalign is present.
