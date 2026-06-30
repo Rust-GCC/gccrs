@@ -15836,6 +15836,32 @@ synthesize_ior_xor (rtx_code code, rtx operands[3])
      is complete. */
   if (budget < 0)
     {
+      /* We're going to have to synthesize the constant.  However, if
+	 we have Zbb, then we have XNOR and ORN.  So if the inverted constant
+	 is cheaper, invert it and use XNOR/ORN.  */
+      if (TARGET_ZBB
+	  && riscv_const_insns (GEN_INT (~UINTVAL (operands[2])), true) > 0
+	  && (riscv_const_insns (operands[2], true)
+	      > riscv_const_insns (GEN_INT (~UINTVAL (operands[2])), true)))
+	{
+	  rtx x = force_reg (word_mode, GEN_INT (~UINTVAL (operands[2])));
+
+	  /* Unfortunately canonical forms vary here.  */
+	  if (code == IOR)
+	    {
+	      x = gen_rtx_NOT (word_mode, x);
+	      x = gen_rtx_IOR (word_mode, x, operands[1]);
+	    }
+	  else
+	    {
+	      x = gen_rtx_XOR (word_mode, x, operands[1]);
+	      x = gen_rtx_NOT (word_mode, x);
+	    }
+
+	  emit_insn (gen_rtx_SET (operands[0], x));
+	  return true;
+	}
+
       rtx x = force_reg (word_mode, operands[2]);
       x = gen_rtx_fmt_ee (code, word_mode, operands[1], x);
       emit_insn (gen_rtx_SET (operands[0], x));
@@ -16069,6 +16095,21 @@ synthesize_and (rtx operands[3])
      patch in the series is enabled.  */
   if (ival || budget < 0)
     {
+      /* We're going to have to synthesize the constant.  However, if
+	 we have Zbb, then we have ANDN.  So if the inverted constant
+	 is cheaper, invert it and use ANDN.  */
+      if (TARGET_ZBB
+	  && riscv_const_insns (GEN_INT (~UINTVAL (operands[2])), true) > 0
+	  && (riscv_const_insns (operands[2], true)
+	      > riscv_const_insns (GEN_INT (~UINTVAL (operands[2])), true)))
+	{
+	  rtx x = force_reg (word_mode, GEN_INT (~UINTVAL (operands[2])));
+	  x = gen_rtx_NOT (word_mode, x);
+	  x = gen_rtx_AND (word_mode, x, operands[1]);
+	  emit_insn (gen_rtx_SET (operands[0], x));
+	  return true;
+	}
+
       rtx x = force_reg (word_mode, operands[2]);
       x = gen_rtx_AND (word_mode, operands[1], x);
       emit_insn (gen_rtx_SET (operands[0], x));
