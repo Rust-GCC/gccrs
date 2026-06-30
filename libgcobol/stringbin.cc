@@ -132,7 +132,6 @@ typedef struct
   union
     {
     unsigned __int128 val128;
-    uint64_t          val64;
     };
   } COMBINED;
 
@@ -393,6 +392,7 @@ packed_from_combined(const COMBINED &combined)
     {
     // Stage 1: pull from int128 until the top half is zero.
     __int128 value128 = combined.val128;
+#if COBOL_LITTLE_ENDIAN
     while(value128>>64)
       {
       *(--d) = bin2pd[value128%100];
@@ -405,10 +405,22 @@ packed_from_combined(const COMBINED &combined)
       *(--d) = bin2pd[value64%100];
       value64 /= 100;
       }
+#else
+    // The cute trick for little-endian is trickier in big-endian.  Right now
+    // it's late, and I don't feel like it.  It would be easier if there were
+    // __int128 constants, because the test up above could be
+    //    while(value128/2^64)
+    // but that's not available as of this writing.
+    while(d > combined_string)
+      {
+      *(--d) = bin2pd[value128%100];
+      value128 /= 100;
+      }
+#endif
     }
   else
     {
-    uint64_t value = combined.val64;
+    uint64_t value = combined.val128;
     while(d > combined_string)
       {
       *(--d) = bin2pd[value%100];

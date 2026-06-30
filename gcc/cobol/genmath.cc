@@ -392,7 +392,7 @@ largest_binary_term(size_t nA, const cbl_refer_t *A)
 
 static bool
 fast_add( size_t nC, cbl_num_result_t *C,
-          size_t nA, cbl_refer_t *A,
+          size_t nA, const cbl_refer_t *A,
           cbl_arith_format_t format,
     const cbl_label_t *error,
     const cbl_label_t *not_error)
@@ -426,29 +426,18 @@ fast_add( size_t nC, cbl_num_result_t *C,
         // C, which is not how COBOL works.
 
         tree A_value;
-        if( refer_is_clean(A[0]) )
-          {
-          A_value = get_binary_value_tree(dest_type,
-                                          NULL, // No rdigits
-                                          A[0].field,
-                                          integer_zero_node);
-          }
-        else
-          {
-          A_value = get_binary_value_tree(dest_type,
-                                          NULL, // No rdigits
-                                          A[0].field,
-                                          refer_offset(A[0]));
-          }
+        get_binary_value(A_value, A[0], dest_type);
+
         if( refer_is_clean(C[0].refer) )
           {
           // We are accumulating into memory
 
-          if(false &&    refer_is_working_storage(C[0].refer)
+          if(is_working_storage(C[0].refer)
              && C[0].refer.field->offset == 0 )
             {
             gg_assign(  C[0].refer.field->data_decl_node,
-                        gg_cast(TREE_TYPE(C[0].refer.field->data_decl_node), gg_add( C[0].refer.field->data_decl_node, A_value)));
+                        gg_cast(TREE_TYPE(C[0].refer.field->data_decl_node),
+                        gg_add( C[0].refer.field->data_decl_node, A_value)));
             }
           else
             {
@@ -492,36 +481,10 @@ fast_add( size_t nC, cbl_num_result_t *C,
           dest_addr = gg_cast(build_pointer_type(dest_type), dest_addr);
 
           tree A_value;
-          if( refer_is_clean(A[0]) )
-            {
-            A_value = get_binary_value_tree(dest_type,
-                                            NULL, // No rdigits
-                                            A[0].field,
-                                            integer_zero_node);
-            }
-          else
-            {
-            A_value = get_binary_value_tree(dest_type,
-                                            NULL, // No rdigits
-                                            A[0].field,
-                                            refer_offset(A[0]));
-            }
+          get_binary_value(A_value, A[0], dest_type);
 
           tree B_value;
-          if( refer_is_clean(A[1]) )
-            {
-            B_value = get_binary_value_tree(dest_type,
-                                            NULL, // No rdigits
-                                            A[1].field,
-                                            integer_zero_node);
-            }
-          else
-            {
-            B_value = get_binary_value_tree(dest_type,
-                                            NULL, // No rdigits
-                                            A[1].field,
-                                            refer_offset(A[1]));
-            }
+          get_binary_value(B_value, A[1], dest_type);
 
           gg_assign(  gg_indirect(dest_addr),
                       gg_add( A_value,
@@ -533,20 +496,14 @@ fast_add( size_t nC, cbl_num_result_t *C,
         // We need to calculate the sum of all the A[] terms using term_type as
         // the intermediate type:
 
-        tree sum     = gg_define_variable(term_type);
-        tree addend  = gg_define_variable(term_type);
-        get_binary_value( sum,
-                          NULL,
-                          A[0].field,
-                          refer_offset(A[0]));
+        tree sum    ;
+        tree addend ;
+        get_binary_value(sum, A[0].field, term_type);
 
         // Add in the rest of them:
         for(size_t i=1; i<nA; i++)
           {
-          get_binary_value( addend,
-                            NULL,
-                            A[i].field,
-                            refer_offset(A[i]));
+          get_binary_value( addend, A[i].field, term_type);
           gg_assign(sum, gg_add(sum, addend));
           }
 
@@ -580,8 +537,8 @@ fast_add( size_t nC, cbl_num_result_t *C,
 
 static bool
 fast_subtract(size_t nC, cbl_num_result_t *C,
-              size_t nA, cbl_refer_t *A,
-              size_t nB, cbl_refer_t *B,
+              size_t nA, const cbl_refer_t *A,
+              size_t nB, const cbl_refer_t *B,
               cbl_arith_format_t format,
         const cbl_label_t *error,
         const cbl_label_t *not_error)
@@ -633,20 +590,7 @@ fast_subtract(size_t nC, cbl_num_result_t *C,
         // This is the simplest case of all.  Just subtract A from C.
         tree dest_type = tree_type_from_refer(C[0].refer);
         tree A_value;
-        if( refer_is_clean(A[0]) )
-          {
-          A_value = get_binary_value_tree(dest_type,
-                                          NULL, // No rdigits
-                                          A[0].field,
-                                          integer_zero_node);
-          }
-        else
-          {
-          A_value = get_binary_value_tree(dest_type,
-                                          NULL, // No rdigits
-                                          A[0].field,
-                                          refer_offset(A[0]));
-          }
+        get_binary_value(A_value, A[0], dest_type);
         if( format == giving_e )
           {
           // Make C = B - A
@@ -663,21 +607,7 @@ fast_subtract(size_t nC, cbl_num_result_t *C,
           dest_addr = gg_cast(build_pointer_type(dest_type), dest_addr);
 
           tree B_value;
-          if( refer_is_clean(B[0]) )
-            {
-            B_value = get_binary_value_tree(dest_type,
-                                            NULL, // No rdigits
-                                            B[0].field,
-                                            integer_zero_node);
-            }
-          else
-            {
-            B_value = get_binary_value_tree(dest_type,
-                                            NULL, // No rdigits
-                                            B[0].field,
-                                            refer_offset(B[0]));
-            }
-
+          get_binary_value(B_value, B[0], dest_type);
           gg_assign(  gg_indirect(dest_addr),
                       gg_cast(dest_type, gg_subtract( B_value,
                                                       A_value)));
@@ -713,14 +643,14 @@ fast_subtract(size_t nC, cbl_num_result_t *C,
         // We need to calculate the sum of all the A[] terms using term_type as
         // the intermediate type:
 
-        tree sum     = gg_define_variable(term_type);
-        tree addend  = gg_define_variable(term_type);
-        get_binary_value(sum, NULL, A[0].field, refer_offset(A[0]));
+        tree sum    ;
+        tree addend ;
+        get_binary_value(sum, A[0].field, term_type);
 
         // Add in the rest of them:
         for(size_t i=1; i<nA; i++)
           {
-          get_binary_value(addend, NULL, A[i].field, refer_offset(A[i]));
+          get_binary_value(addend, A[i].field, term_type);
           gg_assign(sum, gg_add(sum, addend));
           }
         //gg_printf("The intermediate sum is %ld\n", gg_cast(LONG, sum), NULL_TREE);
@@ -728,7 +658,7 @@ fast_subtract(size_t nC, cbl_num_result_t *C,
         if( format == giving_e )
           {
           // We now subtract the sum from B[0]
-          get_binary_value(addend, NULL, B[0].field, refer_offset(B[0]));
+          get_binary_value(addend, B[0].field, term_type);
           gg_assign(sum, gg_subtract(addend, sum));
           }
 
@@ -762,8 +692,8 @@ fast_subtract(size_t nC, cbl_num_result_t *C,
 
 static bool
 fast_multiply(size_t nC, cbl_num_result_t *C,
-              size_t nA, cbl_refer_t *A,
-              size_t nB, cbl_refer_t *B)
+              size_t nA, const cbl_refer_t *A,
+              size_t nB, const cbl_refer_t *B)
   {
   bool retval = false;
   if( all_results_integer(nC, C) )
@@ -794,14 +724,14 @@ fast_multiply(size_t nC, cbl_num_result_t *C,
       {
       // All the terms are things we can work with.
 
-      tree valA    = gg_define_variable(term_type);
-      tree valB    = gg_define_variable(term_type);
-      get_binary_value(valA, NULL, A[0].field, refer_offset(A[0]));
+      tree valA ;
+      tree valB ;
+      get_binary_value(valA, A[0].field, term_type);
 
       if( nB )
         {
         // This is a MULTIPLY Format 2
-        get_binary_value(valB, NULL, B[0].field, refer_offset(B[0]));
+        get_binary_value(valB, B[0].field, term_type);
         gg_assign(valA, gg_multiply(valA, valB));
         }
 
@@ -834,8 +764,8 @@ fast_multiply(size_t nC, cbl_num_result_t *C,
 
 static bool
 fast_divide(size_t nC, cbl_num_result_t *C,
-            size_t nA, cbl_refer_t *A,
-            size_t nB, cbl_refer_t *B,
+            size_t nA, const cbl_refer_t *A,
+            size_t nB, const cbl_refer_t *B,
       const cbl_refer_t             &remainder)
   {
   bool retval = false;
@@ -867,16 +797,16 @@ fast_divide(size_t nC, cbl_num_result_t *C,
       {
       // All the terms are things we can work with.
 
-      tree divisor  = gg_define_variable(term_type);
-      tree dividend = gg_define_variable(term_type);
+      tree divisor  ;
+      tree dividend ;
       tree quotient = NULL_TREE;
-      get_binary_value(divisor, NULL, A[0].field, refer_offset(A[0]));
+      get_binary_value(divisor, A[0].field, term_type);
 
       if( nB )
         {
         // This is a MULTIPLY Format 2, where we are dividing A into B and
         // assigning that to C
-        get_binary_value(dividend, NULL, B[0].field, refer_offset(B[0]));
+        get_binary_value(dividend, B[0].field, term_type);
 
         quotient = gg_define_variable(term_type);
         // Yes, in this case the divisor and dividend are switched.  Things are

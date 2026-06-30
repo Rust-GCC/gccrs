@@ -698,95 +698,163 @@ edited_to_binary( const cblc_field_t *field,
 
 static
 __int128
-big_endian_to_binary_signed(
-  const unsigned char *psource,
-  int   capacity
-)
+native_to_binary_signed(void *psource,
+                        int capacity )
   {
-  // This subroutine takes a big-endian value of "capacity" bytes and
-  // converts it to a signed INT128.  The highest order bit of the big-endian
-  // value determines whether or not the highest-order bits of the INT128
-  // return value are off or on.
-
-  __int128 retval;
-  if( *psource >= 128 )
-    {
-    retval = -1;
-    }
-  else
-    {
-    retval = 0;
-    }
-
-  // move the bytes of psource into retval, flipping them end-to-end
-  unsigned char *dest = PTRCAST(unsigned char, &retval);
-  while(capacity > 0)
-    {
-    *dest++ = psource[--capacity];
-    }
-  return retval;
-  }
-
-static
-__int128
-little_endian_to_binary_signed(
-  const unsigned char *psource,
-  int capacity
-)
-  {
-  // This subroutine takes a little-endian value of "capacity" bytes and
-  // converts it to a signed INT128.  The highest order bit of the little-endian
-  // value determines whether or not the highest-order bits of the INT128
-  // return value are off or on.
-
   __int128 result;
-
-  // Set all the bits of the result based on the sign of the source:
-  if( psource[capacity-1] >= 128 )
+  switch(capacity)
     {
-    result = -1;
+    case 1:
+      result = *reinterpret_cast<int8_t *>(psource);
+      break;
+    case 2:
+      result = *reinterpret_cast<int16_t *>(psource);
+      break;
+    case 4:
+      result = *reinterpret_cast<int32_t *>(psource);
+      break;
+    case 8:
+      result = *reinterpret_cast<int64_t *>(psource);
+      break;
+    case 16:
+      result = *reinterpret_cast<__int128 *>(psource);
+      break;
     }
-  else
-    {
-    result = 0;
-    }
-
-  // Copy the low-order bytes into place:
-  memcpy(&result, psource, capacity);
   return result;
   }
 
 static
 __int128
-little_endian_to_binary_unsigned(
-  const unsigned char *psource,
-  int capacity
-)
+native_to_binary_unsigned(void *psource,
+                          int capacity)
   {
-  __int128 result = 0;
-
-  // Copy the low-order bytes into place:
-  memcpy(&result, psource, capacity);
+  __int128 result;
+  switch(capacity)
+    {
+    case 1:
+      result = *reinterpret_cast<uint8_t *>(psource);
+      break;
+    case 2:
+      result = *reinterpret_cast<uint16_t *>(psource);
+      break;
+    case 4:
+      result = *reinterpret_cast<uint32_t *>(psource);
+      break;
+    case 8:
+      result = *reinterpret_cast<uint64_t *>(psource);
+      break;
+    case 16:
+      result = *reinterpret_cast<unsigned __int128 *>(psource);
+      break;
+    }
   return result;
   }
 
 static
 __int128
-big_endian_to_binary_unsigned(
-  const unsigned char *psource,
-  int   capacity
-)
+big_endian_to_binary_unsigned(const void *psource,
+                              int   capacity)
   {
   // This subroutine takes an unsigned big-endian value of "capacity" bytes and
   // converts it to an INT128.
 
-  __int128 retval = 0 ;
+  unsigned __int128 retval = 0 ;
 
-  // move the bytes of psource into retval, flipping them end-to-end
-  unsigned char *dest = PTRCAST(unsigned char, &retval);
-  while(capacity > 0)
+  switch(capacity)
     {
-    *dest++ = psource[--capacity];
+    case 1:
+      {
+      uint8_t v;
+      memcpy(&v, psource, sizeof(v));
+      retval = v;
+      break;
+      }
+    case 2:
+      {
+      uint16_t v;
+      memcpy(&v, psource, sizeof(v));
+      #if COBOL_LITTLE_ENDIAN
+      // This is a little-endian machine, so we have to flip the value.
+      v = __builtin_bswap16(v);
+      #endif
+      retval = v;
+      break;
+      }
+    case 4:
+      {
+      uint32_t v;
+      memcpy(&v, psource, sizeof(v));
+      #if COBOL_LITTLE_ENDIAN
+      v = __builtin_bswap32(v);
+      #endif
+      retval = v;
+      break;
+      }
+    case 8:
+      {
+      uint64_t v;
+      memcpy(&v, psource, sizeof(v));
+      #if COBOL_LITTLE_ENDIAN
+      v = __builtin_bswap64(v);
+      #endif
+      retval = v;
+      break;
+      }
+    case 16:
+      {
+      unsigned __int128 v;
+      memcpy(&v, psource, sizeof(v));
+      #if COBOL_LITTLE_ENDIAN
+      v = __builtin_bswap128(v);
+      #endif
+      retval = v;
+      break;
+      }
+    }
+  return retval;
+  }
+
+static __int128
+big_endian_to_binary_signed(const void *psource, int capacity)
+  {
+  __int128 retval;
+  unsigned __int128 u = big_endian_to_binary_unsigned(psource, capacity);
+
+  switch (capacity)
+    {
+    case 1:
+    case 2:
+    case 4:
+    case 8:
+      {
+      int bits = capacity * 8;
+
+      unsigned __int128 sign_bit =
+          (static_cast<unsigned __int128>(1)) << (bits - 1);
+
+      if(u & sign_bit)
+        {
+        unsigned __int128 extension =
+            (~static_cast<unsigned __int128>(0)) << bits;
+
+        u |= extension;
+        }
+
+      retval = u;
+      break;
+      }
+
+    case 16:
+      {
+      /* Already a full-width 128-bit quantity.  Returning it as signed
+         interprets the high bit as the sign bit on GCC/two's-complement
+         targets. */
+      retval = u;
+      break;
+      }
+
+    default:
+      abort();
     }
   return retval;
   }
@@ -911,13 +979,13 @@ get_binary_value_local(  int                 *rdigits,
       if( resolved_var->attr & signable_e)
         {
         retval = big_endian_to_binary_signed(
-                        PTRCAST(const unsigned char, resolved_location),
+                        resolved_location,
                         resolved_length);
         }
       else
         {
         retval = big_endian_to_binary_unsigned(
-                        PTRCAST(const unsigned char, resolved_location),
+                        resolved_location,
                         resolved_length);
         }
       *rdigits = resolved_var->rdigits;
@@ -927,12 +995,12 @@ get_binary_value_local(  int                 *rdigits,
       {
       if( resolved_var->attr & signable_e)
         {
-        retval = little_endian_to_binary_signed(resolved_var->data,
+        retval = native_to_binary_signed(resolved_var->data,
                                                 resolved_var->capacity);
         }
       else
         {
-        retval = little_endian_to_binary_unsigned(resolved_var->data,
+        retval = native_to_binary_unsigned(resolved_var->data,
                                                   resolved_var->capacity);
         }
       *rdigits = resolved_var->rdigits;
@@ -944,14 +1012,14 @@ get_binary_value_local(  int                 *rdigits,
     case FldPointer:
       if( resolved_var->attr & signable_e)
         {
-        retval = little_endian_to_binary_signed(
-                      PTRCAST(const unsigned char, resolved_location),
+        retval = native_to_binary_signed(
+                      resolved_location,
                       resolved_length);
         }
       else
         {
-        retval = little_endian_to_binary_unsigned(
-                      PTRCAST(const unsigned char, resolved_location),
+        retval = native_to_binary_unsigned(
+                      resolved_location,
                       resolved_length);
         }
       *rdigits = resolved_var->rdigits;
@@ -1247,41 +1315,147 @@ value_is_too_big(const cblc_field_t *var,
 static void
 binary_to_big_endian(   unsigned char *dest,
                         int            bytes,
-                        __int128       value
-                    )
+                        __int128       value,
+                        bool           signable )
   {
-  if( value < 0 )
+  // value is native, and we want the result to be big-endian.
+  if( signable )
     {
-    memset(dest, 0xFF, bytes);
+    int8_t   v8;
+    int16_t  v16;
+    int32_t  v32;
+    int64_t  v64;
+    __int128 v128;
+    switch(bytes)
+      {
+      case 1:
+        v8 = value;
+        *reinterpret_cast<int8_t*>(dest) = v8;
+        break;
+      case 2:
+        v16 = value;
+        #if COBOL_LITTLE_ENDIAN
+        v16 = __builtin_bswap16(v16);
+        #endif
+        *reinterpret_cast<int16_t*>(dest) = v16;
+        break;
+      case 4:
+        v32 = value;
+        #if COBOL_LITTLE_ENDIAN
+        v32 = __builtin_bswap32(v32);
+        #endif
+        *reinterpret_cast<int32_t*>(dest) = v32;
+        break;
+      case 8:
+        v64 = value;
+        #if COBOL_LITTLE_ENDIAN
+        v64 = __builtin_bswap64(v64);
+        #endif
+        *reinterpret_cast<int64_t*>(dest) = v64;
+        break;
+      default:
+        v128 = value;
+        #if COBOL_LITTLE_ENDIAN
+        v128 = __builtin_bswap128(v128);
+        #endif
+        *reinterpret_cast<__int128*>(dest) = v128;
+        break;
+      }
     }
   else
     {
-    memset(dest, 0x00, bytes);
-    }
-
-  dest += bytes-1;
-  while( bytes-- )
-    {
-    *dest-- = (unsigned char) value;
-    value >>= 8;
+    uint8_t   v8;
+    uint16_t  v16;
+    uint32_t  v32;
+    uint64_t  v64;
+    unsigned __int128 v128;
+    switch(bytes)
+      {
+      case 1:
+        v8 = value;
+        *reinterpret_cast<uint8_t*>(dest) = v8;
+        break;
+      case 2:
+        v16 = value;
+        #if COBOL_LITTLE_ENDIAN
+        v16 = __builtin_bswap16(v16);
+        #endif
+        *reinterpret_cast<uint16_t*>(dest) = v16;
+        break;
+      case 4:
+        v32 = value;
+        #if COBOL_LITTLE_ENDIAN
+        v32 = __builtin_bswap32(v32);
+        #endif
+        *reinterpret_cast<uint32_t*>(dest) = v32;
+        break;
+      case 8:
+        v64 = value;
+        #if COBOL_LITTLE_ENDIAN
+        v64 = __builtin_bswap64(v64);
+        #endif
+        *reinterpret_cast<uint64_t*>(dest) = v64;
+        break;
+      default:
+        v128 = value;
+        #if COBOL_LITTLE_ENDIAN
+        v128 = __builtin_bswap128(v128);
+        #endif
+        *reinterpret_cast<unsigned __int128*>(dest) = v128;
+        break;
+      }
     }
   }
 
 static void
-binary_to_little_endian(   unsigned char *dest,
-                           int            bytes,
-                           __int128       value
+binary_to_native_binary(   void      *dest,
+                           int        bytes,
+                           __int128   value,
+                           bool       signable
                        )
   {
-  if( value < 0 )
+  if(signable)
     {
-    memset(dest, 0xFF, bytes);
+    switch(bytes)
+      {
+      case 1:
+        *reinterpret_cast<int8_t  * >(dest) = value;
+        break;
+      case 2:
+        *reinterpret_cast<int16_t * >(dest) = value;
+        break;
+      case 4:
+        *reinterpret_cast<int32_t * >(dest) = value;
+        break;
+      case 8:
+        *reinterpret_cast<int64_t * >(dest) = value;
+        break;
+      case 16:
+        *reinterpret_cast<__int128 * >(dest) = value;
+        break;
+      }
     }
   else
     {
-    memset(dest, 0x00, bytes);
+    switch(bytes)
+      {
+      case 1:
+        *reinterpret_cast<uint8_t  * >(dest) = value;
+        break;
+      case 2:
+        *reinterpret_cast<uint16_t * >(dest) = value;
+        break;
+      case 4:
+        *reinterpret_cast<uint32_t * >(dest) = value;
+        break;
+      case 8:
+        *reinterpret_cast<uint64_t * >(dest) = value;
+        break;
+      case 16:
+        *reinterpret_cast<unsigned __int128 * >(dest) = value;
+        break;
+      }
     }
-  memcpy(dest, &value, bytes);
   }
 
 static __int128
@@ -1972,7 +2146,8 @@ int128_to_field(cblc_field_t   *var,
           case FldNumericBinary:
             binary_to_big_endian(   location,
                                     length,
-                                    value);
+                                    value,
+                                    !!(var->attr&signable_e));
             size_error = value_is_too_big(var, value, source_rdigits);
             break;
 
@@ -1985,9 +2160,10 @@ int128_to_field(cblc_field_t   *var,
             // will become one, but it is, apparently harmless.  The HIGH-VALUE
             // must get processed separately elsewhere.  As the author, it
             // would be nice if I knew -- but I don't.
-            binary_to_little_endian(location,
+            binary_to_native_binary( location,
                                     length,
-                                    value);
+                                    value,
+                                    !!(var->attr&signable_e));
             size_error = value_is_too_big(var, value, source_rdigits);
             break;
 

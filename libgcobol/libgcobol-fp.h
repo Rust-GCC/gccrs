@@ -49,6 +49,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 # define strtofp128(nptr, endptr) strtoflt128(nptr, endptr)
 # define strfromfp128(str, n, format, fp) quadmath_snprintf(str, n, format, fp)
 #else
+// cppcheck-suppress preprocessorErrorDirective
 # error "libgcobol requires 128b floating point"
 #endif
 

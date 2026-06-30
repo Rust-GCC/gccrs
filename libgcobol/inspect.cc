@@ -319,7 +319,7 @@ normalize_id( const cblc_field_t *field,
         }
       else
         {
-        char ch =  charmap->figconst_character(figconst);
+        uint8_t ch =  charmap->figconst_character(figconst);
         for( size_t i=retval.offset; i<retval.length; i+=1 )
           {
           retval.the_characters += ch;
@@ -424,7 +424,7 @@ normalize_id( const cblc_field_t *field,
       // We need to fill the field with a figurative constant:
       // We are set up to create the_characters;
       charmap_t *charmap32 = __gg__get_charmap(DEFAULT_32_ENCODING);
-      char ch =  charmap32->figconst_character(figconst);
+      uint8_t ch =  charmap32->figconst_character(figconst);
       for( size_t i=retval.offset; i<retval.length; i+=1 )
         {
         retval.the_characters += ch;
@@ -500,7 +500,7 @@ normalize_id_sbc( const cblc_field_t *field,
       else
         {
         // This field is flagged as figconst
-        char ch =  charmap->figconst_character(figconst);
+        uint8_t ch =  charmap->figconst_character(figconst);
         retval.assign(field_s, ch);
         }
       }

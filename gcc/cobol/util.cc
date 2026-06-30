@@ -65,6 +65,9 @@
 #include "../../libgcobol/charmaps.h"
 #include "../../libgcobol/valconv.h"
 
+#include "tm.h"
+#include "target.h"
+
 #pragma GCC diagnostic ignored "-Wunused-result"
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 
@@ -1391,7 +1394,9 @@ binary_initial( char *retval,
                 int drdigits)
   {
   // This routine returns an xmalloced buffer designed to replace the
-  // data.initial member of the incoming field
+  // data.initial member of the incoming field.  The 'retval' becomes the
+  // binary representation of 'value' in the target machine's native endian
+  // encoding.
 
   int scaled_rdigits = get_scaled_rdigits(field);
 
@@ -1685,12 +1690,11 @@ cbl_field_t::encode_numeric( const char input[], cbl_loc_t loc ) {
         binary_initial(retval, this, value, l_rdigits);
         if( attr & big_endian_e )
           {
-          // This is a big-endian value, so swap retval end-for-end:
-          size_t left = 0;
-          size_t right = data.capacity() - 1;
-          while(left < right)
+          if(!BYTES_BIG_ENDIAN)
             {
-            std::swap(retval[left++], retval[right--]);
+            // The target is little-endian, so we have to swap our value to make
+            // it big-endian.
+            std::reverse(retval, retval + data.capacity());
             }
           }
         break;
@@ -1848,7 +1852,27 @@ cbl_field_t::encode_numeric( const char input[], cbl_loc_t loc ) {
                         : retval + (data.digits-1) * charmap->stride() ;
           cbl_char_t schar = charmap->set_digit_negative(*sign_location,
                                                           negative);
-          memcpy(sign_location, &schar, charmap->stride());
+          switch(charmap->stride())
+            {
+            case 1:
+              {
+              uint8_t v = schar;
+              memcpy(sign_location, &v, charmap->stride());
+              break;
+              }
+            case 2:
+              {
+              uint16_t v = schar;
+              memcpy(sign_location, &v, charmap->stride());
+              break;
+              }
+            case 4:
+              {
+              uint32_t v = schar;
+              memcpy(sign_location, &v, charmap->stride());
+              break;
+              }
+            }
           }
         break;
         }

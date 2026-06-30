@@ -34,8 +34,7 @@ extern tree var_decl_node_p_of( cbl_field_t *var );
 
 // Simple fetch
 extern tree member(tree var, const char *member_name);
-extern tree member(cbl_field_t *var, const char *member_name);
-extern tree member(cbl_refer_t refer, const char *member_name);
+extern tree member(const cbl_field_t *var, const char *member_name);
 
 extern tree member(cbl_file_t *var, const char *member_name);
 extern tree member2(tree var, const char *member_name, const char *submember);

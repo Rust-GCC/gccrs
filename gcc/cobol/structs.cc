@@ -87,7 +87,7 @@ member(tree var, const char *member_name)
     }
 
 tree
-member(cbl_field_t *var, const char *member_name)
+member(const cbl_field_t *var, const char *member_name)
     {
     return gg_struct_field_ref(var->var_decl_node, member_name);
     }

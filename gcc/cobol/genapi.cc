@@ -2348,9 +2348,10 @@ parser_alter( cbl_perform_tgt_t *tgt )
   }
 
 void
-parser_goto( cbl_refer_t value_ref, size_t narg, cbl_label_t * const labels[] )
-  // This routine takes
-{
+parser_goto(const cbl_refer_t &value_ref,
+            size_t narg,
+            cbl_label_t * const labels[] )
+  {
   // This is part of the Terrible Trio of parser_perform, parser_goto and
   // parser_enter_[procedure].  parser_goto has an easier time of it than
   // the other two, because it just has to jump from here to the entry point
@@ -2390,11 +2391,8 @@ parser_goto( cbl_refer_t value_ref, size_t narg, cbl_label_t * const labels[] )
     {
     // We will implement the two or more fanout with a switch statement.
 
-    tree value = gg_define_int();
-    get_binary_value( value,
-                      NULL,
-                      value_ref.field,
-                      refer_offset(value_ref));
+    tree value;
+    get_binary_value(value, value_ref, INT);
 
     // value is properly 1 through nargs
 
@@ -2439,7 +2437,7 @@ parser_goto( cbl_refer_t value_ref, size_t narg, cbl_label_t * const labels[] )
   }
 
 void
-parser_perform_times( cbl_label_t *proc_1, cbl_refer_t count )
+parser_perform_times( cbl_label_t *proc_1, const cbl_refer_t &count )
   {
   Analyze();
   SHOW_PARSE
@@ -2451,7 +2449,8 @@ parser_perform_times( cbl_label_t *proc_1, cbl_refer_t count )
     char ach[32];
     sprintf(ach, " proc_1 is at %p", static_cast<void*>(proc_1));
     SHOW_PARSE_TEXT(ach)
-    sprintf(ach, " proc_1->proc is %p", static_cast<void*>(proc_1->structs.proc));
+    sprintf(ach, " proc_1->proc is %p",
+            static_cast<void*>(proc_1->structs.proc));
     SHOW_PARSE_TEXT(ach)
     SHOW_PARSE_END
     }
@@ -2463,13 +2462,9 @@ parser_perform_times( cbl_label_t *proc_1, cbl_refer_t count )
 
   perform_is_armed = CURRENT_LINE_NUMBER ;
 
-  tree counter       = gg_define_variable(LONG);
-
   // Get the count:
-  get_binary_value( counter,
-                    NULL,
-                    count.field,
-                    refer_offset(count));
+  tree counter;
+  get_binary_value(counter, count, LONG);
 
   // Make sure the initial count is valid:
   WHILE( counter, gt_op, gg_cast(LONG, integer_zero_node) )
@@ -2588,7 +2583,7 @@ parser_perform(cbl_label_t *label, bool suppress_nexting)
 static void
 internal_perform_through_times(   cbl_label_t *proc_1,
                                   cbl_label_t *proc_2,
-                                  cbl_refer_t &count)
+                            const cbl_refer_t &count)
   {
   Analyze();
   SHOW_PARSE
@@ -2626,11 +2621,8 @@ internal_perform_through_times(   cbl_label_t *proc_1,
 
   perform_is_armed = CURRENT_LINE_NUMBER ;
 
-  tree counter       = gg_define_variable(LONG);
-  get_binary_value( counter,
-                    NULL,
-                    count.field,
-                    refer_offset(count));
+  tree counter;
+  get_binary_value(counter, count, LONG);
   WHILE( counter, gt_op, gg_cast(LONG, integer_zero_node) )
     {
     internal_perform_through(proc_1, proc_2, true); // true means suppress_nexting
@@ -4608,7 +4600,7 @@ parser_display_literal(const char *literal, bool advance)
 
 void
 parser_display_internal(tree file_descriptor,
-                        cbl_refer_t refer,
+                  const cbl_refer_t &refer,
                         bool advance)
   {
   Analyze();
@@ -5632,11 +5624,8 @@ program_end_stuff(cbl_refer_t refer,
         {
         // The field_type has a PICTURE string, so we need to convert from the
         // COBOL form to little-endian binary:
-        tree value   = gg_define_int128();
-        get_binary_value( value,
-                          NULL,
-                          returner,
-                          size_t_zero_node);
+        tree value;
+        get_binary_value( value, returner, INT128);
         gg_memcpy(gg_get_address_of(retval),
                   gg_get_address_of(value),
                   build_int_cst_type(SIZE_T, nbytes));
@@ -7210,11 +7199,8 @@ parser_relop_long(cbl_field_t *tgt,
     }
 
   tree tree_a  = build_int_cst_type(LONG, avalue);
-  tree tree_b  = gg_define_variable(LONG);
-  get_binary_value( tree_b,
-                    NULL,
-                    bref.field,
-                    refer_offset(bref) );
+  tree tree_b;
+  get_binary_value( tree_b, bref.field, LONG);
   tree comp_res = gg_define_variable(LONG);
   gg_assign(comp_res, gg_subtract(tree_a, tree_b));
 
@@ -7327,15 +7313,11 @@ parser_see_stop_run(struct cbl_refer_t exit_status,
     }
 
   // It's a stop run.  Return return-code to the operating system:
-  tree returned_value = gg_define_variable(INT);
-
+  tree returned_value;
   if( exit_status.field )
     {
     // There is an exit_status, so it wins:
-    get_binary_value( returned_value,
-                      NULL,
-                      exit_status.field,
-                      refer_offset(exit_status));
+    get_binary_value( returned_value, exit_status.field, INT);
     TRACE1
       {
       TRACE1_REFER(" exit_status ", exit_status, "")
@@ -7343,6 +7325,7 @@ parser_see_stop_run(struct cbl_refer_t exit_status,
     }
   else
     {
+    returned_value = gg_define_variable(INT);
     gg_assign(returned_value, gg_cast(INT, current_function->var_decl_return));
     TRACE1
       {
@@ -7568,7 +7551,7 @@ parser_classify(    cbl_field_t *tgt,
   }
 
 void
-parser_perform(const cbl_perform_tgt_t *tgt, cbl_refer_t how_many)
+parser_perform(const cbl_perform_tgt_t *tgt, const cbl_refer_t &how_many)
   {
   const cbl_field_t *N = how_many.field;
   // No SHOW_PARSE here; we want to fall through:
@@ -8692,11 +8675,8 @@ parser_perform_inline_times(struct cbl_perform_tgt_t *tgt,
     }
 
   gcc_assert(tgt);
-  cbl_field_t *count = how_many.field;
-  CHECK_FIELD(count);
 
-  // This has to be on the stack, because performs can be nested
-  tree counter       = gg_define_variable(LONG);
+  tree counter = gg_define_variable(LONG);
 
   /*
               GOTO SETUP
@@ -8764,10 +8744,9 @@ parser_perform_inline_times(struct cbl_perform_tgt_t *tgt,
     SHOW_PARSE_END
     }
 
-  get_binary_value( counter,
-                    NULL,
-                    count,
-                    refer_offset(how_many));
+  tree initial_value;
+  get_binary_value(initial_value, how_many, LONG);
+  gg_assign(counter, initial_value);
 
   SHOW_PARSE
     {
@@ -9430,11 +9409,8 @@ parser_file_write( cbl_file_t *file,
   tree t_advance = gg_define_variable(INT);
   if(advance.field)
     {
-    tree value = gg_define_variable(INT);
-    get_binary_value( value,
-                      NULL,
-                      advance.field,
-                      refer_offset(advance));
+    tree value;
+    get_binary_value( value, advance, INT);
     gg_assign(t_advance, gg_cast(INT, value));
     }
   else
@@ -9741,7 +9717,7 @@ void
 parser_file_start(struct cbl_file_t *file,
                   relop_t op,
                   int flk,
-                  cbl_refer_t length_ref )
+            const cbl_refer_t &length_ref )
   {
   Analyze();
   SHOW_PARSE
@@ -9797,13 +9773,12 @@ parser_file_start(struct cbl_file_t *file,
     flk = -1;
     }
 
-  tree length = gg_define_variable(SIZE_T);
-  gg_assign(length, size_t_zero_node);
+  tree length = size_t_zero_node;
 
   if( flk > 0 && !length_ref.field )
     {
-    // We need a length, and we don't have one.  We have to calculate the length
-    // from the lengths of the fields that make up the specified key.
+    // We need a length, and we don't have one.  We have to calculate the
+    // length from the lengths of the fields that make up the specified key.
 
     size_t combined_length = 0;
 
@@ -9818,14 +9793,11 @@ parser_file_start(struct cbl_file_t *file,
       cbl_field_t *field = cbl_field_of(symbol_at(nfield));
       combined_length += field->data.capacity();
       }
-    gg_assign(length, build_int_cst_type(SIZE_T, combined_length));
+    length = build_int_cst_type(SIZE_T, combined_length);
     }
   else if( flk > 0 )
     {
-    get_binary_value( length,
-                      NULL,
-                      length_ref.field,
-                      refer_offset(length_ref));
+    get_binary_value( length, length_ref, SIZE_T);
     }
 
   sv_is_i_o = true;
@@ -10820,7 +10792,7 @@ handle_gg_trim(cbl_field_t *tgt,
                                             (arg.field->attr & FIGCONST_MASK);
         if( figconst )
           {
-          cbl_char_t figcst = charmap->figconst_character(figconst);
+          uint8_t figcst = charmap->figconst_character(figconst);
           tree tfigcst = build_int_cst_type(UCHAR, figcst);
           gg_assign(gg_indirect(char_p), tfigcst);
           }
@@ -10878,7 +10850,7 @@ parser_trim( cbl_field_t *tgt,
                                           (arg.field->attr & FIGCONST_MASK);
       if( figconst )
         {
-        cbl_char_t figcst = charmap->figconst_character(figconst);
+        uint8_t figcst = charmap->figconst_character(figconst);
         tree tfigcst = build_int_cst_type(ULONG, figcst);
 
         gg_memcpy(char_p,
@@ -11069,17 +11041,15 @@ parser_intrinsic_call_4( cbl_field_t *tgt,
 static void
 field_increment(cbl_field_t *fld )
   {
-  static tree value   = gg_define_variable(INT128);
-  static tree rdigits = gg_define_variable(INT);
-
-  get_binary_value(value, rdigits, fld, size_t_zero_node);
-  gg_assign(  value,
-              gg_add(value, gg_cast(SIZE_T, integer_one_node)));
+  // rdigits has to be zero.
+  tree value;
+  get_binary_value(value, fld, INT128);
+  gg_increment(value);
   gg_call(VOID,
           "__gg__int128_to_field",
           gg_get_address_of(fld->var_decl_node),
-          value,
-          rdigits,
+          gg_cast(INT128, value),
+          integer_zero_node,
           build_int_cst_type(INT, truncation_e),
           null_pointer_node,
           NULL_TREE );
@@ -11164,14 +11134,18 @@ parser_lsearch_start(   cbl_label_t *name,
   // Establish the initial value of our counter:
   lsearch->counter = gg_define_variable(LONG);
 
-  tree value   = gg_define_int128();
+  tree value;
   if(varying)
     {
-    get_binary_value(value, NULL, varying, size_t_zero_node);
+    get_binary_value(value, varying, SIZE_T);
     }
   else if( index )
     {
-    get_binary_value(value, NULL, index, size_t_zero_node);
+    get_binary_value(value, index, SIZE_T);
+    }
+  else
+    {
+    gcc_unreachable();
     }
   gg_assign(lsearch->counter, gg_cast(LONG, value));
 
@@ -11925,7 +11899,7 @@ parser_file_sort(   cbl_file_t *workfile,
   }
 
 void
-parser_release( cbl_field_t *record_area )
+parser_release( const cbl_field_t *record_area )
   {
   Analyze();
   SHOW_PARSE
@@ -13943,8 +13917,8 @@ parser_match_exception(cbl_field_t *index)
 
   TRACE1
     {
-    tree index_val = gg_define_variable(INT);
-    get_binary_value(index_val, NULL, index, size_t_zero_node);
+    tree index_val;
+    get_binary_value(index_val, index, INT);
     TRACE1_INDENT
     gg_printf("returned value is 0x%x (%d)", index_val, index_val, NULL_TREE);
     TRACE1_END
@@ -14683,7 +14657,9 @@ parser_local_add(struct cbl_field_t *new_var )
   }
 
 void
-parser_field_attr_set( cbl_field_t *tgt, cbl_field_attr_t attr, bool on_off )
+parser_field_attr_set(const cbl_field_t *tgt,
+                            cbl_field_attr_t attr,
+                            bool on_off )
   {
   if( on_off )
     {

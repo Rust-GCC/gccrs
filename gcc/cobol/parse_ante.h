@@ -3208,10 +3208,10 @@ cbl_field_t::blank_initial( size_t nchar, cbl_figconst_t figconst ) {
   
   switch(codeset.stride()) {
   case 1: 
-    blankit( reinterpret_cast<uint8_t*>(init), nchar, uint8_t(space_char) );
+    blankit( reinterpret_cast<uint8_t*>(init), nchar, uint8_t(space_char%0x100) );
     break;
   case 2:
-    blankit( reinterpret_cast<uint16_t*>(init), nchar, uint16_t(space_char) );
+    blankit( reinterpret_cast<uint16_t*>(init), nchar, uint16_t(space_char%0x10000) );
     break;
   case 4:
     blankit( reinterpret_cast<uint32_t*>(init), nchar, uint32_t(space_char) );

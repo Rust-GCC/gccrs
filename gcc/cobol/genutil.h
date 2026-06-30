@@ -63,23 +63,9 @@ extern tree var_decl_entry_index; // void* __gg__entry_index
 extern tree var_decl_dialects;    // void* __gg__dialects
 extern tree var_decl_dp2bin;      // unsigned char * ___gg__dp2bin
 
-int       get_scaled_rdigits(cbl_field_t *field);
-int       get_scaled_digits(cbl_field_t *field);
+int       get_scaled_rdigits(const cbl_field_t *field);
+int       get_scaled_digits(const cbl_field_t *field);
 
-void      get_binary_value( tree value,
-                            tree rdigits,
-                            cbl_field_t *field,
-                            tree         field_offset,
-                            tree         hilo = NULL);
-tree      get_binary_value_tree(tree return_type,
-                                tree rdigits,
-                                cbl_field_t *field,
-                                tree         field_offset,
-                                tree         hilo = NULL);
-tree      get_binary_value_tree(tree return_type,
-                                tree rdigits,
-                                const cbl_refer_t &refer,
-                                tree         hilo = NULL);
 tree      get_data_address( cbl_field_t *field,
                             tree         offset);
 
@@ -100,11 +86,6 @@ void      set_exception_code_func(ec_type_t ec,
                                   int from_raise_statement=0);
 #define set_exception_code(ec) set_exception_code_func(ec, __LINE__)
 bool      process_this_exception(const ec_type_t ec);
-#define   CHECK_FOR_FRACTIONAL_DIGITS true
-void      get_integer_value(tree value,  // This is always a LONG
-                            cbl_field_t *field,
-                            tree         offset=NULL,  // size_t
-                            bool check_for_fractional_digits=false);
 void      rt_error(const char *msg);
 tree      build_array_of_size_t( size_t  N,
                                  const size_t *values);
@@ -114,8 +95,10 @@ void      parser_display_internal_field(tree file_descriptor,
 char     *get_literal_string(cbl_field_t *field);
 
 bool      refer_is_clean(const cbl_refer_t &refer);
+bool      field_is_super_clean(const cbl_field_t *field);
 bool      refer_is_super_clean(const cbl_refer_t &refer);
-bool      refer_is_working_storage(const cbl_refer_t &refer);
+bool      is_working_storage(const cbl_refer_t &refer);
+bool      is_working_storage(const cbl_field_t *field);
 
 tree      refer_offset(const cbl_refer_t &refer, int *pflags=NULL);
 tree      refer_size_source(const cbl_refer_t &refer);
@@ -136,18 +119,34 @@ bool      is_pure_integer(const cbl_field_t *field);
 tree      tree_type_from_field(const cbl_field_t *field);
 tree      tree_type_from_refer(const cbl_refer_t &refer);
 
-bool      get_binary_value(tree &value, 
+void      get_binary_value(tree &value,
+                     const cbl_field_t *field,
+                           tree type = NULL_TREE);
+
+void      get_binary_value(tree &value,
                      const cbl_refer_t &refer,
                            tree type = NULL_TREE);
+
+void      get_location(tree &retval, const cbl_field_t *field);
 void      get_location(tree &retval, const cbl_refer_t &refer);
+
+void      safe_cast(tree &target,         // A defined variable.
+                    tree source_location, // A pointer, usually UCHAR_P.
+                    tree source_type);    // The variable type pointed to by
+                                          // source_location.
+void      safe_cast(tree &target,         // A defined variable.
+                    const cbl_field_t *field);
+void      safe_cast(tree &target,         // A defined variable.
+                    const cbl_refer_t &refer);
+
 void      get_length(tree &retval, const cbl_refer_t &refer);
 
 void treeplet_fill_source(TREEPLET &treeplet, const cbl_refer_t &refer);
 
 tree data_decl_type_for(cbl_field_t *field);
 
-void attribute_bit_clear(struct cbl_field_t *var, cbl_field_attr_t bits);
-tree attribute_bit_get(struct cbl_field_t *var, cbl_field_attr_t bits);
-void attribute_bit_set(struct cbl_field_t *var, cbl_field_attr_t bits);
+void attribute_bit_clear(const struct cbl_field_t *var, cbl_field_attr_t bits);
+tree attribute_bit_get(const struct cbl_field_t *var, cbl_field_attr_t bits);
+void attribute_bit_set(const struct cbl_field_t *var, cbl_field_attr_t bits);
 
 #endif

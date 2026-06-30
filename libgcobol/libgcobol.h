@@ -39,10 +39,31 @@
     Some are also called between source code modules in libgcobol, hence the
     need here for declarations. */
 
+// The runtime might be on a little-endian machine, and it might be on a
+// big-endian machine, most notably the IBM S390 series.
+
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+# define COBOL_BIG_ENDIAN 1
+# define COBOL_LITTLE_ENDIAN 0
+#elif defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+# define COBOL_BIG_ENDIAN 0
+# define COBOL_LITTLE_ENDIAN 1
+
+#elif defined(__BIG_ENDIAN__) || defined(_BIG_ENDIAN)
+# define COBOL_BIG_ENDIAN 1
+# define COBOL_LITTLE_ENDIAN 0
+#elif defined(__LITTLE_ENDIAN__) || defined(_LITTLE_ENDIAN)
+# define COBOL_BIG_ENDIAN 0
+# define COBOL_LITTLE_ENDIAN 1
+
+//#else
+cppcheck-suppress preprocessorErrorDirective
+# error "Unknown byte order" 
+#endif
+
 extern void __gg__mabort();
 
-
-// The unnecessary abort() that follows is necessary to make cppcheck be 
+// The unnecessary abort() that follows is necessary to make cppcheck be
 // aware that massert() actually terminates processing after a failed
 // malloc().
 #define massert(p) if(!p){__gg__mabort();abort();}

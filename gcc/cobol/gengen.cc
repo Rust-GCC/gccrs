@@ -398,6 +398,12 @@ gg_cast(tree type, tree var)
     }
 #endif
 
+  if(    TREE_CODE(type) == INTEGER_TYPE
+      && TREE_CODE(TREE_TYPE(var)) == REAL_TYPE )
+    {
+    return gg_trunc(type, var);
+    }
+
   return fold_convert(type, var);
   }
 
@@ -534,10 +540,8 @@ gg_show_type(tree type)
 tree
 gg_assign(tree dest, const tree source)
   {
-  // This does the equivalent of a C/C++ "dest = source".  When X1 is set, it
-  // does some checking for conditions that can result in inefficient code, so
-  // that is useful during development when even an astute programmer might
-  // need an assist with keeping variable types straight.
+  // This does the equivalent of a C/C++ "dest = source".  It does some
+  // checking for conditions that can result in inefficient code.
 
   // This routine also provides for the possibility that the assignment is
   // for a source that is a function invocation, as in
@@ -578,7 +582,7 @@ gg_assign(tree dest, const tree source)
     // the same.  This is a compilation-time error, since we want the caller to
     // have sorted the types out explicitly.  If we don't throw an error here,
     // the gimple reduction will do so.  Better to do it here, when we know
-    // where we are.S
+    // where we are.
     static const int debugging = 1;
     if( debugging )
       {

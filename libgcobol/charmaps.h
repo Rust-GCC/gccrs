@@ -128,7 +128,7 @@ extern uint32_t __gg__wsclear;
 enum
   {
   /* HIGH-VALUE is an endless source of irritation.
-  
+
      0xFF is the default value for COBOL since time immemorial.  Its use that
      way long predates the existence of code pages.  0xFF is a valid character
      in many code pages, which make a muddle of the original intent of a
@@ -137,7 +137,7 @@ enum
      We want older programs to continue to work.  And we want to use 0xFF for
      ascii and ebcdic, and it turns out that 0xFFFF works for UTF-16; it is
      specifically designed in UNICODE as a well-formed non-character.
-     
+
      0xFFFFFFFF, however, is not readily usable in UTF-32.  It is not well-
      formed, and it is not a character.  Technically, the largest value in
      UTF-32 is the largest UNICODE code point, which is 0x10FFFF.  It's
@@ -145,9 +145,9 @@ enum
      map into a single 16-bit value in UTF-16 (it takes a pair of 16-bit
      values), and it doesn't map into anything sensible in ASCII or EBCDIC, and
      it takes multiple bytes in UTF-8.
-     
+
      So, we are going to work with the following observations:
-     
+
      0xFF   in CP1252 <==> 0x000000FF in UTF32
      0xFF   in CP1140 <==> 0x0000009F in UTF32
      0xFFFF in UTF-16 <==> 0x0000FFFF in UTF32
@@ -155,14 +155,14 @@ enum
      Be it hereby acknowledged that not all possibilities for encoding inter-
      conversion have been explored, and we anticipate finding and eliminating
      HIGH-VALUE problems will be Whac-A-Mole territory for some time to come.
-     
+
      Please use these constants for that kind of work, because otherwise
      finding anomalies will be even more frustrating than I currently
      anticipate.  Dubner, 2025-11-24  */
   DEFAULT_HIGH_VALUE_8  =       0xFF,
   DEFAULT_HIGH_VALUE_16 =     0x00FF,
   DEFAULT_HIGH_VALUE_32 = 0x000000FF,
-  
+
   /* These values are used as figurative constants when interconverting from
      and encoding to UTF32.  Examine, for example, the implementation for
      the INSPECT statement: */
@@ -324,7 +324,7 @@ class charmap_t;
  * If used in the compiler, failure results in a compiler error message.  If
  * used in libgcobol, failure raises EC-IMP-ICONV-OPEN.
  *
- * The destructor closes all handles successfully opened. 
+ * The destructor closes all handles successfully opened.
  */
 class cbl_iconv_t {
   struct iconv_key_t {
@@ -338,7 +338,7 @@ class cbl_iconv_t {
       : to(to), from(from)
       , tocode(__gg__encoding_iconv_name(to))
       , fromcode(__gg__encoding_iconv_name(from))
-    
+
     {}
     iconv_key_t( const char *tocode, const char *fromcode )
       : to(__gg__encoding_iconv_type(tocode))
@@ -432,7 +432,7 @@ class charmap_t
 
       // We do that by converting "0" to the target encoding, and we analyze
       // what we get back.
-      
+
       size_t outlength = 0;
       char challenge[] = "0";
       char response_[8];
@@ -440,7 +440,7 @@ class charmap_t
 
       iconv_t cd = cbl_iconv.open(m_encoding, DEFAULT_SOURCE_ENCODING);
       if( ! cbl_iconv.valid(cd) ) {
-        return;  // Abandon all hope ye who enter. 
+        return;  // All hope abandon, ye who enter here.
       }
       char *inbuf  = challenge;
       char *outbuf = response_;
@@ -450,10 +450,10 @@ class charmap_t
                             &inbuf,  &inbytesleft,
                             &outbuf, &outbytesleft);
       outlength = sizeof(response_) - outbytesleft;
-      
-      const unsigned char *response = 
+
+      const unsigned char *response =
                                   reinterpret_cast<unsigned char *>(response_);
-      
+
       unsigned char char_0 = 0x00;
 
       if( outlength == 1 )
@@ -534,7 +534,7 @@ class charmap_t
       // the single-byte CP1252 code for the Euro symbol to our encoding.
       cd = cbl_iconv.open(iconv_CP1252_e, m_encoding);
       if( ! cbl_iconv.valid(cd) ) {
-        return;  // Abandon all hope ye who enter. 
+        return;  // All hope abandon, ye who enter here.
       }
       challenge[0] = static_cast<char>(0x80);// This is the CP1252 Euro symbol.
       inbuf  = challenge;
@@ -553,7 +553,7 @@ class charmap_t
     bool has_bom()       const { return m_has_bom      ; }
     uint8_t stride()     const { return m_stride       ; }
 
-    cbl_char_t mapped_character(cbl_char_t ch) 
+    cbl_char_t mapped_character(unsigned char ch)
       {
       // The assumption is that anybody calling this routine is providing
       // a single-byte character in the DEFAULT_SOURCE_ENCODING encoding.  We
@@ -569,12 +569,23 @@ class charmap_t
         {
         retval = 0;
         size_t outlength = 0;
-        const char *mapped = __gg__iconverter(DEFAULT_SOURCE_ENCODING,
-                                              m_encoding,
-                                              PTRCAST(char, &ch),
-                                              1,
-                                              &outlength);
-        memcpy(&retval, mapped, outlength);
+        char *mapped = __gg__iconverter(DEFAULT_SOURCE_ENCODING,
+                                        m_encoding,
+                                        &ch,
+                                        1,
+                                        &outlength);
+        switch(stride())
+          {
+          case 1:
+            retval = *reinterpret_cast<uint8_t *>(mapped);
+            break;
+          case 2:
+            retval = *reinterpret_cast<uint16_t *>(mapped);
+            break;
+          case 4:
+            retval = *reinterpret_cast<uint32_t *>(mapped);
+            break;
+          }
         m_map_of_encodings[ch] = retval;
         }
       return retval;
@@ -621,9 +632,9 @@ class charmap_t
       return retval;
       }
 
-    cbl_char_t figconst_character(cbl_figconst_t figconst)
+    uint8_t figconst_character(cbl_figconst_t figconst)
       {
-      cbl_char_t const_char = 0;  // Head off a compiler warning
+      uint8_t const_char = 0;  // Head off a compiler warning
       switch(figconst)
         {
         case normal_value_e :
@@ -829,75 +840,54 @@ class charmap_t
 
   void putch(cbl_char_t ch, void *base_, size_t location)
     {
-    // This routine puts a character at a byte location.  It's up to the
-    // user to provide the correct byte location, and update it by the stride
-    // when necessary.
+    // This routine puts a character at a byte location.
     uint8_t *base = static_cast<uint8_t *>(base_);
-    memcpy(base+location, &ch, m_stride);
-    if( m_stride < 4 )
+    switch(m_stride)
       {
-      location += m_stride;
-      ch >>= (8 * m_stride);
-      while(ch)
-        {
-        memcpy(base+location, &ch, m_stride);
-        location += m_stride;
-        ch >>= (8 * m_stride);
-        }
+      case 1:
+        *reinterpret_cast<uint8_t*>(base+location) = ch;
+        break;            
+      case 2:             
+        *reinterpret_cast<uint16_t*>(base+location) = ch;
+        break;            
+      default:            
+        *reinterpret_cast<uint32_t*>(base+location) = ch;
+        break;
       }
     }
 
   void putch(cbl_char_t ch, void *base_, size_t *location)
     {
     // This routine puts a character at a location, and updates the location
-    uint8_t *base = static_cast<uint8_t *>(base_);
-    memcpy(base+*location, &ch, m_stride);
+    this->putch(ch, base_, *location);
     *location += m_stride;
-    if( m_stride < 4 )
-      {
-      ch >>= 8 * m_stride;
-      while(ch)
-        {
-        memcpy(base+*location, &ch, m_stride);
-        *location += m_stride;
-        ch >>= 8 * m_stride;
-        }
-      }
     }
 
   cbl_char_t getch(const void *base_, size_t location) const
     {
-    // This routine gets a character at a location, and updates the location
-    cbl_char_t retval = 0;
+    // This routine gets a character at a location
+    cbl_char_t retval;
     const uint8_t *base = static_cast<const uint8_t *>(base_);
-
-    memcpy(&retval, base+location, m_stride);
-////    location += m_stride;
-////  We need to do something about UTF-8 snd UTF-16
-////    while(ch)
-////      {
-////      memcpy(base+*location, &ch, m_stride);
-////      *location += m_stride;
-////      ch >>= 8 * m_stride;
-////      }
+    switch(m_stride)
+      {
+      case 1:
+        retval = *reinterpret_cast<const uint8_t*>(base+location);
+        break;
+      case 2:
+        retval = *reinterpret_cast<const uint16_t*>(base+location);
+        break;
+      default:
+        retval = *reinterpret_cast<const uint32_t*>(base+location);
+        break;
+      }
     return retval;
     }
 
   cbl_char_t getch(const void *base_, size_t *location) const
     {
     // This routine gets a character at a location, and updates the location
-    cbl_char_t retval = 0;
-    const uint8_t *base = static_cast<const uint8_t *>(base_);
-
-    memcpy(&retval, base+*location, m_stride);
+    cbl_char_t retval = this->getch(base_, *location);
     *location += m_stride;
-////  We need to do something about UTF-8 snd UTF-16
-////    while(ch)
-////      {
-////      memcpy(base+*location, &ch, m_stride);
-////      *location += m_stride;
-////      ch >>= 8 * m_stride;
-////      }
     return retval;
     }
 
@@ -942,7 +932,7 @@ class charmap_t
       //// gcc_unreachable();
       return -1; // Mollify cppcheck.
     }
-    
+
   size_t
   strlen( const void *converted,
           ssize_t limit = SSIZE_MAX)
