@@ -9,6 +9,5 @@ program test
   type(omp_alloctrait), parameter :: trait(0) = [omp_alloctrait :: ]
 
   !$omp target uses_allocators(omp_default_mem_alloc, a1(trait))
-  ! { dg-message "sorry, unimplemented: 'uses_allocators' clause with traits and memory spaces" "" { target *-*-* } .-1 }
   block; end block
 end program

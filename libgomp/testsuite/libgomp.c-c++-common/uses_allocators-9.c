@@ -8,7 +8,7 @@ int main (void)
 
   #pragma omp target uses_allocators (traits (trait): my_alloc)
   {
-    int *x = omp_alloc (sizeof (int), my_alloc);
+    int *x = (int *) omp_alloc (sizeof (int), my_alloc);
     if ((uintptr_t) x % 128 != 0)
       __builtin_abort ();
     omp_free (x, my_alloc);
@@ -18,7 +18,7 @@ int main (void)
 
   #pragma omp target uses_allocators (traits (trait): my_alloc)
   {
-    int *x = omp_alloc (sizeof (int), my_alloc);
+    int *x = (int *) omp_alloc (sizeof (int), my_alloc);
     if ((uintptr_t) x % 128 != 0)
       __builtin_abort ();
     omp_free (x, my_alloc);
@@ -30,7 +30,7 @@ int main (void)
   /* The following creates an allocator with empty traits + default mem space. */
   #pragma omp target uses_allocators (my_alloc)
   {
-    int *x = omp_aligned_alloc (128, sizeof (int), my_alloc);
+    int *x = (int *) omp_aligned_alloc (128, sizeof (int), my_alloc);
     if ((uintptr_t) x % 128 != 0)
       __builtin_abort ();
     omp_free (x, my_alloc);

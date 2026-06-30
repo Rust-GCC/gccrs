@@ -17134,7 +17134,7 @@ if test x$libgomp_cv_have_sync_builtins = xno; then
     as_fn_error $? "accelerator targets require __sync_val_compare_and_swap to build libgomp." "$LINENO" 5
   fi
   # Same for offload hosts.
-  if test x"$offload_plugins" = x; then
+  if test x"$offload_plugins" != x; then
     as_fn_error $? "offload hosts require __sync_val_compare_and_swap to build libgomp." "$LINENO" 5
   fi
 fi

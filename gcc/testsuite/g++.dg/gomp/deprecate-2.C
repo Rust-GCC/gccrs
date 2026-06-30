@@ -42,6 +42,3 @@ void f()
 
 // { dg-warning "42: the specification of arguments to 'uses_allocators' where each item is of the form 'allocator\\(traits\\)' is deprecated since OpenMP 5.2 \\\[-Wdeprecated-openmp\\\]" "" { target *-*-* }  34 }
 }
-
-// { dg-excess-errors "sorry, unimplemented: 'uses_allocators' clause" }
-// { dg-excess-errors "sorry, unimplemented: 'uses_allocators' clause" }

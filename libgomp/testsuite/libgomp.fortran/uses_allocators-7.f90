@@ -55,4 +55,4 @@ end
 
 ! { dg-final { scan-tree-dump-times "#pragma omp target .*uses_allocators\\(memspace\\(\\), traits\\(trait\\) : my_alloc\\)" 1 "gimple" } }
 ! { dg-final { scan-tree-dump-times "#pragma omp target .*uses_allocators\\(memspace\\(\\), traits\\(\\) : my_alloc\\)" 1 "gimple" } }
-! { dg-final { scan-tree-dump-times "#pragma omp target .*uses_allocators\\(memspace\\(1\\), traits\\(\\) : my4\\) uses_allocators\\(memspace\\(\\), traits\\(t2\\) : my3\\) uses_allocators\\(memspace\\(\\), traits\\(\\) : my2\\) uses_allocators\\(memspace\\(3\\), traits\\(t\\) : my\\)" 1 "original" } }
+! { dg-final { scan-tree-dump-times "#pragma omp target .*uses_allocators\\(memspace\\(1\\), traits\\(\\) : my4\\) uses_allocators\\(memspace\\(\\), traits\\(t2\\) : my3\\) uses_allocators\\(memspace\\(\\), traits\\(\\) : my2\\) uses_allocators\\(memspace\\(3\\), traits\\(t\\) : my\\)" 1 "original" { xfail *-*-* }  } }

@@ -616,7 +616,7 @@ omp_init_allocator (omp_memspace_handle_t memspace, int ntraits,
   else
     {
 #ifndef HAVE_SYNC_BUILTINS
-      gomp_mutex_init (data->lock);
+      gomp_mutex_init (&data->lock);
 #endif
     }
 
@@ -1584,7 +1584,7 @@ gomp_map_omp_init_allocator (struct gomp_device_descr *devicep,
 		  sizeof (struct omp_allocator_data));
 #ifndef HAVE_SYNC_BUILTINS
 	  gomp_mutex_init
-	    (((struct omp_allocator_data *) allocator_data_devaddr)->lock);
+	    (&((struct omp_allocator_data *) allocator_data_devaddr)->lock);
 #endif
 	}
       ret = (omp_allocator_handle_t) allocator_data_devaddr;

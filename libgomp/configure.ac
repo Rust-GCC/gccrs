@@ -378,7 +378,7 @@ if test x$libgomp_cv_have_sync_builtins = xno; then
     AC_MSG_ERROR([accelerator targets require __sync_val_compare_and_swap to build libgomp.])
   fi
   # Same for offload hosts.
-  if test x"$offload_plugins" = x; then
+  if test x"$offload_plugins" != x; then
     AC_MSG_ERROR([offload hosts require __sync_val_compare_and_swap to build libgomp.])
   fi
 fi
