@@ -531,6 +531,10 @@ Wc++26-extensions
 C++ ObjC++ Var(warn_cxx26_extensions) Warning Init(1) CppReason(CPP_W_CXX26_EXTENSIONS)
 Warn about C++26 constructs in code compiled with an older standard.
 
+Wc++29-extensions
+C++ ObjC++ Var(warn_cxx29_extensions) Warning Init(1) CppReason(CPP_W_CXX29_EXTENSIONS)
+Warn about C++29 constructs in code compiled with an older standard.
+
 Wcalloc-transposed-args
 C ObjC C++ ObjC++ Var(warn_calloc_transposed_args) Warning LangEnabledBy(C ObjC C++ ObjC++,Wextra)
 Warn about suspicious calls to calloc-like functions where sizeof expression is the earlier size argument and not the latter.

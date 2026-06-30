@@ -631,8 +631,8 @@
 
 #ifndef __cpp_pp_embed
 #  error "__cpp_pp_embed"
-#elif __cpp_pp_embed != 202502
-#  error "__cpp_pp_embed != 202502"
+#elif __cpp_pp_embed != 202606
+#  error "__cpp_pp_embed != 202606"
 #endif
 
 #ifndef __cpp_constexpr_virtual_inheritance

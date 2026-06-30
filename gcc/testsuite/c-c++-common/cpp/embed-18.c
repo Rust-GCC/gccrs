@@ -26,8 +26,8 @@
 #embed "embed-18.c" gnu::base64("SA==") /* { dg-error "'gnu::base64' parameter can be only used with '\\\".\\\"'" } */
 #embed <embed-18.c> gnu::base64("SA==") /* { dg-error "'gnu::base64' parameter can be only used with '\\\".\\\"'" } */
 #embed <.> gnu::base64("SA==") /* { dg-error "'gnu::base64' parameter can be only used with '\\\".\\\"'" } */
-#embed "." gnu::base64("SA==") limit(3) /* { dg-error "'gnu::base64' parameter conflicts with 'limit' or 'gnu::offset' parameters" } */
-#embed "." gnu::base64("SA==") gnu::offset(1) /* { dg-error "'gnu::base64' parameter conflicts with 'limit' or 'gnu::offset' parameters" } */
+#embed "." gnu::base64("SA==") limit(3) /* { dg-error "'gnu::base64' parameter conflicts with 'limit' or 'offset' or 'gnu::offset' parameters" } */
+#embed "." gnu::base64("SA==") gnu::offset(1) /* { dg-error "'gnu::base64' parameter conflicts with 'limit' or 'offset' or 'gnu::offset' parameters" } */
 #if 1 + __has_embed ("." gnu::base64("") __gnu__::__base64__("")) /* { dg-error "duplicate embed parameter 'gnu::base64'" } */
 #endif
 #if 1 + __has_embed (__FILE__ __gnu__::__base64__ prefix() suffix()) /* { dg-error "expected '\\\('" } */

@@ -1106,6 +1106,7 @@ skip_balanced_token_seq (cpp_reader *pfile, cpp_ttype end,
   EMBED_PARAM (PREFIX, "prefix")	\
   EMBED_PARAM (SUFFIX, "suffix")	\
   EMBED_PARAM (IF_EMPTY, "if_empty")	\
+  EMBED_PARAM (OFFSET, "offset")	\
   EMBED_PARAM (GNU_BASE64, "base64")	\
   EMBED_PARAM (GNU_OFFSET, "offset")
 
@@ -1114,7 +1115,7 @@ enum embed_param_kind {
   EMBED_PARAMS
 #undef EMBED_PARAM
   NUM_EMBED_PARAMS,
-  NUM_EMBED_STD_PARAMS = EMBED_PARAM_IF_EMPTY + 1
+  NUM_EMBED_STD_PARAMS = EMBED_PARAM_OFFSET + 1
 };
 
 static struct { int len; const char *name; } embed_params[NUM_EMBED_PARAMS] = {
@@ -1158,6 +1159,7 @@ _cpp_parse_embed_params (cpp_reader *pfile, struct cpp_embed_params *params)
 	    }
 	  if (params->base64.count
 	      && (seen & ((1 << EMBED_PARAM_LIMIT)
+			  | (1 << EMBED_PARAM_OFFSET)
 			  | (1 << EMBED_PARAM_GNU_OFFSET))) != 0)
 	    {
 	      ret = false;
@@ -1165,8 +1167,8 @@ _cpp_parse_embed_params (cpp_reader *pfile, struct cpp_embed_params *params)
 		cpp_error_with_line (pfile, CPP_DL_ERROR,
 				     params->base64.base_run.base->src_loc, 0,
 				     "%<gnu::base64%> parameter conflicts "
-				     "with %<limit%> or %<gnu::offset%> "
-				     "parameters");
+				     "with %<limit%> or %<offset%> or "
+				     "%<gnu::offset%> parameters");
 	    }
 	  else if (params->base64.count == 0
 		   && CPP_OPTION (pfile, preprocessed))
@@ -1241,6 +1243,13 @@ _cpp_parse_embed_params (cpp_reader *pfile, struct cpp_embed_params *params)
 		&& memcmp (param_name, embed_params[i].name,
 			   param_name_len) == 0)
 	      {
+		/* Until C standardizes offset, people should use just
+		   gnu::offset in C.  When/if it is standardized, these
+		   3 lines should be removed and pedwarn condition and
+		   wording adjusted to cope with C too.  */
+		if (i == EMBED_PARAM_OFFSET
+		    && !CPP_OPTION (pfile, cplusplus))
+		  continue;
 		param_kind = i;
 		break;
 	      }
@@ -1285,6 +1294,7 @@ _cpp_parse_embed_params (cpp_reader *pfile, struct cpp_embed_params *params)
 	cpp_error_with_line (pfile, CPP_DL_ERROR, loc, 0,
 			     "expected %<(%>");
       else if (param_kind == EMBED_PARAM_LIMIT
+	       || param_kind == EMBED_PARAM_OFFSET
 	       || param_kind == EMBED_PARAM_GNU_OFFSET)
 	{
  	  if (params->has_embed && pfile->op_stack == NULL)
@@ -1294,9 +1304,27 @@ _cpp_parse_embed_params (cpp_reader *pfile, struct cpp_embed_params *params)
 	    params->limit = res;
 	  else
 	    {
+	      if ((seen & ((1 << EMBED_PARAM_OFFSET)
+			   | (1 << EMBED_PARAM_GNU_OFFSET)))
+		  == ((1 << EMBED_PARAM_OFFSET)
+		      | (1 << EMBED_PARAM_GNU_OFFSET)))
+		cpp_error_with_line (pfile, CPP_DL_ERROR, loc, 0,
+				     "%qs parameter conflicts with %qs "
+				     "parameter",
+				     param_kind == EMBED_PARAM_OFFSET
+				     ? "offset" : "gnu::offset",
+				     param_kind == EMBED_PARAM_OFFSET
+				     ? "gnu::offset" : "offset");
+	      if (param_kind == EMBED_PARAM_OFFSET
+		  && CPP_OPTION (pfile, lang) < CLK_GNUCXX29)
+		cpp_pedwarning_with_line (pfile, CPP_W_CXX29_EXTENSIONS, loc,
+					  0, "%qs parameter before C++29 is "
+					     "a GCC extension", "offset");
 	      if (res > INTTYPE_MAXIMUM (off_t))
 		cpp_error_with_line (pfile, CPP_DL_ERROR, loc, 0,
-				     "too large %<gnu::offset%> argument");
+				     "too large %qs argument",
+				     param_kind == EMBED_PARAM_OFFSET
+				     ? "offset" : "gnu::offset");
 	      else
 		params->offset = res;
 	    }
