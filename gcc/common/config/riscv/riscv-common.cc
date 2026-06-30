@@ -332,7 +332,6 @@ struct riscv_multi_lib_info_t {
   riscv_subset_list *subset_list;
 
   static bool parse (struct riscv_multi_lib_info_t *,
-		     const std::string &,
 		     const std::vector<std::string> &);
 };
 
@@ -1910,13 +1909,12 @@ prefixed_with (const std::string &str, const char *prefix)
 bool
 riscv_multi_lib_info_t::parse (
   struct riscv_multi_lib_info_t *multi_lib_info,
-  const std::string &path,
   const std::vector<std::string> &conds)
 {
   const char *default_arch_str = STRINGIZING (TARGET_RISCV_DEFAULT_ARCH);
   const char *default_abi_str = STRINGIZING (TARGET_RISCV_DEFAULT_ABI);
   multi_lib_info->conds = conds;
-  if (path == ".")
+  if (multi_lib_info->path == ".")
     {
       multi_lib_info->arch_str = default_arch_str;
       multi_lib_info->abi_str = default_abi_str;
@@ -2199,7 +2197,6 @@ riscv_compute_multilib (
       result =
 	riscv_multi_lib_info_t::parse (
 	  &multilib_info,
-	  std::string (this_path, this_path_len),
 	  option_conds);
 
       if (result)
