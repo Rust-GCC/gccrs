@@ -53,6 +53,7 @@ RISCV_TUNE("xiangshan-nanhu", xiangshan, xiangshan_nanhu_tune_info)
 RISCV_TUNE("xiangshan-kunminghu", xiangshan, generic_ooo_tune_info)
 RISCV_TUNE("spacemit-x60", spacemit_x60, spacemit_x60_tune_info)
 RISCV_TUNE("spacemit-x100", generic_ooo, spacemit_x100_tune_info)
+RISCV_TUNE("spacemit-a100", spacemit_x60, spacemit_x60_tune_info)
 RISCV_TUNE("arc-v-rhx-100-series", arcv_rhx100, arcv_rhx100_tune_info)
 RISCV_TUNE("generic-ooo", generic_ooo, generic_ooo_tune_info)
 RISCV_TUNE("size", generic, optimize_size_tune_info)
@@ -226,6 +227,12 @@ RISCV_CORE("spacemit-x100",   "rva23s64_smepmp_smnpm_smstateen_sspm_zbc_zbkc_"
 			      "zfbfmin_zfh_zvbc_zvfbfwma_zvfh_zvknc_zvkng_zvknha_"
 			      "zvksc_zvksg_zvl256b_xsmtvdot",
 			      "spacemit-x100")
+
+RISCV_CORE("spacemit-a100",   "rva23u64_zfh_zbc_zbkc_zfbfmin_smepmp_smnpm_"
+			      "smstateen_sscofpmf_ssnpm_sspm_ssstateen_sstc_svinval_"
+			      "svnapot_svpbmt_zifencei_zvfh_zvfbfwma_zvkng_zvknha_"
+			      "zvknc_zvksc_zvksg_zvl1024b_xsmtvdotii",
+			      "spacemit-a100")
 
 #undef RISCV_CORE
 #undef RISCV_CORE_ALIAS

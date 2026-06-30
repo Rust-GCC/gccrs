@@ -34,3 +34,16 @@ DEFINE_RISCV_EXT(
   /* BITMASK_BIT_POSITION*/ BITMASK_NOT_YET_ALLOCATED,
   /* EXTRA_EXTENSION_FLAGS */ 0)
 
+DEFINE_RISCV_EXT(
+  /* NAME */ xsmtvdotii,
+  /* UPPERCASE_NAME */ XSMTVDOTII,
+  /* FULL_NAME */ "SpacemiT vector dot product II extension",
+  /* DESC */ "",
+  /* URL */ "https://github.com/spacemit-com/docs-ai/blob/main/en/architecture/ime_extension.md",
+  /* DEP_EXTS */ ({"xsmtvdot"}),
+  /* SUPPORTED_VERSIONS */ ({{1, 0}}),
+  /* FLAG_GROUP */ xsmt,
+  /* BITMASK_GROUP_ID */ BITMASK_NOT_YET_ALLOCATED,
+  /* BITMASK_BIT_POSITION*/ BITMASK_NOT_YET_ALLOCATED,
+  /* EXTRA_EXTENSION_FLAGS */ 0)
+

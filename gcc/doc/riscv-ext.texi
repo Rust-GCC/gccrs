@@ -762,4 +762,8 @@
 @tab 1.0
 @tab SpacemiT vector dot product extension
 
+@item @samp{xsmtvdotii}
+@tab 1.0
+@tab SpacemiT vector dot product II extension
+
 @end multitable
