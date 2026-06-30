@@ -62,6 +62,8 @@ tree size_of_val_handler (Context *ctx, TyTy::FnType *fntype,
 			  location_t expr_locus);
 tree min_align_of_handler (Context *ctx, TyTy::FnType *fntype,
 			   location_t expr_locus);
+tree min_align_of_val_handler (Context *ctx, TyTy::FnType *fntype,
+			       location_t expr_locus);
 tree transmute (Context *ctx, TyTy::FnType *fntype, location_t expr_locus);
 tree rotate (Context *ctx, TyTy::FnType *fntype, tree_code op);
 tree uninit (Context *ctx, TyTy::FnType *fntype, location_t expr_locus);
