@@ -85,6 +85,11 @@ gomp_get_numa_distance (int node1, int node2)
 	    return -1;
 	  int distance = -1;
 	  FILE *in = fopen (filename, "r");
+	  if (!in)
+	    {
+	      free (numa_distances);
+	      return -1;
+	    }
 	  for (int j = 0; j < cnt; j++)
 	    {
 	      fscanf (in, "%d", &distance);
