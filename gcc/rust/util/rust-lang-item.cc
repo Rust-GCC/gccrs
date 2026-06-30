@@ -92,6 +92,9 @@ const BiMap<std::string, LangItem::Kind> Rust::LangItem::lang_items = {{
   {"slice_u8", Kind::SLICE_U8},
   {"slice", Kind::SLICE},
   {"str", Kind::STR},
+  // NOTE: CStr is not present in Rust 1.49, and is only backported for
+  // compilation of Rust for Linux with a patched core lib.
+  {"CStr", Kind::CSTR},
   {"f32_runtime", Kind::F32_RUNTIME},
   {"f64_runtime", Kind::F64_RUNTIME},
 
@@ -122,6 +125,7 @@ const BiMap<std::string, LangItem::Kind> Rust::LangItem::lang_items = {{
   {"manually_drop", Kind::MANUALLY_DROP},
 
   {"exchange_malloc", Kind::EXCHANGE_MALLOC},
+  {"owned_box", Kind::OWNED_BOX},
 }};
 
 tl::optional<LangItem::Kind>

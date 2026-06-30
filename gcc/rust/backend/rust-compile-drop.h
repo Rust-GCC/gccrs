@@ -27,12 +27,16 @@ namespace Compile {
 class CompileDrop
 {
 public:
-  static bool type_has_drop_impl (Context *ctx, TyTy::BaseType *ty);
+  CompileDrop (Context *ctx);
 
-  static tree compile_drop_call (Context *ctx, Bvariable *var,
-				 TyTy::BaseType *ty, location_t locus);
+  bool type_has_drop_impl (TyTy::BaseType *ty);
 
-  static void emit_current_scope_drop_calls (Context *ctx);
+  void emit_current_scope_drop_calls ();
+
+private:
+  tree compile_drop_call (Bvariable *var, TyTy::BaseType *ty, location_t locus);
+
+  Context *ctx;
 };
 
 } // namespace Compile

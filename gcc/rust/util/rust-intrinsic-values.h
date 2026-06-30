@@ -84,6 +84,7 @@ public:
   static constexpr auto &ABORT = "abort";
   static constexpr auto &OFFSET = "offset";
   static constexpr auto &SIZE_OF = "size_of";
+  static constexpr auto &SIZE_OF_VAL = "size_of_val";
   static constexpr auto &TRANSMUTE = "transmute";
 
   static constexpr auto &ADD_WITH_OVERFLOW = "add_with_overflow";
@@ -137,6 +138,7 @@ public:
   static constexpr auto &ASSUME = "assume";
 
   static constexpr auto &MIN_ALIGN_OF = "min_align_of";
+  static constexpr auto &MIN_ALIGN_OF_VAL = "min_align_of_val";
   static constexpr auto &NEEDS_DROP = "needs_drop";
   static constexpr auto &CALLER_LOCATION = "caller_location";
   static constexpr auto &CTPOP = "ctpop";
@@ -157,6 +159,8 @@ public:
   static constexpr auto &TYPE_NAME = "type_name";
   static constexpr auto &FORGET = "forget";
   static constexpr auto &BLACK_BOX = "black_box";
+  static constexpr auto &ARITH_OFFSET = "arith_offset";
+  static constexpr auto &WRITE_BYTES = "write_bytes";
 };
 } // namespace Values
 } // namespace Rust

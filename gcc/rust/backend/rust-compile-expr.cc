@@ -45,6 +45,114 @@
 namespace Rust {
 namespace Compile {
 
+namespace {
+tree
+compile_box_struct (Context *ctx, TyTy::BaseType *curr_ty, tree typed_ptr,
+		    location_t locus, int depth = 0)
+{
+  // infinite loop guard
+  rust_assert (depth < 100);
+
+  if (curr_ty->get_kind () == TyTy::TypeKind::POINTER
+      || curr_ty->get_kind () == TyTy::TypeKind::REF)
+    return typed_ptr;
+
+  if (curr_ty->get_kind () == TyTy::TypeKind::ADT)
+    {
+      TyTy::ADTType *adt = static_cast<TyTy::ADTType *> (curr_ty);
+      tree adt_ty_tree = TyTyResolveCompile::compile (ctx, adt);
+      tree size_tree = TYPE_SIZE_UNIT (adt_ty_tree);
+
+      if (integer_zerop (size_tree))
+	return Backend::constructor_expression (adt_ty_tree, false, {}, -1,
+						locus);
+      rust_assert (!adt->is_enum ());
+      rust_assert (adt->number_of_variants () == 1);
+
+      std::vector<tree> args;
+      TyTy::VariantDef *variant = adt->get_variants ().at (0);
+      for (size_t i = 0; i < variant->num_fields (); i++)
+	{
+	  TyTy::StructFieldType *field = variant->get_field_at_index (i);
+	  TyTy::BaseType *field_ty = field->get_field_type ();
+	  tree field_tree
+	    = compile_box_struct (ctx, field_ty, typed_ptr, locus, depth + 1);
+	  args.push_back (field_tree);
+	}
+      return Backend::constructor_expression (adt_ty_tree, false, args, -1,
+					      locus);
+    }
+  if (curr_ty->get_kind () == TyTy::TypeKind::PARAM)
+    {
+      TyTy::ParamType *param_ty = static_cast<TyTy::ParamType *> (curr_ty);
+      TyTy::BaseType *resolved_ty = param_ty->resolve ();
+      rust_assert (resolved_ty != nullptr && resolved_ty != curr_ty);
+      return compile_box_struct (ctx, resolved_ty, typed_ptr, locus, depth + 1);
+    }
+  rust_unreachable ();
+  return error_mark_node;
+};
+
+tree
+compile_box (Context *ctx, TyTy::BaseType *box_tyty, TyTy::BaseType *inner_tyty,
+	     tree inner_expr_tree, location_t locus)
+{
+  tree inner_type_tree = TyTyResolveCompile::compile (ctx, inner_tyty);
+
+  if (!COMPLETE_TYPE_P (inner_type_tree))
+    {
+      rust_sorry_at (locus,
+		     "dynamically sized types in boxes are not supported yet");
+      return error_mark_node;
+    }
+  tree size_tree = TYPE_SIZE_UNIT (inner_type_tree);
+  tree align_tree
+    = build_int_cst (size_type_node, TYPE_ALIGN_UNIT (inner_type_tree));
+
+  DefId exchange_malloc_defid
+    = ctx->get_mappings ().get_lang_item (LangItem::Kind::EXCHANGE_MALLOC,
+					  locus);
+  HIR::Item *item
+    = ctx->get_mappings ().lookup_defid (exchange_malloc_defid).value ();
+
+  tree exchange_malloc_decl = nullptr;
+  ctx->lookup_function_decl (item->get_mappings ().get_hirid (),
+			     &exchange_malloc_decl, exchange_malloc_defid);
+
+  tree raw_ptr = save_expr (build_call_expr_loc (locus, exchange_malloc_decl, 2,
+						 size_tree, align_tree));
+  tree typed_ptr = fold_convert (build_pointer_type (inner_type_tree), raw_ptr);
+
+  tree deref = build1_loc (locus, INDIRECT_REF, inner_type_tree, typed_ptr);
+  tree assignment
+    = build2_loc (locus, MODIFY_EXPR, inner_type_tree, deref, inner_expr_tree);
+
+  tree box_struct = compile_box_struct (ctx, box_tyty, typed_ptr, locus);
+
+  return build2_loc (locus, COMPOUND_EXPR, TREE_TYPE (box_struct), assignment,
+		     box_struct);
+}
+
+tree
+build_box_inner_ptr (tree main_expr, location_t locus)
+{
+  // We continuously extract the first field of the struct until we hit the
+  // actual underlying raw pointer. This handles both simple Box layouts (ptr:
+  // *mut T) and complex ones like this (Box<Unique<NonNull<T>>>). This relies
+  // on the standard library's layout guarantees and will break if a stateful
+  // custom allocator is placed as the first field in the RECORD_TYPE.
+  while (TREE_CODE (TREE_TYPE (main_expr)) == RECORD_TYPE)
+    {
+      tree first_field = TYPE_FIELDS (TREE_TYPE (main_expr));
+      if (first_field == NULL_TREE)
+	break;
+      main_expr = build3_loc (locus, COMPONENT_REF, TREE_TYPE (first_field),
+			      main_expr, first_field, NULL_TREE);
+    }
+  return main_expr;
+}
+} // namespace
+
 CompileExpr::CompileExpr (Context *ctx)
   : HIRCompileBase (ctx), translated (error_mark_node)
 {}
@@ -113,6 +221,26 @@ CompileExpr::visit (HIR::TupleExpr &expr)
 
   translated = Backend::constructor_expression (tuple_type, false, vals, -1,
 						expr.get_locus ());
+}
+
+void
+CompileExpr::visit (HIR::BoxExpr &expr)
+{
+  TyTy::BaseType *inner_tyty = nullptr;
+  bool ok = ctx->get_tyctx ()->lookup_type (
+    expr.get_expr ().get_mappings ().get_hirid (), &inner_tyty);
+  rust_assert (ok);
+
+  TyTy::BaseType *box_tyty = nullptr;
+  ok = ctx->get_tyctx ()->lookup_type (expr.get_mappings ().get_hirid (),
+				       &box_tyty);
+  rust_assert (ok);
+
+  tree inner_expr_tree
+    = save_expr (CompileExpr::Compile (expr.get_expr (), ctx));
+
+  translated = compile_box (ctx, box_tyty, inner_tyty, inner_expr_tree,
+			    expr.get_locus ());
 }
 
 void
@@ -691,7 +819,21 @@ CompileExpr::visit (HIR::FieldAccessExpr &expr)
     }
 
   size_t field_index = 0;
-  if (receiver->get_kind () == TyTy::TypeKind::ADT)
+
+  if (auto inner_ty = TyTy::try_get_box_inner_type (receiver))
+    {
+      rust_assert ((*inner_ty)->get_kind () == TyTy::TypeKind::ADT);
+      TyTy::ADTType *inner_adt = static_cast<TyTy::ADTType *> (*inner_ty);
+      TyTy::VariantDef *variant = inner_adt->get_variants ().at (0);
+
+      bool ok = variant->lookup_field (expr.get_field_name ().as_string (),
+				       nullptr, &field_index);
+      rust_assert (ok);
+
+      receiver_ref = build_box_inner_ptr (receiver_ref, expr.get_locus ());
+      receiver_ref = indirect_expression (receiver_ref, expr.get_locus ());
+    }
+  else if (receiver->get_kind () == TyTy::TypeKind::ADT)
     {
       TyTy::ADTType *adt = static_cast<TyTy::ADTType *> (receiver);
       rust_assert (!adt->is_enum ());
@@ -717,8 +859,23 @@ CompileExpr::visit (HIR::FieldAccessExpr &expr)
 				       nullptr, &field_index);
       rust_assert (ok);
 
-      tree indirect = indirect_expression (receiver_ref, expr.get_locus ());
-      receiver_ref = indirect;
+      // TODO this check is only used for CStr, test again when we support
+      // compilation of #[repr(transparent)] structs
+      if (RS_DST_FLAG_P (TREE_TYPE (receiver_ref)))
+	{
+	  const TyTy::StructFieldType *field
+	    = variant->get_field_at_index (field_index);
+	  tree field_type
+	    = TyTyResolveCompile::compile (ctx, field->get_field_type ());
+	  translated = fold_build1_loc (expr.get_locus (), VIEW_CONVERT_EXPR,
+					field_type, receiver_ref);
+	  return;
+	}
+      else
+	{
+	  tree indirect = indirect_expression (receiver_ref, expr.get_locus ());
+	  receiver_ref = indirect;
+	}
     }
 
   translated = Backend::struct_field_expression (receiver_ref, field_index,
@@ -779,6 +936,10 @@ CompileExpr::visit (HIR::LoopExpr &expr)
       ctx->add_statement (label_decl);
       ctx->insert_label_decl (
 	loop_label.get_lifetime ().get_mappings ().get_hirid (), label);
+      // Associate the loop's result temporary with the label so that a
+      // `break 'label value` can locate it (see visit (HIR::BreakExpr)).
+      ctx->insert_var_decl (
+	loop_label.get_lifetime ().get_mappings ().get_hirid (), tmp);
     }
 
   tree loop_begin_label
@@ -1026,6 +1187,21 @@ CompileExpr::visit (HIR::DereferenceExpr &expr)
 
   tree main_expr = CompileExpr::Compile (expr.get_expr (), ctx);
 
+  // Box<T> Dereference Hook
+  // Typechecker treats 'Box<T>' as a privileged pointer and allows
+  // explicit dereferencing.However, the backend sees Box as a normal
+  // RECORD_TYPE (struct). To solve this, if the type is the 'owned_box'
+  // lang item, we drill down.
+  TyTy::BaseType *base_tyty;
+  if (ctx->get_tyctx ()->lookup_type (
+	expr.get_expr ().get_mappings ().get_hirid (), &base_tyty))
+    {
+      if (TyTy::try_get_box_inner_type (base_tyty))
+	{
+	  main_expr = build_box_inner_ptr (main_expr, expr.get_locus ());
+	}
+    }
+
   // this might be an operator overload situation lets check
   TyTy::FnType *fntype;
   bool is_op_overload = ctx->get_tyctx ()->lookup_operator_overload (
@@ -1088,6 +1264,10 @@ CompileExpr::visit (HIR::LiteralExpr &expr)
 
     case HIR::Literal::BYTE_STRING:
       translated = compile_byte_string_literal (expr, tyty);
+      return;
+
+    case HIR::Literal::C_STRING:
+      translated = compile_c_string_literal (expr, tyty);
       return;
     }
 }
@@ -1623,12 +1803,19 @@ CompileExpr::get_fn_addr_from_dyn (const TyTy::DynamicObjectType *dyn,
 
   tree vtable_ptr
     = Backend::struct_field_expression (receiver_ref, 1, expr_locus);
-  tree vtable_array_access
-    = build4_loc (expr_locus, ARRAY_REF, TREE_TYPE (TREE_TYPE (vtable_ptr)),
-		  vtable_ptr, idx, NULL_TREE, NULL_TREE);
+  tree vtable_struct_type = TREE_TYPE (TREE_TYPE (vtable_ptr));
+  rust_assert (TREE_CODE (vtable_struct_type) == RECORD_TYPE);
+  tree vtable_field = TYPE_FIELDS (vtable_struct_type);
+  for (size_t i = 0; i < offs + 3; i++) // drop, size, align, [methods]
+    vtable_field = DECL_CHAIN (vtable_field);
+  rust_assert (vtable_field != NULL_TREE);
+  tree vtable = build_fold_indirect_ref_loc (expr_locus, vtable_ptr);
+  tree vtable_field_access
+    = build3_loc (expr_locus, COMPONENT_REF, TREE_TYPE (vtable_field), vtable,
+		  vtable_field, NULL_TREE);
 
   tree vcall = build3_loc (expr_locus, OBJ_TYPE_REF, expected_fntype,
-			   vtable_array_access, receiver_ref, idx);
+			   vtable_field_access, receiver_ref, idx);
 
   return vcall;
 }
@@ -1900,6 +2087,31 @@ CompileExpr::compile_byte_string_literal (const HIR::LiteralExpr &expr,
 					     expr.get_locus ());
 
   return address_expression (constructed, expr.get_locus ());
+}
+
+tree
+CompileExpr::compile_c_string_literal (const HIR::LiteralExpr &expr,
+				       const TyTy::BaseType *tyty)
+{
+  // Copied from compile_string_literal
+  tree fat_pointer = TyTyResolveCompile::compile (ctx, tyty);
+
+  rust_assert (expr.get_lit_type () == HIR::Literal::C_STRING);
+  const auto literal_value = expr.get_literal ();
+
+  auto base = Backend::string_constant_expression (literal_value.as_string ());
+  tree data = address_expression (base, expr.get_locus ());
+
+  TyTy::BaseType *usize = nullptr;
+  bool ok = ctx->get_tyctx ()->lookup_builtin ("usize", &usize);
+  rust_assert (ok);
+  tree type = TyTyResolveCompile::compile (ctx, usize);
+
+  // +1 for null terminator, unlike Rust string literals.
+  tree size = build_int_cstu (type, literal_value.as_string ().size () + 1);
+
+  return Backend::constructor_expression (fat_pointer, false, {data, size}, -1,
+					  expr.get_locus ());
 }
 
 tree
@@ -2198,7 +2410,17 @@ HIRCompileBase::resolve_deref_adjustment (Resolver::Adjustment &adjustment,
 {
   rust_assert (adjustment.is_deref_adjustment ()
 	       || adjustment.is_deref_mut_adjustment ());
-  rust_assert (adjustment.has_operator_overload ());
+  if (!adjustment.has_operator_overload ())
+    {
+      TyTy::BaseType *receiver = adjustment.get_actual ();
+      if (TyTy::try_get_box_inner_type (receiver))
+	{
+	  tree receiver_ref = expression;
+	  receiver_ref = build_box_inner_ptr (receiver_ref, locus);
+	  return indirect_expression (receiver_ref, locus);
+	}
+      rust_assert (false);
+    }
 
   TyTy::FnType *lookup = adjustment.get_deref_operator_fn ();
   TyTy::BaseType *receiver = adjustment.get_actual ();
@@ -2681,8 +2903,8 @@ CompileExpr::generate_closure_fntype (HIR::ClosureExpr &expr,
   const TyTy::TypeBoundPredicate &predicate
     = *closure_tyty.get_specified_bounds ().begin ();
 
-  // ensure the fn_once_output associated type is set
-  closure_tyty.setup_fn_once_output ();
+  // FnOnce::Output is normalized on demand by normalize_projection's closure
+  // special-case
 
   // the function signature is based on the trait bound that the closure
   // implements which is determined at the type resolution time

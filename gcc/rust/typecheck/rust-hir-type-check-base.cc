@@ -46,6 +46,17 @@ TypeCheckBase::ResolveGenericParams (
 			      substitutions, is_foreign, abi);
 }
 
+TyTy::TypeBoundPredicate
+TypeCheckBase::ResolvePredicateFromBound (
+  HIR::TypePath &path,
+  tl::optional<std::reference_wrapper<HIR::Type>> associated_self,
+  BoundPolarity polarity, bool is_qualified_type, bool is_super_trait)
+{
+  TypeCheckBase ctx;
+  return ctx.get_predicate_from_bound (path, associated_self, polarity,
+				       is_qualified_type, is_super_trait);
+}
+
 static void
 walk_types_to_constrain (std::set<HirId> &constrained_symbols,
 			 const TyTy::SubstitutionArgumentMappings &constraints)
@@ -386,7 +397,43 @@ TypeCheckBase::resolve_literal (const Analysis::NodeMapping &expr_mappings,
 					   TyTy::Region::make_static ());
       }
       break;
+    case HIR::Literal::LitType::C_STRING:
+      {
+	// Throw error if C string literal contains null byte
+	if (literal.as_string ().find ('\0') != std::string::npos)
+	  {
+	    rust_error_at (
+	      locus, "null characters in C string literals are not supported");
+	    infered = new TyTy::ErrorType (expr_mappings.get_hirid (), locus);
+	    break;
+	  }
 
+	auto lang_item_defined
+	  = mappings.lookup_lang_item (LangItem::Kind::CSTR);
+
+	if (!lang_item_defined)
+	  {
+	    rust_error_at (locus, "unable to find lang item: %<c_str%>");
+	    infered = new TyTy::ErrorType (expr_mappings.get_hirid (), locus);
+	    break;
+	  }
+
+	DefId cstr_defid = lang_item_defined.value ();
+	HIR::Item *item = mappings.lookup_defid (cstr_defid).value ();
+
+	TyTy::BaseType *item_type = nullptr;
+	bool ok = context->lookup_type (item->get_mappings ().get_hirid (),
+					&item_type);
+
+	rust_assert (ok);
+	rust_assert (item_type->get_kind () == TyTy::TypeKind::ADT);
+
+	infered = new TyTy::ReferenceType (expr_mappings.get_hirid (),
+					   TyTy::TyVar (item_type->get_ref ()),
+					   Mutability::Imm,
+					   TyTy::Region::make_static ());
+      }
+      break;
     default:
       rust_unreachable ();
       break;

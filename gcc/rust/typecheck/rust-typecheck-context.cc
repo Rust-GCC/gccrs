@@ -171,6 +171,27 @@ TypeCheckContext::peek_context ()
   return return_type_stack.back ().first;
 }
 
+void
+TypeCheckContext::push_expected_type (TyTy::BaseType *expected)
+{
+  expected_type_stack.push_back (expected);
+}
+
+void
+TypeCheckContext::pop_expected_type ()
+{
+  rust_assert (!expected_type_stack.empty ());
+  expected_type_stack.pop_back ();
+}
+
+TyTy::BaseType *
+TypeCheckContext::peek_expected_type () const
+{
+  if (expected_type_stack.empty ())
+    return nullptr;
+  return expected_type_stack.back ();
+}
+
 StackedContexts<TypeCheckBlockContextItem> &
 TypeCheckContext::block_context ()
 {
@@ -228,6 +249,53 @@ TypeCheckContext::swap_head_loop_context (TyTy::BaseType *val)
 {
   loop_type_stack.pop_back ();
   loop_type_stack.push_back (val);
+}
+
+bool
+TypeCheckContext::find_matching_impl_trait_frame (
+  const TraitReference &tref, struct ImplTraitContextFrame *find) const
+{
+  if (!have_impl_trait_context ())
+    return false;
+
+  for (auto it = impl_trait_frame_stack.rbegin ();
+       it != impl_trait_frame_stack.rend (); ++it)
+    {
+      const auto &i = *it;
+      if (i.trait->is_equal (tref))
+	{
+	  *find = i;
+	  return true;
+	}
+    }
+
+  return false;
+}
+
+bool
+TypeCheckContext::have_impl_trait_context () const
+{
+  return !impl_trait_frame_stack.empty ();
+}
+
+void
+TypeCheckContext::push_impl_trait_context (struct ImplTraitContextFrame frame)
+{
+  impl_trait_frame_stack.push_back (frame);
+}
+
+struct ImplTraitContextFrame
+TypeCheckContext::pop_impl_trait_context ()
+{
+  auto back = peek_impl_trait_context ();
+  impl_trait_frame_stack.pop_back ();
+  return back;
+}
+
+struct ImplTraitContextFrame
+TypeCheckContext::peek_impl_trait_context ()
+{
+  return impl_trait_frame_stack.back ();
 }
 
 void

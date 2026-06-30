@@ -125,6 +125,9 @@ public:
     SLICE_U8,
     SLICE,
     STR,
+    // NOTE: CStr is not present in Rust 1.49, and is only backported for
+    // compilation of Rust for Linux with a patched core lib.
+    CSTR,
     F32_RUNTIME,
     F64_RUNTIME,
 
@@ -157,7 +160,8 @@ public:
 
     MANUALLY_DROP,
 
-    EXCHANGE_MALLOC
+    EXCHANGE_MALLOC,
+    OWNED_BOX,
   };
 
   static const BiMap<std::string, Kind> lang_items;

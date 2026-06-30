@@ -444,7 +444,7 @@ pointer_type (tree to_type)
 {
   if (error_operand_p (to_type))
     return error_mark_node;
-  tree type = build_pointer_type (to_type);
+  tree type = build_pointer_type_for_mode (to_type, VOIDmode, true);
   return type;
 }
 

@@ -51,6 +51,8 @@ struct CustomDeriveInfo
   std::vector<std::string> attributes;
 };
 
+class DropBuilder;
+
 class Context
 {
 public:
@@ -135,18 +137,6 @@ public:
   }
 
   void add_statement (tree stmt) { statements.back ().push_back (stmt); }
-
-  std::vector<DropCandidate> &peek_block_drop_candidates ()
-  {
-    rust_assert (!block_drop_candidates.empty ());
-    return block_drop_candidates.back ();
-  }
-
-  void note_simple_drop_candidate (HirId hirid, location_t locus)
-  {
-    rust_assert (!block_drop_candidates.empty ());
-    block_drop_candidates.back ().emplace_back (hirid, locus);
-  }
 
   void insert_var_decl (HirId id, ::Bvariable *decl)
   {
@@ -298,6 +288,21 @@ public:
     return true;
   }
 
+  void insert_vtable (std::pair<size_t, size_t> pair, ::Bvariable *vtable)
+  {
+    compiled_vtables[pair] = vtable;
+  }
+
+  bool lookup_vtable (std::pair<size_t, size_t> pair, ::Bvariable **vtable)
+  {
+    auto it = compiled_vtables.find (pair);
+    if (it == compiled_vtables.end ())
+      return false;
+
+    *vtable = it->second;
+    return true;
+  }
+
   void push_fn (tree fn, ::Bvariable *ret_addr, TyTy::BaseType *retty)
   {
     fn_stack.emplace_back (fn, ret_addr, retty);
@@ -421,6 +426,7 @@ public:
   }
 
 private:
+  friend class DropBuilder;
   Context ();
 
   Resolver::TypeCheckContext *tyctx;
@@ -434,6 +440,7 @@ private:
   std::map<HirId, tree> compiled_fn_map;
   std::map<HirId, tree> compiled_consts;
   std::map<HirId, tree> compiled_labels;
+  std::map<std::pair<size_t, size_t>, ::Bvariable *> compiled_vtables;
   std::vector<::std::vector<tree>> statements;
   std::vector<tree> scope_stack;
   std::vector<::std::vector<DropCandidate>> block_drop_candidates;

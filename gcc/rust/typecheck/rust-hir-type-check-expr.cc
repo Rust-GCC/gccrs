@@ -18,6 +18,7 @@
 
 #include "optional.h"
 #include "rust-common.h"
+#include "rust-diagnostics.h"
 #include "rust-hir-expr.h"
 #include "rust-hir-map.h"
 #include "rust-rib.h"
@@ -37,7 +38,6 @@
 #include "rust-compile-base.h"
 #include "rust-tyty-util.h"
 #include "rust-tyty.h"
-#include "tree.h"
 
 namespace Rust {
 namespace Resolver {
@@ -185,6 +185,65 @@ TypeCheckExpr::visit (HIR::TupleExpr &expr)
 }
 
 void
+TypeCheckExpr::visit (HIR::BoxExpr &expr)
+{
+  auto owned_box_defid
+    = mappings.get_lang_item (LangItem::Kind::OWNED_BOX, expr.get_locus ());
+
+  HIR::Item *item = mappings.lookup_defid (owned_box_defid).value ();
+  TyTy::BaseType *item_type = nullptr;
+
+  bool ok
+    = context->lookup_type (item->get_mappings ().get_hirid (), &item_type);
+  rust_assert (ok);
+  if (item_type->get_kind () != TyTy::TypeKind::ADT)
+    {
+      rust_error_at (item->get_locus (), ErrorCode::E0718,
+		     "%qs language item must be applied to a struct",
+		     "owned_box");
+      return;
+    }
+  TyTy::ADTType *adt = static_cast<TyTy::ADTType *> (item_type);
+  if (!adt->is_tuple_struct () && !adt->is_struct_struct ())
+    {
+      rust_error_at (item->get_locus (), ErrorCode::E0718,
+		     "%qs language item must be applied to a struct",
+		     "owned_box");
+      return;
+    }
+
+  // this is at least one generic item
+  if (adt->get_num_substitutions () < 1)
+    {
+      rust_error_at (expr.get_locus (),
+		     "%qs lang item must be applied to a struct with at least "
+		     "1 generic argument",
+		     "owned_box");
+      return;
+    }
+
+  TyTy::BaseType *inner_ty = TypeCheckExpr::Resolve (expr.get_expr ());
+  if (inner_ty->get_kind () == TyTy::TypeKind::ERROR)
+    {
+      infered = inner_ty;
+      return;
+    }
+
+  auto lookup = SubstMapper::InferSubst (adt, expr.get_locus ());
+  rust_assert (lookup->get_kind () == TyTy::TypeKind::ADT);
+  TyTy::ADTType *adt_box = static_cast<TyTy::ADTType *> (lookup);
+
+  TyTy::BaseType *infer = adt_box->get_substs ().at (0).get_param_ty ();
+
+  unify_site (expr.get_mappings ().get_hirid (),
+	      TyTy::TyWithLocation (infer, expr.get_locus ()),
+	      TyTy::TyWithLocation (inner_ty, expr.get_locus ()),
+	      expr.get_locus ());
+
+  infered = adt_box;
+}
+
+void
 TypeCheckExpr::visit (HIR::ReturnExpr &expr)
 {
   if (!context->have_function_context ())
@@ -200,9 +259,23 @@ TypeCheckExpr::visit (HIR::ReturnExpr &expr)
 			    ? expr.get_expr ().get_locus ()
 			    : expr.get_locus ();
 
-  TyTy::BaseType *expr_ty = expr.has_return_expr ()
-			      ? TypeCheckExpr::Resolve (expr.get_expr ())
-			      : TyTy::TupleType::get_unit_type ();
+  // Push expected type so the resolver of the return expression
+  // inference before checking its arguments which is needed
+  // for things like:
+  //
+  //    return Try::from_error(...)
+  //
+  // Where Self has to bind from the fn return type before the param
+  // projection can be normalized.
+  TyTy::BaseType *expr_ty;
+  if (expr.has_return_expr ())
+    {
+      context->push_expected_type (fn_return_tyty);
+      expr_ty = TypeCheckExpr::Resolve (expr.get_expr ());
+      context->pop_expected_type ();
+    }
+  else
+    expr_ty = TyTy::TupleType::get_unit_type ();
 
   coercion_site (expr.get_mappings ().get_hirid (),
 		 TyTy::TyWithLocation (fn_return_tyty),
@@ -275,49 +348,48 @@ TypeCheckExpr::visit (HIR::CallExpr &expr)
 
   infered = TyTy::TypeCheckCallExpr::go (function_tyty, expr, variant, context);
 
+  // Pre-GATS: associated types were PlaceholderType; post-GATS they are
+  // ProjectionType, this hHandle both so the isize special-case still fires
   auto discriminant_type_lookup
     = mappings.lookup_lang_item (LangItem::Kind::DISCRIMINANT_TYPE);
-  if (infered->is<TyTy::PlaceholderType> () && discriminant_type_lookup)
+  bool is_discriminant_type = false;
+  if (discriminant_type_lookup)
     {
-      const auto &p = *static_cast<const TyTy::PlaceholderType *> (infered);
-      if (p.get_def_id () == discriminant_type_lookup.value ())
+      if (auto *p = infered->try_as<TyTy::PlaceholderType> ())
+	is_discriminant_type
+	  = p->get_def_id () == discriminant_type_lookup.value ();
+      else if (auto *p = infered->try_as<TyTy::ProjectionType> ())
+	is_discriminant_type
+	  = p->get_item_defid () == discriminant_type_lookup.value ();
+    }
+  if (is_discriminant_type)
+    {
+      // This is a special case: discriminant_value returns the repr of the
+      // enum. We don't currently support repr on enum yet, so the default
+      // is always isize.
+      bool ok = context->lookup_builtin ("isize", &infered);
+      rust_assert (ok);
+
+      rust_assert (function_tyty->is<TyTy::FnType> ());
+      auto &fn = *static_cast<TyTy::FnType *> (function_tyty);
+      rust_assert (fn.has_substitutions ());
+      rust_assert (fn.get_num_type_params () == 1);
+      auto &mapping = fn.get_substs ().at (0);
+      auto param_ty = mapping.get_param_ty ();
+
+      if (!param_ty->can_resolve ())
 	{
-	  // this is a special case where this will actually return the repr of
-	  // the enum. We dont currently support repr on enum yet to change the
-	  // discriminant type but the default is always isize. We need to
-	  // assert this is a generic function with one param
-	  //
-	  // fn<BookFormat> (v & T=BookFormat{Paperback) -> <placeholder:>
-	  //
-	  // note the default is isize
+	  rust_internal_error_at (expr.get_locus (),
+				  "something wrong computing return type");
+	  return;
+	}
 
-	  bool ok = context->lookup_builtin ("isize", &infered);
-	  rust_assert (ok);
-
-	  rust_assert (function_tyty->is<TyTy::FnType> ());
-	  auto &fn = *static_cast<TyTy::FnType *> (function_tyty);
-	  rust_assert (fn.has_substitutions ());
-	  rust_assert (fn.get_num_type_params () == 1);
-	  auto &mapping = fn.get_substs ().at (0);
-	  auto param_ty = mapping.get_param_ty ();
-
-	  if (!param_ty->can_resolve ())
-	    {
-	      // this could be a valid error need to test more weird cases and
-	      // look at rustc
-	      rust_internal_error_at (expr.get_locus (),
-				      "something wrong computing return type");
-	      return;
-	    }
-
-	  auto resolved = param_ty->resolve ();
-	  bool is_adt = resolved->is<TyTy::ADTType> ();
-	  if (is_adt)
-	    {
-	      const auto &adt = *static_cast<TyTy::ADTType *> (resolved);
-	      infered = adt.get_repr_options ().repr;
-	      rust_assert (infered != nullptr);
-	    }
+      auto resolved = param_ty->resolve ();
+      if (resolved->is<TyTy::ADTType> ())
+	{
+	  const auto &adt = *static_cast<TyTy::ADTType *> (resolved);
+	  infered = adt.get_repr_options ().repr;
+	  rust_assert (infered != nullptr);
 	}
     }
 }
@@ -620,9 +692,14 @@ TypeCheckExpr::visit (HIR::UnsafeBlockExpr &expr)
 void
 TypeCheckExpr::visit (HIR::BlockExpr &expr)
 {
+  bool has_label = expr.has_label ();
   if (expr.has_label ())
     context->push_new_loop_context (expr.get_mappings ().get_hirid (),
 				    expr.get_locus ());
+
+  // Forward the caller's expected type to the block's tail expression only.
+  TyTy::BaseType *outer_expected = context->peek_expected_type ();
+  context->push_expected_type (nullptr);
 
   for (auto &s : expr.get_statements ())
     {
@@ -641,6 +718,9 @@ TypeCheckExpr::visit (HIR::BlockExpr &expr)
       if (resolved == nullptr)
 	{
 	  rust_error_at (s->get_locus (), "failure to resolve type");
+	  context->pop_expected_type ();
+	  if (has_label)
+	    context->pop_loop_context ();
 	  return;
 	}
 
@@ -653,23 +733,50 @@ TypeCheckExpr::visit (HIR::BlockExpr &expr)
 	}
     }
 
+  context->pop_expected_type ();
+
+  TyTy::BaseType *tail_expr_type = nullptr;
   if (expr.has_expr ())
-    infered = TypeCheckExpr::Resolve (expr.get_final_expr ())->clone ();
+    {
+      context->push_expected_type (outer_expected);
+      tail_expr_type = TypeCheckExpr::Resolve (expr.get_final_expr ());
+      context->pop_expected_type ();
+    }
+
+  TyTy::BaseType *label_context_type = nullptr;
+  bool label_context_type_infered = false;
+  if (has_label)
+    {
+      label_context_type = context->pop_loop_context ();
+
+      label_context_type_infered
+	= (label_context_type->get_kind () != TyTy::TypeKind::INFER)
+	  || ((label_context_type->get_kind () == TyTy::TypeKind::INFER)
+	      && (((TyTy::InferType *) label_context_type)->get_infer_kind ()
+		  != TyTy::InferType::GENERAL));
+    }
+
+  if (tail_expr_type != nullptr)
+    {
+      if (label_context_type_infered)
+	{
+	  if (tail_expr_type->get_kind () == TyTy::TypeKind::NEVER)
+	    infered = label_context_type;
+	  else
+	    infered = unify_site (
+	      expr.get_mappings ().get_hirid (),
+	      TyTy::TyWithLocation (label_context_type),
+	      TyTy::TyWithLocation (tail_expr_type,
+				    expr.get_final_expr ().get_locus ()),
+	      expr.get_locus ());
+	}
+      else
+	infered = tail_expr_type;
+    }
+  else if (label_context_type_infered)
+    infered = label_context_type;
   else if (expr.is_tail_reachable ())
     infered = TyTy::TupleType::get_unit_type ();
-  else if (expr.has_label ())
-    {
-      TyTy::BaseType *loop_context_type = context->pop_loop_context ();
-
-      bool loop_context_type_infered
-	= (loop_context_type->get_kind () != TyTy::TypeKind::INFER)
-	  || ((loop_context_type->get_kind () == TyTy::TypeKind::INFER)
-	      && (((TyTy::InferType *) loop_context_type)->get_infer_kind ()
-		  != TyTy::InferType::GENERAL));
-
-      infered = loop_context_type_infered ? loop_context_type
-					  : TyTy::TupleType::get_unit_type ();
-    }
   else
     {
       // FIXME this seems wrong
@@ -1261,6 +1368,12 @@ TypeCheckExpr::visit (HIR::FieldAccessExpr &expr)
 {
   auto struct_base = TypeCheckExpr::Resolve (expr.get_receiver_expr ());
 
+  // Box<T> autoderef
+  if (auto try_struct_base = TyTy::try_get_box_inner_type (struct_base))
+    {
+      struct_base = *try_struct_base;
+    }
+
   // FIXME does this require autoderef here?
   if (struct_base->get_kind () == TyTy::TypeKind::REF)
     {
@@ -1468,7 +1581,6 @@ TypeCheckExpr::visit (HIR::MethodCallExpr &expr)
       return;
     }
 
-  fn->prepare_higher_ranked_bounds ();
   rust_debug_loc (expr.get_locus (), "resolved method call to: {%u} {%s}",
 		  found_candidate.candidate.ty->get_ref (),
 		  found_candidate.candidate.ty->debug_str ().c_str ());
@@ -1493,10 +1605,7 @@ TypeCheckExpr::visit (HIR::MethodCallExpr &expr)
 	}
 
       if (!infer_arguments.is_empty ())
-	{
-	  lookup = SubstMapperInternal::Resolve (lookup, infer_arguments);
-	  lookup->debug ();
-	}
+	lookup = SubstMapperInternal::Resolve (lookup, infer_arguments);
     }
 
   // apply any remaining generic arguments
@@ -1708,14 +1817,21 @@ TypeCheckExpr::visit (HIR::DereferenceExpr &expr)
 
   bool is_valid_type = resolved_base->get_kind () == TyTy::TypeKind::REF
 		       || resolved_base->get_kind () == TyTy::TypeKind::POINTER;
-  if (!is_valid_type)
+
+  auto try_owned_box = TyTy::try_get_box_inner_type (resolved_base);
+
+  if (!is_valid_type && !try_owned_box)
     {
       rust_error_at (expr.get_locus (), "expected reference type got %s",
 		     resolved_base->as_string ().c_str ());
       return;
     }
 
-  if (resolved_base->get_kind () == TyTy::TypeKind::REF)
+  if (try_owned_box)
+    {
+      infered = (*try_owned_box)->clone ();
+    }
+  else if (resolved_base->get_kind () == TyTy::TypeKind::REF)
     {
       TyTy::ReferenceType *ref_base
 	= static_cast<TyTy::ReferenceType *> (resolved_base);
@@ -2138,7 +2254,6 @@ TypeCheckExpr::resolve_operator_overload (
     }
 
   // we found a valid operator overload
-  fn->prepare_higher_ranked_bounds ();
   rust_debug_loc (expr.get_locus (), "resolved operator overload to: {%u} {%s}",
 		  candidate.candidate.ty->get_ref (),
 		  candidate.candidate.ty->debug_str ().c_str ());
@@ -2287,12 +2402,8 @@ TypeCheckExpr::resolve_fn_trait_call (HIR::CallExpr &expr,
       return false;
     }
 
-  if (receiver_tyty->get_kind () == TyTy::TypeKind::CLOSURE)
-    {
-      const TyTy::ClosureType &closure
-	= static_cast<TyTy::ClosureType &> (*receiver_tyty);
-      closure.setup_fn_once_output ();
-    }
+  // FnOnce::Output is normalized lazily by normalize_projection's closure
+  // special-case; no explicit setup is required here.
 
   auto candidate = *candidates.begin ();
   rust_debug_loc (expr.get_locus (),
@@ -2392,7 +2503,8 @@ TypeCheckExpr::resolve_fn_trait_call (HIR::CallExpr &expr,
 		      Resolver2_0::Namespace::Types);
 
   // return the result of the function back
-  *result = function_ret_tyty;
+  auto mono = function_ret_tyty->monomorphized_clone ();
+  *result = mono;
 
   return true;
 }

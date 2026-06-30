@@ -128,6 +128,8 @@ const std::unordered_map<std::string, IntrinsicRules>
      {1, {IRT::ConstPtrFirstGeneric, IRT::Isize}, IRT::ConstPtrFirstGeneric}},
     // pub fn size_of<T>() -> usize;
     {IValue::SIZE_OF, {1, {}, IRT::Usize}},
+    // pub fn size_of_val<T: ?Sized>(_: *const T) -> usize;
+    {IValue::SIZE_OF_VAL, {1, {IRT::ConstPtrFirstGeneric}, IRT::Usize}},
     // pub fn transmute<T, U>(e: T) -> U;
     {IValue::TRANSMUTE, {2, {IRT::FirstGeneric}, IRT::SecondGeneric}},
     // pub fn add_with_overflow<T: Copy>(x: T, y: T) -> (T, bool);
@@ -265,6 +267,8 @@ const std::unordered_map<std::string, IntrinsicRules>
     {IValue::ASSUME, {0, {IRT::Bool}, IRT::Unit}},
     // pub fn min_align_of<T>() -> usize;
     {IValue::MIN_ALIGN_OF, {1, {}, IRT::Usize}},
+    // pub fn min_align_of_val<T: ?Sized>(_: *const T) -> usize;
+    {IValue::MIN_ALIGN_OF_VAL, {1, {IRT::ConstPtrFirstGeneric}, IRT::Usize}},
     // pub fn needs_drop<T>() -> bool;
     {IValue::NEEDS_DROP, {1, {}, IRT::Bool}},
     // pub fn caller_location() -> &'static crate::panic::Location<'static>;
@@ -300,6 +304,14 @@ const std::unordered_map<std::string, IntrinsicRules>
     {IValue::FORGET, {1, {IRT::FirstGeneric}, IRT::Unit}},
     // pub fn black_box<T>(mut dummy: T) -> T
     {IValue::BLACK_BOX, {1, {IRT::FirstGeneric}, IRT::FirstGeneric}},
+
+    // pub fn arith_offset<T>(dst: *const T, offset: isize) -> *const T;
+    {IValue::ARITH_OFFSET,
+     {1, {IRT::ConstPtrFirstGeneric, IRT::Isize}, IRT::ConstPtrFirstGeneric}},
+    // fn write_bytes<T>(dst: *mut T, val: u8, count: usize)
+    {IValue::WRITE_BYTES,
+     {1, {IRT::MutPtrFirstGeneric, IRT::U8, IRT::Usize}, IRT::Unit}},
+
 };
 
 IntrinsicCheckResult
@@ -480,7 +492,7 @@ IntrinsicChecker::check_type (const TyTy::BaseType *actual,
 	return ref->get_base ()->get_kind () == TyTy::TypeKind::STR;
       }
     case IRT::AssocTypePlaceholder:
-      return actual->get_kind () == TyTy::TypeKind::PLACEHOLDER;
+      return true;
 
     case IRT::TupleFirstGenericAndBool:
       {

@@ -33,6 +33,7 @@ public:
     STRING,
     BYTE,
     BYTE_STRING,
+    C_STRING,
     INT,
     FLOAT,
     BOOL

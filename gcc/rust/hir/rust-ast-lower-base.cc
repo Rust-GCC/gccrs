@@ -1018,6 +1018,9 @@ ASTLoweringBase::lower_literal (const AST::Literal &literal)
     case AST::Literal::LitType::RAW_STRING:
       type = HIR::Literal::LitType::STRING;
       break;
+    case AST::Literal::LitType::C_STRING:
+      type = HIR::Literal::LitType::C_STRING;
+      break;
     case AST::Literal::LitType::INT:
       type = HIR::Literal::LitType::INT;
       break;
@@ -1068,8 +1071,9 @@ ASTLoweringBase::lower_extern_block (AST::ExternBlock &extern_block)
     }
 
   HIR::ExternBlock *hir_extern_block
-    = new HIR::ExternBlock (mapping, abi, std::move (extern_items),
-			    std::move (vis), extern_block.get_inner_attrs (),
+    = new HIR::ExternBlock (mapping, abi, extern_block.has_abi (),
+			    std::move (extern_items), std::move (vis),
+			    extern_block.get_inner_attrs (),
 			    extern_block.get_outer_attrs (),
 			    extern_block.get_locus ());
 

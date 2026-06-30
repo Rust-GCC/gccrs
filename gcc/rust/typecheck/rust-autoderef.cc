@@ -235,7 +235,6 @@ resolve_operator_overload_fn (
     }
 
   // we found a valid operator overload
-  fn->prepare_higher_ranked_bounds ();
   rust_debug ("resolved operator overload to: {%u} {%s}",
 	      candidate.candidate.ty->get_ref (),
 	      candidate.candidate.ty->debug_str ().c_str ());
@@ -330,6 +329,21 @@ AutoderefCycle::cycle (TyTy::BaseType *receiver)
       // 4. deref to to 1, if cannot deref then quit
       if (autoderef_flag)
 	return false;
+
+      // try owned_box
+      if (auto deref_r = try_get_box_inner_type (r))
+	{
+	  Adjustment box_deref (Adjustment::AdjustmentType::DEREF, r, *deref_r);
+	  adjustments.push_back (box_deref);
+
+	  rust_debug ("autoderef try owned_box: {%s}",
+		      (*deref_r)->debug_str ().c_str ());
+
+	  if (try_autoderefed (*deref_r))
+	    return true;
+
+	  adjustments.pop_back ();
+	}
 
       // try unsize
       Adjustment unsize = Adjuster::try_unsize_type (r);

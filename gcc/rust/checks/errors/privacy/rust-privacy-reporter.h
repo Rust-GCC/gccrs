@@ -127,6 +127,7 @@ types
   virtual void visit (HIR::RangeFullExpr &expr);
   virtual void visit (HIR::RangeFromToInclExpr &expr);
   virtual void visit (HIR::RangeToInclExpr &expr);
+  virtual void visit (HIR::BoxExpr &expr);
   virtual void visit (HIR::ReturnExpr &expr);
   virtual void visit (HIR::UnsafeBlockExpr &expr);
   virtual void visit (HIR::LoopExpr &expr);

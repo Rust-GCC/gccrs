@@ -192,8 +192,15 @@ ASTLoweringExpr::visit (AST::QualifiedPathInExpression &expr)
 void
 ASTLoweringExpr::visit (AST::BoxExpr &expr)
 {
-  rust_sorry_at (expr.get_locus (),
-		 "box expression syntax is not supported yet");
+  HIR::Expr *box_expr = ASTLoweringExpr::translate (expr.get_boxed_expr ());
+
+  auto crate_num = mappings.get_current_crate ();
+  Analysis::NodeMapping mapping (crate_num, expr.get_node_id (),
+				 mappings.get_next_hir_id (crate_num),
+				 UNKNOWN_LOCAL_DEFID);
+
+  translated = new HIR::BoxExpr (mapping, expr.get_locus (),
+				 std::unique_ptr<HIR::Expr> (box_expr));
 }
 
 void

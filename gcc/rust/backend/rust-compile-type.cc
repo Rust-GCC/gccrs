@@ -19,7 +19,9 @@
 #include "rust-compile-type.h"
 #include "rust-constexpr.h"
 #include "rust-compile-base.h"
+#include "rust-type-util.h"
 
+#include "rust-tyty.h"
 #include "tree.h"
 #include "fold-const.h"
 #include "stor-layout.h"
@@ -168,7 +170,19 @@ TyTyResolveCompile::visit (const TyTy::ConstErrorType &type)
 void
 TyTyResolveCompile::visit (const TyTy::ProjectionType &type)
 {
-  translated = error_mark_node;
+  // workaround to get around const here
+  TyTy::ProjectionType *projection
+    = static_cast<TyTy::ProjectionType *> (type.clone ());
+  auto normalized
+    = Resolver::normalize_projection (projection, BUILTINS_LOCATION, false,
+				      false);
+  if (normalized == projection)
+    {
+      translated = error_mark_node;
+      return;
+    }
+
+  translated = TyTyResolveCompile::compile (ctx, normalized, false);
 }
 
 void
@@ -650,6 +664,7 @@ TyTyResolveCompile::visit (const TyTy::ReferenceType &type)
   const TyTy::SliceType *slice = nullptr;
   const TyTy::StrType *str = nullptr;
   const TyTy::DynamicObjectType *dyn = nullptr;
+  const TyTy::ADTType *adt = nullptr;
   if (type.is_dyn_slice_type (&slice))
     {
       tree type_record = create_slice_type_record (*slice);
@@ -681,6 +696,28 @@ TyTyResolveCompile::visit (const TyTy::ReferenceType &type)
 
       translated = Backend::named_type (dyn_str_type_str, type_record,
 					dyn->get_locus ());
+
+      return;
+    }
+  // Check for CStr, create a specific record for it
+  else if (type.is_dyn_cstr_type (&adt))
+    {
+      // CStr in core crate is defined as the following:
+      //
+      // #[repr(transparent)]
+      // pub struct CStr {
+      //    inner: [u8]
+      // }
+      //
+      // Reuse the c_char (u8) slice fat-pointer layout
+      TyTy::BaseType *u8 = nullptr;
+      ctx->get_tyctx ()->lookup_builtin ("u8", &u8);
+      // Create a synthetic SliceType over u8 and use that record layout
+      TyTy::SliceType synthetic_slice (adt->get_ref (), adt->get_ident ().locus,
+				       TyTy::TyVar (u8->get_ref ()));
+      tree type_record = create_slice_type_record (synthetic_slice);
+      translated
+	= Backend::named_type ("&CStr", type_record, adt->get_ident ().locus);
 
       return;
     }
@@ -791,22 +828,30 @@ TyTyResolveCompile::visit (const TyTy::OpaqueType &type)
 tree
 TyTyResolveCompile::create_dyn_obj_record (const TyTy::DynamicObjectType &type)
 {
+  location_t locus = ctx->get_mappings ().lookup_location (type.get_ty_ref ());
   // create implicit struct
-  auto items = type.get_object_items ();
   std::vector<Backend::typed_identifier> fields;
 
-  tree uint = Backend::integer_type (true, Backend::get_pointer_size ());
-  tree uintptr_ty = build_pointer_type (uint);
+  tree voidptr_ty = build_pointer_type (void_type_node);
 
-  fields.emplace_back ("pointer", uintptr_ty,
-		       ctx->get_mappings ().lookup_location (
-			 type.get_ty_ref ()));
+  fields.emplace_back ("data", voidptr_ty, locus);
 
-  tree vtable_size = build_int_cst (size_type_node, items.size ());
-  tree vtable_type = Backend::array_type (uintptr_ty, vtable_size);
-  fields.emplace_back ("vtable", vtable_type,
-		       ctx->get_mappings ().lookup_location (
-			 type.get_ty_ref ()));
+  std::vector<Backend::typed_identifier> vtable_fields;
+
+  // drop_in_place is not implemented yet!
+  vtable_fields.emplace_back ("__drop_in_place", voidptr_ty, locus);
+  vtable_fields.emplace_back ("__size", size_type_node, locus);
+  vtable_fields.emplace_back ("__align", size_type_node, locus);
+
+  size_t items_size = type.get_object_items ().size ();
+  for (size_t method_idx = 0; method_idx < items_size; method_idx++)
+    vtable_fields.emplace_back ("__method_" + std::to_string (method_idx),
+				voidptr_ty, locus);
+
+  tree vtable_record = Backend::struct_type (vtable_fields);
+  tree vtable_ptr_ty = build_pointer_type (vtable_record);
+
+  fields.emplace_back ("vtable", vtable_ptr_ty, locus);
 
   tree record = Backend::struct_type (fields);
   RS_DST_FLAG (record) = 1;

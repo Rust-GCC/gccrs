@@ -38,6 +38,12 @@ public:
     std::vector<TyTy::SubstitutionParamMapping> &substitutions, bool is_foreign,
     ABI abi);
 
+  static TyTy::TypeBoundPredicate ResolvePredicateFromBound (
+    HIR::TypePath &path,
+    tl::optional<std::reference_wrapper<HIR::Type>> associated_self,
+    BoundPolarity polarity = BoundPolarity::RegularBound,
+    bool is_qualified_type = false, bool is_super_trait = false);
+
 protected:
   TypeCheckBase ();
 

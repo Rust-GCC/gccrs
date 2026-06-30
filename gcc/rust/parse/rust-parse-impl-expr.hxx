@@ -342,6 +342,28 @@ Parser<ManagedTokenSource>::parse_literal_expr (AST::AttrVec outer_attrs)
       literal_value = t->get_str ();
       lexer.skip_token ();
       break;
+    case C_STRING_LITERAL:
+      {
+	if (flag_c_style_string_literals)
+	  {
+	    type = AST::Literal::C_STRING;
+	    literal_value = t->get_str ();
+	    lexer.skip_token ();
+	  }
+	else
+	  {
+	    add_error (
+	      Error (t->get_locus (),
+		     "unexpected token %qs when parsing literal expression - "
+		     "C-style string literals require "
+		     "%<-frust-c-style-string-literals%> to be enabled",
+		     t->get_token_description ()));
+	    return tl::unexpected<Parse::Error::Node> (
+	      Parse::Error::Node::MALFORMED);
+	  }
+      }
+
+      break;
     case INT_LITERAL:
       type = AST::Literal::INT;
       literal_value = LiteralResolve::evaluate_integer_literal (t);
@@ -1752,6 +1774,16 @@ Parser<ManagedTokenSource>::parse_struct_expr_field ()
     case DOT_DOT:
       /* this is a struct base and can't be parsed here, so just return
        * nothing without erroring */
+      if (!outer_attrs.empty ())
+	{
+	  add_error (
+	    Error (t->get_locus (),
+		   "attributes are not allowed before %<..%> in a struct "
+		   "expression"));
+
+	  return tl::unexpected<Parse::Error::StructExprField> (
+	    Parse::Error::StructExprField::STRUCT_BASE_ATTRIBUTES);
+	}
 
       return tl::unexpected<Parse::Error::StructExprField> (
 	Parse::Error::StructExprField::STRUCT_BASE);
@@ -2101,6 +2133,23 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
       return std::unique_ptr<AST::LiteralExpr> (
 	new AST::LiteralExpr (tok->get_str (), AST::Literal::RAW_STRING,
 			      tok->get_type_hint (), {}, tok->get_locus ()));
+    case C_STRING_LITERAL:
+      if (flag_c_style_string_literals)
+	{
+	  return std::unique_ptr<AST::LiteralExpr> (
+	    new AST::LiteralExpr (tok->get_str (), AST::Literal::C_STRING,
+				  tok->get_type_hint (), {},
+				  tok->get_locus ()));
+	}
+      else
+	{
+	  Error error (tok->get_locus (),
+		       "C-style string literals require "
+		       "%<-frust-c-style-string-literals%> to be enabled");
+	  add_error (std::move (error));
+	  return tl::unexpected<Parse::Error::Expr> (
+	    Parse::Error::Expr::MALFORMED);
+	}
     case CHAR_LITERAL:
       return std::unique_ptr<AST::LiteralExpr> (
 	new AST::LiteralExpr (tok->get_str (), AST::Literal::CHAR,
@@ -4068,9 +4117,15 @@ Parser<ManagedTokenSource>::parse_struct_expr_struct_partial (
 	while (t->get_id () != RIGHT_CURLY && t->get_id () != DOT_DOT)
 	  {
 	    auto field = parse_struct_expr_field ();
-	    if (!field
-		&& field.error () != Parse::Error::StructExprField::STRUCT_BASE)
+	    if (!field)
 	      {
+		if (field.error () == Parse::Error::StructExprField::STRUCT_BASE)
+		  break;
+		if (field.error ()
+		    == Parse::Error::StructExprField::STRUCT_BASE_ATTRIBUTES)
+		  return tl::unexpected<Parse::Error::Expr> (
+		    Parse::Error::Expr::CHILD_ERROR);
+
 		Error error (t->get_locus (),
 			     "failed to parse struct (or enum) expr field");
 		add_error (std::move (error));

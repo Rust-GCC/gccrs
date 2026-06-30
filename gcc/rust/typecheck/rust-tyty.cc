@@ -27,6 +27,7 @@
 #include "rust-substitution-mapper.h"
 #include "rust-hir-trait-reference.h"
 #include "rust-hir-trait-resolve.h"
+#include "rust-hir-type-check.h"
 #include "tree-pretty-print.h"
 
 #include "optional.h"
@@ -337,12 +338,6 @@ BaseType::satisfies_bound (const TypeBoundPredicate &predicate, bool emit_error)
 	  if (!is_associated_type)
 	    continue;
 
-	  TyTy::BaseType *impl_item_ty = nullptr;
-	  Analysis::NodeMapping i = item->get_impl_mappings ();
-	  bool query_ok = Resolver::query_type (i.get_hirid (), &impl_item_ty);
-	  if (!query_ok)
-	    return false;
-
 	  std::string item_name = item->get_impl_item_name ();
 	  tl::optional<TypeBoundPredicateItem> lookup
 	    = predicate.lookup_associated_item (item_name);
@@ -351,6 +346,32 @@ BaseType::satisfies_bound (const TypeBoundPredicate &predicate, bool emit_error)
 
 	  const auto *item_ref = lookup->get_raw_item ();
 	  TyTy::BaseType *bound_ty = item_ref->get_tyty ();
+	  const auto &bindings
+	    = predicate.get_substitution_arguments ().get_binding_args ();
+	  auto bind_it = bindings.find (item_name);
+	  if (bind_it != bindings.end ())
+	    bound_ty = bind_it->second;
+	  else if (auto *proj = bound_ty->try_as<TyTy::ProjectionType> ())
+	    if (proj->is_trait_position ())
+	      continue;
+
+	  TyTy::BaseType *impl_item_ty = nullptr;
+	  Analysis::NodeMapping i = item->get_impl_mappings ();
+	  bool query_ok = Resolver::query_type (i.get_hirid (), &impl_item_ty);
+	  if (!query_ok)
+	    return false;
+
+	  // If the impl alias still depends on the impl's own generics
+	  // defer the binding check to monomorphization.
+	  //
+	  // The receiver-vs-impl substitution that pins T = i32 only
+	  // happens with a committing unification at the call site
+	  bool impl_item_concrete = impl_item_ty->is_concrete ();
+	  if (auto *p = impl_item_ty->try_as<TyTy::ProjectionType> ())
+	    if (!p->is_trait_position () && p->get () != nullptr)
+	      impl_item_concrete = p->get ()->is_concrete ();
+	  if (!impl_item_concrete)
+	    continue;
 
 	  if (!Resolver::types_compatable (
 		TyTy::TyWithLocation (bound_ty, predicate.get_locus ()),
@@ -496,10 +517,6 @@ BaseType::destructure ()
 
 	  x = p->resolve ();
 	}
-      else if (auto p = x->try_as<ProjectionType> ())
-	{
-	  x = p->get ();
-	}
       else
 	{
 	  return x;
@@ -557,10 +574,6 @@ BaseType::destructure () const
 	    return p;
 
 	  x = p->resolve ();
-	}
-      else if (auto p = x->try_as<const ProjectionType> ())
-	{
-	  x = p->get ();
 	}
       else if (auto p = x->try_as<const OpaqueType> ())
 	{
@@ -659,6 +672,13 @@ BaseType::monomorphized_clone () const
 			  adt->get_region_constraints (),
 			  adt->get_combined_refs ());
     }
+  else if (auto proj = x->try_as<const ProjectionType> ())
+    {
+      TyTy::ProjectionType *xx
+	= static_cast<TyTy::ProjectionType *> (proj->clone ());
+      return Resolver::normalize_projection (xx, UNKNOWN_LOCATION /*FIXME*/,
+					     false, true);
+    }
   else
     {
       return x->clone ();
@@ -743,7 +763,10 @@ BaseType::contains_infer () const
     }
   else if (auto arr = x->try_as<const ArrayType> ())
     {
-      return arr->get_element_type ()->contains_infer ();
+      auto type_infer = (arr->get_element_type ()->contains_infer ());
+      if (type_infer)
+	return type_infer;
+      return arr->get_capacity ()->contains_infer ();
     }
   else if (auto slice = x->try_as<const SliceType> ())
     {
@@ -778,6 +801,13 @@ BaseType::contains_infer () const
     {
       return x;
     }
+  else if (x->get_kind () == TyTy::TypeKind::CONST)
+    {
+      if (x->as_const_type ()->const_kind () == BaseConstType::Infer)
+	{
+	  return x;
+	}
+    }
 
   return nullptr;
 }
@@ -787,7 +817,7 @@ BaseType::is_concrete () const
 {
   const TyTy::BaseType *x = destructure ();
 
-  if (x->is<ParamType> () || x->is<ProjectionType> ())
+  if (x->is<ParamType> ())
     {
       return false;
     }
@@ -798,6 +828,11 @@ BaseType::is_concrete () const
 	return false;
 
       return true;
+    }
+  else if (x->is<ProjectionType> ())
+    {
+      const auto p = x->as<const TyTy::ProjectionType> ();
+      return p->get_self ()->is_concrete ();
     }
   // placeholder is a special case for this case when it is not resolvable
   // it means we its just an empty placeholder associated type which is
@@ -2444,56 +2479,6 @@ ClosureType::handle_substitions (SubstitutionArgumentMappings &mappings)
 }
 
 void
-ClosureType::setup_fn_once_output () const
-{
-  // lookup the lang items
-  auto fn_once_lookup = mappings.lookup_lang_item (LangItem::Kind::FN_ONCE);
-  auto fn_once_output_lookup
-    = mappings.lookup_lang_item (LangItem::Kind::FN_ONCE_OUTPUT);
-  if (!fn_once_lookup)
-    {
-      rust_fatal_error (UNKNOWN_LOCATION,
-			"Missing required %<fn_once%> lang item");
-      return;
-    }
-  if (!fn_once_output_lookup)
-    {
-      rust_fatal_error (UNKNOWN_LOCATION,
-			"Missing required %<fn_once_ouput%> lang item");
-      return;
-    }
-
-  DefId &trait_id = fn_once_lookup.value ();
-  DefId &trait_item_id = fn_once_output_lookup.value ();
-
-  // resolve to the trait
-  HIR::Item *item = mappings.lookup_defid (trait_id).value ();
-  rust_assert (item->get_item_kind () == HIR::Item::ItemKind::Trait);
-  HIR::Trait *trait = static_cast<HIR::Trait *> (item);
-
-  Resolver::TraitReference *trait_ref
-    = Resolver::TraitResolver::Resolve (*trait);
-  rust_assert (!trait_ref->is_error ());
-
-  // resolve to trait item
-  HIR::TraitItem *trait_item
-    = mappings.lookup_trait_item_defid (trait_item_id).value ();
-  rust_assert (trait_item->get_item_kind ()
-	       == HIR::TraitItem::TraitItemKind::TYPE);
-  std::string item_identifier = trait_item->trait_identifier ();
-
-  // setup associated types  #[lang = "fn_once_output"]
-  Resolver::TraitItemReference *item_reference = nullptr;
-  bool found = trait_ref->lookup_trait_item_by_type (
-    item_identifier, Resolver::TraitItemReference::TraitItemType::TYPE,
-    &item_reference);
-  rust_assert (found);
-
-  // setup
-  item_reference->associated_type_set (&get_result_type ());
-}
-
-void
 ArrayType::accept_vis (TyVisitor &vis)
 {
   vis.visit (*this);
@@ -3085,13 +3070,34 @@ ReferenceType::get_region () const
 bool
 ReferenceType::is_dyn_object () const
 {
-  return is_dyn_slice_type () || is_dyn_str_type () || is_dyn_obj_type ();
+  return is_dyn_slice_type () || is_dyn_str_type () || is_dyn_obj_type ()
+	 || is_dyn_cstr_type ();
+}
+
+static const TyTy::BaseType *
+destructure_through_projections (const TyTy::BaseType *t)
+{
+  const TyTy::BaseType *element = t->destructure ();
+  for (int guard = 0; guard < 16; guard++)
+    {
+      auto *proj = element->try_as<const TyTy::ProjectionType> ();
+      if (proj == nullptr)
+	break;
+      auto *normalized = Resolver::normalize_projection (
+	const_cast<TyTy::ProjectionType *> (proj), BUILTINS_LOCATION,
+	false /*emit_errors*/, false /*unify_self*/);
+      if (normalized == proj || normalized == nullptr
+	  || normalized->get_kind () == TyTy::TypeKind::ERROR)
+	break;
+      element = normalized->destructure ();
+    }
+  return element;
 }
 
 bool
 ReferenceType::is_dyn_slice_type (const TyTy::SliceType **slice) const
 {
-  const TyTy::BaseType *element = get_base ()->destructure ();
+  const TyTy::BaseType *element = destructure_through_projections (get_base ());
   if (element->get_kind () != TyTy::TypeKind::SLICE)
     return false;
   if (slice == nullptr)
@@ -3104,7 +3110,7 @@ ReferenceType::is_dyn_slice_type (const TyTy::SliceType **slice) const
 bool
 ReferenceType::is_dyn_str_type (const TyTy::StrType **str) const
 {
-  const TyTy::BaseType *element = get_base ()->destructure ();
+  const TyTy::BaseType *element = destructure_through_projections (get_base ());
   if (element->get_kind () != TyTy::TypeKind::STR)
     return false;
   if (str == nullptr)
@@ -3117,13 +3123,34 @@ ReferenceType::is_dyn_str_type (const TyTy::StrType **str) const
 bool
 ReferenceType::is_dyn_obj_type (const TyTy::DynamicObjectType **dyn) const
 {
-  const TyTy::BaseType *element = get_base ()->destructure ();
+  const TyTy::BaseType *element = destructure_through_projections (get_base ());
   if (element->get_kind () != TyTy::TypeKind::DYNAMIC)
     return false;
   if (dyn == nullptr)
     return true;
 
   *dyn = static_cast<const TyTy::DynamicObjectType *> (element);
+  return true;
+}
+
+bool
+ReferenceType::is_dyn_cstr_type (const TyTy::ADTType **adt) const
+{
+  if (get_base ()->get_kind () != TyTy::TypeKind::ADT)
+    return false;
+
+  const TyTy::ADTType *adt_ty
+    = static_cast<const TyTy::ADTType *> (get_base ());
+  auto &mappings = Analysis::Mappings::get ();
+  auto cstr_item = mappings.lookup_lang_item (LangItem::Kind::CSTR);
+
+  if (!cstr_item.has_value ())
+    return false;
+
+  if (cstr_item.value () != adt_ty->get_id ())
+    return false;
+
+  *adt = adt_ty;
   return true;
 }
 
@@ -3246,7 +3273,7 @@ PointerType::is_dyn_object () const
 bool
 PointerType::is_dyn_slice_type (const TyTy::SliceType **slice) const
 {
-  const TyTy::BaseType *element = get_base ()->destructure ();
+  const TyTy::BaseType *element = destructure_through_projections (get_base ());
   if (element->get_kind () != TyTy::TypeKind::SLICE)
     return false;
   if (slice == nullptr)
@@ -3259,7 +3286,7 @@ PointerType::is_dyn_slice_type (const TyTy::SliceType **slice) const
 bool
 PointerType::is_dyn_str_type (const TyTy::StrType **str) const
 {
-  const TyTy::BaseType *element = get_base ()->destructure ();
+  const TyTy::BaseType *element = destructure_through_projections (get_base ());
   if (element->get_kind () != TyTy::TypeKind::STR)
     return false;
   if (str == nullptr)
@@ -3272,7 +3299,7 @@ PointerType::is_dyn_str_type (const TyTy::StrType **str) const
 bool
 PointerType::is_dyn_obj_type (const TyTy::DynamicObjectType **dyn) const
 {
-  const TyTy::BaseType *element = get_base ()->destructure ();
+  const TyTy::BaseType *element = destructure_through_projections (get_base ());
   if (element->get_kind () != TyTy::TypeKind::DYNAMIC)
     return false;
   if (dyn == nullptr)
@@ -3414,6 +3441,12 @@ ParamType::get_name () const
 {
   if (!can_resolve ())
     return get_symbol ();
+
+  static std::vector<const ParamType *> active;
+  if (Resolver::ScopedPush<const ParamType *>::contains (active, this))
+    return get_symbol ();
+
+  Resolver::ScopedPush<const ParamType *> guard (active, this);
 
   return destructure ()->get_name ();
 }
@@ -4146,20 +4179,6 @@ PlaceholderType::clone () const
 			      get_ty_ref (), get_combined_refs ());
 }
 
-void
-PlaceholderType::set_associated_type (HirId ref)
-{
-  auto context = Resolver::TypeCheckContext::get ();
-  context->insert_associated_type_mapping (get_ty_ref (), ref);
-}
-
-void
-PlaceholderType::clear_associated_type ()
-{
-  auto context = Resolver::TypeCheckContext::get ();
-  context->clear_associated_type_mapping (get_ty_ref ());
-}
-
 bool
 PlaceholderType::can_resolve () const
 {
@@ -4214,29 +4233,33 @@ PlaceholderType::get_def_id () const
 
 ProjectionType::ProjectionType (
   HirId ref, BaseType *base, const Resolver::TraitReference *trait, DefId item,
-  std::vector<SubstitutionParamMapping> subst_refs,
+  std::vector<SubstitutionParamMapping> subst_refs, TyTy::BaseType *self,
   SubstitutionArgumentMappings generic_arguments,
-  RegionConstraints region_constraints, std::set<HirId> refs)
+  RegionConstraints region_constraints, std::set<HirId> refs,
+  size_t num_trait_substitutions)
   : BaseType (ref, ref, KIND,
 	      {Resolver::CanonicalPath::create_empty (), BUILTINS_LOCATION},
 	      std::move (refs)),
     SubstitutionRef (std::move (subst_refs), std::move (generic_arguments),
 		     std::move (region_constraints)),
-    base (base), trait (trait), item (item)
+    base (base), trait (trait), item (item), self (self),
+    num_trait_substitutions (num_trait_substitutions)
 {}
 
 ProjectionType::ProjectionType (
   HirId ref, HirId ty_ref, BaseType *base,
   const Resolver::TraitReference *trait, DefId item,
-  std::vector<SubstitutionParamMapping> subst_refs,
+  std::vector<SubstitutionParamMapping> subst_refs, TyTy::BaseType *self,
   SubstitutionArgumentMappings generic_arguments,
-  RegionConstraints region_constraints, std::set<HirId> refs)
+  RegionConstraints region_constraints, std::set<HirId> refs,
+  size_t num_trait_substitutions)
   : BaseType (ref, ty_ref, KIND,
 	      {Resolver::CanonicalPath::create_empty (), BUILTINS_LOCATION},
 	      refs),
     SubstitutionRef (std::move (subst_refs), std::move (generic_arguments),
 		     std::move (region_constraints)),
-    base (base), trait (trait), item (item)
+    base (base), trait (trait), item (item), self (self),
+    num_trait_substitutions (num_trait_substitutions)
 {}
 
 std::string
@@ -4245,16 +4268,48 @@ ProjectionType::get_name () const
   return as_string ();
 }
 
+bool
+ProjectionType::is_trait_position () const
+{
+  return base == nullptr;
+}
+
 const BaseType *
 ProjectionType::get () const
 {
+  rust_assert (base != nullptr);
   return base;
 }
 
 BaseType *
 ProjectionType::get ()
 {
+  rust_assert (base != nullptr);
   return base;
+}
+
+const BaseType *
+ProjectionType::get_self () const
+{
+  return self;
+}
+
+BaseType *
+ProjectionType::get_self ()
+{
+  return self;
+}
+
+const Resolver::TraitReference *
+ProjectionType::get_trait_ref () const
+{
+  return trait;
+}
+
+DefId
+ProjectionType::get_item_defid () const
+{
+  return item;
 }
 
 void
@@ -4272,29 +4327,28 @@ ProjectionType::accept_vis (TyConstVisitor &vis) const
 std::string
 ProjectionType::as_string () const
 {
-  return "<Projection=" + subst_as_string () + "::" + base->as_string () + ">";
+  return "<Projection=" + subst_as_string ()
+	 + "::" + (base == nullptr ? "TRAIT_POSITION" : base->as_string ())
+	 + "::" + self->as_string () + ">";
 }
 
 BaseType *
 ProjectionType::clone () const
 {
-  return new ProjectionType (get_ref (), get_ty_ref (), base->clone (), trait,
-			     item, clone_substs (), used_arguments,
-			     region_constraints, get_combined_refs ());
+  auto *cloned
+    = new ProjectionType (get_ref (), get_ty_ref (),
+			  base != nullptr ? base->clone () : nullptr, trait,
+			  item, clone_substs (), self->clone (), used_arguments,
+			  region_constraints, get_combined_refs (),
+			  num_trait_substitutions);
+  cloned->inherit_bounds (get_specified_bounds ());
+  return cloned;
 }
 
 ProjectionType *
 ProjectionType::handle_substitions (
   SubstitutionArgumentMappings &subst_mappings)
 {
-  // // do we really need to substitute this?
-  // if (base->needs_generic_substitutions () ||
-  // base->contains_type_parameters
-  // ())
-  //   {
-  //     return this;
-  //   }
-
   ProjectionType *projection = static_cast<ProjectionType *> (clone ());
   projection->set_ty_ref (mappings.get_next_hir_id ());
   projection->used_arguments = subst_mappings;
@@ -4311,9 +4365,52 @@ ProjectionType::handle_substitions (
 	sub.fill_param_ty (subst_mappings, subst_mappings.get_locus ());
     }
 
-  auto fty = projection->base;
-  bool is_param_ty = fty->get_kind () == TypeKind::PARAM;
-  if (is_param_ty)
+  auto fty = projection->self;
+  if (fty->get_kind () == TypeKind::PARAM)
+    {
+      ParamType *p = static_cast<ParamType *> (fty);
+
+      SubstitutionArg arg = SubstitutionArg::error ();
+      bool ok = subst_mappings.get_argument_for_symbol (p, &arg);
+      if (ok)
+	{
+	  auto argt = arg.get_tyty ();
+	  bool arg_is_param = argt->get_kind () == TyTy::TypeKind::PARAM;
+	  bool arg_is_concrete = argt->get_kind () != TyTy::TypeKind::INFER;
+
+	  if (arg_is_param || arg_is_concrete)
+	    {
+	      auto new_field = argt->clone ();
+	      new_field->set_ref (fty->get_ref ());
+	      projection->self = new_field;
+	    }
+	  else
+	    {
+	      fty->set_ty_ref (argt->get_ref ());
+	    }
+	}
+    }
+  else if (fty->needs_generic_substitutions () || !fty->is_concrete ())
+    {
+      BaseType *concrete
+	= Resolver::SubstMapperInternal::Resolve (fty, subst_mappings);
+
+      if (concrete == nullptr || concrete->get_kind () == TyTy::TypeKind::ERROR)
+	{
+	  rust_error_at (subst_mappings.get_locus (),
+			 "Failed to resolve field substitution type: %s",
+			 fty->as_string ().c_str ());
+	  return nullptr;
+	}
+
+      projection->self = concrete;
+    }
+
+  fty = projection->base;
+  if (fty == nullptr)
+    return projection;
+
+  if (fty->get_kind () == TypeKind::PARAM)
     {
       ParamType *p = static_cast<ParamType *> (fty);
 
@@ -4449,6 +4546,29 @@ DynamicObjectType::get_object_items () const
 	}
     }
   return items;
+}
+
+WARN_UNUSED_RESULT tl::optional<BaseType *>
+try_get_box_inner_type (BaseType *base)
+{
+  if (base->get_kind () != TypeKind::ADT)
+    return tl::nullopt;
+
+  ADTType *adt = static_cast<ADTType *> (base);
+  auto owned_box_lookup
+    = Analysis::Mappings::get ().lookup_lang_item (LangItem::Kind::OWNED_BOX);
+
+  if (owned_box_lookup && adt->get_id () == *owned_box_lookup)
+    {
+      auto args = adt->get_substitution_arguments ();
+      if (!args.is_empty ())
+	{
+	  auto inner = args.get_mappings ().front ().get_tyty ();
+	  rust_assert (inner != nullptr);
+	  return inner;
+	}
+    }
+  return tl::nullopt;
 }
 
 } // namespace TyTy
