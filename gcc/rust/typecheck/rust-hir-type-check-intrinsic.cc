@@ -267,6 +267,8 @@ const std::unordered_map<std::string, IntrinsicRules>
     {IValue::ASSUME, {0, {IRT::Bool}, IRT::Unit}},
     // pub fn min_align_of<T>() -> usize;
     {IValue::MIN_ALIGN_OF, {1, {}, IRT::Usize}},
+    // pub fn min_align_of_val<T: ?Sized>(_: *const T) -> usize;
+    {IValue::MIN_ALIGN_OF_VAL, {1, {IRT::ConstPtrFirstGeneric}, IRT::Usize}},
     // pub fn needs_drop<T>() -> bool;
     {IValue::NEEDS_DROP, {1, {}, IRT::Bool}},
     // pub fn caller_location() -> &'static crate::panic::Location<'static>;
