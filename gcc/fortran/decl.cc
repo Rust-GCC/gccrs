@@ -4626,7 +4626,9 @@ gfc_get_pdt_instance (gfc_actual_arglist *param_list, gfc_symbol **sym,
 		}
 	    }
 
-	  if (c2->attr.allocatable)
+	  if (c2->attr.allocatable
+	      || (c2->ts.type == BT_DERIVED && c2->ts.u.derived
+		  && c2->ts.u.derived->attr.alloc_comp && !c2->attr.pointer))
 	    instance->attr.alloc_comp = 1;
 	}
       else if (!(c2->attr.pdt_kind || c2->attr.pdt_len || c2->attr.pdt_string

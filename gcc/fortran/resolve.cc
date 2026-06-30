@@ -6164,7 +6164,12 @@ gfc_resolve_ref (gfc_expr *expr)
   n_components = 0;
   array_ref = NULL;
 
-  if (expr->expr_type == EXPR_VARIABLE && IS_PDT (expr))
+  /* Use the declared type of the base symbol to initialize last_pdt when the
+     expression is not itself a PDT. This matters for ASSOCIATE variables whose
+     component reference may still point to a PDT template.  */
+  if (expr->expr_type == EXPR_VARIABLE
+      && (IS_PDT (expr)
+	  || (expr->ref && expr->symtree && IS_PDT (expr->symtree->n.sym))))
     last_pdt = expr->symtree->n.sym->ts.u.derived;
 
   for (ref = expr->ref; ref; ref = ref->next)

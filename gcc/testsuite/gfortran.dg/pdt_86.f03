@@ -1,4 +1,5 @@
 ! { dg-do run }
+! { dg-options "-fdump-tree-original" }
 !
 ! Test the fix for PR122902. Line 47 gave "free(): invalid pointer".
 !
@@ -55,3 +56,5 @@ end submodule
   if (allocated(input_output_pairs)) deallocate(input_output_pairs)
   if (allocated(mini_batch)) deallocate(mini_batch)
 end
+! { dg-final { scan-tree-dump-times "__builtin_malloc" 31 "original" } }
+! { dg-final { scan-tree-dump-times "__builtin_free" 41 "original" } }
