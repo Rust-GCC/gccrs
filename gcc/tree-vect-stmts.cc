@@ -11396,15 +11396,6 @@ vectorizable_load (vec_info *vinfo,
 				      offset, &dummy, gsi, &ptr_incr,
 				      simd_lane_access_p, bump);
     }
-  else if (!costing_p)
-    {
-      gcc_assert (!LOOP_VINFO_USING_SELECT_VL_P (loop_vinfo));
-      if (dataref_offset)
-	dataref_offset = int_const_binop (PLUS_EXPR, dataref_offset, bump);
-      else
-	dataref_ptr = bump_vector_ptr (vinfo, dataref_ptr, ptr_incr, gsi,
-				       stmt_info, bump);
-    }
 
   auto_vec<tree> dr_chain;
   if (grouped_load || ls.slp_perm)
