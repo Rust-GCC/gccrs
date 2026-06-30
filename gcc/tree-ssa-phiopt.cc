@@ -632,7 +632,7 @@ factor_out_conditional_operation (edge e0, edge e1, basic_block merge,
 
   /* Remove the original PHI stmt.  */
   gsi = gsi_for_stmt (phi);
-  gsi_remove (&gsi, true);
+  remove_phi_node (&gsi, false);
 
   statistics_counter_event (cfun, "factored out operation", 1);
 
@@ -3860,7 +3860,7 @@ factor_out_conditional_load (edge e0, edge e1, basic_block merge, gphi *phi,
 
   /* RES is now defined by the load; drop the original PHI.  */
   gsi = gsi_for_stmt (phi);
-  gsi_remove (&gsi, true);
+  remove_phi_node (&gsi, false);
 
   /* The two arm loads are now dead.  */
   gsi = gsi_for_stmt (load0);
