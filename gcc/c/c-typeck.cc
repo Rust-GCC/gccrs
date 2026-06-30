@@ -17419,7 +17419,7 @@ c_finish_omp_clauses (tree clauses, enum c_omp_region_type ort)
 	  else if (TREE_CODE (t) == CONST_DECL)
 	    {
 	      /* omp_null_allocator is ignored and for predefined allocators,
-		 not special handling is required; thus, remove them removed. */
+		 no special handling is required; thus, mark them removed. */
 	      remove = true;
 
 	      if (OMP_CLAUSE_USES_ALLOCATORS_MEMSPACE (c)

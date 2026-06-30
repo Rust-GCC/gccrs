@@ -1155,6 +1155,9 @@ dump_omp_clause (pretty_printer *pp, tree clause, int spc, dump_flags_t flags)
 	case GOMP_MAP_POP_MAPPER_NAME:
 	  pp_string (pp, "pop_mapper");
 	  break;
+	case GOMP_MAP_USES_ALLOCATORS:
+	  pp_string (pp, "uses_allocators");
+	  break;
 	default:
 	  gcc_unreachable ();
 	}

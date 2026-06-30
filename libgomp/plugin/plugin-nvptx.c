@@ -2583,6 +2583,24 @@ GOMP_OFFLOAD_memset (int ord, void *ptr, int val, size_t count)
   return true;
 }
 
+/* This plugin hook function should be kept in sync with nvptx_memspace_validate
+   in config/nvptx/allocator.c.  */
+
+int
+GOMP_OFFLOAD_memspace_validate (omp_memspace_handle_t memspace, unsigned access)
+{
+  /* Disallow use of low-latency memory when it must be accessible by
+     all threads.  */
+  if (memspace == omp_low_lat_mem_space
+      && access == omp_atv_all)
+    return false;
+
+  /* Otherwise, standard memspaces are accepted, even when we don't have
+     anything special to do with them, and non-standard memspaces are assumed
+     to need explicit support.  */
+  return (memspace <= GOMP_OMP_PREDEF_MEMSPACE_MAX);
+}
+
 bool
 GOMP_OFFLOAD_openacc_async_host2dev (int ord, void *dst, const void *src,
 				     size_t n, struct goacc_asyncqueue *aq)

@@ -320,6 +320,7 @@ static struct gomp_device_descr host_dispatch =
     .host2dev_func = host_host2dev,
     .memcpy2d_func = NULL,
     .memcpy3d_func = NULL,
+    .memspace_validate_func = NULL,
     .run_func = host_run,
 
     .session = {

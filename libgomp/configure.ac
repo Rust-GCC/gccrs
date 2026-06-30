@@ -233,6 +233,11 @@ AC_CHECK_SIZEOF([void *])
 
 m4_include([plugin/configfrag.ac])
 
+if test x"$offload_plugins" != x; then
+  AC_DEFINE(LIBGOMP_OFFLOAD_HOST, 1,
+    [Define to 1 if building libgomp for a offload host])
+fi
+
 # Check for functions needed.
 AC_CHECK_FUNCS(getloadavg clock_gettime strtoull)
 AC_CHECK_FUNCS(aligned_alloc posix_memalign memalign _aligned_malloc)
@@ -364,6 +369,19 @@ CFLAGS="$save_CFLAGS $XCFLAGS"
 # Check for __sync_val_compare_and_swap, but only after the target has
 # had a chance to set XCFLAGS.
 LIBGOMP_CHECK_SYNC_BUILTINS
+
+# If offloading is enabled, both offload hosts and accelerators are required to support
+# __sync_* builtins, to simplify architectural assumptions between both sides
+if test x$libgomp_cv_have_sync_builtins = xno; then
+  # We require accelerator targets to support __sync_* builtins.
+  if test x$libgomp_offloaded_only = xyes; then
+    AC_MSG_ERROR([accelerator targets require __sync_val_compare_and_swap to build libgomp.])
+  fi
+  # Same for offload hosts.
+  if test x"$offload_plugins" = x; then
+    AC_MSG_ERROR([offload hosts require __sync_val_compare_and_swap to build libgomp.])
+  fi
+fi
 
 XCFLAGS="$XCFLAGS$XPCFLAGS"
 

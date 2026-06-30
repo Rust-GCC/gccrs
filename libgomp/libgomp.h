@@ -616,6 +616,7 @@ extern size_t gomp_affinity_format_len;
 extern int gomp_get_current_numa_node ();
 extern int gomp_get_numa_distance (int, int);
 extern uintptr_t gomp_def_allocator;
+extern const size_t gomp_omp_allocator_data_size;
 extern const struct gomp_default_icv gomp_default_icv_values;
 extern struct gomp_icv_list *gomp_initial_icv_list;
 extern struct gomp_offload_icv_list *gomp_offload_icv_list;
@@ -1472,6 +1473,7 @@ struct gomp_device_descr
   __typeof (GOMP_OFFLOAD_memcpy2d) *memcpy2d_func;
   __typeof (GOMP_OFFLOAD_memcpy3d) *memcpy3d_func;
   __typeof (GOMP_OFFLOAD_memset) *memset_func;
+  __typeof (GOMP_OFFLOAD_memspace_validate) *memspace_validate_func;
   struct {
     __typeof (GOMP_OFFLOAD_session_start) *start_func;
     __typeof (GOMP_OFFLOAD_session_allocate_target_var_table) *alloc_tvt_func;
@@ -1560,6 +1562,13 @@ extern void gomp_unload_device (struct gomp_device_descr *);
 extern bool gomp_remove_var (struct gomp_device_descr *, splay_tree_key);
 extern void gomp_remove_var_async (struct gomp_device_descr *, splay_tree_key,
 				   struct goacc_asyncqueue *);
+
+/* allocator.c */
+
+extern uintptr_t gomp_map_omp_init_allocator (struct gomp_device_descr *,
+					      struct goacc_asyncqueue *,
+					      struct gomp_coalesce_buf *,
+					      void *, void *);
 
 /* work.c */
 

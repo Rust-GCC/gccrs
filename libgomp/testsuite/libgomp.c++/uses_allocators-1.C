@@ -1,8 +1,8 @@
 // { dg-do compile }
 /* { dg-additional-options "-Wno-deprecated-openmp" } */
 
-//#include <omp.h>
-
+#include <omp.h>
+/*
 typedef __UINTPTR_TYPE__ omp_uintptr_t;
 
 #if __cplusplus >= 201103L
@@ -43,7 +43,7 @@ typedef struct omp_alloctrait_t
 //  omp_alloctrait_key_t key;
 //  omp_uintptr_t value;
 } omp_alloctrait_t;
-
+*/
 
 template<typename TH, TH alloc>
 void f()
@@ -99,7 +99,3 @@ void use2()
 
   g2<omp_allocator_handle_t, const omp_alloctrait_t[]>(my); // OK
 }
-
-// { dg-message "sorry, unimplemented: 'uses_allocators' clause" "" { target *-*-* } 51 }
-// { dg-message "sorry, unimplemented: 'uses_allocators' clause" "" { target *-*-* } 58 }
-// { dg-message "sorry, unimplemented: 'uses_allocators' clause" "" { target *-*-* } 89 }

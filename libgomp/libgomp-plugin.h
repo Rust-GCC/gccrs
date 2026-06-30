@@ -191,6 +191,7 @@ extern int GOMP_OFFLOAD_memcpy3d (int, int, size_t, size_t, size_t, void *,
 				  const void *, size_t, size_t, size_t, size_t,
 				  size_t);
 extern bool GOMP_OFFLOAD_memset (int, void *, int, size_t);
+extern int GOMP_OFFLOAD_memspace_validate (omp_memspace_handle_t, unsigned int);
 extern bool GOMP_OFFLOAD_can_run (void *);
 
 /* An opaque type, encapsulating the state required to launch a single

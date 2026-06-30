@@ -1,5 +1,4 @@
-! { dg-do compile }
-! { dg-additional-options "-fdump-tree-gimple" }
+! { dg-additional-options "-fdump-tree-original -fdump-tree-gimple" }
 
 program main
   use iso_c_binding
@@ -28,7 +27,7 @@ program main
 
   my_alloc = transfer(int(z'ABCD', omp_allocator_handle_kind), my_alloc)
 
-  !$omp target uses_allocators(traits(trait): my_alloc) defaultmap(none) map(tofrom: x, xbuf) 
+  !$omp target uses_allocators(traits(trait): my_alloc) defaultmap(none) map(tofrom: x, xbuf)
     !$omp parallel allocate(allocator(my_alloc): x, xbuf) if(.false.) firstprivate(x, xbuf)
       if (mod (TRANSFER (loc(x), iptr), 128) /= 0) &
         stop 3
@@ -54,16 +53,6 @@ program main
     stop 8
 end
 
-
-! FIXME ENABLE: 'dg FIXME final' -> 'dg-final'
-! { dg  FIXME  final { scan-tree-dump-times "#pragma omp target .*private\\(my_alloc\\).*uses_allocators\\(my_alloc: memspace\\(\\), traits\\(trait\\)\\)" 1 "gimple" } }
-! { dg  FIXME  final { scan-tree-dump-times "#pragma omp target .*private\\(my_alloc\\).*uses_allocators\\(my_alloc: memspace\\(\\), traits\\(\\)\\)" 1 "gimple" } }
-! { dg  FIXME  final { scan-tree-dump "#pragma omp target uses_allocators\\(memspace\\(1\\), traits\\(\\) : my4\\) uses_allocators\\(memspace\\(\\), traits\\(t2\\) : my3\\) uses_allocators\\(memspace\\(\\), traits\\(\\) : my2\\) uses_allocators\\(memspace\\(3\\), traits\\(t\\) : my\\)" 1 "original" } }
-
-
-! FIXME ENABLE code above for "gimple" once it has been implemented:
-! { dg-message "sorry, unimplemented: 'uses_allocators' clause with traits and memory spaces" "" { target *-*-* } 16 }
-! { dg-message "sorry, unimplemented: 'uses_allocators' clause with traits and memory spaces" "" { target *-*-* } 31 }
-! { dg-message "sorry, unimplemented: 'uses_allocators' clause with traits and memory spaces" "" { target *-*-* } 44 }
-! { dg-bogus "'my_alloc' not specified in enclosing 'target'" "bogus issue because clause is ignored" { xfail *-*-* } 32 }
-! { dg-bogus "'my_alloc' not specified in enclosing 'target'" "bogus issue because clause is ignored" { xfail *-*-* } 45 }
+! { dg-final { scan-tree-dump-times "#pragma omp target .*uses_allocators\\(memspace\\(\\), traits\\(trait\\) : my_alloc\\)" 1 "gimple" } }
+! { dg-final { scan-tree-dump-times "#pragma omp target .*uses_allocators\\(memspace\\(\\), traits\\(\\) : my_alloc\\)" 1 "gimple" } }
+! { dg-final { scan-tree-dump-times "#pragma omp target .*uses_allocators\\(memspace\\(1\\), traits\\(\\) : my4\\) uses_allocators\\(memspace\\(\\), traits\\(t2\\) : my3\\) uses_allocators\\(memspace\\(\\), traits\\(\\) : my2\\) uses_allocators\\(memspace\\(3\\), traits\\(t\\) : my\\)" 1 "original" } }

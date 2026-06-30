@@ -110,6 +110,10 @@ gcn_memspace_realloc (omp_memspace_handle_t memspace, void *addr,
     return realloc (addr, size);
 }
 
+/* The MEMSPACE_VALIDATE implementation should be kept in sync with
+   the GOMP_OFFLOAD_memspace_validate plugin hook function in
+   plugin/plugin-gcn.c.  */
+
 static inline int
 gcn_memspace_validate (omp_memspace_handle_t memspace, unsigned access)
 {

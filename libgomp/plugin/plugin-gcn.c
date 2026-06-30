@@ -4896,6 +4896,22 @@ unlock:
   return retval;
 }
 
+/* This plugin hook function should be kept in sync with gcn_memspace_validate
+   in config/gcn/allocator.c.  */
+
+int
+GOMP_OFFLOAD_memspace_validate (omp_memspace_handle_t memspace, unsigned access)
+{
+  /* Disallow use of low-latency memory when it must be accessible by
+     all threads.  */
+  return (memspace != omp_low_lat_mem_space
+	  || access != omp_atv_all);
+
+  /* Otherwise, standard memspaces are accepted, even when we don't have
+     anything special to do with them, and non-standard memspaces are assumed
+     to need explicit support.  */
+  return (memspace <= GOMP_OMP_PREDEF_MEMSPACE_MAX);
+}
 
 static bool
 init_hip_runtime_functions (void)

@@ -54,6 +54,9 @@ asm (".extern .shared .u8 __nvptx_lowlat_pool[];\n");
 static void *
 nvptx_memspace_alloc (omp_memspace_handle_t memspace, size_t size)
 {
+#if __PTX_ISA_VERSION_MAJOR__ > 4					\
+    || (__PTX_ISA_VERSION_MAJOR__ == 4 && __PTX_ISA_VERSION_MINOR >= 1)
+  /* Low-latency memory is not available before PTX 4.1.  */
   if (memspace == omp_low_lat_mem_space)
     {
       char *shared_pool;
@@ -65,12 +68,16 @@ nvptx_memspace_alloc (omp_memspace_handle_t memspace, size_t size)
     /* No non-standard memspaces are implemented for device-side nvptx.  */
     return NULL;
   else
+#endif
     return malloc (size);
 }
 
 static void *
 nvptx_memspace_calloc (omp_memspace_handle_t memspace, size_t size)
 {
+#if __PTX_ISA_VERSION_MAJOR__ > 4					\
+    || (__PTX_ISA_VERSION_MAJOR__ == 4 && __PTX_ISA_VERSION_MINOR >= 1)
+  /* Low-latency memory is not available before PTX 4.1.  */
   if (memspace == omp_low_lat_mem_space)
     {
       char *shared_pool;
@@ -82,12 +89,16 @@ nvptx_memspace_calloc (omp_memspace_handle_t memspace, size_t size)
     /* No non-standard memspaces are implemented for device-side nvptx.  */
     return NULL;
   else
+#endif
     return calloc (1, size);
 }
 
 static void
 nvptx_memspace_free (omp_memspace_handle_t memspace, void *addr, size_t size)
 {
+#if __PTX_ISA_VERSION_MAJOR__ > 4					\
+    || (__PTX_ISA_VERSION_MAJOR__ == 4 && __PTX_ISA_VERSION_MINOR >= 1)
+  /* Low-latency memory is not available before PTX 4.1.  */
   if (memspace == omp_low_lat_mem_space)
     {
       char *shared_pool;
@@ -96,6 +107,7 @@ nvptx_memspace_free (omp_memspace_handle_t memspace, void *addr, size_t size)
       __nvptx_lowlat_free (shared_pool, addr, size);
     }
   else
+#endif
     free (addr);
 }
 
@@ -103,6 +115,9 @@ static void *
 nvptx_memspace_realloc (omp_memspace_handle_t memspace, void *addr,
 			size_t oldsize, size_t size)
 {
+#if __PTX_ISA_VERSION_MAJOR__ > 4 \
+    || (__PTX_ISA_VERSION_MAJOR__ == 4 && __PTX_ISA_VERSION_MINOR >= 1)
+  /* Low-latency memory is not available before PTX 4.1.  */
   if (memspace == omp_low_lat_mem_space)
     {
       char *shared_pool;
@@ -110,12 +125,20 @@ nvptx_memspace_realloc (omp_memspace_handle_t memspace, void *addr,
 
       return __nvptx_lowlat_realloc (shared_pool, addr, oldsize, size);
     }
-  else if (memspace > GOMP_OMP_PREDEF_MEMSPACE_MAX)
-    /* No non-standard memspaces are implemented for device-side nvptx.  */
-    return NULL;
   else
-    return realloc (addr, size);
+#endif
+    {
+      if (memspace > GOMP_OMP_PREDEF_MEMSPACE_MAX)
+	/* No non-standard memspaces are implemented for device-side nvptx.  */
+	return NULL;
+      else
+	return realloc (addr, size);
+    }
 }
+
+/* The MEMSPACE_VALIDATE implementation should be kept in sync with
+   the GOMP_OFFLOAD_memspace_validate plugin hook function in
+   plugin/plugin-nvptx.c.  */
 
 static inline int
 nvptx_memspace_validate (omp_memspace_handle_t memspace, unsigned access)

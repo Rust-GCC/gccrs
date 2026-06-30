@@ -15782,6 +15782,12 @@ fi
 
 
 
+if test x"$offload_plugins" != x; then
+
+$as_echo "#define LIBGOMP_OFFLOAD_HOST 1" >>confdefs.h
+
+fi
+
 # Check for functions needed.
 for ac_func in getloadavg clock_gettime strtoull
 do :
@@ -17119,6 +17125,19 @@ $as_echo "$libgomp_cv_have_sync_builtins" >&6; }
 $as_echo "#define HAVE_SYNC_BUILTINS 1" >>confdefs.h
 
   fi
+
+# If offloading is enabled, both offload hosts and accelerators are required to support
+# __sync_* builtins, to simplify architectural assumptions between both sides
+if test x$libgomp_cv_have_sync_builtins = xno; then
+  # We require accelerator targets to support __sync_* builtins.
+  if test x$libgomp_offloaded_only = xyes; then
+    as_fn_error $? "accelerator targets require __sync_val_compare_and_swap to build libgomp." "$LINENO" 5
+  fi
+  # Same for offload hosts.
+  if test x"$offload_plugins" = x; then
+    as_fn_error $? "offload hosts require __sync_val_compare_and_swap to build libgomp." "$LINENO" 5
+  fi
+fi
 
 XCFLAGS="$XCFLAGS$XPCFLAGS"
 

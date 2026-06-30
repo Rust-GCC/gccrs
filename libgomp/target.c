@@ -1322,6 +1322,23 @@ gomp_map_vars_internal (struct gomp_device_descr *devicep,
 	{
 	  tgt->list[i].key = NULL;
 	  tgt->list[i].offset = OFFSET_INLINED;
+	  has_firstprivate = true;
+	  continue;
+	}
+      else if ((kind & typemask) == GOMP_MAP_USES_ALLOCATORS)
+	{
+	  tgt->list[i].key = NULL;
+	  tgt->list[i].offset = OFFSET_INLINED;
+
+	  size_t align = (size_t) 1 << (kind >> rshift);
+	  if (tgt_align < align)
+	    tgt_align = align;
+	  tgt_size = (tgt_size + align - 1) & ~(align - 1);
+
+	  /* Allocate space for omp_allocator_data.  */
+	  tgt_size += gomp_omp_allocator_data_size;
+
+	  has_firstprivate = true;
 	  continue;
 	}
       else if ((kind & typemask) == GOMP_MAP_USE_DEVICE_PTR
@@ -1753,6 +1770,21 @@ gomp_map_vars_internal (struct gomp_device_descr *devicep,
 		    tgt->list[i].offset = OFFSET_INLINED;
 		  }
 		continue;
+
+	      case GOMP_MAP_USES_ALLOCATORS:
+		align = (size_t) 1 << (kind >> rshift);
+		tgt_size = (tgt_size + align - 1) & ~(align - 1);
+		tgt->list[i].offset = tgt_size;
+
+		void *descr_ptr = hostaddrs[i];
+		void *devaddr = (void *) (tgt->tgt_start + tgt_size);
+		uintptr_t dev_allocator
+		  = gomp_map_omp_init_allocator (devicep, aq, cbufp, devaddr,
+						 descr_ptr);
+		hostaddrs[i] = (void *) dev_allocator;
+		tgt_size += gomp_omp_allocator_data_size;
+		continue;
+
 	      case GOMP_MAP_STRUCT_UNORD:
 		if (sizes[i] > 1)
 		  {
@@ -3204,6 +3236,14 @@ calculate_firstprivate_requirements (size_t mapnum, size_t *sizes,
 	*tgt_size = (*tgt_size + align - 1) & ~(align - 1);
 	*tgt_size += sizes[i];
       }
+    else if ((kinds[i] & 0xff) == GOMP_MAP_USES_ALLOCATORS)
+      {
+	size_t align = (size_t) 1 << (kinds[i] >> 8);
+	if (*tgt_align < align)
+	  *tgt_align = align;
+	*tgt_size = (*tgt_size + align - 1) & ~(align - 1);
+	*tgt_size += gomp_omp_allocator_data_size;
+      }
 }
 
 /* Copy data shared as GOMP_MAP_FIRSTPRIVATE to DST.  */
@@ -3226,11 +3266,22 @@ copy_firstprivate_data (char *tgt, size_t mapnum, void **hostaddrs,
 	memcpy (tgt + tgt_size, hostaddrs[i], sizes[i]);
 	hostaddrs[i] = tgt + tgt_size;
 	tgt_size = tgt_size + sizes[i];
-	if (i + 1 < mapnum && (kinds[i+1] & 0xff) == GOMP_MAP_ATTACH)
+	if (i + 1 < mapnum && (kinds[i + 1] & 0xff) == GOMP_MAP_ATTACH)
 	  {
-	    *(*(uintptr_t**) hostaddrs[i+1] + sizes[i+1]) = (uintptr_t) hostaddrs[i];
+	    *(*(uintptr_t**) hostaddrs[i + 1] + sizes[i + 1])
+	      = (uintptr_t) hostaddrs[i];
 	    ++i;
 	  }
+      }
+    else if ((kinds[i] & 0xff) == GOMP_MAP_USES_ALLOCATORS)
+      {
+	assert (hostaddrs[i] != NULL);
+	size_t align = (size_t) 1 << (kinds[i] >> 8);
+	tgt_size = (tgt_size + align - 1) & ~(align - 1);
+	uintptr_t allocator = gomp_map_omp_init_allocator (NULL, NULL, NULL,
+							   tgt + tgt_size,
+							   hostaddrs[i]);
+	hostaddrs[i] = (void *) allocator;
       }
 }
 
@@ -6261,6 +6312,7 @@ gomp_load_plugin_for_device (struct gomp_device_descr *device,
   DLSYM (host2dev);
   DLSYM_OPT (memcpy2d, memcpy2d);
   DLSYM_OPT (memcpy3d, memcpy3d);
+  DLSYM_OPT (memspace_validate, memspace_validate);
   if (DLSYM_OPT (interop, interop))
     {
       DLSYM (get_interop_int);

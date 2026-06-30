@@ -247,13 +247,23 @@ struct omp_allocator_data
   unsigned int fallback : 8;
   unsigned int pinned : 1;
   unsigned int partition : 7;
-#if defined(LIBGOMP_USE_MEMKIND) || defined(LIBGOMP_USE_LIBNUMA)
+  /* To unify the format of this type across host/accelerator, enable
+     this field unconditionally when offload is enabled.  */
+  #if defined(LIBGOMP_USE_MEMKIND) || defined(LIBGOMP_USE_LIBNUMA) ||	\
+    defined(LIBGOMP_OFFLOAD_HOST) || defined(LIBGOMP_OFFLOADED_ONLY)
   unsigned int memkind : 8;
 #endif
+  /* Note: we now require __sync builtins for offload host/accelerator,
+     checked during configuration. This lock should never be enabled
+     for offload configs.  */
 #ifndef HAVE_SYNC_BUILTINS
   gomp_mutex_t lock;
 #endif
 };
+
+/* Size of allocator data, exported within libgomp.  */
+const size_t gomp_omp_allocator_data_size attribute_hidden
+  = sizeof (struct omp_allocator_data);
 
 struct omp_mem_header
 {
@@ -404,38 +414,44 @@ gomp_get_memkind (void)
 }
 #endif
 
-omp_allocator_handle_t
-omp_init_allocator (omp_memspace_handle_t memspace, int ntraits,
-		    const omp_alloctrait_t traits[])
+static omp_allocator_handle_t
+gomp_init_allocator_data (struct omp_allocator_data *data,
+			  omp_memspace_handle_t memspace, int ntraits,
+			  const omp_alloctrait_t traits[])
 {
-  struct omp_allocator_data data
-    = { memspace, 1, ~(uintptr_t) 0, 0, 0, omp_atv_contended, omp_atv_all,
-	omp_atv_default_mem_fb, omp_atv_false, omp_atv_environment,
-#if defined(LIBGOMP_USE_MEMKIND) || defined(LIBGOMP_USE_LIBNUMA)
-	GOMP_MEMKIND_NONE
+  data->memspace = memspace;
+  data->alignment = 1;
+  data->pool_size = ~(uintptr_t) 0;
+  data->used_pool_size = 0;
+  data->fb_data = 0;
+  data->sync_hint = omp_atv_contended;
+  data->access = omp_atv_all;
+  data->fallback = omp_atv_default_mem_fb;
+  data->pinned = omp_atv_false;
+  data->partition = omp_atv_environment;
+#if defined(LIBGOMP_USE_MEMKIND) || defined(LIBGOMP_USE_LIBNUMA) ||	\
+  defined(LIBGOMP_OFFLOAD_HOST) || defined(LIBGOMP_OFFLOADED_ONLY)
+  data->memkind = GOMP_MEMKIND_NONE;
 #endif
-      };
-  struct omp_allocator_data *ret;
-  int i;
 
   if (memspace > omp_max_predefined_mem_space
       && (memspace < ompx_gnu_min_predefined_mem_space
 	  || memspace > ompx_gnu_max_predefined_mem_space))
     return omp_null_allocator;
-  for (i = 0; i < ntraits; i++)
+  for (int i = 0; i < ntraits; i++)
     switch (traits[i].key)
       {
       case omp_atk_sync_hint:
 	switch (traits[i].value)
 	  {
 	  case omp_atv_default:
-	    data.sync_hint = omp_atv_contended;
+	    data->sync_hint = omp_atv_contended;
 	    break;
 	  case omp_atv_contended:
 	  case omp_atv_uncontended:
 	  case omp_atv_serialized:
 	  case omp_atv_private:
-	    data.sync_hint = traits[i].value;
+	    data->sync_hint = traits[i].value;
 	    break;
 	  default:
 	    return omp_null_allocator;
@@ -444,25 +460,25 @@ omp_init_allocator (omp_memspace_handle_t memspace, int ntraits,
       case omp_atk_alignment:
         if (traits[i].value == omp_atv_default)
 	  {
-	    data.alignment = 1;
+	    data->alignment = 1;
 	    break;
 	  }
 	if ((traits[i].value & (traits[i].value - 1)) != 0
 	    || !traits[i].value)
 	  return omp_null_allocator;
-	data.alignment = traits[i].value;
+	data->alignment = traits[i].value;
 	break;
       case omp_atk_access:
 	switch (traits[i].value)
 	  {
 	  case omp_atv_default:
-	    data.access = omp_atv_all;
+	    data->access = omp_atv_all;
 	    break;
 	  case omp_atv_all:
 	  case omp_atv_cgroup:
 	  case omp_atv_pteam:
 	  case omp_atv_thread:
-	    data.access = traits[i].value;
+	    data->access = traits[i].value;
 	    break;
 	  default:
 	    return omp_null_allocator;
@@ -470,38 +486,38 @@ omp_init_allocator (omp_memspace_handle_t memspace, int ntraits,
 	break;
       case omp_atk_pool_size:
 	if (traits[i].value == omp_atv_default)
-	  data.pool_size = ~(uintptr_t) 0;
+	  data->pool_size = ~(uintptr_t) 0;
 	else
-	  data.pool_size = traits[i].value;
+	  data->pool_size = traits[i].value;
 	break;
       case omp_atk_fallback:
 	switch (traits[i].value)
 	  {
 	  case omp_atv_default:
-	    data.fallback = omp_atv_default_mem_fb;
+	    data->fallback = omp_atv_default_mem_fb;
 	    break;
 	  case omp_atv_default_mem_fb:
 	  case omp_atv_null_fb:
 	  case omp_atv_abort_fb:
 	  case omp_atv_allocator_fb:
-	    data.fallback = traits[i].value;
+	    data->fallback = traits[i].value;
 	    break;
 	  default:
 	    return omp_null_allocator;
 	  }
 	break;
       case omp_atk_fb_data:
-	data.fb_data = traits[i].value;
+	data->fb_data = traits[i].value;
 	break;
       case omp_atk_pinned:
 	switch (traits[i].value)
 	  {
 	  case omp_atv_default:
 	  case omp_atv_false:
-	    data.pinned = omp_atv_false;
+	    data->pinned = omp_atv_false;
 	    break;
 	  case omp_atv_true:
-	    data.pinned = omp_atv_true;
+	    data->pinned = omp_atv_true;
 	    break;
 	  default:
 	    return omp_null_allocator;
@@ -511,13 +527,13 @@ omp_init_allocator (omp_memspace_handle_t memspace, int ntraits,
 	switch (traits[i].value)
 	  {
 	  case omp_atv_default:
-	    data.partition = omp_atv_environment;
+	    data->partition = omp_atv_environment;
 	    break;
 	  case omp_atv_environment:
 	  case omp_atv_nearest:
 	  case omp_atv_blocked:
 	  case omp_atv_interleaved:
-	    data.partition = traits[i].value;
+	    data->partition = traits[i].value;
 	    break;
 	  default:
 	    return omp_null_allocator;
@@ -527,8 +543,8 @@ omp_init_allocator (omp_memspace_handle_t memspace, int ntraits,
 	return omp_null_allocator;
       }
 
-  if (data.alignment < sizeof (void *))
-    data.alignment = sizeof (void *);
+  if (data->alignment < sizeof (void *))
+    data->alignment = sizeof (void *);
 
   switch (memspace)
     {
@@ -536,57 +552,75 @@ omp_init_allocator (omp_memspace_handle_t memspace, int ntraits,
     case omp_high_bw_mem_space:
       struct gomp_memkind_data *memkind_data;
       memkind_data = gomp_get_memkind ();
-      if (data.partition == omp_atv_interleaved
+      if (data->partition == omp_atv_interleaved
 	  && memkind_data->kinds[GOMP_MEMKIND_HBW_INTERLEAVE])
 	{
-	  data.memkind = GOMP_MEMKIND_HBW_INTERLEAVE;
+	  data->memkind = GOMP_MEMKIND_HBW_INTERLEAVE;
 	  break;
 	}
       else if (memkind_data->kinds[GOMP_MEMKIND_HBW_PREFERRED])
 	{
-	  data.memkind = GOMP_MEMKIND_HBW_PREFERRED;
+	  data->memkind = GOMP_MEMKIND_HBW_PREFERRED;
 	  break;
 	}
       break;
     case omp_large_cap_mem_space:
       memkind_data = gomp_get_memkind ();
       if (memkind_data->kinds[GOMP_MEMKIND_DAX_KMEM_ALL])
-	data.memkind = GOMP_MEMKIND_DAX_KMEM_ALL;
+	data->memkind = GOMP_MEMKIND_DAX_KMEM_ALL;
       else if (memkind_data->kinds[GOMP_MEMKIND_DAX_KMEM])
-	data.memkind = GOMP_MEMKIND_DAX_KMEM;
+	data->memkind = GOMP_MEMKIND_DAX_KMEM;
       break;
 #endif
     default:
 #ifdef LIBGOMP_USE_MEMKIND
-      if (data.partition == omp_atv_interleaved)
+      if (data->partition == omp_atv_interleaved)
 	{
 	  memkind_data = gomp_get_memkind ();
 	  if (memkind_data->kinds[GOMP_MEMKIND_INTERLEAVE])
-	    data.memkind = GOMP_MEMKIND_INTERLEAVE;
+	    data->memkind = GOMP_MEMKIND_INTERLEAVE;
 	}
 #endif
       break;
     }
 
 #ifdef LIBGOMP_USE_LIBNUMA
-  if (data.memkind == GOMP_MEMKIND_NONE && data.partition == omp_atv_nearest)
+  if (data->memkind == GOMP_MEMKIND_NONE && data->partition == omp_atv_nearest)
     {
       libnuma_data = gomp_get_libnuma ();
       if (libnuma_data->numa_alloc_local != NULL)
-	data.memkind = GOMP_MEMKIND_LIBNUMA;
+	data->memkind = GOMP_MEMKIND_LIBNUMA;
     }
 #endif
 
-  /* Reject unsupported memory spaces.  */
-  if (!MEMSPACE_VALIDATE (data.memspace, data.access, data.pinned))
-    return omp_null_allocator;
+  return (omp_allocator_handle_t) data;
+}
 
-  ret = gomp_malloc (sizeof (struct omp_allocator_data));
-  *ret = data;
+omp_allocator_handle_t
+omp_init_allocator (omp_memspace_handle_t memspace, int ntraits,
+		    const omp_alloctrait_t traits[])
+{
+  struct omp_allocator_data *data
+    = gomp_malloc (sizeof (struct omp_allocator_data));
+
+  omp_allocator_handle_t ret
+    = gomp_init_allocator_data (data, memspace, ntraits, traits);
+
+  if (ret == omp_null_allocator
+      /* Reject unsupported memory spaces.  */
+      || !MEMSPACE_VALIDATE (data->memspace, data->access, data->pinned))
+    {
+      ret = omp_null_allocator;
+      free (data);
+    }
+  else
+    {
 #ifndef HAVE_SYNC_BUILTINS
-  gomp_mutex_init (&ret->lock);
+      gomp_mutex_init (data->lock);
 #endif
-  return (omp_allocator_handle_t) ret;
+    }
+
+  return ret;
 }
 
 void
@@ -1500,3 +1534,61 @@ fail:;
     }
   return NULL;
 }
+
+#if !defined(LIBGOMP_OFFLOADED_ONLY)
+
+/* Called from gomp_maps_vars, used to implement the effective
+   omp_init_allocator() call in an uses_allocators clause.
+
+   The memspace_validate hook is also used here to check things for
+   the offload accelerator on the host side.
+*/
+attribute_hidden uintptr_t
+gomp_map_omp_init_allocator (struct gomp_device_descr *devicep,
+			     struct goacc_asyncqueue *aq,
+			     struct gomp_coalesce_buf *cbuf,
+			     void *allocator_data_devaddr, void *descr_ptr)
+{
+  uintptr_t *descr = (uintptr_t *) descr_ptr;
+
+  omp_memspace_handle_t memspace = (omp_memspace_handle_t) descr[0];
+  int ntraits = (int) descr[1];
+  omp_alloctrait_t *traits = (omp_alloctrait_t *) descr[2];
+
+  struct omp_allocator_data data;
+  omp_allocator_handle_t ret = gomp_init_allocator_data (&data, memspace,
+							 ntraits, traits);
+  if (ret != omp_null_allocator)
+    {
+      if (devicep)
+	{
+	  /* Do memspace validation for the offload target, using the
+	     offload plugin.  */
+	  if (devicep->memspace_validate_func
+	      && !devicep->memspace_validate_func (data.memspace, data.access))
+	    return (uintptr_t) omp_null_allocator;
+
+	  /* Copy to device. This is now the device-side omp_allocator_data.  */
+	  gomp_copy_host2dev (devicep, aq, allocator_data_devaddr, &data,
+			      sizeof (struct omp_allocator_data), true, cbuf);
+	}
+      else
+	{
+	  /* Used for host fallback case.  */
+
+	  if (!MEMSPACE_VALIDATE (data.memspace, data.access, data.pinned))
+	    /* Reject unsupported memory spaces.  */
+	    return omp_null_allocator;
+
+	  memcpy (allocator_data_devaddr, &data,
+		  sizeof (struct omp_allocator_data));
+#ifndef HAVE_SYNC_BUILTINS
+	  gomp_mutex_init
+	    (((struct omp_allocator_data *) allocator_data_devaddr)->lock);
+#endif
+	}
+      ret = (omp_allocator_handle_t) allocator_data_devaddr;
+    }
+  return (uintptr_t) ret;
+}
+#endif
