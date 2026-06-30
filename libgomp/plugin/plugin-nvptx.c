@@ -561,6 +561,8 @@ nvptx_open_device (int n)
 			 CU_DEVICE_ATTRIBUTE_UNIFIED_ADDRESSING, dev);
   assert (r == CUDA_SUCCESS && pi);
 
+  ptx_dev->numa_node = 0;
+
   for (int i = 0; i != GOMP_DIM_MAX; i++)
     ptx_dev->default_dims[i] = 0;
 
