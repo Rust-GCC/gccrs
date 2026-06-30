@@ -138,6 +138,7 @@ public:
   static constexpr auto &ASSUME = "assume";
 
   static constexpr auto &MIN_ALIGN_OF = "min_align_of";
+  static constexpr auto &MIN_ALIGN_OF_VAL = "min_align_of_val";
   static constexpr auto &NEEDS_DROP = "needs_drop";
   static constexpr auto &CALLER_LOCATION = "caller_location";
   static constexpr auto &CTPOP = "ctpop";
