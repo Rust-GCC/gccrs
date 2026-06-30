@@ -898,7 +898,7 @@ maybe_warn_for_bound (opt_code opt, location_t loc, GimpleOrTree exp, tree func,
 			    func, bndrng[0], bndrng[1], size)
 	      : warning_at (&richloc, opt,
 			    (maybe
-			     ? G_("specified bound [%E, %E] exceeds "
+			     ? G_("specified bound [%E, %E] may exceed "
 				  "destination size %E")
 			     : G_("specified bound [%E, %E] exceeds "
 				  "destination size %E")),
