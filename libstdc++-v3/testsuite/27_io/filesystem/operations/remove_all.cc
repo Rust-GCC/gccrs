@@ -61,13 +61,51 @@ test01()
 #endif
 
   const auto dir = __gnu_test::nonexistent_path();
-  create_directories(dir/"a/b/c");
+  create_directories(dir/"a"/"b"/"c");
   ec = bad_ec;
   n = remove_all(dir/"a", ec);
   VERIFY( !ec );
   VERIFY( n == 3 );
   VERIFY( exists(dir) );
   VERIFY( !exists(dir/"a") );
+
+#ifndef NO_SYMLINKS
+  // Test that remove_all does not follow an initial directory symlink.
+  create_directories(dir/"real");
+  create_directory_symlink(dir/"real", dir/"link");
+
+  ec = bad_ec;
+  n = remove_all(dir/"link", ec);
+  VERIFY( !ec );
+  VERIFY( exists(dir/"real") );
+  VERIFY( !exists(symlink_status(dir/"link")) );
+  VERIFY( n == 1 );
+
+  ec = bad_ec;
+  n = remove_all(dir/"real", ec);
+  VERIFY( !ec );
+  VERIFY( !exists(dir/"real") );
+  VERIFY( n == 1 );
+
+  // Test that remove_all does not follow symlinks inside the directory.
+  create_directories(dir/"subdir");
+  create_directories(dir/"target_dir");
+  __gnu_test::scoped_file f2(dir/"target_file");
+  create_directory_symlink(dir/"target_dir", dir/"subdir"/"link_dir");
+  create_symlink(dir/"target_file", dir/"subdir"/"link_file");
+
+  ec = bad_ec;
+  n = remove_all(dir/"subdir", ec);
+  VERIFY( !ec );
+  VERIFY( exists(dir/"target_dir") );
+  VERIFY( exists(dir/"target_file") );
+  VERIFY( !exists(dir/"subdir") );
+  VERIFY( n == 3 );
+
+  f2.path.clear();
+  remove(dir/"target_dir");
+  remove(dir/"target_file");
+#endif
 
   create_directories(dir/"a/b/c");
   __gnu_test::scoped_file a1(dir/"a/1");

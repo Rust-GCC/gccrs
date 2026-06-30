@@ -68,6 +68,25 @@ test01()
 
   const auto dir = __gnu_test::nonexistent_path();
   create_directories(dir/"a/b");
+
+#ifndef NO_SYMLINKS
+  create_directories(dir/"real");
+  create_directory_symlink(dir/"real", dir/"link");
+
+  ec = bad_ec;
+  n = remove(dir/"link", ec);
+  VERIFY( !ec );
+  VERIFY( exists(dir/"real") );
+  VERIFY( !exists(symlink_status(dir/"link")) );
+  VERIFY( n );
+
+  ec = bad_ec;
+  n = remove(dir/"real", ec);
+  VERIFY( !ec );
+  VERIFY( !exists(dir/"real") );
+  VERIFY( n );
+#endif
+
   ec.clear();
   n = remove(dir/"a", ec);
   VERIFY( ec );
