@@ -1,3 +1,154 @@
+2026-06-29  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	* gcc.target/riscv/and-synthesis-1.c: New test.
+
+2026-06-29  Mark Zhuang  <zhuangqiubin@linux.spacemit.com>
+
+	* gcc.target/riscv/mcpu-spacemit-x100.c: New test.
+
+2026-06-29  Claudio Bantaloukas  <Claudio.Bantaloukas@arm.com>
+
+	* gcc.target/aarch64/acle/arm_sc_memchr.c: New file.
+	* gcc.target/aarch64/acle/arm_sc_memcpy.c: Likewise.
+	* gcc.target/aarch64/acle/arm_sc_memmove.c: Likewise.
+	* gcc.target/aarch64/acle/arm_sc_memset.c: Likewise.
+	* gcc.target/aarch64/sme/arm_sc_memchr.c: New file.
+	* gcc.target/aarch64/sme/arm_sc_memcpy.c: Likewise.
+	* gcc.target/aarch64/sme/arm_sc_memmove.c: Likewise.
+	* gcc.target/aarch64/sme/arm_sc_memset.c: Likewise.
+
+2026-06-29  Matthew Fortune  <matthew.fortune@imgtec.com>
+
+	* gcc.target/mips/mxu-compile-no.c: New test.
+	* gcc.target/mips/mxu-compile.c: New test.
+	* gcc.target/mips/mxu-driver-no.c: New test.
+	* gcc.target/mips/mxu-driver.c: New test.
+
+2026-06-29  Matthew Fortune  <matthew.fortune@imgtec.com>
+
+	* gcc.target/mips/frame-barrier-1.c: New test.
+
+2026-06-29  Torbjörn SVENSSON  <torbjorn.svensson@foss.st.com>
+
+	* gcc.target/arm/long-calls-1.c: Change to `noipa` to prevent
+	optimizing away the functions.
+	* gcc.target/arm/long-calls-2.c: Likewise.
+	* gcc.target/arm/long-calls-3.c: Likewise.
+	* gcc.target/arm/long-calls-4.c: Likewise.
+
+2026-06-29  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/84622
+	* gfortran.dg/pr84622.f90: New test.
+
+2026-06-29  Roger Sayle  <roger@nextmovesoftware.com>
+
+	PR target/94871
+	* gcc.target/i386/pr94871.c: New test case.
+
+2026-06-29  Abhishek Kaushik  <abhishek.kaushik@arm.com>
+
+	* gcc.target/aarch64/sve2/acle/asm/mulh_s8.c: New test.
+	* gcc.target/aarch64/sve2/acle/asm/mulh_s16.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/mulh_s32.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/mulh_s64.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/mulh_u8.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/mulh_u16.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/mulh_u32.c: Likewise.
+	* gcc.target/aarch64/sve2/acle/asm/mulh_u64.c: Likewise.
+
+2026-06-29  Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	PR target/105116
+	* gcc.target/aarch64/sve/pr105116.c: New test.
+	* gcc.target/aarch64/sve/pr105116-run.c: New test.
+
+2026-06-29  Kael Andrew Alonzo Franco  <kaelfandrew@gmail.com>
+
+	PR tree-optimization/125737
+	* gcc.dg/pr125737.c: Move test to pr125737-1.c.
+	* gcc.dg/pr125737-1.c: Add test for (a % b) >= b when a and b are nonnegative.
+	* gcc.dg/pr125737-2.c: New test for (a % b) {<,>=} b.
+
+2026-06-29  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/125968
+	* gcc.target/i386/builtin-memmove-16.c: New test.
+	* gcc.target/i386/builtin-memmove-17.c: Likewise.
+	* gcc.target/i386/builtin-memmove-18a.c: Likewise.
+	* gcc.target/i386/builtin-memmove-18b.c: Likewise.
+
+2026-06-29  Naveen  <naveen.siddegowda@oss.qualcomm.com>
+
+	PR tree-optimization/112390
+	* gcc.dg/pr112390.c: New test.
+	* gcc.dg/pr112390_bitint.c: New test.
+
+2026-06-29  liuhongt  <hongtao.liu@intel.com>
+
+	PR target/125907
+	* gcc.target/i386/bt-cmov-1.c: New test.
+
+2026-06-29  Xi Ruoyao  <xry111@xry111.site>
+
+	PR target/125474
+	* gcc.target/loongarch/vector/lasx/dot-prod-mixed-signedness.c:
+	New test.
+
+2026-06-29  Pan Li  <pan2.li@intel.com>
+
+	* gcc.target/riscv/sat/sat_arith.h: Add test helper macros.
+	* gcc.target/riscv/sat/sat_u_mul-16-u16-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-16-u16-from-u32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-16-u16-from-u64.rv32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-16-u16-from-u64.rv64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-16-u32-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-16-u32-from-u64.rv32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-16-u32-from-u64.rv64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-16-u64-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-16-u8-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-16-u8-from-u16.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-16-u8-from-u32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-16-u8-from-u64.rv32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-16-u8-from-u64.rv64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-16-u16-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-16-u16-from-u32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-16-u16-from-u64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-16-u32-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-16-u32-from-u64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-16-u64-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-16-u8-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-16-u8-from-u16.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-16-u8-from-u32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-16-u8-from-u64.c: New test.
+
+2026-06-29  Pan Li  <pan2.li@intel.com>
+
+	* gcc.target/riscv/sat/sat_arith.h: Add test helper macros.
+	* gcc.target/riscv/sat/sat_u_mul-15-u16-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-15-u16-from-u32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-15-u16-from-u64.rv32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-15-u16-from-u64.rv64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-15-u32-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-15-u32-from-u64.rv32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-15-u32-from-u64.rv64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-15-u64-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-15-u8-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-15-u8-from-u16.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-15-u8-from-u32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-15-u8-from-u64.rv32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-15-u8-from-u64.rv64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-15-u16-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-15-u16-from-u32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-15-u16-from-u64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-15-u32-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-15-u32-from-u64.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-15-u64-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-15-u8-from-u128.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-15-u8-from-u16.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-15-u8-from-u32.c: New test.
+	* gcc.target/riscv/sat/sat_u_mul-run-15-u8-from-u64.c: New test.
+
 2026-06-28  Oleg Endo  <olegendo@gcc.gnu.org>
 
 	PR target/55212

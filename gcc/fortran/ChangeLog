@@ -1,3 +1,11 @@
+2026-06-29  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/84622
+	* resolve.cc (resolve_symbol): In detecting coarray components,
+	use the derived type of the class data component, not the data
+	component itself. New boolean 'declared_has_coarray_comp' to
+	detect this.
+
 2026-06-27  Thomas Koenig  <tkoenig@gcc.gnu.org>
 
 	PR fortran/30438

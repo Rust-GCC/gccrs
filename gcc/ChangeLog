@@ -1,3 +1,114 @@
+2026-06-29  Jeff Law  <jeffrey.law@oss.qualcomm.com>
+
+	* config/riscv/riscv.cc (synthesize_and): Use srliw to handle
+	clearing both upper and lower bits in some cases.
+	* config/riscv/bitmanip.md (ZBA splitter using sext.w): Do not
+	use in cases where we can use srliw to clear those upper bits.
+
+2026-06-29  Mark Zhuang  <zhuangqiubin@linux.spacemit.com>
+
+	* config/riscv/riscv-cores.def (RISCV_TUNE): Add spacemit-x100.
+	(RISCV_CORE): Add spacemit-x100.
+	* config/riscv/riscv.cc (spacemit_x100_tune_info): New.
+	* doc/riscv-mcpu.texi: Regenerate.
+	* doc/riscv-mtune.texi: Regenerate.
+
+2026-06-29  Matthew Fortune  <matthew.fortune@imgtec.com>
+
+	* config/mips/mips.h (ASM_SPEC): Add placeholders for -mmxu and
+	-mno-mxu.
+	* config/mips/mips.opt: New undocumented target option.
+
+2026-06-29  Matthew Fortune  <matthew.fortune@imgtec.com>
+
+	* config/mips/mips.cc (mips_frame_barrier): Upgrade to a full
+	blockage.
+
+2026-06-29  Roger Sayle  <roger@nextmovesoftware.com>
+
+	PR target/94871
+	* simplify-rtx.cc (simplify_unary_operation_1) <case NOT>:
+	Update (not (eq X Y)) -> (ne X Y) to support vector comparions
+	using VECTOR_STORE_FLAG_VALUE, and check SCALAR_INT_MODE_P
+	when checking STORE_FLAG_VALUE.  Add equivalent optimization
+	(not (neg (eq X Y))) -> (neg (ne X Y)) for targets with
+	STORE_FLAG_VALUE == 1 or VECTOR_STORE_FLAG_VALUE is const1_rtx.
+	* config/i386/sse.md (*<sse>_imaskcmp<mode>3_comm): Clone
+	of *<sse>_maskcmp<mode>3_comm pattern with integer vector
+	result.
+
+2026-06-29  Abhishek Kaushik  <abhishek.kaushik@arm.com>
+
+	* config/aarch64/aarch64-sve2.md: Add unpredicated high-part
+	multiplication section.
+	(@aarch64_sve2_<optab><mode>): New insn.
+	* config/aarch64/aarch64-sve.md (@aarch64_pred_<optab><mode>):
+	Change to define_insn_and_split and split SVE2 highpart
+	multiplication into unpredicated MUL_HIGHPART.
+
+2026-06-29  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/125469
+	* config/i386/i386.md (*add<mode>_1<nf_name>): Revert 2026-05-28
+	changes.
+	(define_split from *add<mode>_1_nf to *lea<mode>): Set INSN_CODE
+	to -1 if <LEAMODE> and <MODE> are the same.
+
+2026-06-29  Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	PR target/105116
+	* lra-constraints.cc (simplify_operand_subreg): Reload a
+	non-representable narrowing subreg of a hard register through
+	memory instead of resolving it lossily.
+
+2026-06-29  Kael Andrew Alonzo Franco  <kaelfandrew@gmail.com>
+
+	PR tree-optimization/125737
+	* match.pd: Optimize X % Y < Y -> Y >= 0 and X % Y >= Y -> Y < 0
+
+2026-06-29  H.J. Lu  <hjl.tools@gmail.com>
+
+	PR target/125968
+	* config/i386/i386-expand.cc (ix86_expand_movmem): Don't call
+	ix86_expand_n_overlapping_move_movmem when max size == 1.
+
+2026-06-29  Naveen  <naveen.siddegowda@oss.qualcomm.com>
+
+	PR tree-optimization/112390
+	* match.pd: Add simplifications for combined sign-bit and
+	magnitude checks:
+	((signed)A >= 0) &/&& ((A & INT_MAX) != 0) -> (signed)A > 0
+	((signed)A <  0) |/|| ((A & INT_MAX) == 0) -> (signed)A <= 0
+
+2026-06-29  liuhongt  <hongtao.liu@intel.com>
+
+	PR target/125907
+	* config/i386/i386.md (*cmov_bt<SWI248:mode>): New
+	define_insn_and_split handling a const_int false arm, forced into
+	a register by the splitter.  Leave the existing define_split for
+	the nonimmediate case unchanged.
+
+2026-06-29  Xi Ruoyao  <xry111@xry111.site>
+
+	PR target/125474
+	* config/loongarch/simd.md (usdot_prod<wvec_half><mode>): New
+	define_expand.
+	(usdot_prod<wvec_quarter><mode>): New define_expand.
+
+2026-06-29  Pan Li  <pan2.li@intel.com>
+
+	* match-sat-alu.pd: Add pattern for unsigned scalar
+	SAT_MUL form 14.
+
+2026-06-29  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	PR bootstrap/103459
+	* acinclude.m4: Replace AC_FOREACH with m4_foreach_w.  Replace
+	AC_TRY_LINK with AC_LINK_IFELSE.
+	* configure: Regenerate.
+	* configure.ac: Replace AC_HELP_STRING with AS_HELP_STRING.  Replace
+	AC_PROG_LIBTOOL with LT_INIT.
+
 2026-06-28  Kevin Stefanov  <kevinstefanov15@gmail.com>
 
 	PR middle-end/125274

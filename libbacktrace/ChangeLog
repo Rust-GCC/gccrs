@@ -1,3 +1,9 @@
+2026-06-29  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	PR bootstrap/103459
+	* configure: Regenerate.
+	* configure.ac: Remove redundant AM_PROG_LIBTOOL.
+
 2026-06-27  Ian Lance Taylor  <iant@golang.org>
 
 	* elf.c (elf_zstd_unpack_seq_decode): Set table field for RLE

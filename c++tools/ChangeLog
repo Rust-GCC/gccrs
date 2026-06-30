@@ -1,3 +1,9 @@
+2026-06-29  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	PR bootstrap/103459
+	* configure: Regenerate.
+	* configure.ac: Replace AC_CANONICAL_SYSTEM with AC_CANONICAL_TARGET.
+
 2025-06-02  Kito Cheng  <kito.cheng@sifive.com>
 
 	* configure.ac: Don't check `--enable-default-pie`.

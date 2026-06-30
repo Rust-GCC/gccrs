@@ -1,3 +1,14 @@
+2026-06-29  Abhishek Kaushik  <abhishek.kaushik@arm.com>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2026-06-29  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	PR bootstrap/103459
+	* configure: Regenerate.
+	* configure.ac: Replace AC_TRY_COMPILE with AC_COMPILE_IFELSE.
+	Replace AC_TRY_LINK with AC_LINK_IFELSE.
+
 2026-06-23  Richard Earnshaw  <rearnsha@arm.com>
 
 	* MAINTAINERS (Write After): Add details for Robert Dubner,

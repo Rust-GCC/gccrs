@@ -1,3 +1,9 @@
+2026-06-29  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	PR bootstrap/103459
+	* configure: Regenerate.
+	* configure.ac: Replace AC_HELP_STRING with AS_HELP_STRING.
+
 2026-05-10  Eric Botcazou  <ebotcazou@adacore.com>
 
 	PR ada/125232

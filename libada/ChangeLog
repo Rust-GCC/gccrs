@@ -1,3 +1,8 @@
+2026-06-29  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	PR bootstrap/103459
+	* configure.ac: Replace AC_HELP_STRING with AS_HELP_STRING.
+
 2023-08-07  John Ericson  <git@JohnEricson.me>
 
 	* configure: Regenerate.

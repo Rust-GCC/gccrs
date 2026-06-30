@@ -1,3 +1,13 @@
+2026-06-29  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	PR bootstrap/103459
+	* acinclude.m4: Replace AC_ERROR with AS_MSG_ERROR.  Replace AC_TRY_LINK
+	with AC_LINK_IFELSE.  Replace AC_TRY_COMPILE with AC_COMPILE_IFELSE.
+	Replace AC_HELP_STRING with AS_HELP_STRING.  Replace
+	AC_TRY_RUN with AC_RUN_IFELSE.
+	* configure.ac: Replace AM_PROG_LIBTOOL with LT_INIT.  Replace
+	AC_STDC_HEADERS with AC_HEADER_STDC.
+
 2026-06-17  Muhammad Kamran  <muhammad.kamran@arm.com>
 
 	* config/linux/aarch64/atomic_16.S (FEATURE_1_AND_MARK): Define.

@@ -1,3 +1,223 @@
+2026-06-29  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/trans.cc (gnat_to_gnu): Return a NULL_EXPR for the
+	use of an intrinsic operator and exclude more cases explicitly.
+
+2026-06-29  Viljar Indus  <indus@adacore.com>
+
+	* gcc-interface/decl.cc (warn_on_field_placement): Improve error message.
+
+2026-06-29  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* einfo.ads (Initialization_Statements): Adjust description.
+	* exp_ch3.adb (Default_Initialize_Object): Use the special mechanism
+	of Initialization_Statements, if need be, instead of inserting the
+	initialization statements directly into the freeze actions.
+
+2026-06-29  Javier Miranda  <miranda@adacore.com>
+
+	* sem_ch6.adb (Constructor_Components_OK): New local subprogram of
+	Analyze_Direct_Attribute_Definition. Checks performed when processing
+	the body of a constructor.
+	(Analyze_Direct_Attribute_Definition) <Name_Constructor>: Report an
+	error on the body of a constructor for a derived type whose parent
+	type needs construction and has no default parameterless constructor
+	and has no Super aspect to initialize its parent components.
+	* sem_ch7.adb (Inspect_Components_Needing_Construction): New local
+	subprogram of Analyze_Package_Specification.
+	(Inspect_Abstract_Constructors_Completion): Rename formal parameter.
+	* exp_ch6.adb (Prepend_Constructor_Procedure_Prologue): Fix the order
+	of initialization of record type components: parent components must
+	be initialized first, then the own components following their
+	declaration order.
+	* sem_util.ads (First_Component_Declaration): New subprogram.
+	* sem_util.adb (First_Component_Declaration): New utility subprogram
+	that returns the first non-pragma non-inherited component declaration
+	of a record type.
+
+2026-06-29  Joffrey Huguet  <huguet@adacore.com>
+
+	* libgnat/a-comlin.ads (Argument_Count): Add global contract.
+	(Argument): Likewise.
+	(Command_Name): Likewise.
+	(Set_Exit_Status): Likewise.
+	* libgnat/a-comlin.adb: Refine abstract state.
+
+2026-06-29  Joffrey Huguet  <huguet@adacore.com>
+
+	* libgnat/a-textio.ads (Get): Add Data_Error in Exceptional_Cases contract.
+	(Look_Ahead): Likewise.
+	(Get_Immediate): Likewise.
+	(Get_Line): Likewise.
+
+2026-06-29  Olivier Hainque  <hainque@adacore.com>
+
+	* tracebak.c (trace_callback): Return early for pc == 0;
+
+2026-06-29  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* exp_util.ads (Find_Optional_Prim_Op): Add Controlled_Op parameter
+	defaulting to False.
+	* exp_util.adb (Find_Optional_Prim_Op): Likewise.  When it is set to
+	True, test whether the primitive has the signature of the controlled
+	primitives.
+	* sem_ch13.adb (Resolve_Finalization_Procedure): Reset Is_Overloaded
+	once an interpretation has been selected among the set.
+
+2026-06-29  Gary Dismukes  <dismukes@adacore.com>
+
+	* doc/gnat_rm/gnat_language_extensions.rst: Add documentation for
+	"attribute subprograms" extension feature.
+	* errout.adb (Set_Msg_Node): Remove special-case treatment for
+	attribute names (no longer call Replace_With_Attribute_Definition).
+	* erroutc.ads (Replace_With_Attribute_Definition): Removed.
+	* erroutc.adb (Replace_With_Attribute_Definition): Removed.
+	(Set_Msg_Insertion_Name): Remove special-case treatment for attribute
+	names.
+	* exp_attr.adb (Expand_N_Attribute_Reference): Add indexing, literal,
+	and Default_Iterator attributes as case choices in the alternative
+	that raises Program_Error.
+	* par-ch4.adb (Is_Parameterless_Attribute): Add various aspects as
+	entries in this table that are set to True (for proper handling of
+	actual parameters on subprogram calls made using the attribute name).
+	* par-ch6.adb (P_Subprogram): Add calls to procedure
+	Rewrite_Entity_If_Direct_Attribute_Def for subprogram renamings
+	and body stubs.
+	* sem_attr.adb (Analyze_Attribute): Add indexing, Default_Iterator,
+	and literal attributes to case choices. Rewrite_As_Attribute_Subp_Name
+	is called for those, as well as for stream and Put_Image attribute
+	cases (the latter group being guarded by a call to the following
+	new function).
+	(Is_Reference_To_Attribute_Subp_Name): New function to determine
+	whether to rewrite an N_Attribute_Reference as an N_Identifier
+	denoting an attribute subprogram.
+	(Rewrite_As_Attribute_Subp_Name): New procedure to rewrite an attribute
+	reference as an N_Identifier whose Chars field is the combined type
+	and aspect name, and call Analyze on that (providing support for use
+	in expanded names). Also validates that the prefix is a type and that
+	the type has the aspect corresponding to the attribute.
+	(Eval_Attribute): Add choices for the various subprogram-valued
+	aspects/attributes to the alternative that raises Program_Error.
+	* sem_ch3.adb (Set_Derived_Name): Construct a direct attribute name for
+	an inherited subprogram whose parent subprogram has such a name, and
+	augment spec comment.
+	* sem_ch6.adb (Create_And_Append_Aspect): New procedure local to
+	procedure Analyze_Direct_Attribute_Definition, for creating implicit
+	aspects on a type for aspects associated with attribute subprograms.
+	(Analyze_Direct_Attribute_Definition): Add handling for the various
+	subprogram-valued aspects, including special handling for "'Class"
+	aspects. Add an error check to prevent library attribute subprograms,
+	plus validate that "'Class" can only be written for stream cases and
+	when the prefix type is tagged.
+	* sem_ch8.adb (Find_Direct_Name): Add missing init on Msg to avoid
+	invalid data usages.
+	* sem_ch10.adb (Analyze_Subprogram_Body_Stub): Add an error check to
+	disallow attribute subprograms with bodies given by body stubs.
+	* sem_ch13.ads (Analyze_One_Aspect): Procedure declaration moved here
+	from package body.
+	* sem_ch13.adb
+	(Analyze_One_Aspect): Procedure declaration moved to package spec.
+	Save and restore Expander_Active (in Aspect_Initialize handling).
+	(Analyze_Put_Image_TSS_Definition): In the abstract-subprogram case,
+	flag the error on the subprogram rather than the attribute name.
+	When the attribute name is not Comes_From_Source, flag a bad subprogram
+	itself rather than flagging the attribute name.
+	(Analyze_Stream_TSS_Definition): Ditto.
+	(Analyze_Attribute_Definition_Clause, case Default_Iterator): Move
+	error check about untagged to the end of the case alternative, and
+	remove error about nonfunctions (checking in Check_Iterator_Functions
+	is sufficient).
+	(Check_Aspect_At_Freeze_Point, case Default_Iterator): Add test of
+	Is_Direct_Attribute_Subp_Name as additional condition for calling
+	Check_Iterator_Functions.
+	(Report_Ineligible_Indexing_Function): Don't issue warnings in the case
+	of attribute subprograms (always give an error). Flag the error on the
+	subprogram rather than the type in the case of attribute subprograms.
+	(Check_Function_For_Indexing_Aspect): Force error messages in the case
+	of attribute subprograms, despite Has_Eligible_Func being True.
+	(Check_Iterator_Functions): Minor improvement to message requiring Expr
+	to denote a function.
+	(Validate_Literal_Aspect): Add test of whether the aspect denotes
+	an attribute subprogram, to avoid returning early due to the
+	"not Comes_From_Source" condition. Code cleanup to traverse formals
+	rather than Parameter_Specifications. Flag the subprogram rather than
+	the aspect when found function is an attribute subprogram.
+	* sem_util.ads (Is_Direct_Attribute_Subp_Name): New function.
+	* sem_util.adb (Direct_Attribute_Definition_Name): Remove 'D' prefix
+	and "_Attr" suffix, plus adjust suffix to start with "'" rather than
+	"_". Handle class-wide stream attribute names, and remove error about
+	unsupported stream attributes. Add error check to reject child units.
+	(Corresponding_Op_Of_Derived_Type): Account for differences between
+	names of parent and descendant subprograms when they have direct
+	attribute names.
+	(Direct_Attribute_Names_Correspond): New function.
+	(Inherit_Nonoverridable_Aspect): Construct a new name denoted by an
+	inherited aspect when the parent aspect has a direct attribute name.
+	(Is_Direct_Attribute_Subp_Name): New function.
+	(Primitive_Names_Match): Add testing for direct attribute subprograms
+	to condition of return statement.
+	* snames.ads-tmpl: Move indexing and Default_Iterator aspect names
+	earlier in name ordering and move literal aspect names later (these
+	are all now considered to be recognized as attribute names).
+	(type Attribute_Id): Move indexing attribute names earlier in attribute
+	ordering (those no longer considered to be "internal" attribute names).
+	(subtype Internal_Attribute_Id): Adjust subtype bounds.
+	* snames.adb-tmpl (Get_Attribute_Id): Remove alternatives for
+	indexing and Default_Iterator names, as these now belong to the
+	"normal" attribute range.
+	(Is_Direct_Attribute_Definition_Name): Return True for indexing aspect
+	names, literal aspect names, stream attribute names, and Put_Image
+	and Default_Iterator aspect names.
+	* gnat_rm.texi: Regenerate.
+
+2026-06-29  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* exp_ch3.adb (Expand_Freeze_Record_Type): Minor cleanup.
+	* sem_ch3.adb (Build_Derived_Private_Type.Copy_And_Build): Set the
+	Is_Implicit_Full_View flag early in the case of a record type.
+	(Build_Derived_Record_Type): Do not build the class-wide type for
+	an implicit full view.
+
+2026-06-29  Olivier Hainque  <hainque@adacore.com>
+
+	* adaint.c (__gnat_get_executable_load_address): Provide
+	an implementation based on dladdr(&main) and use it for Android.
+
+2026-06-29  Piotr Trojanek  <trojanek@adacore.com>
+
+	* par-ch13.adb (P_Modifies_Specification): Now public, so it can be
+	reused when parsing a pragma.
+	* par-ch2.adb (P_Pragma): Parse pragma Modifies with a custom syntax.
+	* par-prag.adb (Prag): A ??? comment is now implemented.
+	* par.adb (P_Modifies_Specification): Now public, so it can be reused.
+
+2026-06-29  Olivier Hainque  <hainque@adacore.com>
+
+	* init.c (__gnat_install_handler, __ANDROID__): Guard calls
+	to sigaction with a test for a possible 's' (System) interrupt
+	state.
+
+2026-06-29  Piotr Trojanek  <trojanek@adacore.com>
+
+	* atree.adb (Change_Node): Enable "nnd" debug hook.
+
+2026-06-29  Piotr Trojanek  <trojanek@adacore.com>
+
+	* sem_ch3.adb (Preanalyze_And_Resolve_Assert_Expression): Fix style.
+
+2026-06-29  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* sem_ch3.adb (Find_Type_Of_Object): In the subtype indication case
+	for a stand-alone object, invoke Process_Subtype during preanalysis
+	instead of partially reimplementing it.
+	* sem_ch5.ads (Has_Sec_Stack_Call): Move back declaration to...
+	* sem_ch5.adb (Has_Sec_Stack_Call): ...here.
+	* sem_ch4.adb (Analyze_Expression_With_Actions): Deal with transient
+	scopes created during analysis.
+	* sem_res.adb: Add clauses for Sem_Ch9 package.
+	(Resolve_Declare_Expression): Streamline and deal with transient
+	scopes created during resolution.
+
 2026-06-22  Javier Miranda  <miranda@adacore.com>
 
 	* par-ch6.adb (P_Subprogram): Add missing support for direct

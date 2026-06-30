@@ -1,3 +1,10 @@
+2026-06-29  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	PR bootstrap/103459
+	* configure.ac: Replace AM_PROG_LIBTOOL with LT_INIT.  Replace
+	AC_LANG_C with AC_LANG([C]).  Replace AC_TRY_COMPILE with
+	AC_COMPILE_IFELSE.  Replace AC_TRY_LINK with AC_LINK_IFELSE.
+
 2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* math/powq.c: Fix typos.

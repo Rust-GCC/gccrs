@@ -1,3 +1,15 @@
+2026-06-29  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	PR bootstrap/103459
+	* acinclude.m4: Replace AC_HELP_STRING with AS_HELP_STRING.  Replace
+	AC_LANG_SAVE AC_LANG_CPLUSPLUS (...) AC_LANG_RESTORE with
+	AC_LANG_PUSH([C++]) (...) AC_LANG_POP([C++]).  Replace AC_TRY_LINK with
+	AC_LINK_IFELSE.  Replace AC_TRY_COMPILE with AC_COMPILE_IFELSE.
+	* configure: Regenerate.
+	* configure.ac: Replace AC_HELP_STRING AS_HELP_STRING.  Remove redundant
+	AM_PROG_LIBTOOL.  Replace AC_LANG_C with AC_LANG([C]).  Replace
+	AC_FOREACH with m4_foreach_w.
+
 2026-06-01  Jakub Jelinek  <jakub@redhat.com>
 
 	* configure: Regenerate.

@@ -1,3 +1,10 @@
+2026-06-29  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	PR bootstrap/103459
+	* configure.ac: Replace AC_GNU_SOURCE with AC_USE_SYSTEM_EXTENSIONS.
+	Replace AM_PROG_LIBTOOL with LT_INIT.  Replace AC_FOREACH with
+	m4_foreach_w.
+
 2026-05-30  Dhruv Chawla  <dhruvc@nvidia.com>
 
 	* vtv_fail.cc: Fix typos.

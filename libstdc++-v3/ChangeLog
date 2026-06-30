@@ -1,3 +1,15 @@
+2026-06-29  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/chrono_io.h: Fix comment typo.
+
+2026-06-29  Jonathan Wakely  <jwakely@redhat.com>
+
+	* doc/doxygen/user.cfg.in (DOT_MULTI_TARGETS): Remove obsolete
+	config.
+	* include/bits/stl_algo.h: Use markdown and fix some typos in
+	Doxygen comments.  Mark internal helper functions as
+	undocumented.
+
 2026-06-26  Jonathan Wakely  <jwakely@redhat.com>
 
 	* testsuite/27_io/filesystem/operations/status.cc: Check

@@ -1,3 +1,10 @@
+2026-06-29  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	PR bootstrap/103459
+	* configure.ac: Replace AM_PROG_LIBTOOL with LT_INIT.  Replace
+	AC_TRY_COMPILE with AC_COMPILE_IFELSE.  Replace AC_FOREACH with
+	m4_foreach_w.
+
 2026-06-02  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
 
 	* sanitizer_common/sanitizer_platform_limits_solaris.cpp:

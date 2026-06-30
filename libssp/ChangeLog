@@ -1,3 +1,10 @@
+2026-06-29  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	PR bootstrap/103459
+	* configure.ac: Replace AC_LANG_C with AC_LANG([C]).  Replace
+	AC_TRY_COMPILE with AC_COMPILE_IFELSE.  Replace AC_TRY_LINK with
+	AC_LINK_IFELSE.  Replace AM_PROG_LIBTOOL with LT_INIT.
+
 2026-05-05  H.J. Lu  <hjl.tools@gmail.com>
 
 	PR c/121911

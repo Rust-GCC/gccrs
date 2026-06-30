@@ -1,3 +1,8 @@
+2026-06-29  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	PR bootstrap/103459
+	* configure.ac: Replace AC_FOREACH with m4_foreach_w.
+
 2025-12-29  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
 
 	* configure: Regenerate.
