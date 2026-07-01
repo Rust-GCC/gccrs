@@ -144,7 +144,8 @@ Resolver::CanonicalPath
 CanonicalPathRecordNormal::as_path (const NameResolutionContext &ctx,
 				    Namespace ns)
 {
-  auto parent_path = get_parent ().as_path (ctx, ns);
+  auto &parent = ctx.canonical_ctx.get_record (get_parent ());
+  auto parent_path = parent.as_path (ctx, ns);
   return parent_path.append (Resolver::CanonicalPath::new_seg (node_id, seg));
 }
 
@@ -177,7 +178,8 @@ Resolver::CanonicalPath
 CanonicalPathRecordImpl::as_path (const NameResolutionContext &ctx,
 				  Namespace ns)
 {
-  auto parent_path = get_parent ().as_path (ctx, ns);
+  auto parent_path
+    = ctx.canonical_ctx.get_record (get_parent ()).as_path (ctx, ns);
   return parent_path.append (
     Resolver::CanonicalPath::inherent_impl_seg (impl_id,
 						type_record.as_path (ctx, ns)));
@@ -188,7 +190,8 @@ CanonicalPathRecordTraitImpl::as_path (const NameResolutionContext &ctx,
 				       Namespace ns)
 {
   // Maybe this doesn't need the namespace and will always be in the types NS?
-  auto parent_path = get_parent ().as_path (ctx, ns);
+  auto parent_path
+    = ctx.canonical_ctx.get_record (get_parent ()).as_path (ctx, ns);
   return parent_path.append (
     Resolver::CanonicalPath::trait_impl_projection_seg (
       impl_id, trait_path_record.as_path (ctx, ns),
@@ -382,6 +385,39 @@ NameResolutionContext::scoped (Rib::Kind rib_kind, Namespace ns,
     case Namespace::Macros:
       gcc_unreachable ();
     }
+}
+
+void
+NameResolutionContext::merge (NameResolutionContext &other, NodeId at)
+{
+  auto merge_fstack = [&] (auto &stack, auto &other_stack) {
+    auto node = stack.dfs_node (stack.root, at);
+    if (node)
+      {
+	auto &extern_crate_node = node.value ();
+	for (auto kv : other_stack.root.children)
+	  {
+	    auto link = kv.first;
+	    auto child = kv.second;
+	    extern_crate_node.insert_child (link, child);
+	    child.parent = extern_crate_node;
+	  }
+	for (auto kv : other_stack.root.rib.get_values ())
+	  {
+	    auto name = kv.first;
+	    auto def = kv.second;
+	    extern_crate_node.rib.insert (name, def);
+	  }
+      }
+    stack.resolved_nodes.insert (other_stack.resolved_nodes.begin (),
+				 other_stack.resolved_nodes.end ());
+  };
+
+  merge_fstack (values, other.values);
+  merge_fstack (types, other.types);
+  merge_fstack (macros, other.macros);
+  merge_fstack (labels, other.labels);
+  canonical_ctx.merge (std::move (other.canonical_ctx));
 }
 
 #if 0
