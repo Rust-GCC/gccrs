@@ -91,11 +91,9 @@ CompileDrop::compile_drop_call (Bvariable *var, TyTy::BaseType *ty,
 }
 
 void
-CompileDrop::emit_current_scope_drop_calls ()
+CompileDrop::emit_drop_candidate_calls (
+  const std::vector<DropCandidate> &drop_candidates)
 {
-  DropBuilder drop_builder (*ctx);
-  auto &drop_candidates = drop_builder.peek_block_drop_candidates ();
-
   for (auto it = drop_candidates.rbegin (); it != drop_candidates.rend (); ++it)
     {
       TyTy::BaseType *ty = nullptr;
@@ -111,6 +109,25 @@ CompileDrop::emit_current_scope_drop_calls ()
       if (drop_call != NULL_TREE)
 	ctx->add_statement (convert_to_void (drop_call, ICV_STATEMENT));
     }
+}
+
+void
+CompileDrop::emit_current_scope_drop_calls ()
+{
+  DropBuilder drop_builder (*ctx);
+  emit_drop_candidate_calls (drop_builder.peek_block_drop_candidates ());
+}
+
+void
+CompileDrop::emit_return_scope_drop_calls ()
+{
+  DropBuilder drop_builder (*ctx);
+  const auto &drop_candidate_stack
+    = drop_builder.get_block_drop_candidate_stack ();
+
+  for (auto scope = drop_candidate_stack.rbegin ();
+       scope != drop_candidate_stack.rend (); ++scope)
+    emit_drop_candidate_calls (*scope);
 }
 
 } // namespace Compile
