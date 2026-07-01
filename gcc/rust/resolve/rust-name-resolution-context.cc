@@ -196,7 +196,16 @@ CanonicalPathRecordTraitImpl::as_path (const NameResolutionContext &ctx,
 }
 
 NameResolutionContext::NameResolutionContext ()
-  : mappings (Analysis::Mappings::get ()), canonical_ctx (*this)
+  : root (std::make_unique<Node> (Rib::Kind::Normal, UNKNOWN_NODEID)),
+    lang_prelude (
+      std::make_unique<Node> (Rib::Kind::Prelude, UNKNOWN_NODEID, *root)),
+    extern_prelude (
+      std::make_unique<Node> (Rib::Kind::Prelude, UNKNOWN_NODEID)),
+    values (*root, *lang_prelude, *extern_prelude),
+    types (*root, *lang_prelude, *extern_prelude),
+    macros (*root, *lang_prelude, *extern_prelude),
+    labels (*root, *lang_prelude, *extern_prelude),
+    mappings (Analysis::Mappings::get ()), canonical_ctx (*this)
 {}
 
 tl::expected<NodeId, DuplicateNameError>
