@@ -52,6 +52,7 @@ private:
   virtual void visit (HIR::MatchExpr &expr) override;
   virtual void visit (HIR::ExternBlock &block) override;
   virtual void visit_loop_label (HIR::LoopLabel &label) override;
+  virtual void visit (HIR::GroupedExpr &expr) override;
 };
 } // namespace Analysis
 } // namespace Rust
