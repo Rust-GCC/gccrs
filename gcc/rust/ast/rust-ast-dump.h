@@ -49,6 +49,12 @@ public:
       Dump,
       Hide,
     } dump_comments;
+    enum class Newline
+    {
+      Dump,
+      Hide,
+    } newline;
+    size_t indentation;
   };
 
   Dump (std::ostream &stream);
@@ -87,11 +93,13 @@ public:
 	  case AST::CollectItem::Kind::Indentation:
 	    for (size_t i = 0; i < item.get_indent_level (); i++)
 	      {
-		stream << "    ";
+		for (size_t j = 0; j < configuration.indentation; j++)
+		  stream << " ";
 	      }
 	    break;
 	  case AST::CollectItem::Kind::Newline:
-	    stream << "\n";
+	    if (configuration.newline == Configuration::Newline::Dump)
+	      stream << "\n";
 	    previous = nullptr;
 	    break;
 	  case AST::CollectItem::Kind::BeginNodeDescription:
