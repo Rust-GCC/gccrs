@@ -56,6 +56,10 @@ private:
   virtual void visit (HIR::BreakExpr &expr) override;
   virtual void visit (HIR::ContinueExpr &expr) override;
 
+  // Unused parens
+  virtual void visit (HIR::ArithmeticOrLogicalExpr &expr) override;
+  virtual void visit (HIR::LazyBooleanExpr &expr) override;
+
   template <typename T>
   tl::optional<HirId> get_def_id (T &path_expr, Resolver2_0::Namespace ns)
   {
@@ -106,6 +110,11 @@ private:
       {
 	unused_context.add_label (*def_id);
       }
+  }
+
+  template <typename T> void mark_group_used (T &path_expr)
+  {
+    unused_context.add_group (path_expr.get_mappings ().get_hirid ());
   }
 };
 } // namespace Analysis
