@@ -26,12 +26,15 @@
 #include "rust-keyword-values.h"
 #include "rust-attribute-values.h"
 #include "rust-rib.h"
+#include "rust-tyty.h"
 
 namespace Rust {
 namespace Analysis {
 UnusedChecker::UnusedChecker ()
   : nr_context (Resolver2_0::FinalizedNameResolutionContext::get ()),
-    mappings (Analysis::Mappings::get ()), unused_context (UnusedContext ())
+    mappings (Analysis::Mappings::get ()),
+    context (*Resolver::TypeCheckContext::get ()),
+    unused_context (UnusedContext ())
 {}
 void
 UnusedChecker::go (HIR::Crate &crate)
@@ -345,6 +348,34 @@ UnusedChecker::visit (HIR::LetStmt &stmt)
 	break;
       }
   walk (stmt);
+}
+
+void
+UnusedChecker::visit (HIR::ComparisonExpr &expr)
+{
+  auto is_zero = [] (HIR::Expr &e) {
+    return e.get_expression_type () == HIR::Expr::ExprType::Lit
+	   && static_cast<HIR::LiteralExpr &> (e).get_literal ().as_string ()
+		== "0";
+  };
+  auto is_unsigned = [this] (HIR::Expr &e) {
+    TyTy::BaseType *type;
+    if (!context.lookup_type (e.get_mappings ().get_hirid (), &type))
+      return false;
+    return type->get_kind () == TyTy::UINT || type->get_kind () == TyTy::USIZE;
+  };
+
+  auto op = expr.get_expr_type ();
+  bool useless = (is_zero (expr.get_rhs ()) && is_unsigned (expr.get_lhs ())
+		  && (op == ComparisonOperator::LESS_THAN
+		      || op == ComparisonOperator::GREATER_OR_EQUAL))
+		 || (is_zero (expr.get_lhs ()) && is_unsigned (expr.get_rhs ())
+		     && (op == ComparisonOperator::GREATER_THAN
+			 || op == ComparisonOperator::LESS_OR_EQUAL));
+  if (useless)
+    rust_warning_at (expr.get_locus (), OPT_Wtype_limits,
+		     "comparison is useless due to type limits");
+  walk (expr);
 }
 
 } // namespace Analysis
