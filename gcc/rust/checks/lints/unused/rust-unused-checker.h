@@ -52,6 +52,7 @@ private:
   virtual void visit (HIR::MatchExpr &expr) override;
   virtual void visit (HIR::ExternBlock &block) override;
   virtual void visit (HIR::LetStmt &stmt) override;
+  virtual void visit (HIR::TypeAlias &type_alias) override;
   virtual void visit_loop_label (HIR::LoopLabel &label) override;
 };
 } // namespace Analysis
