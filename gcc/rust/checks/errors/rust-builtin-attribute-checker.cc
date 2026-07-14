@@ -382,6 +382,7 @@ const std::unordered_map<std::string, std::function<void (AST::Attribute &)>>
     {Attrs::RUSTC_ALLOCATOR, handlers::expect_no_input},
     {Attrs::RUSTC_ALLOCATOR_NOUNWIND, handlers::expect_no_input},
     {Attrs::GLOBAL_ALLOCATOR, handlers::expect_no_input},
+    {Attrs::RUSTC_CONVERSION_SUGGESTION, handlers::expect_no_input},
 };
 
 tl::optional<std::function<void (AST::Attribute &)>>
