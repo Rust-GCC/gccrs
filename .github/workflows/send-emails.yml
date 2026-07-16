@@ -8,6 +8,7 @@ on:
 jobs:
   send_patches:
     runs-on: ubuntu-latest
+    if: ${{ vars.SMTP_SERVER != '' }}
 
     steps:
       - name: Checkout repo with full history
