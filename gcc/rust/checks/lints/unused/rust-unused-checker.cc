@@ -333,6 +333,26 @@ UnusedChecker::visit (HIR::MatchExpr &expr)
 			 "multiple ranges are one apart");
     }
 
+  // Every arm after an unguarded wildcard can never match. A bare identifier
+  // is not treated as irrefutable: the resolver does not yet disambiguate a
+  // unit-variant path (e.g. None) from a fresh binding.
+  bool seen_irrefutable = false;
+  for (auto &match_case : expr.get_match_cases ())
+    {
+      auto &arm = match_case.get_arm ();
+      if (seen_irrefutable)
+	{
+	  rust_warning_at (arm.get_pattern ()->get_locus (), OPT_Wunused,
+			   "unreachable pattern");
+	  continue;
+	}
+
+      if (!arm.has_match_arm_guard ()
+	  && arm.get_pattern ()->get_pattern_type ()
+	       == HIR::Pattern::PatternType::WILDCARD)
+	seen_irrefutable = true;
+    }
+
   walk (expr);
 }
 
