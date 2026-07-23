@@ -333,6 +333,21 @@ UnusedChecker::visit (HIR::MatchExpr &expr)
 			 "multiple ranges are one apart");
     }
 
+  // An inclusive range whose upper endpoint equals another range's lower
+  // endpoint overlaps it on that single point.
+  for (size_t i = 0; i < ranges.size (); i++)
+    {
+      if (!ranges[i].inclusive)
+	continue;
+      for (size_t j = 0; j < ranges.size (); j++)
+	if (i != j && ranges[i].hi == ranges[j].lo)
+	  {
+	    rust_warning_at (ranges[i].locus, OPT_Wunused,
+			     "multiple patterns overlap on their endpoints");
+	    break;
+	  }
+    }
+
   walk (expr);
 }
 
