@@ -1,0 +1,36 @@
+// It should not be possible to use the concrete value of a defaulted
+// associated type in the impl defining it -- otherwise, what happens
+// if it's overridden?
+
+#![feature(specialization)] // { dg-warning "" "" { target *-*-* } }
+
+trait Example {
+    type Output;
+    fn generate(self) -> Self::Output;
+}
+
+impl<T> Example for T {
+    default type Output = Box<T>;
+    default fn generate(self) -> Self::Output {
+        Box::new(self) // { dg-error ".E0308." "" { target *-*-* } }
+    }
+}
+
+impl Example for bool {
+    type Output = bool;
+    fn generate(self) -> bool { self }
+}
+
+fn trouble<T>(t: T) -> Box<T> {
+    Example::generate(t) // { dg-error ".E0308." "" { target *-*-* } }
+}
+
+fn weaponize() -> bool {
+    let b: Box<bool> = trouble(true);
+    *b
+}
+
+fn main() {
+    weaponize();
+}
+
