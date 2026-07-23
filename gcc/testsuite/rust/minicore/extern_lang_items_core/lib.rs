@@ -1,6 +1,13 @@
 #![feature(no_core)]
 #![no_core]
 #![feature(lang_items)]
+#![feature(arbitrary_self_types)]
+
+#[lang = "sized"]
+pub trait Sized {}
+
+#[lang = "copy"]
+pub trait Copy {}
 
 mod clone {
     #[lang = "clone"]
@@ -15,8 +22,4 @@ mod clone {
     }
 }
 
-#[derive(Clone)]
-enum TupleEnum {
-    A(i32),
-    B(i32, i32, i32),
-}
+impl Copy for i32 {}
