@@ -917,7 +917,7 @@ public:
     ALIGN,
     PACKED,
     TRANSPARENT,
-    // SIMD,
+    SIMD,
     // ...
   };
 
