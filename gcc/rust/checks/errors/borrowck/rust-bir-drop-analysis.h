@@ -19,6 +19,8 @@
 #ifndef RUST_BIR_DROP_ANALYSIS_H
 #define RUST_BIR_DROP_ANALYSIS_H
 
+#include "rust-mapping-common.h"
+
 namespace Rust {
 namespace BIR {
 
@@ -33,7 +35,15 @@ struct Function;
 class DropAnalysis
 {
 public:
-  static void analyze (Function &function);
+  static DropAnalysis &get ();
+
+  void clear ();
+  void analyze (Function &function);
+
+  bool is_definitely_dead (HirId id) const;
+
+private:
+  std::set<HirId> definitely_dead;
 };
 
 } // namespace BIR
