@@ -39,9 +39,13 @@ public:
   void analyze (Function &function);
 
   bool is_definitely_dead (HirId id) const;
+  bool needs_drop_flag (HirId id) const;
+  bool lookup_move_source (HirId move_site, HirId *source) const;
 
 private:
   std::set<HirId> definitely_dead;
+  std::set<HirId> conditionally_dropped;
+  std::map<HirId, HirId> move_sources;
 };
 
 } // namespace BIR
