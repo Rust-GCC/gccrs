@@ -1,0 +1,19 @@
+// Test for for diagnostic improvement issue #75907
+
+mod foo {
+    pub(crate) struct Foo(u8);
+    pub(crate) struct Bar(pub u8, u8, Foo);
+
+    pub(crate) fn make_bar() -> Bar {
+        Bar(1, 12, Foo(10))
+    }
+}
+
+use foo::{make_bar, Bar, Foo};
+
+fn main() {
+    let Bar(x, y, Foo(z)) = make_bar();
+// { dg-error ".E0532." "" { target *-*-* } .-1 }
+// { dg-error ".E0532." "" { target *-*-* } .-2 }
+}
+
