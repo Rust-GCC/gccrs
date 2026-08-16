@@ -406,18 +406,8 @@ rust_debug_loc (const location_t location, const char *fmt, ...)
   va_list ap;
 
   va_start (ap, fmt);
-  char *mbuf = NULL;
-  int nwr = vasprintf (&mbuf, fmt, ap);
+  rust_be_inform (location, expand_message (fmt, ap));
   va_end (ap);
-  if (nwr == -1)
-    {
-      rust_be_error_at (UNKNOWN_LOCATION,
-			"memory allocation failed in vasprintf");
-      rust_assert (0);
-    }
-  std::string rval = std::string (mbuf);
-  free (mbuf);
-  rust_be_inform (location, rval);
 }
 
 namespace Rust {

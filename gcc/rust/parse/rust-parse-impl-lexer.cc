@@ -16,6 +16,9 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
+// TODO: fix warnings and remove
+#pragma GCC diagnostic ignored "-Wformat-diag"
+
 #include "rust-parse-impl.hxx"
 
 namespace Rust {

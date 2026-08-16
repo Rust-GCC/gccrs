@@ -23,6 +23,9 @@
 #include "rust-type-util.h"
 #include "rust-coercion.h"
 
+// TODO: fix warnings and remove
+#pragma GCC diagnostic ignored "-Wformat-diag"
+
 namespace Rust {
 namespace Resolver {
 
