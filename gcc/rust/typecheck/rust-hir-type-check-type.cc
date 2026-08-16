@@ -33,6 +33,9 @@
 #include "rust-compile-base.h"
 #include "rust-resolve-builtins.h"
 
+// TODO: remove
+#pragma GCC diagnostic ignored "-Wformat-diag"
+
 namespace Rust {
 namespace Resolver {
 

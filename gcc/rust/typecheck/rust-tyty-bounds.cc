@@ -23,6 +23,9 @@
 #include "rust-hir-trait-resolve.h"
 #include "rust-type-util.h"
 
+// TODO: remove
+#pragma GCC diagnostic ignored "-Wformat-diag"
+
 namespace Rust {
 namespace Resolver {
 

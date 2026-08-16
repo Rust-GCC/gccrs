@@ -33,6 +33,9 @@
 #include "rust-substitution-mapper.h"
 #include "rust-finalized-name-resolution-context.h"
 
+// TODO: remove
+#pragma GCC diagnostic ignored "-Wformat-diag"
+
 namespace Rust {
 namespace Resolver {
 

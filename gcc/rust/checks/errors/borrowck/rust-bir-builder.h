@@ -23,6 +23,9 @@
 #include "rust-bir-builder-pattern.h"
 #include "rust-bir-builder-expr-stmt.h"
 
+// TODO: remove
+#pragma GCC diagnostic ignored "-Wformat-diag"
+
 namespace Rust {
 namespace BIR {
 

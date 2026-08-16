@@ -35,6 +35,9 @@
 #include "tree.h"
 #include "fold-const.h"
 
+// TODO: remove
+#pragma GCC diagnostic ignored "-Wformat-diag"
+
 namespace Rust {
 namespace TyTy {
 

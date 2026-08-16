@@ -1,6 +1,9 @@
 #include "rust-tyty-variance-analysis-private.h"
 #include "rust-hir-type-check.h"
 
+// TODO: remove
+#pragma GCC diagnostic ignored "-Wformat-diag"
+
 namespace Rust {
 namespace TyTy {
 

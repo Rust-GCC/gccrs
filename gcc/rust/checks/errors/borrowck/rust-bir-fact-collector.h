@@ -24,6 +24,9 @@
 #include "rust-bir-place.h"
 #include "polonius/rust-polonius.h"
 
+// TODO: remove
+#pragma GCC diagnostic ignored "-Wformat-diag"
+
 namespace Rust {
 namespace BIR {
 

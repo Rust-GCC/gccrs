@@ -44,6 +44,9 @@
 #include "rust-tyty.h"
 #include "tree-core.h"
 
+// TODO: remove
+#pragma GCC diagnostic ignored "-Wformat-diag"
+
 namespace Rust {
 namespace Compile {
 
