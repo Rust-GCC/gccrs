@@ -56,6 +56,8 @@ const BiMap<std::string, LangItem::Kind> Rust::LangItem::lang_items = {{
   {"RangeInclusive", Kind::RANGE_INCLUSIVE},
   {"RangeToInclusive", Kind::RANGE_TO_INCLUSIVE},
   {"range_inclusive_new", Kind::RANGE_INCLUSIVE_NEW},
+  {"coerce_unsized", Kind::COERCE_UNSIZED},
+  {"dispatch_from_dyn", Kind::DISPATCH_FROM_DYN},
   {"phantom_data", Kind::PHANTOM_DATA},
   {"fn", Kind::FN},
   {"fn_mut", Kind::FN_MUT},
@@ -65,6 +67,8 @@ const BiMap<std::string, LangItem::Kind> Rust::LangItem::lang_items = {{
   {"clone", Kind::CLONE},
   {"drop", Kind::DROP},
   {"sized", Kind::SIZED},
+  {"freeze", Kind::FREEZE},
+  {"unsize", Kind::UNSIZE},
   {"sync", Kind::SYNC},
   {"slice_alloc", Kind::SLICE_ALLOC},
   {"slice_u8_alloc", Kind::SLICE_U8_ALLOC},
@@ -141,6 +145,20 @@ const BiMap<std::string, LangItem::Kind> Rust::LangItem::lang_items = {{
   {"Pending", Kind::PENDING},
   {"generator", Kind::GENERATOR},
   {"generator_state", Kind::GENERATOR_STATE},
+
+  {"va_list", Kind::VA_LIST},
+  {"pin", Kind::PIN},
+  {"unpin", Kind::UNPIN},
+
+  {"panic", Kind::PANIC},
+  {"panic_info", Kind::PANIC_INFO},
+  {"panic_location", Kind::PANIC_LOCATION},
+  {"panic_bounds_check", Kind::PANIC_BOUNDS_CHECK},
+  {"panic_str", Kind::PANIC_STR},
+  {"align_offset", Kind::ALIGN_OFFSET},
+  {"new_unchecked", Kind::NEW_UNCHECKED},
+  {"from_generator", Kind::FROM_GENERATOR},
+  {"get_context", Kind::GET_CONTEXT},
 }};
 
 tl::optional<LangItem::Kind>

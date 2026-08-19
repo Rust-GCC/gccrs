@@ -79,6 +79,10 @@ public:
     RANGE_TO_INCLUSIVE,
     RANGE_INCLUSIVE_NEW,
 
+    // https://github.com/rust-lang/rust/blob/master/library/core/src/ops/unsize.rs
+    COERCE_UNSIZED,
+    DISPATCH_FROM_DYN,
+
     // https://github.com/rust-lang/rust/blob/master/library/core/src/marker.rs
     PHANTOM_DATA,
 
@@ -93,6 +97,8 @@ public:
     CLONE,
     DROP,
     SIZED,
+    FREEZE,
+    UNSIZE,
     SYNC,
 
     // https://github.com/Rust-GCC/gccrs/issues/1896
@@ -177,6 +183,20 @@ public:
     PENDING,
     GENERATOR,
     GENERATOR_STATE,
+
+    VA_LIST,
+    PIN,
+    UNPIN,
+
+    PANIC,
+    PANIC_INFO,
+    PANIC_LOCATION,
+    PANIC_BOUNDS_CHECK,
+    PANIC_STR,
+    ALIGN_OFFSET,
+    NEW_UNCHECKED,
+    FROM_GENERATOR,
+    GET_CONTEXT,
   };
 
   static const BiMap<std::string, Kind> lang_items;

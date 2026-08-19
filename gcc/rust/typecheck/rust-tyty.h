@@ -237,6 +237,8 @@ public:
   //     2. (For functions) have the same signature
   virtual bool is_equal (const BaseType &other) const;
 
+  bool unsize_to (const BaseType *target) const;
+
   bool satisfies_bound (const TypeBoundPredicate &predicate, bool emit_error);
 
   bool bounds_compatible (BaseType &other, location_t locus, bool emit_error);
@@ -357,6 +359,11 @@ public:
   virtual const BaseConstType *as_const_type () const { return nullptr; }
 
   virtual bool contains_unsafe_cell () const { return false; }
+
+  // is_unsized returns true if the type is a DST
+  virtual bool is_unsized () const { return false; }
+
+  virtual bool is_box () const { return false; }
 
 protected:
   BaseType (HirId ref, HirId ty_ref, TypeKind kind, RustIdent ident,
@@ -921,7 +928,7 @@ public:
     ALIGN,
     PACKED,
     TRANSPARENT,
-    // SIMD,
+    SIMD,
     // ...
   };
 
@@ -1040,6 +1047,8 @@ public:
   handle_substitions (SubstitutionArgumentMappings &mappings) override final;
 
   bool contains_unsafe_cell () const override;
+  virtual bool is_unsized () const override;
+  virtual bool is_box () const override;
 
 private:
   DefId id;
@@ -1444,6 +1453,7 @@ public:
   SliceType *handle_substitions (SubstitutionArgumentMappings &mappings);
 
   bool contains_unsafe_cell () const override;
+  virtual bool is_unsized () const override { return true; }
 
 private:
   TyVar element_type;
@@ -1641,6 +1651,8 @@ public:
   bool is_equal (const BaseType &other) const override;
 
   BaseType *clone () const final override;
+
+  virtual bool is_unsized () const override { return true; }
 };
 
 class DynamicObjectType : public BaseType
@@ -1671,6 +1683,8 @@ public:
   const std::vector<
     std::pair<const Resolver::TraitItemReference *, const TypeBoundPredicate *>>
   get_object_items () const;
+
+  virtual bool is_unsized () const override { return true; }
 };
 
 class ReferenceType : public BaseType
@@ -1711,6 +1725,7 @@ public:
   bool is_dyn_slice_type (const TyTy::SliceType **slice = nullptr) const;
   bool is_dyn_str_type (const TyTy::StrType **str = nullptr) const;
   bool is_dyn_obj_type (const TyTy::DynamicObjectType **dyn = nullptr) const;
+  bool is_dyn_adt_type (const TyTy::ADTType **adt = nullptr) const;
   bool is_dyn_cstr_type (const TyTy::ADTType **adt = nullptr) const;
 
 private:
@@ -1751,6 +1766,7 @@ public:
   bool is_dyn_slice_type (const TyTy::SliceType **slice = nullptr) const;
   bool is_dyn_str_type (const TyTy::StrType **str = nullptr) const;
   bool is_dyn_obj_type (const TyTy::DynamicObjectType **dyn = nullptr) const;
+  bool is_dyn_adt_type (const TyTy::ADTType **adt = nullptr) const;
 
 private:
   TyVar base;

@@ -95,6 +95,12 @@ TypeCheckExpr::visit (HIR::TupleIndexExpr &expr)
       return;
     }
 
+  // Box<T> autoderef
+  if (auto resolved_base = TyTy::try_get_box_inner_type (resolved))
+    {
+      resolved = *resolved_base;
+    }
+
   // FIXME does this require autoderef here?
   if (resolved->get_kind () == TyTy::TypeKind::REF)
     {
@@ -1015,13 +1021,15 @@ TypeCheckExpr::visit (HIR::InlineAsm &expr)
 void
 TypeCheckExpr::visit (HIR::LlvmInlineAsm &expr)
 {
+  // TODO: verify input/output types?
+
   for (auto &i : expr.inputs)
     TypeCheckExpr::Resolve (*i.expr);
 
   for (auto &o : expr.outputs)
     TypeCheckExpr::Resolve (*o.expr);
 
-  // Black box hint is unit type
+  // always unit type
   infered = TyTy::TupleType::get_unit_type ();
 }
 
@@ -1086,6 +1094,11 @@ TypeCheckExpr::visit (HIR::ArrayIndexExpr &expr)
       auto base = ref->get_base ();
       if (base->get_kind () == TyTy::TypeKind::ARRAY)
 	direct_array_expr_ty = base;
+    }
+  // Box<T> autoderef
+  else if (auto base = TyTy::try_get_box_inner_type (direct_array_expr_ty))
+    {
+      direct_array_expr_ty = *base;
     }
 
   TyTy::BaseType *size_ty;

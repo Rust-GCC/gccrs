@@ -144,22 +144,8 @@ Early::resolve_rebind_import (NodeId use_dec_id,
       import_id = rebind.get_node_id ();
       break;
     case AST::UseTreeRebind::NewBindType::NONE:
-      {
-	const auto &segments = path.get_segments ();
-	// We don't want to insert `self` with `use module::self`
-	if (path.get_final_segment ().is_lower_self_seg ())
-	  {
-	    // Erroneous `self` or `{self}` use declaration
-	    if (segments.size () == 1)
-	      break;
-	    import_id = segments[segments.size () - 2].get_node_id ();
-	  }
-	else
-	  {
-	    import_id = path.get_final_segment ().get_node_id ();
-	  }
-	break;
-      }
+      import_id = path.get_final_segment ().get_node_id ();
+      break;
     case AST::UseTreeRebind::NewBindType::WILDCARD:
       // nothing
       break;
@@ -454,17 +440,21 @@ Early::visit (AST::Attribute &attr)
   auto &mappings = Analysis::Mappings::get ();
 
   auto name = attr.get_path ().get_segments ().at (0).get_segment_name ();
-  auto is_not_builtin = [&name] (AST::Attribute &attr) {
-    return Analysis::BuiltinAttributeMappings::get ()
-      ->lookup_builtin (name)
-      .is_error ();
-  };
+  auto known_check = Analysis::Attributes::is_known (name);
+
+  // If it is a tool attribute, the compiler can ignore it and let the tool
+  // handle it
+  if (known_check == Analysis::Attributes::AttributeKnowledge::Tool)
+    return;
+
+  auto is_builtin
+    = known_check == Analysis::Attributes::AttributeKnowledge::Known;
 
   if (attr.is_derive ())
     {
       visit_derive_attribute (attr, mappings);
     }
-  else if (is_not_builtin (attr)) // Do not resolve builtins
+  else if (!is_builtin) // Do not resolve builtins
     {
       visit_non_builtin_attribute (attr, mappings, name);
     }

@@ -288,10 +288,101 @@ BaseType::get_locus () const
   return ident.locus;
 }
 
+bool
+BaseType::unsize_to (const BaseType *target) const
+{
+  if (this->get_kind () == TyTy::TypeKind::DYNAMIC
+      && target->get_kind () == TyTy::TypeKind::DYNAMIC)
+    {
+      const auto *source_dyn = this->as<const TyTy::DynamicObjectType> ();
+      const auto *target_dyn = target->as<const TyTy::DynamicObjectType> ();
+
+      const auto &source_bounds = source_dyn->get_specified_bounds ();
+      const auto &target_bounds = target_dyn->get_specified_bounds ();
+
+      if (source_bounds.empty () || target_bounds.empty ())
+	return false;
+
+      if (source_bounds.at (0).get_id () != target_bounds.at (0).get_id ())
+	return false;
+
+      for (const auto &t_bound : target_dyn->get_specified_bounds ())
+	{
+	  bool found = false;
+	  for (const auto &s_bound : source_dyn->get_specified_bounds ())
+	    {
+	      if (s_bound.get_id () == t_bound.get_id ())
+		{
+		  found = true;
+		  break;
+		}
+	    }
+	  if (!found)
+	    return false;
+	}
+      return true;
+    }
+
+  // `T` -> `Trait`
+  else if (target->get_kind () == TyTy::TypeKind::DYNAMIC)
+    return true;
+
+  // Ambiguous handling is below `T` -> `Trait`, because inference
+  // variables can still implement `Unsize<Trait>` and nested
+  // obligations will have the final say (likely deferred).
+  else if (this->destructure ()->is<InferType> ()
+	   || target->destructure ()->is<InferType> ())
+    return true;
+
+  // `[T; n]` -> `[T]`
+  else if (this->get_kind () == TyTy::TypeKind::ARRAY
+	   && target->get_kind () == TyTy::TypeKind::SLICE)
+    return true;
+
+  // `Struct<T>` -> `Struct<U>`
+  else if (this->get_kind () == TyTy::TypeKind::ADT
+	   && target->get_kind () == TyTy::TypeKind::ADT)
+    {
+      const auto *source_adt = this->as<const TyTy::ADTType> ();
+      const auto *target_adt = target->as<const TyTy::ADTType> ();
+      return (source_adt->is_struct_struct () || source_adt->is_tuple_struct ())
+	     && source_adt->get_id () == target_adt->get_id ();
+    }
+
+  // `(.., T)` -> `(.., U)`
+  else if (this->get_kind () == TyTy::TypeKind::TUPLE
+	   && target->get_kind () == TyTy::TypeKind::TUPLE)
+    {
+      const auto *source_tuple = this->as<const TyTy::TupleType> ();
+      const auto *target_tuple = target->as<const TyTy::TupleType> ();
+      return source_tuple->get_subst_argument_mappings ().size ()
+	     == target_tuple->get_subst_argument_mappings ().size ();
+    }
+  return false;
+}
+
 // FIXME this is missing locus
 bool
 BaseType::satisfies_bound (const TypeBoundPredicate &predicate, bool emit_error)
 {
+  // see:
+  // https://github.com/rust-lang/rust/blob/e1884a8e3c3e813aada8254edfa120e85bf5ffca/compiler/rustc_trait_selection/src/traits/select/candidate_assembly.rs#L673
+  if (auto unsize_id = mappings.lookup_lang_item (Rust::LangItem::Kind::UNSIZE))
+    {
+      if (predicate.get_id () == unsize_id)
+	{
+	  const auto &args = predicate.get_substitution_arguments ();
+	  rust_assert (args.size () == 2 && "Unsize<U>");
+
+	  // When this target is defined as `U`, it does not give us the
+	  // realized argument type. Instead, it returns `PARAM`.
+	  TyTy::BaseType *target
+	    = args.get_mappings ().at (1).get_param_ty ()->resolve ();
+
+	  return this->unsize_to (target);
+	}
+    }
+
   const Resolver::TraitReference *query = predicate.get ();
   for (const auto &bound : specified_bounds)
     {
@@ -324,10 +415,18 @@ BaseType::satisfies_bound (const TypeBoundPredicate &predicate, bool emit_error)
       if (!bound->is_equal (*query))
 	continue;
 
-      // builtin ones have no impl-block this needs fixed and use a builtin node
-      // of somekind
+      // builtin ones have no impl-block this needs fixed and use a builtin
+      // node of somekind
       if (b.second == nullptr)
-	return true;
+	{
+	  return predicate.get_polarity () == BoundPolarity::RegularBound;
+	}
+      else
+	{
+	  const auto &impl = *(b.second);
+	  if (predicate.get_polarity () != impl.get_polarity ())
+	    continue;
+	}
 
       // need to check that associated types can match as well
       const HIR::ImplBlock &impl = *(b.second);
@@ -2070,6 +2169,32 @@ ADTType::contains_unsafe_cell () const
   return false;
 }
 
+bool
+ADTType::is_unsized () const
+{
+  if (is_enum () || is_union () || number_of_variants () == 0)
+    return false;
+
+  auto &variant = get_variants ().front ();
+  if (variant->num_fields () == 0)
+    return false;
+
+  const TyTy::BaseType *last_field_type
+    = variant->get_field_at_index (variant->num_fields () - 1)
+	->get_field_type ();
+
+  return last_field_type->is_unsized ();
+}
+
+bool
+ADTType::is_box () const
+{
+  if (auto owned_box = mappings.lookup_lang_item (LangItem::Kind::OWNED_BOX))
+    if (get_id () == owned_box)
+      return true;
+  return false;
+}
+
 // TupleType
 
 TupleType::TupleType (HirId ref, location_t locus, std::vector<TyVar> fields,
@@ -3218,7 +3343,7 @@ bool
 ReferenceType::is_dyn_object () const
 {
   return is_dyn_slice_type () || is_dyn_str_type () || is_dyn_obj_type ()
-	 || is_dyn_cstr_type ();
+	 || is_dyn_adt_type () || is_dyn_cstr_type ();
 }
 
 static const TyTy::BaseType *
@@ -3277,6 +3402,24 @@ ReferenceType::is_dyn_obj_type (const TyTy::DynamicObjectType **dyn) const
     return true;
 
   *dyn = static_cast<const TyTy::DynamicObjectType *> (element);
+  return true;
+}
+
+bool
+ReferenceType::is_dyn_adt_type (const TyTy::ADTType **adt) const
+{
+  const TyTy::BaseType *element = destructure_through_projections (get_base ());
+
+  if (element->get_kind () != TyTy::TypeKind::ADT)
+    return false;
+
+  const TyTy::ADTType *adt_ty = static_cast<const TyTy::ADTType *> (element);
+
+  if (!adt_ty->is_unsized ())
+    return false;
+  if (adt != nullptr)
+    *adt = adt_ty;
+
   return true;
 }
 
@@ -3414,7 +3557,8 @@ PointerType::is_const () const
 bool
 PointerType::is_dyn_object () const
 {
-  return is_dyn_slice_type () || is_dyn_str_type () || is_dyn_obj_type ();
+  return is_dyn_slice_type () || is_dyn_str_type () || is_dyn_obj_type ()
+	 || is_dyn_adt_type ();
 }
 
 bool
@@ -3453,6 +3597,23 @@ PointerType::is_dyn_obj_type (const TyTy::DynamicObjectType **dyn) const
     return true;
 
   *dyn = static_cast<const TyTy::DynamicObjectType *> (element);
+  return true;
+}
+
+bool
+PointerType::is_dyn_adt_type (const TyTy::ADTType **adt) const
+{
+  const TyTy::BaseType *element = destructure_through_projections (get_base ());
+  if (element->get_kind () != TyTy::TypeKind::ADT)
+    return false;
+
+  const TyTy::ADTType *adt_ty = static_cast<const TyTy::ADTType *> (element);
+
+  if (!adt_ty->is_unsized ())
+    return false;
+  if (adt != nullptr)
+    *adt = adt_ty;
+
   return true;
 }
 

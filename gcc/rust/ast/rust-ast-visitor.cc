@@ -759,6 +759,8 @@ DefaultASTVisitor::visit (AST::InlineAsm &expr)
 void
 DefaultASTVisitor::visit (AST::LlvmInlineAsm &expr)
 {
+  visit_outer_attrs (expr);
+
   for (auto &output : expr.get_outputs ())
     visit (output.expr);
 
@@ -1531,6 +1533,14 @@ ContextualASTVisitor::visit (AST::Trait &trait)
 {
   ctx.enter (Kind::TRAIT);
   DefaultASTVisitor::visit (trait);
+  ctx.exit ();
+}
+
+void
+ContextualASTVisitor::visit (AST::Function &function)
+{
+  ctx.enter (Kind::FUNCTION);
+  DefaultASTVisitor::visit (function);
   ctx.exit ();
 }
 

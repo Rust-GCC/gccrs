@@ -105,19 +105,10 @@ UnusedChecker::visit (HIR::AssignmentExpr &expr)
 {
   const auto &lhs = expr.get_lhs ();
   auto var_name = lhs.to_string ();
-  NodeId ast_node_id = lhs.get_mappings ().get_nodeid ();
-  if (auto def_id
-      = nr_context.lookup (ast_node_id, Resolver2_0::Namespace::Values))
-    {
-      if (auto id = mappings.lookup_node_to_hir (*def_id))
-	{
-	  if (unused_context.is_variable_assigned (
-		*id, lhs.get_mappings ().get_hirid ())
-	      && var_name[0] != '_')
-	    rust_warning_at (lhs.get_locus (), OPT_Wunused_variable,
-			     "unused assignment %qs", var_name.c_str ());
-	}
-    }
+  if (var_name[0] != '_'
+      && unused_context.is_assign_unused (lhs.get_mappings ().get_hirid ()))
+    rust_warning_at (lhs.get_locus (), OPT_Wunused_variable,
+		     "unused assignment %qs", var_name.c_str ());
 }
 
 void
@@ -375,6 +366,50 @@ UnusedChecker::visit (HIR::BorrowExpr &expr)
 	      rust_warning_at (expr.get_locus (), OPT_Wunused,
 			       "creating a reference to a mutable static");
 	  }
+  walk (expr);
+}
+
+namespace {
+// Probe whether an expression is itself an arithmetic negation, without
+// recursing (so it only inspects the node it is dispatched on). Used to detect
+// `- -x` for the double_negations lint, since gccrs builds with -fno-rtti and
+// HIR has no down-cast helper.
+class NegationProbe : public HIR::HIRFullVisitorBase
+{
+public:
+  bool is_negation = false;
+  using HIR::HIRFullVisitorBase::visit;
+  void visit (HIR::NegationExpr &expr) override
+  {
+    is_negation = expr.get_expr_type () == HIR::NegationExpr::ExprType::NEGATE;
+  }
+};
+} // namespace
+
+void
+UnusedChecker::visit (HIR::NegationExpr &expr)
+{
+  if (expr.get_expr_type () == HIR::NegationExpr::ExprType::NEGATE)
+    {
+      NegationProbe probe;
+      expr.get_expr ().accept_vis (probe);
+      if (probe.is_negation)
+	rust_warning_at (expr.get_locus (), OPT_Wunused,
+			 "use of a double negation");
+    }
+  walk (expr);
+}
+
+void
+UnusedChecker::visit (HIR::BreakExpr &expr)
+{
+  if (expr.has_label () && expr.has_break_expr ()
+      && expr.get_expr ().get_expression_type ()
+	   == HIR::Expr::ExprType::BaseLoop)
+    rust_warning_at (
+      expr.get_locus (), OPT_Wunused,
+      "this labeled %<break%> expression is easy to confuse with "
+      "an unlabeled %<break%> with a labeled value expression");
   walk (expr);
 }
 
