@@ -1,3 +1,22 @@
+2026-08-17  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/53800
+	* testsuite/libgomp.oacc-fortran/host_data-5.F90: Update the
+	privatization notes for the packing of a TARGET dummy.
+
+2026-08-14  Thomas Schwinge  <tschwinge@baylibre.com>
+
+	PR libgomp/41418
+	* configure.ac (FC): Revert ealier changes; just set to '"$GFORTRAN"'.
+	(USE_FORTRAN): Conditionalize on '--enable-languages=fortran' being in
+	effect.
+	* configure: Regenerate.
+
+2026-08-10  Paul-Antoine Arras  <parras@baylibre.com>
+
+	* loop.c (GOMP_loop_static_worksharing_start,
+	GOMP_loop_static_worksharing_end): Update comments.
+
 2026-08-05  Tobias Burnus  <tburnus@baylibre.com>
 
 	Revert:

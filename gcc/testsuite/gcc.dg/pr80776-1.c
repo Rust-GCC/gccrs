@@ -18,14 +18,9 @@ Foo (void)
   if (! (0 <= i && i <= 999999))
     __builtin_unreachable ();
 
-  /* Legacy evrp sets the range of i to [0, MAX] *before* the first conditional,
-     and to [0,999999] *before* the second conditional.  This is because both
-     evrp and VRP use trickery to set global ranges when this particular use of
-     a __builtin_unreachable is in play (see uses of
-     assert_unreachable_fallthru_edge_p).
-
-     Setting these ranges at the definition site, causes VRP to remove the
-     unreachable code altogether, leaving the following sprintf unguarded.  This
-     causes the bogus warning below.  */
-  sprintf (number, "%d", i); /* { dg-bogus "writing" "" } */
+  /* DOM does not handle unreachable in a decent way and sets the range for
+     i to be to [0,INF] rather than what VRP would do as [0,99999].
+     Causing the warning to show up.  VRP does not update the range since the default
+     from an argument.  See PR 126704. */
+  sprintf (number, "%d", i); /* { dg-bogus "writing" "" { xfail *-*-* } } */
 }

@@ -335,7 +335,7 @@ collsub_reduce_array (gfc_descriptor_t *desc, int result_image,
   if (pi.num_elem == 0)
     return;
 
-  elem_size = GFC_DESCRIPTOR_SPAN (desc);
+  elem_size = GFC_DESCRIPTOR_SIZE (desc);
   this_image_size_bytes = elem_size * pi.num_elem;
 
   buffer = get_collsub_buf (
@@ -407,9 +407,7 @@ collsub_broadcast_array (gfc_descriptor_t *desc, int source_image)
 	elem_size = strlen (desc->base_addr);
     }
   else
-    elem_size = GFC_DESCRIPTOR_SPAN (desc) != 0
-		  ? ((index_type) GFC_DESCRIPTOR_SPAN (desc))
-		  : ((index_type) GFC_DESCRIPTOR_SIZE (desc));
+    elem_size = (index_type) GFC_DESCRIPTOR_SIZE (desc);
   size_bytes = elem_size * pi.num_elem;
   buffer = get_collsub_buf (size_bytes);
 

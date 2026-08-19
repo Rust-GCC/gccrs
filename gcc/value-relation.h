@@ -110,6 +110,9 @@ public:
   relation_kind query (edge e, tree ssa1, tree ssa2);
   virtual relation_kind query (basic_block, tree, tree) { return VREL_VARYING; }
 
+  // Remove relations for an SSA_NAME
+  virtual void clear (tree) { }
+
   virtual void dump (FILE *, basic_block) const { }
   virtual void dump (FILE *) const  { }
   void debug () const;
@@ -174,6 +177,8 @@ public:
   relation_kind partial_equiv (tree ssa1, tree ssa2, tree *base = NULL) const;
   relation_kind query (basic_block, tree, tree) override;
   relation_kind query (basic_block, const_bitmap, const_bitmap) override;
+
+  virtual void clear (tree name);
   void dump (FILE *f, basic_block bb) const override;
   void dump (FILE *f) const override;
 
@@ -209,6 +214,7 @@ public:
   class relation_chain *m_head; // List of relations in block.
   int m_num_relations;		// Number of relations in block.
   relation_kind find_relation (const_bitmap b1, const_bitmap b2) const;
+  void clear (tree name);
 };
 
 // A relation oracle maintains a set of relations between ssa_names using the
@@ -234,6 +240,8 @@ public:
   relation_kind query (basic_block bb, const_bitmap b1, const_bitmap b2)
     final override;
 
+  virtual void clear (tree name);
+
   void dump (FILE *f, basic_block bb) const final override;
   void dump (FILE *f) const final override;
 protected:
@@ -245,11 +253,13 @@ protected:
   vec <relation_chain_head> m_relations;  // Index by BB, list of relations.
   relation_kind find_relation_block (unsigned bb, const_bitmap b1,
 				     const_bitmap b2) const;
-  relation_kind find_relation_block (int bb, unsigned v1, unsigned v2,
+  relation_kind find_relation_block (int bb, tree ssa1, tree ssa2,
 				     relation_chain **obj = NULL) const;
-  relation_kind find_relation_dom (basic_block bb, unsigned v1, unsigned v2) const;
-  relation_chain *set_one_relation (basic_block bb, relation_kind k, tree op1,
-				    tree op2);
+  relation_kind find_relation_dom (basic_block bb, tree ssa1, tree ssa2) const;
+  relation_chain *create_relation_in_bb (basic_block bb, relation_kind k,
+					 tree op1, tree op2);
+  relation_chain *search_and_merge_relation (basic_block bb, relation_kind k,
+					     tree op1, tree op2);
   void register_transitives (basic_block, const class value_relation &);
   relation_kind recomputed_relation (basic_block, edge, tree, tree) const;
 };
@@ -282,6 +292,9 @@ public:
   relation_kind query (basic_block, const_bitmap, const_bitmap) final override;
   void reset_path (relation_oracle *oracle = NULL);
   void set_root_oracle (relation_oracle *oracle) { m_root = oracle; }
+
+  virtual void clear (tree name);
+
   void dump (FILE *, basic_block) const final override;
   void dump (FILE *) const final override;
 private:

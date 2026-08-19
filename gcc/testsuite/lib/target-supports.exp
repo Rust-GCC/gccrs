@@ -11701,6 +11701,9 @@ proc check_effective_target_avx10v2aux { } {
 	foo ()
 	{
 	  __asm__ volatile ("vcvtps2bf8\t{%%xmm1, %%xmm0|%%xmm0, %%xmm1}");
+	  __asm__ volatile ("vcvtbf82ps\t{%%xmm1, %%xmm0|%%xmm0, %%xmm1}");
+	  __asm__ volatile ("vunpackb\t$1, %%ymm1, %%ymm0");
+	  __asm__ volatile ("vpmovssdb\t{%%zmm1, %%xmm0|%%xmm0, %%zmm1}");
 	}
     } "-mavx10v2aux" ]
 }
@@ -14136,6 +14139,16 @@ proc check_effective_target_arm_thumb2_ok_no_arm_v8_1m_lob { } {
     return 0
 }
 
+# Return 1 if this is an AArch64 target where -mabi=ilp32 can be used.
+# The option is deprecated, but we have active tests.
+
+proc check_effective_target_aarch64_mabi_ilp32 { } {
+  return [check_no_compiler_messages_nocache aarch64_mabi_ilp32 assembly {
+     int main() { return 0; }
+  } "-mabi=ilp32 -Wno-deprecated"]
+}
+
+
 # Returns 1 if the target is using glibc, 0 otherwise.
 
 proc check_effective_target_glibc { } {
@@ -14392,11 +14405,18 @@ proc check_effective_target_python3_module { module } {
     }]
 }
 
+# Helper to return the common pytest arguments
+proc pytest_invoke { } {
+    return [list python3 -m pytest --color=no -rap -s --tb=no \
+	    --rootdir . --basetemp pytest-tmp \
+	    -p no:cacheprovider]
+}
+
 # Return 1 if pytest module is available for python3.
 
 proc check_effective_target_pytest3 { } {
     return [check_cached_effective_target pytest3 {
-	set result [remote_exec host "python3 -m pytest --color=no -rap -s --tb=no --version"]
+	set result [remote_exec host "[pytest_invoke] --version"]
 	set status [lindex $result 0]
 	if { $status == 0 } then {
 	    return 1;

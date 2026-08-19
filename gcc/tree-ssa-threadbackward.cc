@@ -112,6 +112,7 @@ private:
   edge find_taken_edge (const vec<basic_block> &path);
   edge find_taken_edge_cond (const vec<basic_block> &path, gcond *);
   edge find_taken_edge_switch (const vec<basic_block> &path, gswitch *);
+  edge find_taken_edge_goto (const vec<basic_block> &path, ggoto *);
   virtual void debug ();
   virtual void dump (FILE *out);
 
@@ -280,9 +281,42 @@ back_threader::find_taken_edge (const vec<basic_block> &path)
     case GIMPLE_SWITCH:
       return find_taken_edge_switch (path, as_a<gswitch *> (m_last_stmt));
 
+    case GIMPLE_GOTO:
+      return find_taken_edge_goto (path, as_a<ggoto *> (m_last_stmt));
+
     default:
       return NULL;
     }
+}
+
+// Same as find_taken_edge, but for paths ending in a computed goto.
+
+edge
+back_threader::find_taken_edge_goto (const vec<basic_block> &path,
+				     ggoto *stmt)
+{
+  tree dest = gimple_goto_dest (stmt);
+
+  if (TREE_CODE (dest) == SSA_NAME)
+    {
+      prange r;
+      path_range_query solver (*m_ranger, path, m_imports,
+			       m_flags & BT_RESOLVE);
+      if (!solver.range_of_expr (r, dest, stmt))
+	return NULL;
+
+      if (r.undefined_p ())
+	return UNREACHABLE_EDGE;
+
+      dest = r.pt_invariant ();
+      if (!dest)
+	return NULL;
+    }
+
+  // For a destination that did not resolve to a label,
+  // ::find_taken_edge at most returns the block's single successor,
+  // the only place it could go.
+  return ::find_taken_edge (gimple_bb (stmt), dest);
 }
 
 // Same as find_taken_edge, but for paths ending in a switch.
@@ -362,6 +396,7 @@ back_threader::find_paths_to_names (basic_block bb, bitmap interesting,
   // edge might help here.  Alternatively copying divergent control flow
   // on the way to the backedge could be worthwhile.
   bool large_non_fsm;
+  edge e;
   if (m_path.length () > 1
       && (!profit.possibly_profitable_path_p (m_path, &large_non_fsm)
 	  || (!large_non_fsm
@@ -371,7 +406,10 @@ back_threader::find_paths_to_names (basic_block bb, bitmap interesting,
   // The backwards thread copier cannot copy blocks that do not belong
   // to the same loop, so when the new source of the path entry no
   // longer belongs to it we don't need to search further.
-  else if (m_path[0]->loop_father != bb->loop_father)
+  else if (m_path[0]->loop_father != bb->loop_father
+	   && (!(e = loop_exits_from_bb_p (m_path[0]->loop_father,
+					   m_path[0]))
+	       || e->dest->loop_father != bb->loop_father))
     ;
 
   // Continue looking for ways to extend the path but limit the
@@ -416,11 +454,7 @@ back_threader::find_paths_to_names (basic_block bb, bitmap interesting,
 		}
 	      /* Local PHIs participate in renaming below.  */
 	      if (gphi *phi = dyn_cast<gphi *> (def_stmt))
-		{
-		  tree res = gimple_phi_result (phi);
-		  if (!SSA_NAME_OCCURS_IN_ABNORMAL_PHI (res))
-		    interesting_phis.safe_push (phi);
-		}
+		interesting_phis.safe_push (phi);
 	      /* For other local defs process their uses, amending
 		 imports on the way.  */
 	      else
@@ -451,13 +485,7 @@ back_threader::find_paths_to_names (basic_block bb, bitmap interesting,
 	  FOR_EACH_EDGE (e, iter, bb->preds)
 	    {
 	      if (e->flags & EDGE_ABNORMAL
-		  // This is like path_crosses_loops in profitable_path_p but
-		  // more restrictive to avoid peeling off loop iterations (see
-		  // tree-ssa/pr14341.c for an example).
-		  // ???  Note this restriction only applied when visiting an
-		  // interesting PHI with the former resolve_phi.
-		  || (!interesting_phis.is_empty ()
-		      && m_path[0]->loop_father != e->src->loop_father))
+		  || e->src->index == ENTRY_BLOCK)
 		continue;
 	      for (gphi *phi : interesting_phis)
 		{
@@ -515,7 +543,8 @@ back_threader::maybe_thread_block (basic_block bb)
 
   enum gimple_code code = gimple_code (stmt);
   if (code != GIMPLE_SWITCH
-      && code != GIMPLE_COND)
+      && code != GIMPLE_COND
+      && code != GIMPLE_GOTO)
     return;
 
   m_last_stmt = stmt;

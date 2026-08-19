@@ -381,6 +381,17 @@ block_range_cache::~block_range_cache ()
   bitmap_obstack_release (&m_bitmaps);
 }
 
+// Clear block info for NAME.
+
+void
+block_range_cache::clear (tree name)
+{
+  unsigned v = SSA_NAME_VERSION (name);
+  if (v >= m_ssa_ranges.length ())
+    return;
+  m_ssa_ranges[v] = NULL;
+}
+
 // Set the range for NAME on entry to block BB to R.
 // If it has not been accessed yet, allocate it first.
 
@@ -1813,11 +1824,28 @@ ranger_cache::range_from_dom (vrange &r, tree name, basic_block start_bb,
   else
     bb = get_immediate_dominator (CDI_DOMINATORS, start_bb);
 
+  bool abnormal_dominator = false;
   // Search until a value is found, pushing blocks which may need calculating.
   for ( ; bb; prev_bb = bb, bb = get_immediate_dominator (CDI_DOMINATORS, bb))
     {
-      // Accumulate any block exit inferred ranges.
-      infer_oracle ().maybe_adjust_range (infer, name, bb);
+      if (has_abnormal_call_or_eh_pred_edge_p (prev_bb))
+	abnormal_dominator = true;
+
+      // find the taken outgoing edge and check if it is abnormal.
+      if (!abnormal_dominator)
+	{
+	  edge e;
+	  edge_iterator ei;
+	  FOR_EACH_EDGE (e, ei, bb->succs)
+	    if (dominated_by_p (CDI_DOMINATORS, prev_bb, e->dest))
+	      {
+		if (e->flags & (EDGE_ABNORMAL | EDGE_EH))
+		  abnormal_dominator = true;
+		break;
+	      }
+	  // Accumulate any block exit inferred ranges.
+	  infer_oracle ().maybe_adjust_range (infer, name, bb);
+	}
 
       // This block has an outgoing range.
       if (gori ().has_edge_range_p (name, bb))
@@ -1904,9 +1932,8 @@ ranger_cache::range_from_dom (vrange &r, tree name, basic_block start_bb,
 	}
     }
 
-  // Apply non-null if appropriate.
-  if (!has_abnormal_call_or_eh_pred_edge_p (start_bb))
-    r.intersect (infer);
+  // Apply any inferred ranges discovered.
+  r.intersect (infer);
 
   if (DEBUG_RANGE_CACHE)
     {
@@ -1965,4 +1992,14 @@ ranger_cache::apply_inferred_ranges (gimple *s)
   if (update)
     for (unsigned x = 0; x < infer.num (); x++)
       register_inferred_value (infer.range (x), infer.name (x), bb);
+}
+
+// Reset range info for NAME.
+
+void
+ranger_cache::reset_range_info (tree name)
+{
+  m_on_entry.clear (name);
+  m_globals.clear_range (name);
+  range_query::reset_range_info (name);
 }

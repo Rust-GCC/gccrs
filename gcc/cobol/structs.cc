@@ -45,7 +45,7 @@
         to the current statement list.
 
         Your best bet is to simply emulate the code here to create the type_decl
-        for each structure, and then just use gg_declare_variable() to create the
+        for each structure, and then just use gg_define_variable() to create the
         storage when you need it.
 
         Learning from the code in genapi.c is your best bet.
@@ -308,7 +308,7 @@ typedef struct cblc_file_t
     int                  errnum;           // most recent errno; can't reuse "errno" as the name
     file_status_t        io_status;        // See 2014 standard, section 9.1.12
     int                  padding;          // Actually a char
-    uint32_t             delimiter;        // ends a record; defaults to '\n'.
+    uint32_t             delimiter;        // This is four bytes in encoding order.
     int                  stride;           // Width of a character
     int                  flags;            // cblc_file_flags_t
     uint32_t             recent_char;      // This is the most recent char sent to the file

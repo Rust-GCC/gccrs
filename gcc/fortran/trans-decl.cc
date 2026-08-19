@@ -709,14 +709,11 @@ gfc_finish_var_decl (tree decl, gfc_symbol * sym)
 	 into common space, then C cannot initialize global Fortran
 	 variables that it interoperates with and the draft says that
 	 either Fortran or C should be able to initialize it (but not
-	 both, of course.) (J3/04-007, section 15.3).  */
+	 both, of course.) (J3/04-007, section 15.3).  A binding label has
+	 external linkage, so PRIVATE hides only the Fortran name and must
+	 not restrict the symbol's visibility.  */
       TREE_PUBLIC(decl) = 1;
       DECL_COMMON(decl) = 1;
-      if (sym->attr.access == ACCESS_PRIVATE && !sym->attr.public_used)
-	{
-	  DECL_VISIBILITY (decl) = VISIBILITY_HIDDEN;
-	  DECL_VISIBILITY_SPECIFIED (decl) = true;
-	}
     }
 
   /* If a variable is USE associated, it's always external.  */
@@ -742,7 +739,8 @@ gfc_finish_var_decl (tree decl, gfc_symbol * sym)
 
       TREE_PUBLIC (decl) = 1;
       TREE_STATIC (decl) = 1;
-      if (sym->attr.access == ACCESS_PRIVATE && !sym->attr.public_used)
+      if (sym->attr.access == ACCESS_PRIVATE && !sym->attr.public_used
+	  && !sym->binding_label)
 	{
 	  DECL_VISIBILITY (decl) = VISIBILITY_HIDDEN;
 	  DECL_VISIBILITY_SPECIFIED (decl) = true;
@@ -1408,6 +1406,11 @@ gfc_build_dummy_array_decl (gfc_symbol * sym, tree dummy)
 
   GFC_DECL_SAVED_DESCRIPTOR (decl) = dummy;
 
+  /* The elements of the actual argument can be spaced by more than the
+     element size, so the span of the descriptor is used to address them.  */
+  if (gfc_is_span_addressed_dummy (sym) && packed == PACKED_NO)
+    GFC_DECL_PTR_ARRAY_P (decl) = 1;
+
   if (sym->ns->proc_name->backend_decl == current_function_decl
       || sym->attr.contained)
     gfc_add_decl_to_function (decl);
@@ -1786,7 +1789,8 @@ gfc_get_symbol_decl (gfc_symbol * sym)
 	  && sym->attr.allocatable)
 	gfc_defer_symbol_init (sym);
 
-      if (sym->attr.pointer && sym->attr.dimension && sym->ts.type != BT_CLASS)
+      if ((sym->attr.pointer && sym->attr.dimension && sym->ts.type != BT_CLASS)
+	  || gfc_is_span_addressed_dummy (sym))
 	GFC_DECL_PTR_ARRAY_P (sym->backend_decl) = 1;
 
       /* Create a character length variable.  */
@@ -1848,8 +1852,11 @@ gfc_get_symbol_decl (gfc_symbol * sym)
 		    gfc_add_decl_to_parent_function (length);
 		}
 
-	      gcc_assert (sym->backend_decl == current_function_decl
-			  ? DECL_CONTEXT (length) == current_function_decl
+	      /* When the symbol's own backend_decl is a FUNCTION_DECL, its
+		 DECL_CONTEXT is where that function itself is declared, not
+		 where its locals live.  */
+	      gcc_assert (TREE_CODE (sym->backend_decl) == FUNCTION_DECL
+			  ? DECL_CONTEXT (length) == sym->backend_decl
 			  : (DECL_CONTEXT (sym->backend_decl)
 			     == DECL_CONTEXT (length)));
 
@@ -2077,6 +2084,20 @@ gfc_get_symbol_decl (gfc_symbol * sym)
       && !(sym->attr.select_type_temporary
 	   && !sym->attr.subref_array_pointer))
     GFC_DECL_PTR_ARRAY_P (decl) = 1;
+
+  /* A SELECT RANK temporary uses a copy of the selector's descriptor.
+     Its elements may be spaced by more than the element size,
+     so use copied span as well.  */
+  if (sym->attr.select_rank_temporary && sym->attr.dimension
+      && GFC_DESCRIPTOR_TYPE_P (TREE_TYPE (decl))
+      && sym->assoc && sym->assoc->target
+      && sym->assoc->target->expr_type == EXPR_VARIABLE)
+    {
+      gfc_symbol *sel = sym->assoc->target->symtree->n.sym;
+      if (!sel->attr.contiguous
+	  && (sel->attr.target || sel->attr.pointer || sel->ts.type == BT_CLASS))
+	GFC_DECL_PTR_ARRAY_P (decl) = 1;
+    }
 
   if (sym->ts.type == BT_CLASS)
     GFC_DECL_CLASS(decl) = 1;
@@ -2600,9 +2621,10 @@ build_function_decl (gfc_symbol * sym, bool global)
       /* Mirror the variable treatment (see gfc_finish_var_decl): PRIVATE
 	 module procedures get global linkage but hidden visibility so the
 	 symbol is reachable from submodules in the same link without being
-	 exported to external DSOs.  */
+	 exported to external DSOs.  A binding label has external linkage,
+	 so PRIVATE hides only the Fortran name.  */
       if (in_module_contains && sym->attr.access == ACCESS_PRIVATE
-	  && !sym->attr.public_used)
+	  && !sym->attr.public_used && !sym->binding_label)
 	{
 	  DECL_VISIBILITY (fndecl) = VISIBILITY_HIDDEN;
 	  DECL_VISIBILITY_SPECIFIED (fndecl) = true;

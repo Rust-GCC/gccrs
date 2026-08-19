@@ -109,12 +109,17 @@
     */
 
 enum gg_variable_scope_t {
-  vs_stack,
-  vs_static,
-  vs_file_static,           // static variable of file scope
-  vs_external,              // Creates a PUBLIC STATIC variable of file scope
-  vs_external_reference,    // References the previous
-  vs_file,                  // variable of file scope, without static
+  // These scopes reference the GCC world rather than the COBOL world.
+  // This is in contrast to the cbl_field_attr_t bits, where external_e means
+  // the variable had the COBOL EXTERNAL clause, which causes a variable to
+  // have a weak cblc_field_t and a common cblc_field_t::data.
+  vs_stack,        // An automatic variable.
+  vs_static,       // A static variable of function scope.
+  vs_file_static,  // static variable of file scope.
+  vs_weak,         // A "weak" variable.
+  vs_common,       // A COMMON variable.
+  vs_global,       // A global variable, e.g. "int xxx;" in C
+  vs_extern,       // A declaration for a global; "extern int xxx;"
 };
 
 struct gg_function_t
@@ -355,6 +360,7 @@ extern tree gg_define_from_declaration(tree var_decl);
 // Generalized variable definers.  These create storage
 extern tree gg_define_variable(tree type_decl);
 extern tree gg_define_variable(tree type_decl, tree initial_value);
+extern tree gg_define_variable(tree type_decl, ssize_t initial_value);
 extern tree gg_define_variable(tree type_decl, gg_variable_scope_t vs_scope);
 extern tree gg_define_variable(tree type_decl,
                                const char *name,
@@ -363,65 +369,12 @@ extern tree gg_define_variable(tree type_decl,
                                const char *name,
                                gg_variable_scope_t vs_scope,
                                tree initial_value);
-extern tree gg_define_volatile_variable(tree type_decl,
-                                        const char *name,
-                                        gg_variable_scope_t vs_scope);
-// Utility definers:
-extern tree gg_define_bool();
-extern tree gg_define_char();
-extern tree gg_define_char(const char *variable_name);
-extern tree gg_define_char(const char *variable_name, tree ch);
-extern tree gg_define_char(const char *variable_name, int ch);
-
-extern tree gg_define_uchar();
-extern tree gg_define_uchar(const char *variable_name);
-extern tree gg_define_uchar(const char *variable_name, tree ch);
-extern tree gg_define_uchar(const char *variable_name, int ch);
-
-extern tree gg_define_int();
-extern tree gg_define_int(int N);
-extern tree gg_define_int(const char *variable_name);
-extern tree gg_define_int(const char *variable_name, tree N);
-extern tree gg_define_int(const char *variable_name, int N);
-
-extern tree gg_define_size_t();
-extern tree gg_define_size_t(const char *variable_name);
-extern tree gg_define_size_t(const char *variable_name, tree N);
-extern tree gg_define_size_t(const char *variable_name, size_t N);
-extern tree gg_define_size_t(tree N);
-extern tree gg_define_size_t(size_t N);
-
-extern tree gg_define_int128();
-extern tree gg_define_int128(const char *variable_name);
-extern tree gg_define_int128(const char *variable_name, tree N);
-extern tree gg_define_int128(const char *variable_name, int N);
-
-extern tree gg_define_longdouble();
-
-extern tree gg_define_void_star();
-extern tree gg_define_void_star(tree var);
-extern tree gg_define_void_star(const char *variable_name);
-extern tree gg_define_void_star(const char *variable_name, tree var);
-extern tree gg_define_void_star(const char *variable_name, gg_variable_scope_t scope);
-
-extern tree gg_define_char_star();
-extern tree gg_define_char_star(tree var);
-extern tree gg_define_char_star(const char *variable_name);
-extern tree gg_define_char_star(const char *variable_name, tree var);
-extern tree gg_define_char_star(const char *variable_name, gg_variable_scope_t scope);
-
-extern tree gg_define_uchar_star();
-extern tree gg_define_uchar_star(const char *variable_name);
-extern tree gg_define_uchar_star(const char *variable_name, gg_variable_scope_t scope);
-extern tree gg_define_uchar_star(tree var);
-extern tree gg_define_uchar_star(const char *variable_name, tree var);
 
 // address_of operator; equivalent of C "&var_decl"
 extern tree gg_get_address_of(const tree var_decl); // For scalars
 // equivalent of C "&array[0]"
 extern tree gg_pointer_to_array(tree array);        // For arrays
 extern tree gg_get_address(const tree var_decl);
-
 
 // Array creation and access:
 extern tree gg_define_array(tree type_decl, size_t size);
@@ -561,7 +514,7 @@ extern void gg_free(tree pointer);
 extern tree gg_strlen(tree psz);
 extern size_t gg_sizeof(tree decl_node);
 
-extern tree gg_array_of_field_pointers( const std::vector<cbl_field_t *> &fields );
+extern tree gg_array_of_field_pointers( const std::vector<const cbl_field_t *> &fields );
 extern tree gg_array_of_bytes( size_t N, unsigned char *values);
 extern tree gg_indirect(tree pointer, tree byte_offset = NULL_TREE);
 extern tree gg_indirect_i(tree pointer, size_t offset=0);

@@ -2348,9 +2348,10 @@ gfc_conv_is_contiguous_expr (gfc_se *se, gfc_expr *arg)
       gfc_conv_expr_descriptor (&argse, arg);
       gfc_add_block_to_block (&se->pre, &argse.pre);
       gfc_add_block_to_block (&se->post, &argse.post);
-      desc = gfc_evaluate_now (argse.expr, &se->pre);
+      tree ptr = gfc_evaluate_now (argse.expr, &se->pre);
       fncall0 = build_call_expr_loc (input_location,
-				     gfor_fndecl_is_contiguous0, 1, desc);
+				     gfor_fndecl_is_contiguous0, 1, ptr);
+      desc = build_fold_indirect_ref_loc (input_location, ptr);
       se->expr = fncall0;
       se->expr = convert (boolean_type_node, se->expr);
     }
@@ -2385,9 +2386,10 @@ gfc_conv_is_contiguous_expr (gfc_se *se, gfc_expr *arg)
       se->expr = cond;
     }
 
-  /* A pointer that does not have the CONTIGUOUS attribute needs to be checked
-     if it points to an array whose span differs from the element size.  */
-  if (as && sym && IS_POINTER(sym) && !sym->attr.contiguous)
+  /* An array that is addressed by the span of its descriptor needs to be
+     checked if that span differs from the element size.  */
+  if (as && sym && !sym->attr.contiguous
+      && (IS_POINTER (sym) || gfc_is_span_addressed_dummy (sym)))
     {
       tree span = gfc_conv_descriptor_span_get (desc);
       tmp = fold_convert (TREE_TYPE (span),
@@ -2397,6 +2399,15 @@ gfc_conv_is_contiguous_expr (gfc_se *se, gfc_expr *arg)
       se->expr = fold_build2_loc (input_location, TRUTH_ANDIF_EXPR,
 				  boolean_type_node, cond,
 				  convert (boolean_type_node, se->expr));
+    }
+
+  if (as && as->type == AS_ASSUMED_RANK)
+    {
+      tree rank = gfc_conv_descriptor_rank_get (desc);
+      tree scalar = fold_build2_loc (input_location, EQ_EXPR, boolean_type_node,
+				     rank, gfc_rank_cst[0]);
+      se->expr = fold_build2_loc (input_location, TRUTH_ORIF_EXPR,
+				  TREE_TYPE (se->expr), scalar, se->expr);
     }
 
   gfc_free_ss_chain (ss);

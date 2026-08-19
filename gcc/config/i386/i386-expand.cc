@@ -2922,6 +2922,7 @@ ix86_expand_fp_compare (enum rtx_code code, rtx op0, rtx op1)
   rtx tmp, scratch;
 
   code = ix86_prepare_fp_compare_args (code, &op0, &op1);
+  machine_mode op_mode = GET_MODE (op0);
 
   tmp = gen_rtx_COMPARE (CCFPmode, op0, op1);
   if (unordered_compare)
@@ -2932,14 +2933,14 @@ ix86_expand_fp_compare (enum rtx_code code, rtx op0, rtx op1)
     {
     case IX86_FPCMP_COMI:
       tmp = gen_rtx_COMPARE (CCFPmode, op0, op1);
+      /* VCOMX/VUCOMX only have DF/SF/HF mode instructions.  */
+      if (TARGET_AVX10_2
+	  && (code == EQ || code == NE)
+	  && (op_mode == HFmode || op_mode == SFmode || op_mode == DFmode))
+	tmp = gen_rtx_UNSPEC (CCFPmode, gen_rtvec (1, tmp), UNSPEC_OPTCOMX);
       /* We only have vcomisbf16, No vcomubf16 nor vcomxbf16 */
-      if (GET_MODE (op0) != E_BFmode)
-	{
-	  if (TARGET_AVX10_2 && (code == EQ || code == NE))
-	    tmp = gen_rtx_UNSPEC (CCFPmode, gen_rtvec (1, tmp), UNSPEC_OPTCOMX);
-	  if (unordered_compare)
-	    tmp = gen_rtx_UNSPEC (CCFPmode, gen_rtvec (1, tmp), UNSPEC_NOTRAP);
-	}
+      if (op_mode != BFmode && unordered_compare)
+	tmp = gen_rtx_UNSPEC (CCFPmode, gen_rtvec (1, tmp), UNSPEC_NOTRAP);
       cmp_mode = CCFPmode;
       emit_insn (gen_rtx_SET (gen_rtx_REG (CCFPmode, FLAGS_REG), tmp));
       break;
@@ -13321,6 +13322,9 @@ ix86_expand_args_builtin (const struct builtin_description *d,
     case V4DF_FTYPE_V8DF_INT_V4DF_UQI:
     case V4SF_FTYPE_V16SF_INT_V4SF_UQI:
     case V8DI_FTYPE_V8DI_INT_V8DI_UQI:
+    case V16QI_FTYPE_V16QI_INT_V16QI_UHI:
+    case V32QI_FTYPE_V32QI_INT_V32QI_USI:
+    case V64QI_FTYPE_V64QI_INT_V64QI_UDI:
       nargs = 4;
       mask_pos = 2;
       nargs_constant = 1;
@@ -13591,6 +13595,22 @@ ix86_expand_args_builtin (const struct builtin_description *d,
 		  }
 		return const0_rtx;
 	      }
+	  if ((icode == CODE_FOR_vunpackbv16qi_mask
+	       || icode == CODE_FOR_vunpackbv32qi_mask
+	       || icode == CODE_FOR_vunpackbv64qi_mask)
+	      && CONST_INT_P (op))
+	    {
+	      char val = INTVAL (op);
+	      if ((val & 0xc0)
+		  || (!(val & 0x18))
+		  || ((val & 0x02) && ((val & 0x1c) != 0x08))
+		  || ((val & 0x01) && (((val & 0x1c) >> 2) > 0x4)))
+		{
+		  error ("the last argument must not use reserved value "
+			 "immediate");
+		  return const0_rtx;
+		}
+	    }
 	}
       else
 	{

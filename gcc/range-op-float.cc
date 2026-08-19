@@ -62,9 +62,49 @@ range_operator::fold_range (frange &r, tree type,
       return true;
     }
 
-  rv_fold (r, type,
-	   op1.lower_bound (), op1.upper_bound (),
-	   op2.lower_bound (), op2.upper_bound (), trio.op1_op2 ());
+  relation_kind rel = trio.op1_op2 ();
+  r.set_undefined ();
+  frange tmp;
+  if (relation_equiv_p (rel) && op1 == op2)
+    {
+      // The operands are known equal (x op x).  Fold each sub-range against
+      // itself, the diagonal of the cross product, so a relation-aware rv_fold
+      // like operator_mult's is_square stays valid.
+      //
+      // For x * x with x in [-3, -2] U [2, 3] the diagonal is
+      //
+      //     [-3, -2] * [-3, -2] = [4, 9]
+      //     [ 2,  3] * [ 2,  3] = [4, 9]
+      //
+      // giving the exact [4, 9].  The full cross product would form:
+      //
+      //     [-3, -2] * [-3, -2] = [4, 9]
+      //     [-3, -2] * [ 2,  3] = [-9, -4]
+      //     [ 2,  3] * [-3, -2] = [-9, -4]
+      //     [ 2,  3] * [ 2,  3] = [4, 9]
+      //
+      // whose union [-9, -4] U [4, 9] contains negative products that x * x
+      // can never produce: the off-diagonal terms pair a value from one
+      // sub-range with a value from the other, which x (a single value) can
+      // never do.
+      for (unsigned i = 0; i < op1.num_pairs (); ++i)
+	{
+	  rv_fold (tmp, type,
+		   op1.lower_bound (i), op1.upper_bound (i),
+		   op1.lower_bound (i), op1.upper_bound (i), rel);
+	  r.union_ (tmp);
+	}
+    }
+  else
+    // Otherwise do the straight cross product.
+    for (unsigned i = 0; i < op1.num_pairs (); ++i)
+      for (unsigned j = 0; j < op2.num_pairs (); ++j)
+	{
+	  rv_fold (tmp, type,
+		   op1.lower_bound (i), op1.upper_bound (i),
+		   op2.lower_bound (j), op2.upper_bound (j), rel);
+	  r.union_ (tmp);
+	}
 
   if (r.known_isnan ())
     return true;
@@ -2256,8 +2296,7 @@ float_binary_op_range_finish (bool ret, frange &r, tree type,
     {
       r.clear_nan ();
       if (div_op2
-	  ? !(real_compare (LE_EXPR, &lhs.lower_bound (), &dconst0)
-	      && real_compare (GE_EXPR, &lhs.upper_bound (), &dconst0))
+	  ? !lhs.contains_zero_p ()
 	  : !(real_isinf (&lhs.lower_bound ())
 	      || real_isinf (&lhs.upper_bound ())))
 	// For reverse + or - or * or op1 of /, if result is finite, then
@@ -2855,7 +2894,6 @@ bool
 operator_cast::fold_range (frange &r, tree type, const frange &op1,
 			   const frange &, relation_trio) const
 {
-  REAL_VALUE_TYPE lb, ub;
   enum machine_mode mode = TYPE_MODE (type);
   bool mode_composite = MODE_COMPOSITE_P (mode);
 
@@ -2872,46 +2910,53 @@ operator_cast::fold_range (frange &r, tree type, const frange &op1,
       return true;
     }
 
-  const REAL_VALUE_TYPE &lh_lb = op1.lower_bound ();
-  const REAL_VALUE_TYPE &lh_ub = op1.upper_bound ();
-  real_convert (&lb, mode, &lh_lb);
-  real_convert (&ub, mode, &lh_ub);
-
-  if (flag_rounding_math)
+  r.set_undefined ();
+  for (unsigned i = 0; i < op1.num_pairs (); ++i)
     {
-      if (real_less (&lh_lb, &lb))
-	{
-	  if (mode_composite
-	      && (real_isdenormal (&lb, mode) || real_iszero (&lb)))
-	    {
-	      // IBM extended denormals only have DFmode precision.
-	      REAL_VALUE_TYPE tmp, tmp2;
-	      real_convert (&tmp2, DFmode, &lh_lb);
-	      real_nextafter (&tmp, REAL_MODE_FORMAT (DFmode), &tmp2,
-			      &dconstninf);
-	      real_convert (&lb, mode, &tmp);
-	    }
-	  else
-	    frange_nextafter (mode, lb, dconstninf);
-	}
-      if (real_less (&ub, &lh_ub))
-	{
-	  if (mode_composite
-	      && (real_isdenormal (&ub, mode) || real_iszero (&ub)))
-	    {
-	      // IBM extended denormals only have DFmode precision.
-	      REAL_VALUE_TYPE tmp, tmp2;
-	      real_convert (&tmp2, DFmode, &lh_ub);
-	      real_nextafter (&tmp, REAL_MODE_FORMAT (DFmode), &tmp2,
-			      &dconstinf);
-	      real_convert (&ub, mode, &tmp);
-	    }
-	  else
-	    frange_nextafter (mode, ub, dconstinf);
-	}
-    }
+      REAL_VALUE_TYPE lb, ub;
+      const REAL_VALUE_TYPE &lh_lb = op1.lower_bound (i);
+      const REAL_VALUE_TYPE &lh_ub = op1.upper_bound (i);
+      real_convert (&lb, mode, &lh_lb);
+      real_convert (&ub, mode, &lh_ub);
 
-  r.set (type, lb, ub, op1.get_nan_state ());
+      if (flag_rounding_math)
+	{
+	  if (real_less (&lh_lb, &lb))
+	    {
+	      if (mode_composite
+		  && (real_isdenormal (&lb, mode) || real_iszero (&lb)))
+		{
+		  // IBM extended denormals only have DFmode precision.
+		  REAL_VALUE_TYPE tmp, tmp2;
+		  real_convert (&tmp2, DFmode, &lh_lb);
+		  real_nextafter (&tmp, REAL_MODE_FORMAT (DFmode), &tmp2,
+				  &dconstninf);
+		  real_convert (&lb, mode, &tmp);
+		}
+	      else
+		frange_nextafter (mode, lb, dconstninf);
+	    }
+	  if (real_less (&ub, &lh_ub))
+	    {
+	      if (mode_composite
+		  && (real_isdenormal (&ub, mode) || real_iszero (&ub)))
+		{
+		  // IBM extended denormals only have DFmode precision.
+		  REAL_VALUE_TYPE tmp, tmp2;
+		  real_convert (&tmp2, DFmode, &lh_ub);
+		  real_nextafter (&tmp, REAL_MODE_FORMAT (DFmode), &tmp2,
+				  &dconstinf);
+		  real_convert (&ub, mode, &tmp);
+		}
+	      else
+		frange_nextafter (mode, ub, dconstinf);
+	    }
+	}
+
+      frange tmp;
+      tmp.set (type, lb, ub, op1.get_nan_state ());
+      r.union_ (tmp);
+    }
 
   if (flag_trapping_math
       && MODE_HAS_INFINITIES (TYPE_MODE (type))
@@ -2985,31 +3030,37 @@ operator_cast::fold_range (irange &r, tree type, const frange &op1,
       r.set_varying (type);
       return true;
     }
-  REAL_VALUE_TYPE lb, ub;
-  real_trunc (&lb, VOIDmode, &op1.lower_bound ());
-  real_trunc (&ub, VOIDmode, &op1.upper_bound ());
   REAL_VALUE_TYPE l, u;
   l = real_value_from_int_cst (NULL_TREE, TYPE_MIN_VALUE (type));
-  if (real_less (&lb, &l))
-    {
-      r.set_varying (type);
-      return true;
-    }
   u = real_value_from_int_cst (NULL_TREE, TYPE_MAX_VALUE (type));
-  if (real_less (&u, &ub))
+
+  r.set_undefined ();
+  for (unsigned i = 0; i < op1.num_pairs (); ++i)
     {
-      r.set_varying (type);
-      return true;
+      REAL_VALUE_TYPE lb, ub;
+      real_trunc (&lb, VOIDmode, &op1.lower_bound (i));
+      real_trunc (&ub, VOIDmode, &op1.upper_bound (i));
+      if (real_less (&lb, &l))
+	{
+	  r.set_varying (type);
+	  return true;
+	}
+      if (real_less (&u, &ub))
+	{
+	  r.set_varying (type);
+	  return true;
+	}
+      bool fail = false;
+      wide_int wlb = real_to_integer (&lb, &fail, TYPE_PRECISION (type));
+      wide_int wub = real_to_integer (&ub, &fail, TYPE_PRECISION (type));
+      if (fail)
+	{
+	  r.set_varying (type);
+	  return true;
+	}
+      int_range<2> tmp (type, wlb, wub);
+      r.union_ (tmp);
     }
-  bool fail = false;
-  wide_int wlb = real_to_integer (&lb, &fail, TYPE_PRECISION (type));
-  wide_int wub = real_to_integer (&ub, &fail, TYPE_PRECISION (type));
-  if (fail)
-    {
-      r.set_varying (type);
-      return true;
-    }
-  r.set (type, wlb, wub);
   return true;
 }
 
@@ -3227,15 +3278,18 @@ range_op_float_tests ()
 
   // op1_range for "op1 == op2" where op2 = [-1.0,-0.0][1.0,1.0] holds -0.0 but
   // not +0.0 must still admit +0.0 for op1, since -0.0 == +0.0.
-  r0 = frange_float ("-1.0", "-0.0");
-  r1 = frange_float ("1.0", "1.0");
-  r0.union_ (r1);
-  r0.clear_nan ();
-  ASSERT_FALSE (r0.contains_p (dconst0));
-  ASSERT_TRUE (r0.contains_p (dconstm0));
-  int_range<2> bool_true = range_true ();
-  range_op_handler (EQ_EXPR).op1_range (r, float_type_node, bool_true, r0);
-  ASSERT_TRUE (r.contains_p (dconst0));
+  if (HONOR_SIGNED_ZEROS (float_type_node))
+    {
+      r0 = frange_float ("-1.0", "-0.0");
+      r1 = frange_float ("1.0", "1.0");
+      r0.union_ (r1);
+      r0.clear_nan ();
+      ASSERT_FALSE (r0.contains_p (dconst0));
+      ASSERT_TRUE (r0.contains_p (dconstm0));
+      int_range<2> bool_true = range_true ();
+      range_op_handler (EQ_EXPR).op1_range (r, float_type_node, bool_true, r0);
+      ASSERT_TRUE (r.contains_p (dconst0));
+    }
 
   // negate([1, 2] U [10, 11]) => [-11, -10] U [-2, -1], keeping the gap.
   r0 = frange_float ("1.0", "2.0");
@@ -3263,6 +3317,54 @@ range_op_float_tests ()
   i0.union_ (i1);
   range_op_handler (FLOAT_EXPR).fold_range (r, float_type_node, i0, trange);
   ASSERT_EQ (r.num_pairs (), 2);
+
+  // Casting the double range [1,2] U [10,11] to float stays two pieces rather
+  // than collapsing to the hull [1, 11].
+  r0 = frange_float ("1.0", "2.0", double_type_node);
+  r1 = frange_float ("10.0", "11.0", double_type_node);
+  r0.union_ (r1);
+  r0.clear_nan ();
+  range_op_handler (CONVERT_EXPR).fold_range (r, float_type_node, r0, r0);
+  ASSERT_EQ (r.num_pairs (), 2);
+
+  // Cast conversion of (int)([1.0,2.0] U [10.0,11.0]) stays two pieces.
+  r0 = frange_float ("1.0", "2.0");
+  r1 = frange_float ("10.0", "11.0");
+  r0.union_ (r1);
+  r0.clear_nan ();
+  int_range<2> ir, ir_op2;
+  range_op_handler (FIX_TRUNC_EXPR).fold_range (ir, integer_type_node,
+						r0, ir_op2);
+  ASSERT_EQ (ir.num_pairs (), 2);
+
+  // ([1, 2] U [10, 11]) + 0 stays two pieces.
+  r0 = frange_float ("1.0", "2.0");
+  r1 = frange_float ("10.0", "11.0");
+  r0.union_ (r1);
+  r0.clear_nan ();
+  r1 = frange_float ("0.0", "0.0");
+  r1.clear_nan ();
+  range_op_handler (PLUS_EXPR).fold_range (r, float_type_node, r0, r1);
+  ASSERT_EQ (r.num_pairs (), 2);
+
+  // x * x (VREL_EQ) with a two-piece x: the diagonal fold gives the exact
+  // [4, 9], not the full cross product's [-9, -4] U [4, 9], nor the hull's
+  // looser [0, 9].
+  r0 = frange_float ("-3.0", "-2.0");
+  r1 = frange_float ("2.0", "3.0");
+  r0.union_ (r1);
+  r0.clear_nan ();
+  range_op_handler (MULT_EXPR).fold_range (r, float_type_node, r0, r0,
+					   relation_trio (VREL_VARYING,
+							  VREL_VARYING,
+							  VREL_EQ));
+  REAL_VALUE_TYPE val;
+  real_from_string (&val, "5.0");
+  ASSERT_TRUE (r.contains_p (val));	// the result is [4, 9]
+  real_from_string (&val, "-5.0");
+  ASSERT_FALSE (r.contains_p (val));	// not the cross product's negatives
+  real_from_string (&val, "3.0");
+  ASSERT_FALSE (r.contains_p (val));	// tighter than the hull [0, 9]
 }
 
 } // namespace selftest

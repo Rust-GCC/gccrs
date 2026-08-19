@@ -313,6 +313,10 @@
 ;; All quad integer widen-able modes.
 (define_mode_iterator VQW [V16QI V8HI V4SI])
 
+;; Quad integer modes that reach 64-bit elements through more than one
+;; pairwise widening step.
+(define_mode_iterator VQ_BH [V16QI V8HI])
+
 ;; Double vector modes for combines.
 (define_mode_iterator VDC [V8QI V4HI V4BF V4HF V2SI V2SF DI DF])
 
@@ -625,6 +629,8 @@
 
 ;; 2x and 4x tuples of the above, excluding 2x DI.
 (define_mode_iterator SVE_FULL_SIx2_SDIx4 [VNx8SI VNx16SI VNx8DI])
+
+(define_mode_iterator SVE_FULL_HIx2 [VNx16HI])
 
 ;; Fully-packed SVE floating-point vector modes that have 32-bit or 64-bit
 ;; elements.
@@ -1186,6 +1192,7 @@
     UNSPEC_RSHRNT	; Used in aarch64-sve2.md.
     UNSPEC_RSUBHNB	; Used in aarch64-sve2.md.
     UNSPEC_RSUBHNT	; Used in aarch64-sve2.md.
+    UNSPEC_SABAL	; Used in aarch64-sve2.md.
     UNSPEC_SABDLB	; Used in aarch64-sve2.md.
     UNSPEC_SABDLT	; Used in aarch64-sve2.md.
     UNSPEC_SADDLB	; Used in aarch64-sve2.md.
@@ -1214,6 +1221,8 @@
     UNSPEC_SQRDCMLAH270	; Used in aarch64-sve2.md.
     UNSPEC_SQRDCMLAH90	; Used in aarch64-sve2.md.
     UNSPEC_SQRSHR	; Used in aarch64-sve2.md.
+    UNSPEC_SQSHRN	; Used in aarch64-sve2.md.
+    UNSPEC_SQSHRUN	; Used in aarch64-sve2.md.
     UNSPEC_SQRSHRN	; Used in aarch64-sve2.md.
     UNSPEC_SQRSHRNB	; Used in aarch64-sve2.md.
     UNSPEC_SQRSHRNT	; Used in aarch64-sve2.md.
@@ -1244,6 +1253,7 @@
     UNSPEC_SUBHNT	; Used in aarch64-sve2.md.
     UNSPEC_TBL2		; Used in aarch64-sve2.md.
     UNSPEC_TRN		; Used in aarch64-builtins.cc
+    UNSPEC_UABAL	; Used in aarch64-sve2.md.
     UNSPEC_UABDLB	; Used in aarch64-sve2.md.
     UNSPEC_UABDLT	; Used in aarch64-sve2.md.
     UNSPEC_UADDLB	; Used in aarch64-sve2.md.
@@ -1257,6 +1267,7 @@
     UNSPEC_UMULLB	; Used in aarch64-sve2.md.
     UNSPEC_UMULLT	; Used in aarch64-sve2.md.
     UNSPEC_UQRSHR	; Used in aarch64-sve2.md.
+    UNSPEC_UQSHRN	; Used in aarch64-sve2.md.
     UNSPEC_UQRSHRN	; Used in aarch64-sve2.md.
     UNSPEC_UQRSHRNB	; Used in aarch64-sve2.md.
     UNSPEC_UQRSHRNT	; Used in aarch64-sve2.md.
@@ -2152,7 +2163,7 @@
 			   (VNx4SI "VNx8HI") (VNx4SF "VNx8HF")
 			   (VNx2DI "VNx4SI") (VNx2DF "VNx4SF")
 			   (VNx8SI "VNx8HI") (VNx16SI "VNx16QI")
-			   (VNx8DI "VNx8HI")])
+			   (VNx8DI "VNx8HI") (VNx16HI "VNx16QI")])
 (define_mode_attr Vnarrow [(VNx8HI "vnx16qi")
 			   (VNx4SI "vnx8hi") (VNx4SF "vnx8hf")
 			   (VNx2DI "vnx4si") (VNx2DF "vnx4sf")
@@ -2293,7 +2304,7 @@
 			   (VNx4SI "h") (VNx4SF "h")
 			   (VNx2DI "s") (VNx2DF "s")
 			   (VNx8SI "h") (VNx16SI "b")
-			   (VNx8DI "h")])
+			   (VNx8DI "h") (VNx16HI "b")])
 
 ;; SVE vector after widening.
 (define_mode_attr Vewtype [(VNx16QI "h")
@@ -3986,7 +3997,8 @@
 (define_int_iterator SVE2_INT_BINARY_LANE [UNSPEC_SQDMULH
 					   UNSPEC_SQRDMULH])
 
-(define_int_iterator SVE2_INT_BINARY_LONG [UNSPEC_SABDLB
+(define_int_iterator SVE2_INT_BINARY_LONG [UNSPEC_SABAL
+					   UNSPEC_SABDLB
 					   UNSPEC_SABDLT
 					   UNSPEC_SADDLB
 					   UNSPEC_SADDLBT
@@ -3999,6 +4011,7 @@
 					   UNSPEC_SSUBLBT
 					   UNSPEC_SSUBLT
 					   UNSPEC_SSUBLTB
+					   UNSPEC_UABAL
 					   UNSPEC_UABDLB
 					   UNSPEC_UABDLT
 					   UNSPEC_UADDLB
@@ -4073,10 +4086,13 @@
 
 (define_int_iterator SVE2_INT_SHIFT_IMM_NARROWxN
   [(UNSPEC_SQRSHR "TARGET_STREAMING_SME2")
+   (UNSPEC_SQSHRN "TARGET_SVE2p3_OR_SME2p3")
+   (UNSPEC_SQSHRUN "TARGET_SVE2p3_OR_SME2p3")
    (UNSPEC_SQRSHRN "TARGET_SVE2p1_OR_SME2")
    (UNSPEC_SQRSHRU "TARGET_STREAMING_SME2")
    (UNSPEC_SQRSHRUN "TARGET_SVE2p1_OR_SME2")
    (UNSPEC_UQRSHR "TARGET_STREAMING_SME2")
+   (UNSPEC_UQSHRN "TARGET_SVE2p3_OR_SME2p3")
    (UNSPEC_UQRSHRN "TARGET_SVE2p1_OR_SME2")])
 
 (define_int_iterator SVE2_INT_SHIFT_INSERT [UNSPEC_SLI UNSPEC_SRI])
@@ -4142,10 +4158,12 @@
 				    UNSPEC_CDOT180
 				    UNSPEC_CDOT270])
 
-(define_int_iterator SVE2_INT_ADD_BINARY_LONG [UNSPEC_SABDLB
+(define_int_iterator SVE2_INT_ADD_BINARY_LONG [UNSPEC_SABAL
+					       UNSPEC_SABDLB
 					       UNSPEC_SABDLT
 					       UNSPEC_SMULLB
 					       UNSPEC_SMULLT
+					       UNSPEC_UABAL
 					       UNSPEC_UABDLB
 					       UNSPEC_UABDLT
 					       UNSPEC_UMULLB
@@ -4571,7 +4589,7 @@
 			(UNSPEC_COND_FRINTA "round")
 			(UNSPEC_COND_FRINTI "nearbyint")
 			(UNSPEC_COND_FRINTM "floor")
-			(UNSPEC_COND_FRINTN "frintn")
+			(UNSPEC_COND_FRINTN "roundeven")
 			(UNSPEC_COND_FRINTP "ceil")
 			(UNSPEC_COND_FRINTX "rint")
 			(UNSPEC_COND_FRINTZ "btrunc")
@@ -4930,6 +4948,7 @@
 			     (UNSPEC_RSQRTE "ursqrte")
 			     (UNSPEC_RSUBHNB "rsubhnb")
 			     (UNSPEC_RSUBHNT "rsubhnt")
+			     (UNSPEC_SABAL "sabal")
 			     (UNSPEC_SABDLB "sabdlb")
 			     (UNSPEC_SABDLT "sabdlt")
 			     (UNSPEC_SADALP "sadalp")
@@ -4967,6 +4986,8 @@
 			     (UNSPEC_SQRDMULH "sqrdmulh")
 			     (UNSPEC_SQRSHL "sqrshl")
 			     (UNSPEC_SQRSHR "sqrshr")
+			     (UNSPEC_SQSHRN "sqshrn")
+			     (UNSPEC_SQSHRUN "sqshrun")
 			     (UNSPEC_SQRSHRN "sqrshrn")
 			     (UNSPEC_SQRSHRNB "sqrshrnb")
 			     (UNSPEC_SQRSHRNT "sqrshrnt")
@@ -4999,6 +5020,7 @@
 			     (UNSPEC_SUBHNB "subhnb")
 			     (UNSPEC_SUBHNT "subhnt")
 			     (UNSPEC_SUQADD "suqadd")
+			     (UNSPEC_UABAL "uabal")
 			     (UNSPEC_UABDLB "uabdlb")
 			     (UNSPEC_UABDLT "uabdlt")
 			     (UNSPEC_UADALP "uadalp")
@@ -5017,6 +5039,7 @@
 			     (UNSPEC_UMULLT "umullt")
 			     (UNSPEC_UQRSHL "uqrshl")
 			     (UNSPEC_UQRSHR "uqrshr")
+			     (UNSPEC_UQSHRN "uqshrn")
 			     (UNSPEC_UQRSHRN "uqrshrn")
 			     (UNSPEC_UQRSHRNB "uqrshrnb")
 			     (UNSPEC_UQRSHRNT "uqrshrnt")
@@ -5049,10 +5072,12 @@
 				 (UNSPEC_URHADD "urhadd")
 				 (UNSPEC_URSHL "urshlr")])
 
-(define_int_attr sve_int_add_op [(UNSPEC_SABDLB "sabalb")
+(define_int_attr sve_int_add_op [(UNSPEC_SABAL "sabal")
+				 (UNSPEC_SABDLB "sabalb")
 				 (UNSPEC_SABDLT "sabalt")
 				 (UNSPEC_SMULLB "smlalb")
 				 (UNSPEC_SMULLT "smlalt")
+				 (UNSPEC_UABAL "uabal")
 				 (UNSPEC_UABDLB "uabalb")
 				 (UNSPEC_UABDLT "uabalt")
 				 (UNSPEC_UMULLB "umlalb")
@@ -5117,6 +5142,7 @@
 				  (UNSPEC_SBCLT "int_general")
 				  (UNSPEC_SQRDMLAH "int_mul")
 				  (UNSPEC_SQRDMLSH "int_mul")
+				  (UNSPEC_SABAL "int_general")
 				  (UNSPEC_SABDLB "int_general")
 				  (UNSPEC_SABDLT "int_general")
 				  (UNSPEC_SADDLB "int_general")
@@ -5131,6 +5157,7 @@
 				  (UNSPEC_SSUBLBT "int_general")
 				  (UNSPEC_SSUBLT "int_general")
 				  (UNSPEC_SSUBLTB "int_general")
+				  (UNSPEC_UABAL "int_general")
 				  (UNSPEC_UABDLB "int_general")
 				  (UNSPEC_UABDLT "int_general")
 				  (UNSPEC_UADDLB "int_general")

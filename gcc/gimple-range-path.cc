@@ -156,7 +156,12 @@ path_range_query::internal_range_of_expr (vrange &r, tree name, gimple *stmt)
       return true;
     }
 
+  // We can be called from match.pd or elsewhere, with a context statement
+  // that can be anywhere on the path.  Since we can only compute ranges
+  // mid flight at the current path position, check that's the case,
+  // otherwise fall through to the global range.
   if (stmt
+      && gimple_bb (stmt) == curr_bb ()
       && range_defined_in_block (r, name, gimple_bb (stmt)))
     {
       if (TREE_CODE (name) == SSA_NAME)
@@ -256,6 +261,10 @@ path_range_query::ssa_range_in_phi (vrange &r, gphi *phi)
   basic_block bb = gimple_bb (phi);
   basic_block prev = prev_bb ();
   edge e_in = find_edge (prev, bb);
+  // The incoming edge the path supplies is never abnormal, so the
+  // argument on it is a valid value for the PHI result even when the
+  // result occurs in an abnormal PHI.
+  gcc_checking_assert (!(e_in->flags & EDGE_ABNORMAL));
   tree arg = PHI_ARG_DEF_FROM_EDGE (phi, e_in);
   // Avoid using the cache for ARGs defined in this block, as
   // that could create an ordering problem.
@@ -286,6 +295,11 @@ path_range_query::ssa_range_in_phi (vrange &r, gphi *phi)
 bool
 path_range_query::range_defined_in_block (vrange &r, tree name, basic_block bb)
 {
+  // Ranges can only be calculated at the current path position, both
+  // while pre-computing the cache and when answering questions at the
+  // path exit afterwards.
+  gcc_assert (bb == curr_bb ());
+
   gimple *def_stmt = SSA_NAME_DEF_STMT (name);
   basic_block def_bb = gimple_bb (def_stmt);
 

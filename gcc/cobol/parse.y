@@ -9,6 +9,7 @@
  *   notice, this list of conditions and the following disclaimer.
  * * Redistributions in binary form must reproduce the above
  *   copyright notice, this list of conditions and the following disclaimer
+ *   copyright notice, this list of conditions and the following disclaimer
  *   in the documentation and/or other materials provided with the
  *   distribution.
  * * Neither the name of the Symas Corporation nor the names of its
@@ -50,6 +51,8 @@
     accept_command_line_e,
     accept_envar_e,
   };
+
+  class ast_op_t;
 
   struct coll_alphanat_t {
     const char *alpha, *national; 
@@ -585,8 +588,8 @@ class locale_tgt_t {
 			MINN "Min" MULTIPLE MOD MODE
 			MODULE_NAME  "MODULE-NAME "
 
-			NAMED NAT NATIONAL
-			NATIONAL_EDITED "NATIONAL-EDITED"
+			NAMED NAMESPACE NAMESPACE_PREFIX "NAMESPACE-PREFIX"
+                        NAT NATIONAL NATIONAL_EDITED "NATIONAL-EDITED"
 			NATIONAL_OF "NATIONAL-OF"
 			NATIVE NESTED NEXT
 			NO NOTE
@@ -699,6 +702,7 @@ class locale_tgt_t {
 			UNDERLINE UNSIGNED_kw
 			UTF_16 "UTF-16"
 			UTF_8 "UTF-8"
+                        XML_DECLARATION "XML-DECLARATION"
                         XMLGENERATE "XML GENERATE"
                         XMLPARSE "XML PARSE"
 
@@ -734,7 +738,8 @@ class locale_tgt_t {
 %type   <number>        star_cbl_opt close_how
 
 %type   <number>        test_before usage_clause1 might_be alphanational
-%type   <boolean>       all optional sign_leading on_off initialized strong is_signed
+%type   <boolean>       all filler initialized is_signed
+                        on_off optional sign_leading strong 
 %type   <number>        count data_clauses data_clause
 %type   <number>        nine nines nps relop spaces_etc reserved_value signed
 %type   <number>        variable_type binary_type
@@ -749,7 +754,6 @@ class locale_tgt_t {
 %type   <refer>         alloc_ret
 
 %type	<field>		log_term rel_expr rel_abbr eval_abbr
-%type   <refer>		num_value num_term value factor
 %type   <refer>         simple_cond bool_expr until_expr
 %type	<log_expr_t>	log_expr rel_abbrs eval_abbrs
 %type   <rel_term_t>	rel_term rel_term1
@@ -793,9 +797,13 @@ class locale_tgt_t {
 %type   <refer>         alphaval alpha_val numeref scalar scalar88 scalar_any
 %type   <refer>         tableref tableish
 %type   <refer>         varg varg1 varg1a start_after start_pos
-%type   <refer>         expr expr_term compute_expr free_tgt by_value_arg
+%type   <refer>         cexpr free_tgt by_value_arg
 %type   <refer>         move_tgt read_key read_into vary_by
-%type   <refer>         num_operand envar search_expr any_arg
+%type   <refer>         num_operand num_value envar search_expr any_arg
+
+%type   <ast_op>        expr expr_term num_term value factor
+                        compute_expr
+
 %type   <accept_func>	accept_body
 %type   <refers>        subscript_exprs subscripts arg_list free_tgts 
 %type   <targets>       move_tgts set_tgts
@@ -972,7 +980,7 @@ class locale_tgt_t {
     struct { bool tf; cbl_field_t *field; } bool_field;
     struct { int token; cbl_field_t *cond; } cond_field;
     struct cbl_refer_t *refer;
-
+           ast_op_t *ast_op;
     struct rel_term_type { bool invert; cbl_refer_t *term; } rel_term_t;
     struct log_expr_t *log_expr_t;
     struct vargs_t* vargs;
@@ -992,8 +1000,7 @@ class locale_tgt_t {
            linage_t linage;
            linage_value_t linage_value;
     struct arith_t *arith;
-    struct { size_t ntgt; cbl_num_result_t *tgts;
-             cbl_refer_t *expr; } compute_body_t;
+    struct { size_t ntgt; cbl_num_result_t *tgts; ast_op_t *ast_op; } compute_body_t;
     struct cbl_inspect_t *insp_one;
            cbl_inspect_opers_t *insp_all;
     struct cbl_inspect_oper_t *insp_oper;
@@ -1078,6 +1085,8 @@ class locale_tgt_t {
                         $$.invert? '!' : ' ',
 		        $$.term? name_of($$.term->field) : "<none>"); } <rel_term_t>
 %printer { fprintf(yyo, "%s", $$->dbgstr()); } <log_expr_t>
+
+%printer { fprintf(yyo, "%lu args\n", (unsigned long)$$->args.size()); $$->dump(); } <vargs>
 
 %printer { fprintf(yyo, "%s (token %d)", keyword_str($$), $$ ); } relop
 %printer { fprintf(yyo, "'%s'", $$? $$ : "" ); } NAME <string>
@@ -1274,7 +1283,7 @@ class locale_tgt_t {
                         MIGHT_BE MINN MULTIPLE MOD MODE
 			MODULE_NAME
 
-                        NAMED NAMESPACE NAMESPACE_PREFIX "NAMESPACE-PREFIX"
+                        NAMED NAMESPACE NAMESPACE_PREFIX
                         NAT NATIONAL
 			NATIONAL_EDITED
 			NATIONAL_OF
@@ -1348,7 +1357,7 @@ class locale_tgt_t {
                         VALUE VARIANCE VARYING VOLATILE
 
                         WHEN_COMPILED WITH WORKING_STORAGE
-                        XML_DECLARATION "XML-DECLARATION"
+                        XML_DECLARATION
                         YEAR_TO_YYYY YYYYDDD YYYYMMDD
                         ZERO
 
@@ -1566,7 +1575,7 @@ class locale_tgt_t {
 %locations
 %token-table
 %define parse.error verbose // custom
-%expect 7
+%expect 6
 %require "3.5.1"  //    3.8.2 also works, but not 3.8.0
 %%
 
@@ -4026,7 +4035,7 @@ level_name:     LEVEL ctx_name
                   }
                   current_field($$); // make available for data_clauses
                 }
-        |       LEVEL
+        |       LEVEL filler
                 {
                   switch($LEVEL) {
                   case 66:
@@ -4044,8 +4053,13 @@ level_name:     LEVEL ctx_name
                   struct cbl_field_t field = { FldInvalid, 
 		                               capacity_cast($LEVEL),
 		                               @LEVEL.first_line };
-
-                  $$ = field_add(@1, &field);
+                  cbl_loc_t loc(@LEVEL);
+                  if( $filler ) {
+                    loc.last_column += 7;
+                    field.set_attr(filler_e);
+                    strcpy(field.name, "FILLER");
+                  }
+                  $$ = field_add(loc, &field);
                   if( !$$ ) {
                     YYERROR;
                   }
@@ -5947,12 +5961,12 @@ accept_body:    ACCEPT scalar[r]
 		  $$.func = accept_done_e;
                   parser_accept_command_line(*$r, NULL, NULL, NULL );
                 }
-        |       ACCEPT scalar[r] FROM COMMAND_LINE '(' expr ')'
+        |       ACCEPT scalar[r] FROM COMMAND_LINE '(' cexpr ')'
                 {
                   statement_begin(@1, ACCEPT);
 		  $$.func = accept_command_line_e;
 		  $$.into = $r;
-		  $$.from = $expr;
+		  $$.from = $cexpr;
                 }
         |       ACCEPT scalar[r] FROM COMMAND_LINE_COUNT
                 {
@@ -6244,7 +6258,7 @@ scalar88:	name88 subscripts[subs] refmod[ref]
                 }
                 ;
 
-allocate:       ALLOCATE expr[size] CHARACTERS initialized RETURNING scalar[returning]
+allocate:       ALLOCATE cexpr[size] CHARACTERS initialized RETURNING scalar[returning]
                 {
                   statement_begin(@1, ALLOCATE);
                   if( $size->field->type == FldLiteralN ) {
@@ -6282,22 +6296,33 @@ alloc_ret:      %empty { static cbl_refer_t empty; $$ = &empty; }
         |       RETURNING scalar[name]           { $$ = $name; }
                 ;
 
-compute:        compute_impl end_compute { current.compute_end(); }
-        |       compute_cond end_compute { current.compute_end(); }
+compute:        compute_impl end_compute
+        |       compute_cond end_compute
                 ;
 compute_impl:   COMPUTE compute_body[body]
                 {
-                  parser_assign( $body.ntgt, $body.tgts, *$body.expr,
-                                 NULL, NULL, current.compute_label() );
+                  std::vector<cbl_num_result_t> results($body.tgts,
+                                                        $body.tgts + $body.ntgt);
+                  $body.ast_op->show(results); // always a good idea to show results
+                  $body.ast_op->rpn_sanity_check();
+                  parser_compute( results, $body.ast_op->as_deque(), 
+                                  nullptr, nullptr, 
+                                  current.compute_label() );
+                  $body.ast_op->reset();
                   current.declaratives_evaluate();
+                  current.compute_end();
                 }
                 ;
 compute_cond:   COMPUTE compute_body[body] arith_errs[err]
                 {
-                  parser_assign( $body.ntgt, $body.tgts, *$body.expr,
-                                 $err.on_error, $err.not_error,
-                                 current.compute_label() );
+                  std::vector<cbl_num_result_t> results($body.tgts,
+                                                        $body.tgts + $body.ntgt);
+                  parser_compute( results, $body.ast_op->as_deque(), 
+                                  $err.on_error, $err.not_error,
+                                  current.compute_label() );
+                  $body.ast_op->reset();
                   current.declaratives_evaluate();
+                  current.compute_end();
                 }
                 ;
 end_compute:    %empty %prec COMPUTE
@@ -6308,16 +6333,15 @@ compute_body:   rnames { statement_begin(@$, COMPUTE); } compute_expr[expr] {
                   $$.ntgt = rhs.size();
                   auto C = new cbl_num_result_t[$$.ntgt];
                   $$.tgts = use_any(rhs, C);
-                  $$.expr = $expr;
+                  $$.ast_op = $expr;
                 }
                 ;
-compute_expr:   EQ {
+compute_expr:   EQ expr {
                   if( $1[0] == 'E' ) { // lexer found EQUALS keyword
                     dialect_ok(@1, IbmEqualAssignE,
                                "EQUAL as assignment operator" );
                   }
                   current.compute_begin();
-                } expr {
                   $$ = $expr;
                 }
                 ;
@@ -6583,9 +6607,9 @@ continue_stmt:  CONTINUE {
                   statement_begin(@1, CONTINUE);
                   parser_sleep(*cbl_refer_t::empty());
                 }
-        |	CONTINUE AFTER expr SECONDS {
+        |	CONTINUE AFTER cexpr SECONDS {
                   statement_begin(@1, CONTINUE);
-                  parser_sleep(*$expr);
+                  parser_sleep(*$cexpr);
                 }
                 ;
 
@@ -6712,42 +6736,42 @@ simple_cond:    kind_of_name
                                bit_on_op : bit_off_op;
                    parser_bitop($$->cond(), parent, op, value );
                 }
-        |       expr is CLASS_NAME[domain]
+        |       cexpr is CLASS_NAME[domain]
                 {
                   $$ = new_reference(new_temporary(FldConditional));
                   // symbol_find does not find FldClass symbols
                   struct symbol_elem_t *e = symbol_field(PROGRAM, 0, $domain);
                   parser_setop($$->cond(), $1->field, is_op, cbl_field_of(e));
                 }
-        |       expr NOT CLASS_NAME[domain] {
+        |       cexpr NOT CLASS_NAME[domain] {
                   $$ = new_reference(new_temporary(FldConditional));
                   // symbol_find does not find FldClass symbols
                   struct symbol_elem_t *e = symbol_field(PROGRAM, 0, $domain);
                   parser_setop($$->cond(), $1->field, is_op, cbl_field_of(e));
                   parser_logop($$->cond(), NULL, not_op, $$->cond());
                 }
-        |       expr is OMITTED
+        |       cexpr is OMITTED
                 {
-                  auto lhs = cbl_refer_t($expr->field);
+                  auto lhs = cbl_refer_t($cexpr->field);
                   lhs.addr_of = true;
                   auto rhs = cbl_field_of(symbol_field(0,0, "NULLS"));
                   $$ = new_reference(new_temporary(FldConditional));
                   ast_relop(@$, $$->field, lhs, eq_op, rhs);
                 }
-        |       expr /* IS */ NOT OMITTED
+        |       cexpr /* IS */ NOT OMITTED
 	        { // IS captured by lexer
-                  auto lhs = cbl_refer_t($expr->field);
+                  auto lhs = cbl_refer_t($cexpr->field);
                   lhs.addr_of = true;
                   auto rhs = cbl_field_of(symbol_field(0,0, "NULLS"));
                   $$ = new_reference(new_temporary(FldConditional));
                   ast_relop(@$, $$->field, lhs, ne_op, rhs);
                 }
-        |       expr /* IS */ posneg[op] {
+        |       cexpr /* IS */ posneg[op] {
                   $$ = new_reference(new_temporary(FldConditional));
                   relop_t op = static_cast<relop_t>($op);
                   cbl_field_t *zero = constant_of(constant_index(ZERO));
                   if( $1->field->type == FldPointer ) {
-                    error_msg(@expr, "cannot compare %qs (%s) to zero",
+                    error_msg(@cexpr, "cannot compare %qs (%s) to zero",
                               nice_name_of($1->field),
                               cbl_field_type_name($1->field->type));
                     YYERROR;
@@ -6768,7 +6792,7 @@ simple_cond:    kind_of_name
                 }
                 ;
 
-kind_of_name:   expr might_be variable_type
+kind_of_name:   cexpr might_be variable_type
                 {
                   $$ = new_temporary(FldConditional);
                   enum classify_t type = classify_of($3);
@@ -6965,7 +6989,7 @@ rel_term1:	all LITERAL
                   $$.term = new_reference(constant_of(constant_index(ZERO)));
                   $$.term->all = true;
                 }
-        |       expr {
+        |       cexpr {
 		  $$.invert = false;
 		  $$.term = $1;
 		}
@@ -6975,41 +6999,54 @@ rel_term1:	all LITERAL
 		}
                 ;
 
+cexpr:          expr {
+                  $$ = $expr->compute($expr);
+                }
+                ;
 expr:           expr_term
                 ;
 expr_term:      expr_term '+' num_term
                 {
-                  if( ($$ = ast_op(@$, $1, '+', $3)) == NULL  ) YYERROR;
+                  if( ! ast_op_t::op_ok(@$, '+', $3) ) YYERROR;
+                  $$ = &$1->push_op('+', *$3);
                 }
         |       expr_term '-' num_term
                 {
-                  if( ($$ = ast_op(@$, $1, '-', $3)) == NULL  ) YYERROR;
+                  if( ! ast_op_t::op_ok(@$, '-', $3) ) YYERROR;
+                  $$ = &$1->push_op('-', *$3);
                 }
         |       num_term
                 ;
 
 num_term:       num_term '*' value
                 {
-                  if( ($$ = ast_op(@$, $1, '*', $3)) == NULL  ) YYERROR;
+                  if( ! ast_op_t::op_ok(@$, '*', $3) ) YYERROR;
+                  $$ = &$1->push_op('*', *$3);
                 }
         |       num_term '/' value
                 {
-                  if( ($$ = ast_op(@$, $1, '/', $3)) == NULL  ) YYERROR;
+                  if( ! ast_op_t::op_ok(@$, '/', $3) ) YYERROR;
+                  $$ = &$1->push_op('/', *$3);
                 }
         |       value
         ;
 
 value:          value POW factor
                 {
-                  if( ($$ = ast_op(@$, $1, '^', $3)) == NULL  ) YYERROR;
+                  if( ! ast_op_t::op_ok(@$, '^', $3) ) YYERROR;
+                  $$ = &$1->push_op('^', *$3);
                 }
-        |       '-' value       %prec NEG { $$ = negate( $2 );}
-        |       '+' factor %prec NEG { $$ = $2;}
-        |       factor[rhs]
+        |       '-' value[operand]  %prec NEG { $$ = &$operand->push_op('!'); }
+        |       '+' factor          %prec NEG { $$ = $2;}
+        |       factor
                 ;
 
 factor:         '(' expr ')' { $$ = $2; }
-        |       num_value { $$ = $num_value; }
+        |       num_value
+                {
+                  $$ = new ast_op_t;
+                  $$->expr($num_value);
+                }
                 ;
 
 if_stmt:        if_impl end_if
@@ -7078,7 +7115,7 @@ eval_subject:   eval_subject1 {
 		}
                 ;
 eval_subject1:  bool_expr
-	|	expr
+	|	cexpr
         |       true_false
                 {
                   static cbl_field_t *zero = constant_of(constant_index(ZERO));
@@ -7403,14 +7440,14 @@ tableish:	name subscripts[subs] refmod[ref]  %prec NAME
 		}
                 ;
 
-refmod:         LPAREN expr[from] ':' expr[len] ')' %prec NAME
+refmod:         LPAREN cexpr[from] ':' cexpr[len] ')' %prec NAME
                 {
 		  if( ! require_integer(@from, *$from) ) YYERROR;
 		  if( ! require_integer(@len, *$len) ) YYERROR;
                   $$.from = $from;
                   $$.len = $len;
                 }
-        |       LPAREN expr[from] ':'           ')' %prec NAME
+        |       LPAREN cexpr[from] ':'           ')' %prec NAME
                 {
 		  if( ! require_integer(@from, *$from) ) YYERROR;
                   $$.from = $from;
@@ -8117,19 +8154,19 @@ subscripts:     LPAREN subscript_exprs ')' {
 		  }
 		}
                 ;
-subscript_exprs:	expr
+subscript_exprs:	cexpr
 		{
-		  if( ! require_integer(@expr, *$expr) ) YYERROR;
-		  $$ = new refer_list_t($expr);
+		  if( ! require_integer(@cexpr, *$cexpr) ) YYERROR;
+		  $$ = new refer_list_t(*$cexpr);
 		}
-        |       subscript_exprs expr {
+        |       subscript_exprs cexpr {
                   if( $1->size() == MAXIMUM_TABLE_DIMENSIONS ) {
                     error_msg(@1, "table dimensions limited to %d",
                              MAXIMUM_TABLE_DIMENSIONS);
                     YYERROR;
                   }
-		  if( ! require_integer(@expr, *$expr) ) YYERROR;
-                  $1->push_back($2); $$ = $1;
+		  if( ! require_integer(@cexpr, *$cexpr) ) YYERROR;
+                  $1->push_back(*$2); $$ = $1;
                 }
         |       ALL {
                   auto ref = new_reference(constant_of(constant_index(ZERO)));
@@ -8137,10 +8174,10 @@ subscript_exprs:	expr
                 }
                 ;
 
-arg_list:                any_arg { $$ = new refer_list_t($1); }
-        |       arg_list any_arg { $1->push_back($2); $$ = $1; }
+arg_list:                any_arg { $$ = new refer_list_t(*$1); }
+        |       arg_list any_arg { $1->push_back(*$2); $$ = $1; }
                 ;
-any_arg:        expr
+any_arg:        cexpr
         |       LITERAL {$$ = new_reference(new_literal(@1, $1, quoted_e)); }
                 ;
 
@@ -9222,8 +9259,8 @@ delete_file_body:
                 }
                 ;
 retry_phrase:   %empty
-        |       RETRY expr TIMES
-        |       FOR expr  SECONDS
+        |       RETRY cexpr TIMES
+        |       FOR cexpr  SECONDS
         |       FOREVER {
                   cbl_unimplemented("DELETE FILE RETRY");
                 }
@@ -9403,12 +9440,12 @@ start_body:     filename[file]
                   $$ = file_start_args.init(@file, $file);
                   parser_file_start( $file, relop_of($relop), key, ksize );
                 }
-        |       filename[file] KEY relop name[key] with LENGTH expr
+        |       filename[file] KEY relop name[key] with LENGTH cexpr
                 { // lexer swallows IS, although relop allows it.
                   statement_begin(@$, START);
                   int key = $file->key_one($key);
                   $$ = file_start_args.init(@file, $file);
-                  parser_file_start( $file, relop_of($relop), key, *$expr );
+                  parser_file_start( $file, relop_of($relop), key, *$cexpr );
                 }
         |       filename[file] FIRST
                 {
@@ -9857,7 +9894,7 @@ search_term:    scalar[key] EQ search_expr[sarg]
                                        is_ascending_key(key) );
                 }
                 ;
-search_expr:    expr
+search_expr:    cexpr
         |       LITERAL { $$ = new_reference(new_literal(@1, $1, quoted_e)); }
                 ;
 
@@ -10710,7 +10747,7 @@ ffi_by_ref:     scalar_arg[refer]
                 }
                 ;
 
-ffi_by_con:     expr
+ffi_by_con:     cexpr
                 {
                   cbl_refer_t *r = new cbl_refer_t(*$1);
                   $$ = new cbl_ffi_arg_t(by_content_e, r);
@@ -10940,7 +10977,6 @@ label_1:        qname
                 ;
 
   /* string & unstring */
-
 
 string:         string_impl end_string
         |       string_cond end_string
@@ -11344,12 +11380,12 @@ intrinsic:      function_udf
 		  cbl_unimplemented("BASECONVERT");
                   if( ! intrinsic_call_3($$, BASECONVERT, $r1, $r2, $r3 )) YYERROR;
                 }
-        |       BIT_OF  '(' expr[r1] ')' {
+        |       BIT_OF  '(' cexpr[r1] ')' {
                   location_set(@1);
                   $$ = new_alphanumeric("BIT-OF");
                   if( ! intrinsic_call_1($$, BIT_OF, $r1, @r1)) YYERROR;
                 }
-        |       CHAR  '(' expr[r1] ')' {
+        |       CHAR  '(' cexpr[r1] ')' {
                   location_set(@1);
                   $$ = new_alphanumeric("CHAR");
                   if( ! intrinsic_call_1($$, CHAR, $r1, @r1)) YYERROR;
@@ -11433,7 +11469,7 @@ intrinsic:      function_udf
                   parser_intrinsic_find_string($$, *$r1, *$r2, $after, $last, $anycase);
                 }
 
-        |       FORMATTED_DATE '(' DATE_FMT[r1] expr[r2] ')' {
+        |       FORMATTED_DATE '(' DATE_FMT[r1] cexpr[r2] ')' {
                   location_set(@1);
                   $$ = new_alphanumeric("FORMATTED-DATE");
                   auto r1 = new_reference(new_literal(strlen($r1), $r1, quoted_e));
@@ -11442,8 +11478,8 @@ intrinsic:      function_udf
                 }
 
 
-        |       FORMATTED_DATETIME '(' DATETIME_FMT[r1] expr[r2]
-                                                        expr[r3] ')' {
+        |       FORMATTED_DATETIME '(' DATETIME_FMT[r1] cexpr[r2]
+                                                        cexpr[r3] ')' {
                   location_set(@1);
                   $$ = new_alphanumeric("FORMATTED-DATETIME");
                   auto r1 = new_reference(new_literal(strlen($r1), $r1, quoted_e));
@@ -11452,8 +11488,8 @@ intrinsic:      function_udf
                   if( ! intrinsic_call_4($$, FORMATTED_DATETIME,
                                          r1, $r2, $r3, &r3) ) YYERROR;
                 }
-        |       FORMATTED_DATETIME '(' DATETIME_FMT[r1] expr[r2]
-                                        expr[r3] expr[r4] ')' {
+        |       FORMATTED_DATETIME '(' DATETIME_FMT[r1] cexpr[r2]
+                                        cexpr[r3] cexpr[r4] ')' {
                   location_set(@1);
                   $$ = new_alphanumeric("FORMATTED-DATETIME");
                   auto r1 = new_reference(new_literal(strlen($r1), $r1, quoted_e));
@@ -11464,8 +11500,8 @@ intrinsic:      function_udf
         |       FORMATTED_DATETIME '(' error ')' {
                   YYERROR;
                 }
-        |       FORMATTED_TIME '(' TIME_FMT[r1] expr[r2]
-                                                expr[r3]  ')' {
+        |       FORMATTED_TIME '(' TIME_FMT[r1] cexpr[r2]
+                                                cexpr[r3]  ')' {
                   location_set(@1);
                   $$ = new_alphanumeric("FORMATTED-DATETIME");
                   auto r1 = new_reference(new_literal(strlen($r1), $r1, quoted_e));
@@ -11473,7 +11509,7 @@ intrinsic:      function_udf
                   if( ! intrinsic_call_3($$, FORMATTED_TIME,
                                              r1, $r2, $r3) ) YYERROR;
                 }
-        |       FORMATTED_TIME '(' TIME_FMT[r1] expr[r2]  ')' {
+        |       FORMATTED_TIME '(' TIME_FMT[r1] cexpr[r2]  ')' {
                   location_set(@1);
                   $$ = new_alphanumeric("FORMATTED-TIME");
                   auto r1 = new_reference(new_literal(strlen($r1), $r1, quoted_e));
@@ -11597,7 +11633,7 @@ intrinsic:      function_udf
                   $$ = new_tempnumeric_float("RANDOM");
                   parser_intrinsic_call_0( $$, intrinsic_cname(RANDOM) );
                 }
-        |       RANDOM_SEED expr[r1] ')'
+        |       RANDOM_SEED cexpr[r1] ')'
                 { // left parenthesis consumed by lexer
                   location_set(@1);
                   $$ = new_tempnumeric_float("RANDOM-SEED");
@@ -11656,7 +11692,7 @@ intrinsic:      function_udf
                  * TRIM (arg-1 arg-2a arg-2b) is the same as 
                  * TRIM (TRIM (arg-1 arg-2a) arg-2b).
                  */
-        |       TRIM '(' expr[r1] trim_trailing[how] trim_expr[args2] ')'
+        |       TRIM '(' cexpr[r1] trim_trailing[how] trim_expr[args2] ')'
                 {
                   location_set(@1);
                    switch( $r1->field->type ) {
@@ -11683,21 +11719,21 @@ intrinsic:      function_udf
                   parser_trim($$, *$r1, $how, args);
                 }  
 
-        |       USUBSTR '(' alpha_val[r1] expr[r2] expr[r3]  ')' {
+        |       USUBSTR '(' alpha_val[r1] cexpr[r2] cexpr[r3]  ')' {
                   location_set(@1);
                   $$ = new_alphanumeric("USUBSTR");
                   if( ! intrinsic_call_3($$, FORMATTED_DATETIME,
                                              $r1, $r2, $r3) ) YYERROR;
                 }
 
-        |       intrinsic_I  '(' expr[r1] ')'
+        |       intrinsic_I  '(' cexpr[r1] ')'
                 {
                   location_set(@1);
                   $$ = new_tempnumeric(keyword_str($1));
                   if( ! intrinsic_call_1($$, $1, $r1, @r1)) YYERROR;
                 }
 
-        |       intrinsic_N  '(' expr[r1] ')'
+        |       intrinsic_N  '(' cexpr[r1] ')'
                 {
                   location_set(@1);
                   $$ = new_tempnumeric_float(keyword_str($1));
@@ -11729,14 +11765,14 @@ intrinsic:      function_udf
                   if( ! intrinsic_call_1($$, $1, $r1, @r1)) YYERROR;
                 }
 
-        |       intrinsic_I2 '(' expr[r1] expr[r2] ')'
+        |       intrinsic_I2 '(' cexpr[r1] cexpr[r2] ')'
                 {
                   location_set(@1);
                   $$ = new_tempnumeric("intrinsic_I2");
                   if( ! intrinsic_call_2($$, $1, $r1, $r2) ) YYERROR;
                 }
 
-        |       DATE_TO_YYYYMMDD '(' expr[r1] ')'
+        |       DATE_TO_YYYYMMDD '(' cexpr[r1] ')'
                 {
                   location_set(@1);
                   static auto r2 = new_reference(FldNumericDisplay, "50");
@@ -11753,7 +11789,7 @@ intrinsic:      function_udf
                                          $r1, r2, r3) ) YYERROR;
                 }
 
-        |       DATE_TO_YYYYMMDD '(' expr[r1] expr[r2] ')'
+        |       DATE_TO_YYYYMMDD '(' cexpr[r1] cexpr[r2] ')'
                 {
                   location_set(@1);
                   static auto one = new cbl_refer_t( new_constant("1") );
@@ -11769,8 +11805,8 @@ intrinsic:      function_udf
                                          $r1, $r2, r3) ) YYERROR;
                 }
 
-        |       DATE_TO_YYYYMMDD '(' expr[r1]
-                                     expr[r2] expr[r3] ')'
+        |       DATE_TO_YYYYMMDD '(' cexpr[r1]
+                                     cexpr[r2] cexpr[r3] ')'
                 {
                   location_set(@1);
                   $$ = new_tempnumeric("DATE_TO_YYYYMMDD");
@@ -11778,7 +11814,7 @@ intrinsic:      function_udf
                                          $r1, $r2, $r3) ) YYERROR;
                 }
 
-        |       DAY_TO_YYYYDDD '(' expr[r1] ')'
+        |       DAY_TO_YYYYDDD '(' cexpr[r1] ')'
                 {
                   location_set(@1);
                   static auto r2 = new_reference(FldNumericDisplay, "50");
@@ -11795,7 +11831,7 @@ intrinsic:      function_udf
                                          $r1, r2, r3) ) YYERROR;
                 }
 
-        |       DAY_TO_YYYYDDD '(' expr[r1] expr[r2] ')'
+        |       DAY_TO_YYYYDDD '(' cexpr[r1] cexpr[r2] ')'
                 {
                   location_set(@1);
                   static auto one = new cbl_refer_t( new_constant("1") );
@@ -11811,8 +11847,8 @@ intrinsic:      function_udf
                                          $r1, $r2, r3) ) YYERROR;
                 }
 
-        |       DAY_TO_YYYYDDD '(' expr[r1]
-                                     expr[r2] expr[r3] ')'
+        |       DAY_TO_YYYYDDD '(' cexpr[r1]
+                                     cexpr[r2] cexpr[r3] ')'
                 {
                   location_set(@1);
                   $$ = new_tempnumeric("DAY_TO_YYYYDDD");
@@ -11820,7 +11856,7 @@ intrinsic:      function_udf
                                          $r1, $r2, $r3) ) YYERROR;
                 }
 
-        |       YEAR_TO_YYYY '(' expr[r1] ')'
+        |       YEAR_TO_YYYY '(' cexpr[r1] ')'
                 {
                   location_set(@1);
                   static auto r2 = new_reference(new_constant("50"));
@@ -11837,7 +11873,7 @@ intrinsic:      function_udf
                                          $r1, r2, r3) ) YYERROR;
                 }
 
-        |       YEAR_TO_YYYY '(' expr[r1] expr[r2] ')'
+        |       YEAR_TO_YYYY '(' cexpr[r1] cexpr[r2] ')'
                 {
                   location_set(@1);
                   static auto one = new cbl_refer_t( new_constant("1") );
@@ -11853,8 +11889,8 @@ intrinsic:      function_udf
                                          $r1, $r2, r3) ) YYERROR;
                 }
 
-        |       YEAR_TO_YYYY '(' expr[r1]
-                                     expr[r2] expr[r3] ')'
+        |       YEAR_TO_YYYY '(' cexpr[r1]
+                                     cexpr[r2] cexpr[r3] ')'
                 {
                   location_set(@1);
                   $$ = new_tempnumeric("YEAR_TO_YYYY");
@@ -11862,7 +11898,7 @@ intrinsic:      function_udf
                                          $r1, $r2, $r3) ) YYERROR;
                 }
 
-        |       intrinsic_N2 '(' expr[r1] expr[r2] ')'
+        |       intrinsic_N2 '(' cexpr[r1] cexpr[r2] ')'
                 {
                   location_set(@1);
                   switch($1) {
@@ -12223,6 +12259,10 @@ exception:	%empty
 
 file:           %empty
         |       FILE_KW
+                ;
+
+filler:         %empty      { $$ = false; }
+        |       FILLER_kw   { $$ = true; }
                 ;
 
 first_last:     %empty  { $$ = 0; }
@@ -13066,10 +13106,11 @@ current_tokens_t::tokenset_t::find( const cbl_name_t name, bool include_intrinsi
    *  1. an intrinsic function name (OK if include_intrinsics)
    *  2. an ISO/GCC reserved word or context-sensitive word (OK)
    *  3. a token in our token list for convenience, such as BINARY_INTEGER (bzzt)
-   */
-  
+   */  
   cbl_name_t lname;
   std::transform(name, name + strlen(name) + 1, lname, ftolower);
+  dbgmsg("current_tokens_t::tokenset_t::find: scanning %lu tokens for '%s'",
+         (unsigned long)tokens.size(), lname);
   auto p = tokens.find(lname);
   if( p == tokens.end() ) return 0;
   int token = p->second;
@@ -13668,32 +13709,60 @@ cbl_key_t::operator=( const sort_key_t& that ) {
   return *this;
 }
 
-static cbl_refer_t *
-ast_op( const cbl_loc_t& loc, cbl_refer_t *lhs, char op, cbl_refer_t *rhs ) {
-  assert(lhs);
-  assert(rhs);
-  if( ! (is_numeric(lhs->field) && is_numeric(rhs->field)) ) {
-    // If one of the fields isn't numeric, allow for index addition.
+ast_op_t::choose_intermediate_type& 
+ast_op_t::choose_intermediate_type::select_highest( const rpn_t& rpn ) {
+  const cbl_field_t *field = rpn.term.field;
+
+  if( field ) {  
+    if( ! is_numeric(field) ) { output = *field; return *this; }
+    if( output.type == FldFloat ) return *this;
+
+    if( field->type == FldFloat ) {
+      output.type = FldFloat;
+      output.data.capacity(16);
+      output.attr = intermediate_e;
+    }
+    this->operand = field;
+    return *this;
+  }
+  
+  if( rpn.op == '*' ) {
+    if( operand ) {
+      output.data.digits += operand->data.digits;
+    }
+    if( output.data.digits > MAX_FIXED_POINT_DIGITS) {
+      output.type = FldFloat;
+      output.data.capacity(16);
+      output.attr = intermediate_e;
+    }
+  }
+  return *this;
+}
+
+bool
+ast_op_t::op_ok( const cbl_loc_t& loc, char op, const ast_op_t *rhstack )
+{
+  assert(rhstack);
+  
+  const rpn_t& rpn(rhstack->top());
+  const cbl_refer_t& rhs(rpn.term);
+  gcc_assert( rhs.field || rpn.op );
+
+  if( rhs.field && ! is_numeric(rhs.field) ) {
+    // If the field isn't numeric, allow for index addition.
     switch(op) {
     case '+':
     case '-':
       // Simple addition OK for table indexes.
-      if( lhs->field->type == FldIndex || rhs->field->type == FldIndex ) {
-        goto ok;
+      if( rhs.field->type == FldIndex ) {
+        return true;
       }
     }
 
-    auto f  = !is_numeric(lhs->field)? lhs->field : rhs->field;
-    error_msg(loc, "%qs is not numeric", f->name);
-    return NULL;
+    error_msg(loc, "%qs is not numeric", rhs.field->name);
+    return false;
   }
- ok:
-  cbl_field_t skel = determine_intermediate_type( *lhs, op, *rhs );
-  cbl_refer_t *tgt = new_reference_like(skel);
-  if( !mode_syntax_only() ) {
-    parser_op( *tgt, *lhs, op, *rhs, current.compute_label() );
-  }
-  return tgt;
+  return true;
 }
 
 /*

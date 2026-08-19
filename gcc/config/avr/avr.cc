@@ -6162,7 +6162,7 @@ avr_out_set_some (rtx_insn *insn, rtx *xop, int *plen)
   scratch = REG_P (xop[1]) ? xop[1] : NULL_RTX;
   oldval = NULL_RTX;
 
-  /* There are 3 ways to get a scratch, starting withe the most preferred ones:
+  /* There are 3 ways to get a scratch, starting with the most preferred ones:
      1) avr_find_unused_d_reg() need not to be restored, and it takes care
 	of fixed regs.  This is an unlikely case, e.g. with -fno-peephole2.
      2) "set_some" provides a scratch register with a known content.
@@ -6539,6 +6539,100 @@ avr_out_cmp_lsr (rtx_insn *insn, rtx *xop, int *plen)
 }
 
 
+/* Helper for `avr_out_compare' that compares in the EQ/NE case,
+   and that permutes the sub-regs of the compare register.
+   XREG is the reg to compare against const_int XVAL.
+   Return TRUE iff the comparison has been carried out.  */
+
+static bool
+avr_out_perm_compare_eqne (rtx_insn *insn, rtx *xop, int *plen,
+			   rtx xreg, rtx xval)
+{
+  // Number of bytes to compare.
+  const int n_bytes = GET_MODE_SIZE (GET_MODE (xreg));
+
+  // Comparisons == and != may change the order in which the sub-bytes are
+  // being compared.  Start with the high 16 bits so we can use SBIW.
+
+  if (n_bytes == 4
+      && AVR_HAVE_ADIW
+      && REGNO (xreg) >= REG_22
+      && (xval == const0_rtx
+	  || (IN_RANGE (avr_int16 (xval, 2), 0, 63)
+	      && reg_unused_after (insn, xreg))))
+    {
+      xop[2] = avr_word (xval, 2);
+      avr_asm_len ("sbiw %C0,%2"      CR_TAB
+		   "sbci %B0,hi8(%1)" CR_TAB
+		   "sbci %A0,lo8(%1)", xop, plen, 3);
+      return true;
+    }
+
+  // Similarly, we may reorder the bytes when byte 0 compares against 0.
+  // Just use CPC 0 so that the CPI is not wasted on 0.
+
+  if (n_bytes >= 2
+      && END_REGNO (xreg) > REG_16
+      && INTVAL (xval) != 0
+      && avr_uint8 (xval, 0) == 0
+      // Only do this when we may /not/ clobber xreg, since in
+      // the clobber case we have SBCI at our disposal.
+      && !reg_unused_after (insn, xreg))
+    {
+      int n = 0;
+      rtx yop[8 /*n_bytes*/][3];
+
+      // First do the xval8[i] that are != 0.
+      // Start with the MSB to cover cases like SI:14.
+      for (int i = n_bytes - 1; i >= 0; --i)
+	if (avr_uint8 (xval, i) != 0)
+	  {
+	    rtx xval8 = avr_byte (xval, i);
+	    yop[n][0] = avr_byte (xreg, i);
+	    yop[n][1] = xval8;
+	    yop[n][2] = NULL_RTX;
+
+	    if (n == 0)
+	      {
+		if (REGNO (yop[n][0]) < REG_16)
+		  return false;
+		avr_asm_len ("cpi %0,%1", yop[n], plen, 1);
+	      }
+	    else
+	      {
+		rtx &v8reg = yop[n][2];
+		// When we already saw xval8, we can use the respective
+		// reg instead.  This works as we are comparing EQ / NE.
+		for (int k = 0; k < n && !v8reg; ++k)
+		  if (INTVAL (xval8) == INTVAL (yop[k][1]))
+		    v8reg = yop[k][0];
+
+		// If we see xval8 for the 1st time, we must use the scratch.
+		if (!v8reg)
+		  {
+		    v8reg = xop[2];
+		    avr_asm_len ("ldi %2,%1", yop[n], plen, 1);
+		  }
+
+		avr_asm_len ("cpc %0,%2", yop[n], plen, 1);
+	      }
+	    n += 1;
+	  }
+
+      gcc_assert (IN_RANGE (n, 1, n_bytes - 1));
+
+      // Finally do the remaining xval[i] that are 0.
+      for (int i = 0; i < n_bytes; ++i)
+	if (avr_uint8 (xval, i) == 0)
+	  avr_asm_len ("cpc %0,__zero_reg__",
+		       &all_regs_rtx[REGNO (xreg) + i], plen, 1);
+      return true;
+    }
+
+  return false;
+}
+
+
 /* Output compare instruction
 
       compare (XOP[0], XOP[1])
@@ -6617,22 +6711,10 @@ avr_out_compare (rtx_insn *insn, rtx *xop, int *plen)
 	}
     }
 
-  /* Comparisons == and != may change the order in which the sub-bytes are
-     being compared.  Start with the high 16 bits so we can use SBIW.  */
-
-  if (n_bytes == 4
-      && eqne_p
-      && AVR_HAVE_ADIW
-      && REGNO (xreg) >= REG_22
-      && (xval == const0_rtx
-	  || (IN_RANGE (avr_int16 (xval, 2), 0, 63)
-	      && reg_unused_after (insn, xreg))))
-    {
-      xop[2] = avr_word (xval, 2);
-      return avr_asm_len ("sbiw %C0,%2"      CR_TAB
-			  "sbci %B0,hi8(%1)" CR_TAB
-			  "sbci %A0,lo8(%1)", xop, plen, 3);
-    }
+  if (eqne_p
+      // Comparisons == and != may change the order of the sub-bytes.
+      && avr_out_perm_compare_eqne (insn, xop, plen, xreg, xval))
+    return "";
 
   bool changed[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 
@@ -9758,7 +9840,7 @@ avr_out_bitop (rtx xinsn, rtx *xop, int *plen)
   /* Number of bytes to operate on.  */
   int n_bytes = GET_MODE_SIZE (mode);
 
-  /* Value of T-flag (0 or 1) or -1 if unknow.  */
+  /* Value of T-flag (0 or 1) or -1 if unknown.  */
   int set_t = -1;
 
   /* Value (0..0xff) held in clobber register op[3] or -1 if unknown.  */
@@ -15322,18 +15404,7 @@ avr_addr_space_convert (rtx src, tree type_old, tree type_new)
 }
 
 
-/* Implement `TARGET_ADDR_SPACE_SUBSET_P'.  */
-
-static bool
-avr_addr_space_subset_p (addr_space_t /*subset*/, addr_space_t /*superset*/)
-{
-  /* Allow any kind of pointer mess.  */
-
-  return true;
-}
-
-
-/* Helps the next function.  */
+/* Helps the next two functions.  */
 
 static bool
 avr_addr_space_contains (addr_space_t super, addr_space_t sub)
@@ -15342,6 +15413,17 @@ avr_addr_space_contains (addr_space_t super, addr_space_t sub)
 	  || super == ADDR_SPACE_MEMX
 	  || (super == ADDR_SPACE_FLASHX
 	      && sub != ADDR_SPACE_MEMX && ! ADDR_SPACE_GENERIC_P (sub)));
+}
+
+
+/* Implement `TARGET_ADDR_SPACE_SUBSET_P'.  */
+
+static bool
+avr_addr_space_subset_p (addr_space_t subset, addr_space_t superset)
+{
+  // Allow any kind of pointer casts with -mno-strict-addr-space-subsets.
+  return (!avropt_strict_addr_space_subsets
+	  || avr_addr_space_contains (superset, subset));
 }
 
 
@@ -15818,7 +15900,7 @@ avr_expand_delay_cycles (rtx operands0)
   //
   // where loop_count denotes the start value of the N-byte loop counter.
   // The maximum value that can be loaded into loop_count is  2^{8 * N},
-  // where the maxmium value is realized by loop_count = 0.
+  // where the maximum value is realized by loop_count = 0.
   // Up to  N + 2 - 1  cycles can be added by trailing NOPs without
   // impeding the loop_count calculation, so that we arrive at a
   // condition of

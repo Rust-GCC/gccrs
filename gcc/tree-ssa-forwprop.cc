@@ -2637,16 +2637,6 @@ simplify_builtin_call (gimple_stmt_iterator *gsi_p, tree callee2, bool full_walk
 		  crhs1 = gimple_assign_rhs1 (use_stmt);
 		  crhs2 = gimple_assign_rhs2 (use_stmt);
 		}
-	      else if (gimple_assign_rhs_code (use_stmt) == COND_EXPR)
-		{
-		  tree cond = gimple_assign_rhs1 (use_stmt);
-		  if (COMPARISON_CLASS_P (cond))
-		    {
-		      ccode = TREE_CODE (cond);
-		      crhs1 = TREE_OPERAND (cond, 0);
-		      crhs2 = TREE_OPERAND (cond, 1);
-		    }
-		}
 	    }
 	  if (ccode == EQ_EXPR || ccode == NE_EXPR)
 	    {
@@ -2753,14 +2743,6 @@ simplify_builtin_call (gimple_stmt_iterator *gsi_p, tree callee2, bool full_walk
 		    {
 		      gimple_assign_set_rhs1 (use_stmt, crhs1);
 		      gimple_assign_set_rhs2 (use_stmt, crhs2);
-		    }
-		  else
-		    {
-		      gcc_checking_assert (gimple_assign_rhs_code (use_stmt)
-					   == COND_EXPR);
-		      tree cond = build2 (ccode, boolean_type_node,
-					  crhs1, crhs2);
-		      gimple_assign_set_rhs1 (use_stmt, cond);
 		    }
 		}
 	      update_stmt (use_stmt);
@@ -4112,8 +4094,7 @@ simplify_vector_constructor (gimple_stmt_iterator *gsi)
       if (conv_code == ERROR_MARK && nelts != refnelts)
 	conv_src_type = type;
       if (conv_code != ERROR_MARK
-	  && !supportable_convert_operation (conv_code, type, conv_src_type,
-					     &conv_code))
+	  && !supportable_convert_operation (conv_code, type, conv_src_type))
 	{
 	  /* Only few targets implement direct conversion patterns so try
 	     some simple special cases via VEC_[UN]PACK[_FLOAT]_LO_EXPR.  */
@@ -4275,8 +4256,7 @@ simplify_vector_constructor (gimple_stmt_iterator *gsi)
       tree mask_type, perm_type;
       perm_type = TREE_TYPE (orig[0]);
       if (conv_code != ERROR_MARK
-	  && !supportable_convert_operation (conv_code, type, conv_src_type,
-					     &conv_code))
+	  && !supportable_convert_operation (conv_code, type, conv_src_type))
 	return false;
 
       /* Now that we know the number of elements of the source build the
@@ -4383,6 +4363,7 @@ simplify_vector_constructor (gimple_stmt_iterator *gsi)
       /* For a real orig[1] (no splat, constant etc.) we might need to
 	 nop-convert it.  Do so here.  */
       if (orig[1] && orig[1] != error_mark_node
+	  && !converted_orig1
 	  && !useless_type_conversion_p (perm_type, TREE_TYPE (orig[1]))
 	  && tree_nop_conversion_p (TREE_TYPE (perm_type),
 				    TREE_TYPE (TREE_TYPE (orig[1]))))

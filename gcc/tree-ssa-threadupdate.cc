@@ -2382,14 +2382,16 @@ back_jt_path_registry::adjust_paths_after_duplication (unsigned curr_path_num)
    CURRENT_PATH_NO is an index into the global paths[] table
    specifying the jump-thread path.
 
-   Returns false if it is unable to copy the region, true otherwise.  */
+   Returns false if it is unable to copy the region, true otherwise.
+   On failure *FAILURE_REASON says why.  */
 
 bool
 back_jt_path_registry::duplicate_thread_path (edge entry,
 					      edge exit,
 					      basic_block *region,
 					      unsigned n_region,
-					      unsigned current_path_no)
+					      unsigned current_path_no,
+					      const char **failure_reason)
 {
   unsigned i;
   class loop *loop = entry->dest->loop_father;
@@ -2398,7 +2400,10 @@ back_jt_path_registry::duplicate_thread_path (edge entry,
   profile_count curr_count;
 
   if (!can_copy_bbs_p (region, n_region))
-    return false;
+    {
+      *failure_reason = "Cannot copy the blocks in the path";
+      return false;
+    }
 
   /* Some sanity checking.  Note that we do not check for all possible
      missuses of the functions.  I.e. if you ask to copy something weird,
@@ -2407,9 +2412,19 @@ back_jt_path_registry::duplicate_thread_path (edge entry,
   for (i = 0; i < n_region; i++)
     {
       /* We do not handle subloops, i.e. all the blocks must belong to the
-	 same loop.  */
-      if (region[i]->loop_father != loop)
-	return false;
+	 same loop.  Unless we thread to the subloop exit and thus the
+	 path will belong to loop after the threading.  */
+      if ((region[i]->loop_father != loop
+	   && !(loop_exit_edge_p (region[i]->loop_father, exit)
+		&& exit->dest->loop_father == loop))
+	  /* Avoid creating alternate entries into the original loop.  */
+	  || (loop->header == entry->dest
+	      && region[i] != exit->src
+	      && EDGE_COUNT (region[i]->succs) > 1))
+	{
+	  *failure_reason = "Path crosses loops";
+	  return false;
+	}
     }
 
   initialize_original_copy_tables ();
@@ -2638,16 +2653,20 @@ back_jt_path_registry::update_cfg (bool /*peel_loop_headers*/)
       for (unsigned int j = 0; j < len - 1; j++)
 	region[j] = (*path)[j]->e->dest;
 
-      if (duplicate_thread_path (entry, exit, region, len - 1, 0))
+      const char *failure_reason = NULL;
+      if (duplicate_thread_path (entry, exit, region, len - 1, 0,
+				 &failure_reason))
 	{
 	  /* We do not update dominance info.  */
 	  free_dominance_info (CDI_DOMINATORS);
 	  visited_starting_edges.add (entry);
 	  retval = true;
 	  m_num_threaded_edges++;
+	  path->release ();
 	}
+      else
+	cancel_thread (path, failure_reason);
 
-      path->release ();
       m_paths.unordered_remove (0);
       free (region);
     }
@@ -2811,6 +2830,13 @@ jt_path_registry::cancel_invalid_paths (vec<jump_thread_edge *> &path)
       && !crossed_latch
       && flow_loop_nested_p (exit->dest->loop_father, exit->src->loop_father))
     return false;
+
+  if (seen_latch && entry->dest == loop->header)
+    {
+      cancel_thread (&path, "Threading through latch from loop header "
+		     "peels loop");
+      return true;
+    }
 
   if (cfun->curr_properties & PROP_loop_opts_done)
     return false;

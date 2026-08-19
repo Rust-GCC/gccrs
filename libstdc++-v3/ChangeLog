@@ -1,3 +1,97 @@
+2026-08-18  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/126786
+	* src/c++23/Makefile.am (empty.cc): New target.
+	(std.lo, std.o, std.compat.lo, std.compat.o): Use empty.cc as
+	fallback instead of overwriting original sources.
+	* src/c++23/Makefile.in: Regenerate.
+
+2026-08-18  Francisco Muniz  <munizfco@gmail.com>
+
+	* include/std/chrono (year::is_leap): Use Hueffner leap-year
+	test after biasing the year by a multiple of 400.
+
+2026-08-18  Matthias Kretz  <m.kretz@gsi.de>
+
+	PR libstdc++/122981
+	* include/experimental/bits/simd.h (__int_for_sizeof): Return
+	int32_t, int8_t, int16_t, and int64_t, rather than int, signed
+	char, short, long, and long long.
+	* include/experimental/bits/simd_neon.h (_S_popcount): Cast
+	elements to int8_t, int16_t, int32_t, or int64_t, rather than
+	signed char, short, int, or long.
+
+2026-08-18  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* testsuite/23_containers/mdspan/layouts/padded_neg.cc: Adjust
+	message pattern for test cases using static extents.
+	* testsuite/23_containers/mdspan/submdspan/canonical_slices_neg.cc:
+	Likewise.
+
+2026-08-17  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	* config/os/bsd/openbsd/ctype_base.h: Use static_cast when
+	setting the masks.
+
+2026-08-17  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/126849
+	* include/std/numbers: Fix preprocessor check for
+	std::bfloat16_t support.
+
+2026-08-17  Kyrylo Tkachov  <ktkachov@nvidia.com>
+
+	* src/Makefile.am (all-recursive): Depend on all-parallel-subdirs.
+	(all-parallel-subdirs, all-in-%): New targets.
+	(all-in-experimental): Depend on the directories whose convenience
+	archives it links.
+	* src/Makefile.in: Regenerate.
+	* src/experimental/Makefile.am: Add comment about keeping the
+	convenience library lists in sync with src/Makefile.am.
+
+2026-08-17  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* include/std/vector (formatter<_Bit_reference, _CharT>::format)
+	[__glibcxx_constexpr_format]: Declare as constexpr.
+	* testsuite/23_containers/vector/bool/format.cc
+	[__glibcxx_constexpr_format]: Run test suite at compile
+	time.
+
+2026-08-15  Pietro Monteiro  <pietro@sociotechnical.xyz>
+
+	* config/os/bsd/openbsd/ctype_base.h: Use _CTYPE prefixed
+	macros if available.
+
+2026-08-13  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* src/c++23/std.cc.in: Remove tailing whitespace
+	after #endif.
+
+2026-08-13  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	PR libstdc++/125467
+	* src/c++20/tzdb.cc (tzdb::current_zone): Use error_code overload
+	of filesystem::canonical to ignore errors.
+
+2026-08-11  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* testsuite/27_io/headers/iosfwd/synopsis.cc: Test __cpp_lib_syncbuf
+	value only if _GLIBCXX_USE_CXX11_ABI.
+
+2026-08-07  Tomasz Kamiński  <tkaminsk@redhat.com>
+
+	* config/os/djgpp/error_constants.h (errc::no_message_available)
+	(errc::no_stream_resources, errc:not_a_stream)
+	(errc::stream_timeout): Mark as _GLIBCXX23_DEPRECATED
+	* config/os/generic/error_constants.h
+	(errc::no_message_available, errc::no_stream_resources)
+	(errc:not_a_stream, errc::stream_timeout): Likewise.
+	* config/os/mingw32-w64/error_constants.h
+	(errc::no_message_available, errc::no_stream_resources)
+	(errc:not_a_stream, errc::stream_timeout): Likewise.
+	* testsuite/19_diagnostics/headers/system_error/errc_std_c++0x.cc:
+	Add dg-warning attributes for expected deprecation warnings.
+
 2026-08-05  Tomasz Kamiński  <tkaminsk@redhat.com>
 
 	PR libstdc++/119739

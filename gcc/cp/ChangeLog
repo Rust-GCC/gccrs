@@ -1,3 +1,82 @@
+2026-08-18  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/126867
+	* tree.cc (record_has_unique_obj_representations): Use
+	location_of (const_cast <tree> (t)) rather than
+	DECL_SOURCE_LOCATION (t).
+
+2026-08-18  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/126752
+	* init.cc (build_vec_init): Assert TREE_PURPOSE of the
+	last *cleanup_flags element is rval rather than iterator.
+
+2026-08-18  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/126093
+	* mangle.cc (write_reflection): Call write_unqualified_name on
+	STRIP_TEMPLATE (arg) rather than just arg.
+
+2026-08-17  Odysseas Georgoudis  <odygrd@hotmail.com>
+
+	PR c++/126324
+	* constexpr.cc (cxx_eval_thunk_call): Preserve null pointer
+	results and adjust the result to the thunk's return type.
+	(cxx_eval_call_expression): Adjust covariant virtual-call results
+	to the static call type.
+
+2026-08-14  Patrick Palka  <ppalka@redhat.com>
+
+	* cp-gimplify.cc (cp_fold_r) <case INIT_EXPR>: Add trial
+	maybe_constant_init logic like for TARGET_EXPR.
+
+2026-08-14  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/126483
+	* typeck2.cc (store_init_value): Check maybe_constexpr_fn
+	instead of DECL_DECLARED_CONSTEXPR_P of the function scope.
+
+2026-08-14  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/123495
+	PR c++/126860
+	* cvt.cc (cp_get_fndecl_from_callee): Use fold_non_dependent_expr
+	instead of maybe_constant_init.
+
+2026-08-14  Jason Merrill  <jason@redhat.com>
+
+	PR c++/126754
+	* constexpr.cc (cxx_eval_outermost_constant_expr): Don't
+	wrap in TARGET_EXPR when processing_template_decl.
+
+2026-08-14  Jason Merrill  <jason@redhat.com>
+
+	* decl.cc (reshape_single_init): Declare sooner.
+	(reshape_init_array_1): Use it.
+	(reshape_init_class): Drop "subclass" case.
+	(reshape_init_r): d->cur->index always means initializing
+	an element.
+
+2026-08-13  Patrick Palka  <ppalka@redhat.com>
+
+	PR c++/126783
+	* module.cc (transfer_defining_module): Call retrofit_lang_decl
+	instead of assuming the old declaration already has
+	DECL_LANG_SPECIFIC allocated.
+
+2026-08-12  Patrick Palka  <ppalka@redhat.com>
+	    Bernhard M. Wiedemann  <bwiedemann@suse.de>
+
+	PR c++/124811
+	* decl.cc (typename_hasher::hash): Instead of pointer hashing,
+	hash TYPE_HASH of context and use iterative_hash_template_arg
+	to hash fullname.
+
+2026-08-12  Jakub Jelinek  <jakub@redhat.com>
+
+	* reflect.cc (init_reflection): Also initialize TYPE_UNSIGNED,
+	TYPE_PRECISION, TYPE_MODE and TYPE_ALIGN of meta_info_type_node.
+
 2026-08-06  Jakub Jelinek  <jakub@redhat.com>
 
 	PR c++/125541

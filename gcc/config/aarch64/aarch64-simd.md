@@ -1182,7 +1182,7 @@
   }
 )
 
-(define_expand "aarch64_<su>adalp<mode>"
+(define_expand "@aarch64_<su>adalp<mode>"
   [(set (match_operand:<VDBLW> 0 "register_operand")
 	(plus:<VDBLW>
 	  (plus:<VDBLW>
@@ -1360,6 +1360,32 @@
   [(set_attr "type" "neon_logic<q>")]
 )
 
+;; Lane insert for the two-element modes.  A scalar source always occupies
+;; the low part of its register, architectural lane 0.  When the inserted
+;; element is that same lane, the destination can equally be tied to the
+;; source register and the other lane brought in from operand 3, so offer
+;; that as a second alternative and let the register allocator pick
+;; whichever input already occupies the destination.  The remaining
+;; alternatives are those of the general pattern below, so that a scalar
+;; from a general register or from memory is unaffected.
+(define_insn "*aarch64_simd_vec_set_lane0<mode>"
+  [(set (match_operand:VP_2E 0 "register_operand")
+	(vec_merge:VP_2E
+	    (vec_duplicate:VP_2E
+	      (match_operand:<VEL> 1 "aarch64_simd_nonimmediate_operand"))
+	    (match_operand:VP_2E 3 "register_operand")
+	    (match_operand:SI 2 "immediate_operand")))]
+  "TARGET_SIMD && INTVAL (operands[2]) == (BYTES_BIG_ENDIAN ? 2 : 1)"
+  ;; In the second alternative the destination is the scalar's own register,
+  ;; which already holds it in lane 0, so the other lane comes from operand 3.
+  {@ [ cons: =0 , 1   , 3 ; attrs: type            ]
+     [ w        , w   , 0 ; neon_ins<q>            ] ins\t%0.<Vetype>[0], %1.<Vetype>[0]
+     [ w        , 0   , w ; neon_ins<q>            ] ins\t%0.<Vetype>[1], %3.<Vetype>[1]
+     [ w        , ?r  , 0 ; neon_from_gp<q>        ] ins\t%0.<Vetype>[0], %<vwcore>1
+     [ w        , Utv , 0 ; neon_load1_one_lane<q> ] ld1\t{%0.<Vetype>}[0], %1
+  }
+)
+
 (define_insn "@aarch64_simd_vec_set<mode>"
   [(set (match_operand:VALL_F16 0 "register_operand" "=w,w,w")
 	(vec_merge:VALL_F16
@@ -1428,6 +1454,34 @@
 							 operands[2]));
     operands[2] = GEN_INT ((HOST_WIDE_INT) 1 << elt);
     return "ins\\t%0.<Vetype>[%p2], <vwcore>zr";
+  }
+)
+
+;; Lane copy between two two-element vectors.  When the source and
+;; destination lanes are the same, the copy reads one lane from each input,
+;; so it can equally be done by inserting the live lane of either input into
+;; the other.  Offer both directions and let the register allocator tie
+;; whichever input already occupies the destination, so that neither lane
+;; needs an extra move.  Other lane combinations are left to the general
+;; pattern below, where only the destination can be tied.
+(define_insn "*aarch64_simd_vec_copy_lane_same<mode>"
+  [(set (match_operand:VP_2E 0 "register_operand")
+	(vec_merge:VP_2E
+	    (vec_duplicate:VP_2E
+	      (vec_select:<VEL>
+		(match_operand:VP_2E 3 "register_operand")
+		(parallel
+		  [(match_operand:SI 4 "immediate_operand")])))
+	    (match_operand:VP_2E 1 "register_operand")
+	    (match_operand:SI 2 "immediate_operand")))]
+  "TARGET_SIMD
+   && ENDIAN_LANE_N (2, INTVAL (operands[4])) == 1
+   && INTVAL (operands[2]) == (BYTES_BIG_ENDIAN ? 1 : 2)"
+  ;; In the second alternative the destination is operand 3, which already
+  ;; holds lane 1, so lane 0 comes from operand 1.
+  {@ [ cons: =0 , 1 , 3 ; attrs: type ]
+     [ w        , 0 , w ; neon_ins<q> ] ins\t%0.<Vetype>[1], %3.<Vetype>[1]
+     [ w        , w , 0 ; neon_ins<q> ] ins\t%0.<Vetype>[0], %1.<Vetype>[0]
   }
 )
 
@@ -5283,24 +5337,22 @@
 
 ;; <su><addsub>w<q>.
 
-(define_expand "widen_ssum<Vdblw><mode>3"
+;; A widening sum reduction that halves the lane count is a single pairwise
+;; widening accumulate.
+(define_expand "reduc_widen_<su>sum<Vdblw><mode>3"
   [(set (match_operand:<VDBLW> 0 "register_operand")
-	(plus:<VDBLW> (sign_extend:<VDBLW> 
-		        (match_operand:VQW 1 "register_operand"))
+	(plus:<VDBLW> (ANY_EXTEND:<VDBLW>
+			(match_operand:VQW 1 "register_operand"))
 		      (match_operand:<VDBLW> 2 "register_operand")))]
   "TARGET_SIMD"
   {
-    rtx p = aarch64_simd_vect_par_cnst_half (<MODE>mode, <nunits>, false);
-    rtx temp = gen_reg_rtx (GET_MODE (operands[0]));
-
-    emit_insn (gen_aarch64_saddw<mode>_internal (temp, operands[2],
-						operands[1], p));
-    emit_insn (gen_aarch64_saddw2<mode> (operands[0], temp, operands[1]));
+    emit_insn (gen_aarch64_<su>adalp<mode> (operands[0], operands[2],
+					    operands[1]));
     DONE;
   }
 )
 
-(define_expand "widen_ssum<Vwide><mode>3"
+(define_expand "reduc_widen_ssum<Vwide><mode>3"
   [(set (match_operand:<VWIDE> 0 "register_operand")
 	(plus:<VWIDE> (sign_extend:<VWIDE>
 		        (match_operand:VD_BHSI 1 "register_operand"))
@@ -5311,24 +5363,7 @@
   DONE;
 })
 
-(define_expand "widen_usum<Vdblw><mode>3"
-  [(set (match_operand:<VDBLW> 0 "register_operand")
-	(plus:<VDBLW> (zero_extend:<VDBLW> 
-		        (match_operand:VQW 1 "register_operand"))
-		      (match_operand:<VDBLW> 2 "register_operand")))]
-  "TARGET_SIMD"
-  {
-    rtx p = aarch64_simd_vect_par_cnst_half (<MODE>mode, <nunits>, false);
-    rtx temp = gen_reg_rtx (GET_MODE (operands[0]));
-
-    emit_insn (gen_aarch64_uaddw<mode>_internal (temp, operands[2],
-						 operands[1], p));
-    emit_insn (gen_aarch64_uaddw2<mode> (operands[0], temp, operands[1]));
-    DONE;
-  }
-)
-
-(define_expand "widen_usum<Vwide><mode>3"
+(define_expand "reduc_widen_usum<Vwide><mode>3"
   [(set (match_operand:<VWIDE> 0 "register_operand")
 	(plus:<VWIDE> (zero_extend:<VWIDE>
 		        (match_operand:VD_BHSI 1 "register_operand"))
@@ -5339,38 +5374,35 @@
   DONE;
 })
 
-(define_expand "widen_ssum<mode><vsi2qi>3"
+;; A widening sum reduction that quarters the lane count.
+(define_expand "reduc_widen_<su>sum<mode><vsi2qi>3"
   [(set (match_operand:VS 0 "register_operand")
-	(plus:VS (sign_extend:VS
+	(plus:VS (ANY_EXTEND:VS
 		   (match_operand:<VSI2QI> 1 "register_operand"))
 		 (match_operand:VS 2 "register_operand")))]
-  "TARGET_DOTPROD"
+  "TARGET_SIMD"
   {
-    rtx ones = force_reg (<VSI2QI>mode, CONST1_RTX (<VSI2QI>mode));
-    emit_insn (gen_sdot_prod<mode><vsi2qi> (operands[0], operands[1], ones,
-					    operands[2]));
+    aarch64_expand_reduc_widen_sum (operands[0], operands[2], operands[1],
+				    <CODE>);
     DONE;
   }
 )
 
-;; Use dot product to perform double widening sum reductions by
-;; changing += a into += (a * 1).  i.e. we seed the multiplication with 1.
-(define_expand "widen_usum<mode><vsi2qi>3"
-  [(set (match_operand:VS 0 "register_operand")
-	(plus:VS (zero_extend:VS
-		        (match_operand:<VSI2QI> 1 "register_operand"))
-		      (match_operand:VS 2 "register_operand")))]
-  "TARGET_DOTPROD"
+;; Widening sum reductions into 64-bit elements.  These need two or three
+;; pairwise widening steps.
+(define_expand "reduc_widen_<su>sumv2di<mode>3"
+  [(set (match_operand:V2DI 0 "register_operand")
+	(plus:V2DI (ANY_EXTEND:V2DI
+		     (match_operand:VQ_BH 1 "register_operand"))
+		   (match_operand:V2DI 2 "register_operand")))]
+  "TARGET_SIMD"
   {
-    rtx ones = force_reg (<VSI2QI>mode, CONST1_RTX (<VSI2QI>mode));
-    emit_insn (gen_udot_prod<mode><vsi2qi> (operands[0], operands[1], ones,
-					    operands[2]));
+    aarch64_expand_reduc_widen_sum (operands[0], operands[2], operands[1],
+				    <CODE>);
     DONE;
   }
 )
 
-;; Use dot product to perform double widening sum reductions by
-;; changing += a into += (a * 1).  i.e. we seed the multiplication with 1.
 (define_insn "aarch64_<ANY_EXTEND:su>subw<mode>"
   [(set (match_operand:<VWIDE> 0 "register_operand" "=w")
 	(minus:<VWIDE> (match_operand:<VWIDE> 1 "register_operand" "w")
