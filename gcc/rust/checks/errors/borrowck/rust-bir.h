@@ -113,12 +113,17 @@ private:
   // currently only available when kind is ASSIGNMENT | RETURN
   // FIXME: Add location for other statement kinds
   location_t location;
+  // HIR expression which consumes the RHS of an assignment.  This is used to
+  // attach backend drop-flag updates to the corresponding expression.
+  HirId move_site;
 
 public:
   static Statement make_assignment (PlaceId place, AbstractExpr *rhs,
-				    location_t location)
+				    location_t location,
+				    HirId move_site = UNKNOWN_HIRID)
   {
-    return Statement (Kind::ASSIGNMENT, place, rhs, nullptr, location);
+    return Statement (Kind::ASSIGNMENT, place, rhs, nullptr, location,
+		      move_site);
   }
   static Statement make_switch (PlaceId place)
   {
@@ -155,8 +160,10 @@ private:
   // compelete constructor, used by make_* functions
   Statement (Kind kind, PlaceId place = INVALID_PLACE,
 	     AbstractExpr *rhs = nullptr, TyTy::BaseType *type = nullptr,
-	     location_t location = UNKNOWN_LOCATION)
-    : kind (kind), place (place), expr (rhs), type (type), location (location)
+	     location_t location = UNKNOWN_LOCATION,
+	     HirId move_site = UNKNOWN_HIRID)
+    : kind (kind), place (place), expr (rhs), type (type), location (location),
+      move_site (move_site)
   {}
 
 public:
@@ -167,6 +174,7 @@ public:
   WARN_UNUSED_RESULT AbstractExpr &get_expr () const { return *expr; }
   WARN_UNUSED_RESULT TyTy::BaseType *get_type () const { return type; }
   WARN_UNUSED_RESULT location_t get_location () const { return location; }
+  WARN_UNUSED_RESULT HirId get_move_site () const { return move_site; }
 };
 
 struct BasicBlock
