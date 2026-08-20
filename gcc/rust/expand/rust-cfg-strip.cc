@@ -24,6 +24,9 @@
 #include "rust-attribute-values.h"
 #include "rust-macro-expand.h"
 
+// TODO: remove
+#pragma GCC diagnostic ignored "-Wformat-diag"
+
 namespace Rust {
 
 /**

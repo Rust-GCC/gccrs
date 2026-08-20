@@ -20,6 +20,9 @@
 #include "rust-type-util.h"
 #include "rust-tyty.h"
 
+// TODO: remove
+#pragma GCC diagnostic ignored "-Wformat-diag"
+
 namespace Rust {
 namespace Resolver {
 

@@ -63,6 +63,10 @@ ForeverStack<N>::push (Rib::Kind rib_kind, NodeId id,
   push_inner (rib_kind, Link (id, path));
 }
 
+// TODO: remove
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-diag"
+
 template <Namespace N>
 void
 ForeverStack<N>::push_inner (Rib::Kind rib_kind, Link link)
@@ -116,6 +120,9 @@ ForeverStack<N>::pop ()
 
   update_cursor (cursor ().parent.value ());
 }
+
+// TODO: remove
+#pragma GCC diagnostic pop
 
 static tl::expected<NodeId, DuplicateNameError>
 insert_inner (Rib &rib, std::string name, Rib::Definition definition)

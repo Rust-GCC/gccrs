@@ -24,6 +24,9 @@
 #include "rust-stmt.h"
 #include "rust-parse.h"
 
+// TODO: remove
+#pragma GCC diagnostic ignored "-Wformat-diag"
+
 namespace Rust {
 std::set<std::string> potentially_nonpromoted_keywords
   = {"in", "out", "lateout", "inout", "inlateout", "const", "sym", "label"};

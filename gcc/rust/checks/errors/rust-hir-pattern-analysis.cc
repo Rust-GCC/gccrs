@@ -29,6 +29,9 @@
 #include "rust-tyty.h"
 #include "rust-finalized-name-resolution-context.h"
 
+// TODO: remove
+#pragma GCC diagnostic ignored "-Wformat-diag"
+
 namespace Rust {
 namespace Analysis {
 

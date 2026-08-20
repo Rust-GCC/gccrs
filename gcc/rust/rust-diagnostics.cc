@@ -20,122 +20,28 @@
 
 #include "rust-system.h"
 #include "rust-diagnostics.h"
+#include "diagnostic.h"
 
 #include "options.h"
 #include "diagnostics/metadata.h"
 
-static std::string
-mformat_value ()
-{
-  return std::string (xstrerror (errno));
-}
-
-// Rewrite a format string to expand any extensions not
-// supported by sprintf(). See comments in rust-diagnostics.h
-// for list of supported format specifiers.
-
-static std::string
-expand_format (const char *fmt)
-{
-  std::stringstream ss;
-  for (const char *c = fmt; *c; ++c)
-    {
-      if (*c != '%')
-	{
-	  ss << *c;
-	  continue;
-	}
-      c++;
-      switch (*c)
-	{
-	case '\0':
-	  {
-	    // malformed format string
-	    rust_unreachable ();
-	  }
-	case '%':
-	  {
-	    ss << "%";
-	    break;
-	  }
-	case 'm':
-	  {
-	    ss << mformat_value ();
-	    break;
-	  }
-	case '<':
-	  {
-	    ss << rust_open_quote ();
-	    break;
-	  }
-	case '>':
-	  {
-	    ss << rust_close_quote ();
-	    break;
-	  }
-	case 'q':
-	  {
-	    ss << rust_open_quote ();
-	    c++;
-	    if (*c == 'm')
-	      {
-		ss << mformat_value ();
-	      }
-	    else
-	      {
-		ss << "%" << *c;
-	      }
-	    ss << rust_close_quote ();
-	    break;
-	  }
-	default:
-	  {
-	    ss << "%" << *c;
-	  }
-	}
-    }
-  return ss.str ();
-}
-
-// Expand message format specifiers, using a combination of
-// expand_format above to handle extensions (ex: %m, %q) and vasprintf()
-// to handle regular printf-style formatting. A pragma is being used here to
-// suppress this warning:
-//
-//   warning: function ‘std::__cxx11::string expand_message(const char*,
-//   __va_list_tag*)’ might be a candidate for ‘gnu_printf’ format attribute
-//   [-Wsuggest-attribute=format]
-//
-// What appears to be happening here is that the checker is deciding that
-// because of the call to vasprintf() (which has attribute gnu_printf), the
-// calling function must need to have attribute gnu_printf as well, even
-// though there is already an attribute declaration for it.
-
-static std::string expand_message (const char *fmt, va_list ap)
+// Expand message format specifiers
+static std::string expand_message (const char *fmt, va_list *ap)
   RUST_ATTRIBUTE_GCC_DIAG (1, 0);
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wsuggest-attribute=format"
-
 static std::string
-expand_message (const char *fmt, va_list ap)
+expand_message (const char *fmt, va_list *ap)
 {
-  char *mbuf = 0;
-  std::string expanded_fmt = expand_format (fmt);
-  int nwr = vasprintf (&mbuf, expanded_fmt.c_str (), ap);
-  if (nwr == -1)
-    {
-      // memory allocation failed
-      rust_be_error_at (UNKNOWN_LOCATION,
-			"memory allocation failed in vasprintf");
-      rust_assert (0);
-    }
-  std::string rval = std::string (mbuf);
-  free (mbuf);
+  text_info text (fmt, ap, errno);
+  std::unique_ptr<pretty_printer> printer = global_dc->clone_printer ();
+  std::string rval;
+
+  pp_format (printer.get (), &text);
+  pp_output_formatted_text (printer.get ());
+  rval = pp_formatted_text (printer.get ());
+
   return rval;
 }
-
-#pragma GCC diagnostic pop
 
 static const char *cached_open_quote = NULL;
 static const char *cached_close_quote = NULL;
@@ -179,7 +85,7 @@ rust_internal_error_at (const location_t location, const char *fmt, ...)
   va_list ap;
 
   va_start (ap, fmt);
-  rust_be_internal_error_at (location, expand_message (fmt, ap));
+  rust_be_internal_error_at (location, expand_message (fmt, &ap));
   va_end (ap);
 }
 
@@ -195,7 +101,7 @@ rust_error_at (const location_t location, const char *fmt, ...)
   va_list ap;
 
   va_start (ap, fmt);
-  rust_be_error_at (location, expand_message (fmt, ap));
+  rust_be_error_at (location, expand_message (fmt, &ap));
   va_end (ap);
 }
 
@@ -257,7 +163,7 @@ rust_error_at (const location_t location, const ErrorCode code, const char *fmt,
   va_list ap;
 
   va_start (ap, fmt);
-  rust_be_error_at (location, code, expand_message (fmt, ap));
+  rust_be_error_at (location, code, expand_message (fmt, &ap));
   va_end (ap);
 }
 
@@ -280,7 +186,7 @@ rust_error_at (const rich_location &location, const ErrorCode code,
   va_list ap;
 
   va_start (ap, fmt);
-  rust_be_error_at (location, code, expand_message (fmt, ap));
+  rust_be_error_at (location, code, expand_message (fmt, &ap));
   va_end (ap);
 }
 
@@ -302,7 +208,7 @@ rust_error_at (rich_location *richloc, const ErrorCode code, const char *fmt,
   va_list ap;
 
   va_start (ap, fmt);
-  rust_be_error_at (richloc, code, expand_message (fmt, ap));
+  rust_be_error_at (richloc, code, expand_message (fmt, &ap));
   va_end (ap);
 }
 
@@ -319,7 +225,7 @@ rust_warning_at (const location_t location, int opt, const char *fmt, ...)
   va_list ap;
 
   va_start (ap, fmt);
-  rust_be_warning_at (location, opt, expand_message (fmt, ap));
+  rust_be_warning_at (location, opt, expand_message (fmt, &ap));
   va_end (ap);
 }
 
@@ -335,7 +241,7 @@ rust_fatal_error (const location_t location, const char *fmt, ...)
   va_list ap;
 
   va_start (ap, fmt);
-  rust_be_fatal_error (location, expand_message (fmt, ap));
+  rust_be_fatal_error (location, expand_message (fmt, &ap));
   va_end (ap);
 }
 
@@ -351,7 +257,7 @@ rust_inform (const location_t location, const char *fmt, ...)
   va_list ap;
 
   va_start (ap, fmt);
-  rust_be_inform (location, expand_message (fmt, ap));
+  rust_be_inform (location, expand_message (fmt, &ap));
   va_end (ap);
 }
 
@@ -370,7 +276,7 @@ rust_error_at (const rich_location &location, const char *fmt, ...)
   va_list ap;
 
   va_start (ap, fmt);
-  rust_be_error_at (location, expand_message (fmt, ap));
+  rust_be_error_at (location, expand_message (fmt, &ap));
   va_end (ap);
 }
 
@@ -387,7 +293,7 @@ rust_error_at (rich_location *richloc, const char *fmt, ...)
   va_list ap;
 
   va_start (ap, fmt);
-  rust_be_error_at (richloc, expand_message (fmt, ap));
+  rust_be_error_at (richloc, expand_message (fmt, &ap));
   va_end (ap);
 }
 
@@ -406,18 +312,8 @@ rust_debug_loc (const location_t location, const char *fmt, ...)
   va_list ap;
 
   va_start (ap, fmt);
-  char *mbuf = NULL;
-  int nwr = vasprintf (&mbuf, fmt, ap);
+  rust_be_inform (location, expand_message (fmt, &ap));
   va_end (ap);
-  if (nwr == -1)
-    {
-      rust_be_error_at (UNKNOWN_LOCATION,
-			"memory allocation failed in vasprintf");
-      rust_assert (0);
-    }
-  std::string rval = std::string (mbuf);
-  free (mbuf);
-  rust_be_inform (location, rval);
 }
 
 void
@@ -441,32 +337,31 @@ namespace Rust {
 
 // simple location
 static Error va_constructor (Error::Kind kind, location_t locus,
-			     const char *fmt, va_list args)
+			     const char *fmt, va_list *args)
   RUST_ATTRIBUTE_GCC_DIAG (3, 0);
 
 // simple location + error code
 static Error va_constructor (Error::Kind kind, location_t locus,
 			     const ErrorCode code, const char *fmt,
-			     va_list args) RUST_ATTRIBUTE_GCC_DIAG (4, 0);
+			     va_list *args) RUST_ATTRIBUTE_GCC_DIAG (4, 0);
 
 // rich location
 static Error va_constructor (Error::Kind kind, rich_location *r_locus,
-			     const char *fmt, va_list args)
+			     const char *fmt, va_list *args)
   RUST_ATTRIBUTE_GCC_DIAG (3, 0);
 
 // rich location + error code
 static Error va_constructor (Error::Kind kind, rich_location *r_locus,
 			     const ErrorCode code, const char *fmt,
-			     va_list args) RUST_ATTRIBUTE_GCC_DIAG (4, 0);
+			     va_list *args) RUST_ATTRIBUTE_GCC_DIAG (4, 0);
 
 // simple location
 static Error
 va_constructor (Error::Kind kind, location_t locus, const char *fmt,
-		va_list args)
+		va_list *args)
 {
   std::string message = expand_message (fmt, args);
   message.shrink_to_fit ();
-  va_end (args);
 
   return Error (kind, locus, message);
 }
@@ -474,11 +369,10 @@ va_constructor (Error::Kind kind, location_t locus, const char *fmt,
 // simple location + error code
 static Error
 va_constructor (Error::Kind kind, location_t locus, const ErrorCode code,
-		const char *fmt, va_list args)
+		const char *fmt, va_list *args)
 {
   std::string message = expand_message (fmt, args);
   message.shrink_to_fit ();
-  va_end (args);
 
   return Error (kind, locus, code, message);
 }
@@ -486,11 +380,10 @@ va_constructor (Error::Kind kind, location_t locus, const ErrorCode code,
 // rich location
 static Error
 va_constructor (Error::Kind kind, rich_location *r_locus, const char *fmt,
-		va_list args)
+		va_list *args)
 {
   std::string message = expand_message (fmt, args);
   message.shrink_to_fit ();
-  va_end (args);
 
   return Error (kind, r_locus, message);
 }
@@ -498,11 +391,10 @@ va_constructor (Error::Kind kind, rich_location *r_locus, const char *fmt,
 // rich location + error code
 static Error
 va_constructor (Error::Kind kind, rich_location *r_locus, const ErrorCode code,
-		const char *fmt, va_list args)
+		const char *fmt, va_list *args)
 {
   std::string message = expand_message (fmt, args);
   message.shrink_to_fit ();
-  va_end (args);
 
   return Error (kind, r_locus, code, message);
 }
@@ -514,7 +406,9 @@ Error::Error (const location_t location, const char *fmt, ...)
   va_list ap;
   va_start (ap, fmt);
 
-  *this = va_constructor (Kind::Err, location, fmt, ap);
+  *this = va_constructor (Kind::Err, location, fmt, &ap);
+
+  va_end (ap);
 }
 
 // simple location + error code
@@ -525,7 +419,9 @@ Error::Error (const location_t location, const ErrorCode code, const char *fmt,
   va_list ap;
   va_start (ap, fmt);
 
-  *this = va_constructor (Kind::Err, location, code, fmt, ap);
+  *this = va_constructor (Kind::Err, location, code, fmt, &ap);
+
+  va_end (ap);
 }
 
 // rich location
@@ -535,7 +431,9 @@ Error::Error (rich_location *r_locus, const char *fmt, ...)
   va_list ap;
   va_start (ap, fmt);
 
-  *this = va_constructor (Kind::Err, r_locus, fmt, ap);
+  *this = va_constructor (Kind::Err, r_locus, fmt, &ap);
+
+  va_end (ap);
 }
 
 // rich location + error code
@@ -546,7 +444,9 @@ Error::Error (rich_location *r_locus, const ErrorCode code, const char *fmt,
   va_list ap;
   va_start (ap, fmt);
 
-  *this = va_constructor (Kind::Err, r_locus, code, fmt, ap);
+  *this = va_constructor (Kind::Err, r_locus, code, fmt, &ap);
+
+  va_end (ap);
 }
 
 Error
@@ -555,7 +455,10 @@ Error::Hint (const location_t location, const char *fmt, ...)
   va_list ap;
   va_start (ap, fmt);
 
-  return va_constructor (Kind::Hint, location, fmt, ap);
+  Error ret = va_constructor (Kind::Hint, location, fmt, &ap);
+
+  va_end (ap);
+  return ret;
 }
 
 Error
@@ -564,7 +467,10 @@ Error::Fatal (const location_t location, const char *fmt, ...)
   va_list ap;
   va_start (ap, fmt);
 
-  return va_constructor (Kind::FatalErr, location, fmt, ap);
+  Error ret = va_constructor (Kind::FatalErr, location, fmt, &ap);
+
+  va_end (ap);
+  return ret;
 }
 
 } // namespace Rust

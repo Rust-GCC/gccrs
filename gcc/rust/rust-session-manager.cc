@@ -685,7 +685,7 @@ Session::compile_crate (const char *filename)
    * maybe buffered lints)
    *  TODO not done */
 
-  rust_debug ("\033[0;31mSUCCESSFULLY PARSED CRATE \033[0m");
+  rust_debug ("%rSUCCESSFULLY PARSED CRATE%R", "error");
 
   // If -fsyntax-only was passed, we can just skip the remaining passes.
   // Parsing errors are already emitted in `parse_crate()`
@@ -694,7 +694,7 @@ Session::compile_crate (const char *filename)
 
   // register plugins pipeline stage
   register_plugins (parsed_crate);
-  rust_debug ("\033[0;31mSUCCESSFULLY REGISTERED PLUGINS \033[0m");
+  rust_debug ("%rSUCCESSFULLY REGISTERED PLUGINS%R", "error");
   if (options.dump_option_enabled (CompileOptions::REGISTER_PLUGINS_DUMP))
     {
       // TODO: what do I dump here?
@@ -702,7 +702,7 @@ Session::compile_crate (const char *filename)
 
   // injection pipeline stage
   injection (parsed_crate, cli_attributes);
-  rust_debug ("\033[0;31mSUCCESSFULLY FINISHED INJECTION \033[0m");
+  rust_debug ("%rSUCCESSFULLY FINISHED INJECTION%R", "error");
   if (options.dump_option_enabled (CompileOptions::INJECTION_DUMP))
     {
       // TODO: what do I dump here? injected crate names?
@@ -744,7 +744,7 @@ Session::compile_crate (const char *filename)
 
   AST::CollectLangItems ().go (parsed_crate);
 
-  rust_debug ("\033[0;31mSUCCESSFULLY FINISHED EXPANSION \033[0m");
+  rust_debug ("%rSUCCESSFULLY FINISHED EXPANSION%R", "error");
   if (options.dump_option_enabled (CompileOptions::EXPANSION_DUMP))
     {
       // dump AST with expanded stuff
@@ -895,7 +895,7 @@ Session::compile_crate (const char *filename)
 void
 Session::register_plugins (AST::Crate &crate ATTRIBUTE_UNUSED)
 {
-  rust_debug ("ran register_plugins (with no body)");
+  rust_debug ("ran %<register_plugins%> (with no body)");
 }
 
 // TODO: move somewhere else
@@ -1459,7 +1459,7 @@ TargetOptions::enable_implicit_feature_reqs (std::string feature)
     {
       insert_key_value_pair ("target_feature", feature);
 
-      rust_debug ("had to implicitly enable feature '%s'!", feature.c_str ());
+      rust_debug ("had to implicitly enable feature %qs", feature.c_str ());
     }
 }
 
