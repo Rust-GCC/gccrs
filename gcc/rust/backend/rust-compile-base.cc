@@ -46,6 +46,9 @@
 // rust-name-resolution-2.0
 #include "options.h"
 
+// TODO: fix warnings and remove
+#pragma GCC diagnostic ignored "-Wformat-diag"
+
 namespace Rust {
 namespace Compile {
 

@@ -160,7 +160,7 @@ grs_langhook_init_options_struct (struct gcc_options *opts)
 static void
 grs_langhook_parse_file (void)
 {
-  rust_debug ("Preparing to parse files. ");
+  rust_debug ("preparing to parse files");
 
   Rust::Session::get_instance ().handle_input_files (num_in_fnames, in_fnames);
 }

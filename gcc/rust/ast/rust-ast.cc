@@ -35,6 +35,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "rust-attribute-values.h"
 #include "rust-macro-invoc-lexer.h"
 
+// TODO: fix warnings and remove
+#pragma GCC diagnostic ignored "-Wformat-diag"
+
 /* Compilation unit used for various AST-related functions that would make
  * the headers too long if they were defined inline and don't receive any
  * benefits from being defined inline because they are virtual. Also used

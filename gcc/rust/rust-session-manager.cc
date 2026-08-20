@@ -70,6 +70,9 @@
 #include "rust-target.h"
 #include "rust-system.h"
 
+// TODO: fix warnings and remove
+#pragma GCC diagnostic ignored "-Wformat-diag"
+
 extern bool saw_errors (void);
 
 extern Linemap *rust_get_linemap ();

@@ -1,0 +1,4 @@
+../../gcc/rust/typecheck/rust-coercion.cc:310:15: warning: too many arguments for format [-Wformat-extra-args]
+../../gcc/rust/typecheck/rust-coercion.cc:310:15: warning: unknown conversion type character ‘z’ in format [-Wformat=]
+../../gcc/rust/typecheck/rust-unify.cc:155:23: warning: too many arguments for format [-Wformat-extra-args]
+../../gcc/rust/typecheck/rust-unify.cc:155:23: warning: unknown conversion type character ‘z’ in format [-Wformat=]
