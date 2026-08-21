@@ -41,6 +41,7 @@
 #include "rust-lint-scan-deadcode.h"
 #include "rust-lint-unused-var.h"
 #include "rust-unused-checker.h"
+#include "rust-lint-naming.h"
 #include "rust-readonly-check.h"
 #include "rust-hir-dump.h"
 #include "rust-ast-dump.h"
@@ -861,7 +862,10 @@ Session::compile_crate (const char *filename)
       Analysis::ScanDeadcode::Scan (hir);
 
       if (flag_unused_check_2_0)
-	Analysis::UnusedChecker ().go (hir);
+	{
+	  Analysis::UnusedChecker ().go (hir);
+	  Analysis::NamingConventionCheck ().go (hir);
+	}
       else
 	Analysis::UnusedVariables::Lint (*ctx);
 
