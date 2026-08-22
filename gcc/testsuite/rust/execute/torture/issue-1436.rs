@@ -87,6 +87,7 @@ trait Index<Idx> {
     fn index(&self, index: Idx) -> &Self::Output;
 }
 
+#[lang = "slice"]
 impl<T> [T] {
     pub const fn is_empty(&self) -> bool {
         self.len() == 0
