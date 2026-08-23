@@ -26,6 +26,9 @@
 #include "rust-punycode.h"
 #include "rust-compile-type.h"
 
+// TODO: fix warnings and remove
+#pragma GCC diagnostic ignored "-Wformat-diag"
+
 namespace Rust {
 namespace Compile {
 

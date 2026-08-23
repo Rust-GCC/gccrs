@@ -22,6 +22,9 @@
 #include "rust-compile-type.h"
 #include "rust-compile-var-decl.h"
 
+// TODO: fix warnings and remove
+#pragma GCC diagnostic ignored "-Wformat-diag"
+
 namespace Rust {
 namespace Compile {
 

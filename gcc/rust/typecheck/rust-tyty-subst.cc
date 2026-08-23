@@ -29,6 +29,9 @@
 #include "rust-type-util.h"
 #include "tree.h"
 
+// TODO: fix warnings and remove
+#pragma GCC diagnostic ignored "-Wformat-diag"
+
 namespace Rust {
 namespace TyTy {
 

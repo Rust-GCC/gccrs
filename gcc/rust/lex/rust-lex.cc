@@ -26,6 +26,9 @@
 #include "cpplib.h"
 #include "rust-keyword-values.h"
 
+// TODO: fix warnings and remove
+#pragma GCC diagnostic ignored "-Wformat-diag"
+
 namespace Rust {
 // TODO: move to separate compilation unit?
 // overload += for uint32_t to allow 32-bit encoded utf-8 to be added
