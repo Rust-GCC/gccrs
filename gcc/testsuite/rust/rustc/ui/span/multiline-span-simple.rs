@@ -1,0 +1,21 @@
+fn foo(a: u32, b: u32) {
+    a + b;
+}
+
+fn bar(a: u32, b: u32) {
+    a + b;
+}
+
+fn main() {
+    let x = 1;
+    let y = 2;
+    let z = 3;
+    foo(1 as u32 + // { dg-error ".E0277." "" { target *-*-* } }
+
+        bar(x,
+
+            y),
+
+        z)
+}
+
