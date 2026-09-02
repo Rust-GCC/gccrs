@@ -292,7 +292,7 @@ private:
 
   void mark_hir_id (HirId);
   bool visit_path_segment (HIR::PathExprSegment);
-  bool find_value_definition (NodeId ast_node_id, NodeId &ref_node_id);
+  tl::optional<NodeId> find_value_definition (NodeId ast_node_id);
 };
 
 } // namespace Analysis
