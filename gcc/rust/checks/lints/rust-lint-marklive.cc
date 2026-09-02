@@ -116,8 +116,8 @@ MarkLive::visit (HIR::PathInExpression &expr)
   if (expr.is_lang_item ())
     ref_node_id
       = Analysis::Mappings::get ().get_lang_item_node (expr.get_lang_item ());
-  else
-    find_value_definition (ast_node_id, ref_node_id);
+  else if (!find_value_definition (ast_node_id, ref_node_id))
+    return;
 
   // node back to HIR
   tl::optional<HirId> hid = mappings.lookup_node_to_hir (ref_node_id);
@@ -142,7 +142,8 @@ MarkLive::visit (HIR::MethodCallExpr &expr)
   // Trying to find the method definition and mark it alive.
   NodeId ast_node_id = expr.get_mappings ().get_nodeid ();
   NodeId ref_node_id = UNKNOWN_NODEID;
-  find_value_definition (ast_node_id, ref_node_id);
+  if (!find_value_definition (ast_node_id, ref_node_id))
+    return;
 
   // node back to HIR
   if (auto hid = mappings.lookup_node_to_hir (ref_node_id))
@@ -291,14 +292,16 @@ MarkLive::mark_hir_id (HirId id)
   liveSymbols.emplace (id);
 }
 
-void
+bool
 MarkLive::find_value_definition (NodeId ast_node_id, NodeId &ref_node_id)
 {
   auto resolved = resolver.lookup (ast_node_id, Resolver2_0::Namespace::Values,
 				   Resolver2_0::Namespace::Types);
-  rust_assert (resolved.has_value ());
+  if (!resolved)
+    return false;
 
   ref_node_id = resolved->id;
+  return true;
 }
 
 } // namespace Analysis
