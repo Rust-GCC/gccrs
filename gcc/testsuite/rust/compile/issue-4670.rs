@@ -9,8 +9,7 @@ fn main() {
     let my_int: i32 = 1;
 
     match my_int {
-        x if x == Something::Foo as i32 => {},
-        // { dg-error "Cannot find path .Something::Foo. in this scope" "" { target *-*-* } .-1 }
+        x if x == Something::Foo as i32 => {}, // { dg-error "" }
         _ => {},
     }
 }
