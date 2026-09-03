@@ -17,7 +17,9 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-builtin-attribute-checker.h"
+#include "rust-feature-collector.h"
 #include "optional.h"
+#include "rust-ast.h"
 #include "rust-attributes.h"
 #include "rust-attribute-values.h"
 #include "rust-session-manager.h"
@@ -87,15 +89,8 @@ check_doc_alias (const std::string &alias_input, const location_t locus)
 		   "%<#[doc(alias)]%> input cannot start or end with a space");
 }
 
-// This namespace contains handlers for the builtin attribute checker,
-// those handlers must verify the attribute internal structure and emit the
-// appropriate error message if the structure is incorrect.
-//
-// They DO NOT check the attribute validity on the parent item.
-namespace handlers {
-
 void
-doc (const AST::Attribute &attribute)
+BuiltinAttributeChecker::doc (AST::Attribute &attribute)
 {
   if (!attribute.has_attr_input ())
     {
@@ -140,7 +135,7 @@ doc (const AST::Attribute &attribute)
 }
 
 void
-deprecated (const AST::Attribute &attribute)
+BuiltinAttributeChecker::deprecated (AST::Attribute &attribute)
 {
   if (!attribute.has_attr_input ())
     return;
@@ -234,7 +229,7 @@ deprecated (const AST::Attribute &attribute)
 }
 
 void
-link_section (const AST::Attribute &attribute)
+BuiltinAttributeChecker::link_section (AST::Attribute &attribute)
 {
   if (!attribute.has_attr_input ())
     {
@@ -246,7 +241,7 @@ link_section (const AST::Attribute &attribute)
 }
 
 void
-export_name (const AST::Attribute &attribute)
+BuiltinAttributeChecker::export_name (AST::Attribute &attribute)
 {
   if (!attribute.has_attr_input ())
     {
@@ -279,7 +274,7 @@ export_name (const AST::Attribute &attribute)
 }
 
 void
-lint (const AST::Attribute &attribute)
+BuiltinAttributeChecker::lint (AST::Attribute &attribute)
 {
   if (!attribute.has_attr_input ())
     {
@@ -293,7 +288,7 @@ lint (const AST::Attribute &attribute)
 }
 
 void
-link_name (const AST::Attribute &attribute)
+BuiltinAttributeChecker::link_name (AST::Attribute &attribute)
 {
   if (!attribute.has_attr_input ())
     {
@@ -304,9 +299,8 @@ link_name (const AST::Attribute &attribute)
     }
 }
 
-namespace {
 void
-check_crate_type (const AST::Attribute &attribute)
+BuiltinAttributeChecker::check_crate_type (AST::Attribute &attribute)
 {
   if (!Session::get_instance ().options.is_proc_macro ())
     {
@@ -318,10 +312,9 @@ check_crate_type (const AST::Attribute &attribute)
 		     name.c_str ());
     }
 }
-} // namespace
 
-static void
-proc_macro_derive (const AST::Attribute &attribute)
+void
+BuiltinAttributeChecker::proc_macro_derive (AST::Attribute &attribute)
 {
   if (!attribute.has_attr_input ())
     {
@@ -335,14 +328,14 @@ proc_macro_derive (const AST::Attribute &attribute)
   check_crate_type (attribute);
 }
 
-static void
-proc_macro (const AST::Attribute &attribute)
+void
+BuiltinAttributeChecker::proc_macro (AST::Attribute &attribute)
 {
   check_crate_type (attribute);
 }
 
-static void
-target_feature (const AST::Attribute &attribute)
+void
+BuiltinAttributeChecker::target_feature (AST::Attribute &attribute)
 {
   if (!attribute.has_attr_input ())
     {
@@ -355,7 +348,7 @@ target_feature (const AST::Attribute &attribute)
 }
 
 void
-expect_no_input (const AST::Attribute &attribute)
+BuiltinAttributeChecker::expect_no_input (AST::Attribute &attribute)
 {
   if (attribute.has_attr_input ())
     {
@@ -367,37 +360,39 @@ expect_no_input (const AST::Attribute &attribute)
     }
 }
 
-} // namespace handlers
-
-const std::unordered_map<std::string, std::function<void (AST::Attribute &)>>
-  attribute_checking_handlers = {
-    {Attrs::DOC, handlers::doc},
-    {Attrs::DEPRECATED, handlers::deprecated},
-    {Attrs::LINK_SECTION, handlers::link_section},
-    {Attrs::EXPORT_NAME, handlers::export_name},
-    {Attrs::NO_MANGLE, handlers::expect_no_input},
-    {Attrs::ALLOW, handlers::lint},
-    {Attrs::DENY, handlers::lint},
-    {Attrs::WARN, handlers::lint},
-    {Attrs::FORBID, handlers::lint},
-    {Attrs::LINK_NAME, handlers::link_name},
-    {Attrs::PROC_MACRO_DERIVE, handlers::proc_macro_derive},
-    {Attrs::PROC_MACRO, handlers::proc_macro},
-    {Attrs::PROC_MACRO_ATTRIBUTE, handlers::proc_macro},
-    {Attrs::TARGET_FEATURE, handlers::target_feature},
-    {Attrs::RUSTC_STD_INTERNAL_SYMBOL, handlers::expect_no_input},
-    {Attrs::RUSTC_ALLOCATOR, handlers::expect_no_input},
-    {Attrs::RUSTC_ALLOCATOR_NOUNWIND, handlers::expect_no_input},
-    {Attrs::GLOBAL_ALLOCATOR, handlers::expect_no_input},
-    {Attrs::RUSTC_CONVERSION_SUGGESTION, handlers::expect_no_input},
-};
-
-tl::optional<std::function<void (AST::Attribute &)>>
-lookup_handler (std::string attr_name)
+tl::optional<BuiltinAttributeChecker::Handler>
+lookup_handler (const std::string &attr_name)
 {
-  auto res = attribute_checking_handlers.find (attr_name);
-  if (res != attribute_checking_handlers.cend ())
+  const std::unordered_map<std::string, BuiltinAttributeChecker::Handler>
+    handlers = {
+      {Attrs::DOC, &BuiltinAttributeChecker::doc},
+      {Attrs::DEPRECATED, &BuiltinAttributeChecker::deprecated},
+      {Attrs::LINK_SECTION, &BuiltinAttributeChecker::link_section},
+      {Attrs::EXPORT_NAME, &BuiltinAttributeChecker::export_name},
+      {Attrs::NO_MANGLE, &BuiltinAttributeChecker::expect_no_input},
+      {Attrs::ALLOW, &BuiltinAttributeChecker::lint},
+      {Attrs::DENY, &BuiltinAttributeChecker::lint},
+      {Attrs::WARN, &BuiltinAttributeChecker::lint},
+      {Attrs::FORBID, &BuiltinAttributeChecker::lint},
+      {Attrs::LINK_NAME, &BuiltinAttributeChecker::link_name},
+      {Attrs::PROC_MACRO_DERIVE, &BuiltinAttributeChecker::proc_macro_derive},
+      {Attrs::PROC_MACRO, &BuiltinAttributeChecker::proc_macro},
+      {Attrs::PROC_MACRO_ATTRIBUTE, &BuiltinAttributeChecker::proc_macro},
+      {Attrs::TARGET_FEATURE, &BuiltinAttributeChecker::target_feature},
+      {Attrs::RUSTC_STD_INTERNAL_SYMBOL,
+       &BuiltinAttributeChecker::expect_no_input},
+      {Attrs::RUSTC_ALLOCATOR, &BuiltinAttributeChecker::expect_no_input},
+      {Attrs::RUSTC_ALLOCATOR_NOUNWIND,
+       &BuiltinAttributeChecker::expect_no_input},
+      {Attrs::GLOBAL_ALLOCATOR, &BuiltinAttributeChecker::expect_no_input},
+      {Attrs::RUSTC_CONVERSION_SUGGESTION,
+       &BuiltinAttributeChecker::expect_no_input},
+    };
+
+  auto res = handlers.find (attr_name);
+  if (res != handlers.cend ())
     return res->second;
+
   return tl::nullopt;
 }
 
@@ -466,7 +461,10 @@ check_valid_attribute_for_item (const AST::Attribute &attr,
     }
 }
 
-BuiltinAttributeChecker::BuiltinAttributeChecker () {}
+BuiltinAttributeChecker::BuiltinAttributeChecker (
+  const Features::CrateFeatures &crate_features)
+  : feature_gate (FeatureGate (crate_features))
+{}
 
 void
 BuiltinAttributeChecker::go (AST::Crate &crate)
@@ -489,8 +487,10 @@ void
 BuiltinAttributeChecker::visit (AST::Attribute &attribute)
 {
   lookup_handler (attribute.get_path ().as_string ()).map ([&] (auto handler) {
-    handler (attribute);
+    // :sob: this is so ugly
+    (this->*handler) (attribute);
   });
+
   AST::DefaultASTVisitor::visit (attribute);
 }
 
