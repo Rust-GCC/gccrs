@@ -17,7 +17,6 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-intrinsic-handlers.h"
-#include "optional.h"
 #include "rust-backend.h"
 #include "rust-compile-context.h"
 #include "rust-compile-item.h"
@@ -139,7 +138,7 @@ check_for_basic_integer_type (const std::string &intrinsic_str,
   return is_basic_integer;
 }
 
-tl::optional<tree>
+gcc::optional<tree>
 IntrinsicCtx::check_for_cached_intrinsic ()
 {
   const Resolver::CanonicalPath &canonical_path = fntype.get_ident ().path;
@@ -151,7 +150,7 @@ IntrinsicCtx::check_for_cached_intrinsic ()
 				&fntype, asm_name))
     return lookup;
 
-  return tl::nullopt;
+  return gcc::nullopt;
 }
 
 void
@@ -458,7 +457,7 @@ op_with_overflow (IntrinsicCtx &ctx, tree_code op)
   auto x = Backend::var_expression (x_param, UNDEF_LOCATION);
   auto y = Backend::var_expression (y_param, UNDEF_LOCATION);
 
-  tl::optional<tree> overflow_builtin = tl::nullopt;
+  gcc::optional<tree> overflow_builtin = gcc::nullopt;
   auto &builtins = BuiltinsContext::get ();
 
   switch (op)

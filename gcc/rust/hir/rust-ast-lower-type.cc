@@ -608,10 +608,10 @@ ASTLowerGenericParam::visit (AST::TypeParam &param)
 	}
     }
 
-  tl::optional<std::unique_ptr<HIR::Type>> type = tl::nullopt;
+  gcc::optional<std::unique_ptr<HIR::Type>> type = gcc::nullopt;
   if (param.has_type ())
     type
-      = tl::optional<std::unique_ptr<HIR::Type>> (std::unique_ptr<HIR::Type> (
+      = gcc::optional<std::unique_ptr<HIR::Type>> (std::unique_ptr<HIR::Type> (
 	ASTLoweringType::translate (param.get_type ())));
 
   auto crate_num = mappings.crate.get_current_crate ();

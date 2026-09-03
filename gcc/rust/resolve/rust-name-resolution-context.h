@@ -19,7 +19,9 @@
 #ifndef RUST_NAME_RESOLVER_2_0_CTX_H
 #define RUST_NAME_RESOLVER_2_0_CTX_H
 
-#include "optional.h"
+#include "rust-system.h"
+#include "stdbackport/optional"
+
 #include "rust-forever-stack.h"
 #include "rust-hir-map.h"
 #include "rust-rib.h"
@@ -359,11 +361,11 @@ public:
     return *it->second;
   }
 
-  tl::optional<CanonicalPathRecord *> get_record_opt (NodeId id) const
+  gcc::optional<CanonicalPathRecord *> get_record_opt (NodeId id) const
   {
     auto it = records.find (id);
     if (it == records.end ())
-      return tl::nullopt;
+      return gcc::nullopt;
     else
       return it->second.get ();
   }
@@ -488,16 +490,16 @@ public:
    * @param id This value's ID, e.g the function definition's node ID.
    * @param ns Namespace in which to insert the value.
    */
-  tl::expected<NodeId, DuplicateNameError> insert (Identifier name, NodeId id,
-						   Namespace ns);
+  gcc::expected<NodeId, DuplicateNameError> insert (Identifier name, NodeId id,
+						    Namespace ns);
 
-  tl::expected<NodeId, DuplicateNameError>
+  gcc::expected<NodeId, DuplicateNameError>
   insert_variant (Identifier name, NodeId id, bool is_also_value);
 
-  tl::expected<NodeId, DuplicateNameError>
+  gcc::expected<NodeId, DuplicateNameError>
   insert_shadowable (Identifier name, NodeId id, Namespace ns);
 
-  tl::expected<NodeId, DuplicateNameError>
+  gcc::expected<NodeId, DuplicateNameError>
   insert_globbed (Identifier name, NodeId id, Namespace ns);
 
   // Crate are supposed to be injected before any other module because we want
@@ -525,10 +527,10 @@ public:
   // scoped lambda?
   void scoped (Rib::Kind rib_kind, NodeId scope_id,
 	       std::function<void (void)> lambda,
-	       tl::optional<Identifier> path = {});
+	       gcc::optional<Identifier> path = {});
   void scoped (Rib::Kind rib_kind, Namespace ns, NodeId scope_id,
 	       std::function<void (void)> lambda,
-	       tl::optional<Identifier> path = {});
+	       gcc::optional<Identifier> path = {});
 
   using Node = ForeverStackBase::Node;
 
@@ -565,7 +567,7 @@ public:
    * returns a Rib::Definition.
    */
   void map_usage (Usage usage, Definition definition, Namespace ns);
-  tl::optional<NodeId> lookup (NodeId usage, Namespace ns) const;
+  gcc::optional<NodeId> lookup (NodeId usage, Namespace ns) const;
 
   /**
    * The order of namespaces is important - if the usage resolves in the first
@@ -573,10 +575,10 @@ public:
    * should NOT happen. This is for looking up usages once name resolution is
    * done and we are in later stages of the pipeline.
    */
-  tl::optional<NSLookup> lookup (NodeId usage, Namespace ns1,
-				 Namespace ns2) const;
-  tl::optional<NSLookup> lookup (NodeId usage, Namespace ns1, Namespace ns2,
-				 Namespace ns3) const;
+  gcc::optional<NSLookup> lookup (NodeId usage, Namespace ns1,
+				  Namespace ns2) const;
+  gcc::optional<NSLookup> lookup (NodeId usage, Namespace ns1, Namespace ns2,
+				  Namespace ns3) const;
 
   Resolver::CanonicalPath to_canonical_path (NodeId id, Namespace ns) const
   {
@@ -593,10 +595,10 @@ public:
       : definition (definition), ns (ns)
     {}
 
-    static tl::optional<NamespacedDefinition>
-    Maybe (tl::optional<Rib::Definition> definition, Namespace ns)
+    static gcc::optional<NamespacedDefinition>
+    Maybe (gcc::optional<Rib::Definition> definition, Namespace ns)
     {
-      return definition.map ([ns] (Rib::Definition definition) {
+      return definition.transform ([ns] (Rib::Definition definition) {
 	return NamespacedDefinition (definition, ns);
       });
     }
@@ -605,7 +607,7 @@ public:
     Namespace ns;
   };
 
-  tl::optional<NamespacedDefinition>
+  gcc::optional<NamespacedDefinition>
   resolve_path (const ResolutionPath &path, ResolutionMode mode,
 		std::vector<Error> &collect_errors, Namespace ns)
   {
@@ -614,7 +616,7 @@ public:
 	  map_usage (seg_id, id, ns);
 	};
 
-    tl::optional<NamespacedDefinition> resolved = tl::nullopt;
+    gcc::optional<NamespacedDefinition> resolved = gcc::nullopt;
 
     switch (ns)
       {
@@ -734,12 +736,12 @@ public:
       add_namespaces (rest...);
     }
 
-    void set_collect_errors (tl::optional<std::vector<Error> &> collect_errors)
+    void set_collect_errors (gcc::optional<std::vector<Error> &> collect_errors)
     {
       this->collect_errors = collect_errors;
     }
 
-    tl::optional<NamespacedDefinition> resolve ()
+    gcc::optional<NamespacedDefinition> resolve ()
     {
       rust_assert (has_path_set);
 
@@ -765,7 +767,7 @@ public:
 	    }
 	}
 
-      return tl::nullopt;
+      return gcc::nullopt;
     }
 
   private:
@@ -775,15 +777,15 @@ public:
 
     std::vector<Namespace> namespace_list;
 
-    tl::optional<std::vector<Error> &> collect_errors;
+    gcc::optional<std::vector<Error> &> collect_errors;
 
     NameResolutionContext *ctx;
   };
 
   template <typename S, typename... Args>
-  tl::optional<NamespacedDefinition>
+  gcc::optional<NamespacedDefinition>
   resolve_path (const RawPath<S> &path, ResolutionMode mode,
-		tl::optional<std::vector<Error> &> collect_errors,
+		gcc::optional<std::vector<Error> &> collect_errors,
 		Namespace ns_first, Args... ns_args)
   {
     ResolutionBuilder builder (*this);
@@ -795,9 +797,9 @@ public:
   }
 
   template <typename S, typename... Args>
-  tl::optional<NamespacedDefinition>
+  gcc::optional<NamespacedDefinition>
   resolve_path (const RawPath<S> &path,
-		tl::optional<std::vector<Error> &> collect_errors,
+		gcc::optional<std::vector<Error> &> collect_errors,
 		Namespace ns_first, Args... ns_args)
   {
     ResolutionBuilder builder (*this);
@@ -810,7 +812,7 @@ public:
   }
 
   template <typename S, typename... Args>
-  tl::optional<NamespacedDefinition>
+  gcc::optional<NamespacedDefinition>
   resolve_path (const RawPath<S> &path, Namespace ns_first, Args... ns_args)
   {
     ResolutionBuilder builder (*this);
@@ -821,7 +823,7 @@ public:
   }
 
   template <typename S, typename... Args>
-  tl::optional<NamespacedDefinition>
+  gcc::optional<NamespacedDefinition>
   resolve_path (const RawPath<S> &path, ResolutionMode mode, Namespace ns_first,
 		Args... ns_args)
   {
@@ -867,7 +869,7 @@ public:
 
   /* If declared with #[prelude_import], the current standard library module
    */
-  tl::optional<NodeId> prelude;
+  gcc::optional<NodeId> prelude;
 
 private:
   template <Namespace N>
@@ -885,7 +887,7 @@ private:
    *         current map, an empty one otherwise.
    */
   template <Namespace N>
-  tl::optional<Rib::Definition>
+  gcc::optional<Rib::Definition>
   resolve_path (ForeverStack<N> &stack, const ResolutionPath &path,
 		ResolutionMode mode,
 		std::function<void (Usage, Definition, Namespace)>
@@ -893,7 +895,7 @@ private:
 		std::vector<Error> &collect_errors);
 
   template <Namespace N>
-  tl::optional<Rib::Definition>
+  gcc::optional<Rib::Definition>
   resolve_path (ForeverStack<N> &stack, const ResolutionPath &path,
 		ResolutionMode mode,
 		std::function<void (Usage, Definition, Namespace)>
@@ -901,7 +903,7 @@ private:
 		std::vector<Error> &collect_errors, NodeId starting_point_id);
 
   template <Namespace N>
-  tl::optional<Rib::Definition> resolve_path (
+  gcc::optional<Rib::Definition> resolve_path (
     ForeverStack<N> &stack, const ResolutionPath &path, ResolutionMode mode,
     std::function<void (Usage, Definition, Namespace)>
       insert_segment_resolution,
@@ -909,7 +911,7 @@ private:
     std::reference_wrapper<typename ForeverStack<N>::Node> starting_point);
 
   template <Namespace N>
-  tl::optional<typename ForeverStack<N>::Node &>
+  gcc::optional<typename ForeverStack<N>::Node &>
   resolve_segments (ForeverStack<N> &stack,
 		    typename ForeverStack<N>::Node &starting_point,
 		    const RawPath<ResolutionPathSegment> &path,
@@ -919,7 +921,7 @@ private:
 		    std::vector<Error> &collect_errors);
 
   template <Namespace N>
-  tl::optional<Rib::Definition>
+  gcc::optional<Rib::Definition>
   resolve_final_segment (ForeverStack<N> &stack,
 			 typename ForeverStack<N>::Node &final_node,
 			 std::string &seg_name, bool is_lower_self);

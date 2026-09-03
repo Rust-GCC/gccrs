@@ -27,7 +27,7 @@ namespace Rust {
 
 /* Expand builtin macro compile_error!("error"), which forces a compile error
    during the compile time. */
-tl::optional<AST::Fragment>
+gcc::optional<AST::Fragment>
 MacroBuiltin::compile_error_handler (location_t invoc_locus,
 				     AST::MacroInvocData &invoc,
 				     AST::InvocKind semicolon)
@@ -89,7 +89,7 @@ MacroBuiltin::compile_error_handler (location_t invoc_locus,
 // invocation?
 // Do we split the two passes of parsing the token tree and then expanding it?
 // Can we do that easily?
-tl::optional<AST::Fragment>
+gcc::optional<AST::Fragment>
 MacroBuiltin::concat_handler (location_t invoc_locus,
 			      AST::MacroInvocData &invoc,
 			      AST::InvocKind semicolon)
@@ -155,7 +155,7 @@ MacroBuiltin::concat_handler (location_t invoc_locus,
 
 /* Expand builtin macro env!(), which inspects an environment variable at
    compile time. */
-tl::optional<AST::Fragment>
+gcc::optional<AST::Fragment>
 MacroBuiltin::env_handler (location_t invoc_locus, AST::MacroInvocData &invoc,
 			   AST::InvocKind semicolon)
 {
@@ -231,7 +231,7 @@ MacroBuiltin::env_handler (location_t invoc_locus, AST::MacroInvocData &invoc,
 
 /* Expand builtin macro option_env!(), which inspects an environment variable at
    compile time. */
-tl::optional<AST::Fragment>
+gcc::optional<AST::Fragment>
 MacroBuiltin::option_env_handler (location_t invoc_locus,
 				  AST::MacroInvocData &invoc,
 				  AST::InvocKind semicolon)
@@ -306,7 +306,7 @@ MacroBuiltin::option_env_handler (location_t invoc_locus,
   return AST::Fragment (nodes, std::vector<std::unique_ptr<AST::Token>> ());
 }
 
-tl::optional<AST::Fragment>
+gcc::optional<AST::Fragment>
 MacroBuiltin::cfg_handler (location_t invoc_locus, AST::MacroInvocData &invoc,
 			   AST::InvocKind semicolon)
 {
@@ -345,7 +345,7 @@ MacroBuiltin::cfg_handler (location_t invoc_locus, AST::MacroInvocData &invoc,
   return AST::Fragment ({literal_exp}, std::move (tok));
 }
 
-tl::optional<AST::Fragment>
+gcc::optional<AST::Fragment>
 MacroBuiltin::cfg_select_handler (location_t invoc_locus,
 				  AST::MacroInvocData &invoc,
 				  AST::InvocKind semicolon)
@@ -478,7 +478,7 @@ MacroBuiltin::cfg_select_handler (location_t invoc_locus,
 			std::move (matched_body_tokens));
 }
 
-tl::optional<AST::Fragment>
+gcc::optional<AST::Fragment>
 MacroBuiltin::stringify_handler (location_t invoc_locus,
 				 AST::MacroInvocData &invoc,
 				 AST::InvocKind semicolon)

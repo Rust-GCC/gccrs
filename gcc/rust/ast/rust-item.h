@@ -429,13 +429,13 @@ class SelfParam : public Param
   bool has_ref;
   bool is_mut;
   // bool has_lifetime; // only possible if also ref
-  tl::optional<Lifetime> lifetime;
+  gcc::optional<Lifetime> lifetime;
 
   // bool has_type; // only possible if not ref
   std::unique_ptr<Type> type;
 
   // Unrestricted constructor used for error state
-  SelfParam (tl::optional<Lifetime> lifetime, bool has_ref, bool is_mut,
+  SelfParam (gcc::optional<Lifetime> lifetime, bool has_ref, bool is_mut,
 	     Type *type)
     : Param ({}, UNDEF_LOCATION), has_ref (has_ref), is_mut (is_mut),
       lifetime (std::move (lifetime)), type (type)
@@ -468,11 +468,11 @@ public:
   // Type-based self parameter (not ref, no lifetime)
   SelfParam (std::unique_ptr<Type> type, bool is_mut, location_t locus)
     : Param ({}, locus), has_ref (false), is_mut (is_mut),
-      lifetime (tl::nullopt), type (std::move (type))
+      lifetime (gcc::nullopt), type (std::move (type))
   {}
 
   // Lifetime-based self parameter (is ref, no type)
-  SelfParam (tl::optional<Lifetime> lifetime, bool is_mut, location_t locus)
+  SelfParam (gcc::optional<Lifetime> lifetime, bool is_mut, location_t locus)
     : Param ({}, locus), has_ref (true), is_mut (is_mut),
       lifetime (std::move (lifetime))
   {}
@@ -1345,7 +1345,7 @@ class Function : public VisItem, public AssociatedItem, public ExternalItem
   std::vector<std::unique_ptr<Param>> function_params;
   std::unique_ptr<Type> return_type;
   WhereClause where_clause;
-  tl::optional<std::unique_ptr<BlockExpr>> function_body;
+  gcc::optional<std::unique_ptr<BlockExpr>> function_body;
   location_t locus;
   bool is_external_function;
 
@@ -1378,7 +1378,7 @@ public:
 	    std::vector<std::unique_ptr<GenericParam>> generic_params,
 	    std::vector<std::unique_ptr<Param>> function_params,
 	    std::unique_ptr<Type> return_type, WhereClause where_clause,
-	    tl::optional<std::unique_ptr<BlockExpr>> function_body,
+	    gcc::optional<std::unique_ptr<BlockExpr>> function_body,
 	    Visibility vis, std::vector<Attribute> outer_attrs,
 	    location_t locus, bool is_external_function = false)
     : VisItem (std::move (vis), std::move (outer_attrs)),
@@ -1442,7 +1442,7 @@ public:
   }
 
   // TODO: is this better? Or is a "vis_block" better?
-  tl::optional<std::unique_ptr<BlockExpr>> &get_definition ()
+  gcc::optional<std::unique_ptr<BlockExpr>> &get_definition ()
   {
     return function_body;
   }

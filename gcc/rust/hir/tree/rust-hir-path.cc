@@ -17,7 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-hir-path.h"
-#include "optional.h"
+#include "stdbackport/optional"
 #include "rust-hir-bound.h"
 
 namespace Rust {
@@ -176,14 +176,14 @@ TypePathSegment::TypePathSegment (Analysis::NodeMapping mappings,
 				  bool has_separating_scope_resolution,
 				  location_t locus)
   : mappings (std::move (mappings)), ident_segment (std::move (ident_segment)),
-    lang_item (tl::nullopt), locus (locus),
+    lang_item (gcc::nullopt), locus (locus),
     has_separating_scope_resolution (has_separating_scope_resolution),
     type (SegmentType::REG)
 {}
 
 TypePathSegment::TypePathSegment (Analysis::NodeMapping mappings,
 				  LangItem::Kind lang_item, location_t locus)
-  : mappings (std::move (mappings)), ident_segment (tl::nullopt),
+  : mappings (std::move (mappings)), ident_segment (gcc::nullopt),
     lang_item (lang_item), locus (locus),
     has_separating_scope_resolution (false), type (SegmentType::REG)
 {}
@@ -194,7 +194,7 @@ TypePathSegment::TypePathSegment (Analysis::NodeMapping mappings,
 				  location_t locus)
   : mappings (std::move (mappings)),
     ident_segment (PathIdentSegment (std::move (segment_name))),
-    lang_item (tl::nullopt), locus (locus),
+    lang_item (gcc::nullopt), locus (locus),
     has_separating_scope_resolution (has_separating_scope_resolution),
     type (SegmentType::REG)
 {}

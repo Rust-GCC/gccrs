@@ -786,7 +786,7 @@ TypeCheckContext::intern_lifetime (const HIR::Lifetime &lifetime)
   rust_unreachable ();
 }
 
-tl::optional<Lifetime>
+gcc::optional<Lifetime>
 TypeCheckContext::lookup_lifetime (const HIR::Lifetime &lifetime) const
 {
   if (lifetime.get_lifetime_type () == AST::Lifetime::NAMED)
@@ -799,12 +799,12 @@ TypeCheckContext::lookup_lifetime (const HIR::Lifetime &lifetime) const
 	  rust_error_at (r, ErrorCode::E0262,
 			 "invalid lifetime parameter name: %qs",
 			 lifetime.get_name ().c_str ());
-	  return tl::nullopt;
+	  return gcc::nullopt;
 	}
       const auto name = lifetime.get_name ();
       auto it = lifetime_name_interner.find (name);
       if (it == lifetime_name_interner.end ())
-	return tl::nullopt;
+	return gcc::nullopt;
       return it->second;
     }
   if (lifetime.get_lifetime_type () == AST::Lifetime::WILDCARD)
@@ -818,13 +818,13 @@ TypeCheckContext::lookup_lifetime (const HIR::Lifetime &lifetime) const
   rust_unreachable ();
 }
 
-WARN_UNUSED_RESULT tl::optional<TyTy::Region>
+WARN_UNUSED_RESULT gcc::optional<TyTy::Region>
 TypeCheckContext::lookup_and_resolve_lifetime (
   const HIR::Lifetime &lifetime) const
 {
   auto maybe_interned = lookup_lifetime (lifetime);
   if (!maybe_interned)
-    return tl::nullopt;
+    return gcc::nullopt;
 
   return get_lifetime_resolver ().resolve (maybe_interned.value ());
 }

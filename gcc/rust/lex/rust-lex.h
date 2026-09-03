@@ -22,7 +22,7 @@
 #include "rust-linemap.h"
 #include "rust-buffered-queue.h"
 #include "rust-token.h"
-#include "optional.h"
+#include "stdbackport/optional"
 #include "selftest.h"
 #include "rust-input-source.h"
 
@@ -161,7 +161,7 @@ private:
 public:
   // Construct lexer with input file and filename provided
   Lexer (const char *filename, RAIIFile input, Linemap *linemap,
-	 tl::optional<std::ofstream &> dump_lex_opt = tl::nullopt);
+	 gcc::optional<std::ofstream &> dump_lex_opt = gcc::nullopt);
 
   // Lex the contents of a string instead of a file
   Lexer (const std::string &input, Linemap *linemap);
@@ -235,7 +235,7 @@ private:
    * allocating new linemap */
   static const int max_column_hint = 80;
 
-  tl::optional<std::ofstream &> dump_lex_out;
+  gcc::optional<std::ofstream &> dump_lex_out;
 
   // The input source for the lexer.
   // InputSource input_source;

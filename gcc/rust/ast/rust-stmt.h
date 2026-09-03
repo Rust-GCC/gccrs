@@ -19,7 +19,7 @@
 #ifndef RUST_AST_STATEMENT_H
 #define RUST_AST_STATEMENT_H
 
-#include "optional.h"
+#include "stdbackport/optional"
 #include "rust-ast.h"
 #include "rust-path.h"
 #include "rust-expr.h"
@@ -73,7 +73,7 @@ class LetStmt : public Stmt
   // bool has_init_expr;
   std::unique_ptr<Expr> init_expr;
 
-  tl::optional<std::unique_ptr<Expr>> else_expr;
+  gcc::optional<std::unique_ptr<Expr>> else_expr;
 
   location_t locus;
 
@@ -94,7 +94,7 @@ public:
 
   LetStmt (std::unique_ptr<Pattern> variables_pattern,
 	   std::unique_ptr<Expr> init_expr, std::unique_ptr<Type> type,
-	   tl::optional<std::unique_ptr<Expr>> else_expr,
+	   gcc::optional<std::unique_ptr<Expr>> else_expr,
 	   std::vector<Attribute> outer_attrs, location_t locus)
     : outer_attrs (std::move (outer_attrs)),
       variables_pattern (std::move (variables_pattern)),
@@ -141,7 +141,7 @@ public:
     if (other.else_expr != nullptr)
       else_expr = other.else_expr.value ()->clone_expr ();
     else
-      else_expr = tl::nullopt;
+      else_expr = gcc::nullopt;
 
     if (other.type != nullptr)
       type = other.type->clone_type ();

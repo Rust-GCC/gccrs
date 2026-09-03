@@ -307,7 +307,7 @@ TypeCheckImplItem::resolve_function_signature (HIR::Function &function)
 
 	    case HIR::SelfParam::IMM_REF:
 	      {
-		tl::optional<TyTy::Region> region;
+		gcc::optional<TyTy::Region> region;
 		if (self_param.has_lifetime ())
 		  {
 		    region = context->lookup_and_resolve_lifetime (
@@ -332,7 +332,7 @@ TypeCheckImplItem::resolve_function_signature (HIR::Function &function)
 
 	    case HIR::SelfParam::MUT_REF:
 	      {
-		tl::optional<TyTy::Region> region;
+		gcc::optional<TyTy::Region> region;
 		if (self_param.has_lifetime ())
 		  {
 		    region = context->lookup_and_resolve_lifetime (

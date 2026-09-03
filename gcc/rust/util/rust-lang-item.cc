@@ -161,7 +161,7 @@ const BiMap<std::string, LangItem::Kind> Rust::LangItem::lang_items = {{
   {"get_context", Kind::GET_CONTEXT},
 }};
 
-tl::optional<LangItem::Kind>
+gcc::optional<LangItem::Kind>
 LangItem::Parse (const std::string &item)
 {
   auto lang_item = LangItem::lang_items.lookup (item);

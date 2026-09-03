@@ -17,7 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-ast-builder.h"
-#include "optional.h"
+#include "stdbackport/optional"
 #include "rust-ast.h"
 #include "rust-common.h"
 #include "rust-expr.h"
@@ -135,7 +135,7 @@ Builder::tuple (std::vector<std::unique_ptr<Expr>> &&values) const
 std::unique_ptr<Param>
 Builder::self_ref_param (bool mutability) const
 {
-  return std::make_unique<SelfParam> (tl::nullopt, mutability, loc);
+  return std::make_unique<SelfParam> (gcc::nullopt, mutability, loc);
 }
 
 std::unique_ptr<Param>
@@ -316,7 +316,7 @@ Builder::variant_path (const std::string &enum_path,
 }
 
 std::unique_ptr<BlockExpr>
-Builder::block (tl::optional<std::unique_ptr<Stmt>> &&stmt,
+Builder::block (gcc::optional<std::unique_ptr<Stmt>> &&stmt,
 		std::unique_ptr<Expr> &&tail_expr) const
 {
   auto stmts = std::vector<std::unique_ptr<Stmt>> ();
@@ -338,16 +338,16 @@ Builder::block () const
 std::unique_ptr<BlockExpr>
 Builder::block (std::unique_ptr<Expr> &&tail_expr) const
 {
-  return block (tl::nullopt, std::move (tail_expr));
+  return block (gcc::nullopt, std::move (tail_expr));
 }
 
 std::unique_ptr<BlockExpr>
 Builder::block (std::vector<std::unique_ptr<Stmt>> &&stmts,
 		std::unique_ptr<Expr> &&tail_expr) const
 {
-  return std::unique_ptr<BlockExpr> (new BlockExpr (std::move (stmts),
-						    std::move (tail_expr), {},
-						    {}, tl::nullopt, loc, loc));
+  return std::unique_ptr<BlockExpr> (
+    new BlockExpr (std::move (stmts), std::move (tail_expr), {}, {},
+		   gcc::nullopt, loc, loc));
 }
 
 std::unique_ptr<Expr>
@@ -363,7 +363,7 @@ Builder::let (std::unique_ptr<Pattern> &&pattern, std::unique_ptr<Type> &&type,
 {
   return std::unique_ptr<Stmt> (new LetStmt (std::move (pattern),
 					     std::move (init), std::move (type),
-					     tl::nullopt, {}, loc));
+					     gcc::nullopt, {}, loc));
 }
 
 std::unique_ptr<Expr>
@@ -715,7 +715,7 @@ Builder::new_generic_args (GenericArgs &args)
 
   for (auto &arg : args.get_generic_args ())
     {
-      tl::optional<GenericArg> new_arg = tl::nullopt;
+      gcc::optional<GenericArg> new_arg = gcc::nullopt;
 
       switch (arg.get_kind ())
 	{

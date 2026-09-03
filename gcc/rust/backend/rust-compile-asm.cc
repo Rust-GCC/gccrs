@@ -82,7 +82,7 @@ CompileAsm::asm_construct_string_tree (HIR::InlineAsm &expr)
   return Backend::string_constant_expression (result);
 }
 
-tl::optional<std::reference_wrapper<HIR::Expr>>
+gcc::optional<std::reference_wrapper<HIR::Expr>>
 get_out_expr (HIR::InlineAsmOperand &operand)
 {
   switch (operand.get_register_type ())
@@ -99,7 +99,7 @@ get_out_expr (HIR::InlineAsmOperand &operand)
     case HIR::InlineAsmOperand::RegisterType::In:
       break;
     }
-  return tl::nullopt;
+  return gcc::nullopt;
 }
 
 tree
@@ -110,7 +110,7 @@ CompileAsm::asm_construct_outputs (HIR::InlineAsm &expr)
   GGC::ChainList ls;
   for (auto &operand : expr.get_operands ())
     {
-      tl::optional<std::reference_wrapper<HIR::Expr>> out_expr
+      gcc::optional<std::reference_wrapper<HIR::Expr>> out_expr
 	= get_out_expr (operand);
       if (!out_expr.has_value ())
 	continue;
@@ -123,7 +123,7 @@ CompileAsm::asm_construct_outputs (HIR::InlineAsm &expr)
   return ls.get_head ();
 }
 
-tl::optional<std::reference_wrapper<HIR::Expr>>
+gcc::optional<std::reference_wrapper<HIR::Expr>>
 get_in_expr (HIR::InlineAsmOperand &operand)
 {
   switch (operand.get_register_type ())
@@ -140,7 +140,7 @@ get_in_expr (HIR::InlineAsmOperand &operand)
     case HIR::InlineAsmOperand::RegisterType::Out:
       break;
     }
-  return tl::nullopt;
+  return gcc::nullopt;
 }
 
 tree
@@ -151,7 +151,7 @@ CompileAsm::asm_construct_inputs (HIR::InlineAsm &expr)
   GGC::ChainList ls;
   for (auto &operand : expr.get_operands ())
     {
-      tl::optional<std::reference_wrapper<HIR::Expr>> in_expr
+      gcc::optional<std::reference_wrapper<HIR::Expr>> in_expr
 	= get_in_expr (operand);
       if (!in_expr.has_value ())
 	continue;

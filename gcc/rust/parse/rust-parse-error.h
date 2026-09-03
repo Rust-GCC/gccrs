@@ -19,7 +19,7 @@
 #ifndef RUST_PARSE_ERROR_H
 #define RUST_PARSE_ERROR_H
 
-#include "expected.h"
+#include "stdbackport/expected"
 #include "rust-ast.h"
 #include "rust-parse-utils.h"
 
@@ -36,22 +36,22 @@ struct EnumVariant
     UNFINISHED_TUPLE_VARIANT,
   } kind;
 
-  static tl::expected<std::unique_ptr<AST::EnumItem>, EnumVariant>
+  static gcc::expected<std::unique_ptr<AST::EnumItem>, EnumVariant>
   make_not_identifier (const_TokenPtr unexpected_token)
   {
-    return tl::unexpected<EnumVariant> (EnumVariant (unexpected_token));
+    return gcc::unexpected<EnumVariant> (EnumVariant (unexpected_token));
   }
 
-  static tl::expected<std::unique_ptr<AST::EnumItem>, EnumVariant>
+  static gcc::expected<std::unique_ptr<AST::EnumItem>, EnumVariant>
   make_child_error ()
   {
-    return tl::unexpected<EnumVariant> (EnumVariant (Kind::CHILD_ERROR));
+    return gcc::unexpected<EnumVariant> (EnumVariant (Kind::CHILD_ERROR));
   }
 
-  static tl::expected<std::unique_ptr<AST::EnumItem>, EnumVariant>
+  static gcc::expected<std::unique_ptr<AST::EnumItem>, EnumVariant>
   make_unfinished_tuple_variant ()
   {
-    return tl::unexpected<EnumVariant> (
+    return gcc::unexpected<EnumVariant> (
       EnumVariant (Kind::UNFINISHED_TUPLE_VARIANT));
   }
 
@@ -71,19 +71,19 @@ private:
 
 struct Attribute
 {
-  static tl::expected<AST::Attribute, Attribute> make_malformed ()
+  static gcc::expected<AST::Attribute, Attribute> make_malformed ()
   {
-    return tl::unexpected<Attribute> (Attribute (Kind::MALFORMED));
+    return gcc::unexpected<Attribute> (Attribute (Kind::MALFORMED));
   }
 
-  static tl::expected<AST::Attribute, Attribute> make_malformed_body ()
+  static gcc::expected<AST::Attribute, Attribute> make_malformed_body ()
   {
-    return tl::unexpected<Attribute> (Attribute (Kind::MALFORMED_BODY));
+    return gcc::unexpected<Attribute> (Attribute (Kind::MALFORMED_BODY));
   }
 
-  static tl::expected<AST::Attribute, Attribute> make_unexpected_inner ()
+  static gcc::expected<AST::Attribute, Attribute> make_unexpected_inner ()
   {
-    return tl::unexpected<Attribute> (Attribute (Kind::UNEXPECTED_INNER));
+    return gcc::unexpected<Attribute> (Attribute (Kind::UNEXPECTED_INNER));
   }
 
   enum class Kind
@@ -99,15 +99,15 @@ private:
 
 struct AttributeBody
 {
-  static tl::expected<Parse::AttributeBody, AttributeBody> make_invalid_path ()
+  static gcc::expected<Parse::AttributeBody, AttributeBody> make_invalid_path ()
   {
-    return tl::unexpected<AttributeBody> (AttributeBody (Kind::INVALID_PATH));
+    return gcc::unexpected<AttributeBody> (AttributeBody (Kind::INVALID_PATH));
   }
 
-  static tl::expected<Parse::AttributeBody, AttributeBody>
+  static gcc::expected<Parse::AttributeBody, AttributeBody>
   make_invalid_attrinput ()
   {
-    return tl::unexpected<AttributeBody> (
+    return gcc::unexpected<AttributeBody> (
       AttributeBody (Kind::INVALID_ATTRINPUT));
   }
 
@@ -123,10 +123,10 @@ private:
 
 struct SimplePathSegment
 {
-  static tl::expected<AST::SimplePathSegment, SimplePathSegment>
+  static gcc::expected<AST::SimplePathSegment, SimplePathSegment>
   make_invalid_token_or_path_end ()
   {
-    return tl::unexpected<SimplePathSegment> (
+    return gcc::unexpected<SimplePathSegment> (
       SimplePathSegment (Kind::INVALID_SIMPLE_PATH_TOKEN));
   }
 
@@ -143,10 +143,10 @@ private:
 
 struct PathIdentSegment
 {
-  static tl::expected<AST::PathIdentSegment, PathIdentSegment>
+  static gcc::expected<AST::PathIdentSegment, PathIdentSegment>
   make_invalid_token ()
   {
-    return tl::unexpected<PathIdentSegment> (
+    return gcc::unexpected<PathIdentSegment> (
       PathIdentSegment (Kind::INVALID_PATH_IDENT_TOKEN));
   }
 
@@ -161,28 +161,28 @@ private:
 
 struct AttrInput
 {
-  static tl::expected<std::unique_ptr<AST::AttrInput>, AttrInput>
+  static gcc::expected<std::unique_ptr<AST::AttrInput>, AttrInput>
   make_malformed ()
   {
-    return tl::unexpected<AttrInput> (AttrInput (Kind::MALFORMED));
+    return gcc::unexpected<AttrInput> (AttrInput (Kind::MALFORMED));
   }
 
-  static tl::expected<std::unique_ptr<AST::AttrInput>, AttrInput>
+  static gcc::expected<std::unique_ptr<AST::AttrInput>, AttrInput>
   make_bad_macro_invocation ()
   {
-    return tl::unexpected<AttrInput> (AttrInput (Kind::BAD_MACRO_INVOCATION));
+    return gcc::unexpected<AttrInput> (AttrInput (Kind::BAD_MACRO_INVOCATION));
   }
 
-  static tl::expected<std::unique_ptr<AST::AttrInput>, AttrInput>
+  static gcc::expected<std::unique_ptr<AST::AttrInput>, AttrInput>
   make_missing_attrinput ()
   {
-    return tl::unexpected<AttrInput> (AttrInput (Kind::MISSING));
+    return gcc::unexpected<AttrInput> (AttrInput (Kind::MISSING));
   }
 
-  static tl::expected<std::unique_ptr<AST::AttrInput>, AttrInput>
+  static gcc::expected<std::unique_ptr<AST::AttrInput>, AttrInput>
   make_bad_token_tree ()
   {
-    return tl::unexpected<AttrInput> (AttrInput (Kind::BAD_TOKEN_TREE));
+    return gcc::unexpected<AttrInput> (AttrInput (Kind::BAD_TOKEN_TREE));
   }
 
   enum class Kind
@@ -200,14 +200,14 @@ private:
 
 struct Item
 {
-  static tl::expected<std::unique_ptr<AST::Item>, Item> make_end_of_file ()
+  static gcc::expected<std::unique_ptr<AST::Item>, Item> make_end_of_file ()
   {
-    return tl::unexpected<Item> (Item (Kind::END_OF_FILE));
+    return gcc::unexpected<Item> (Item (Kind::END_OF_FILE));
   }
 
-  static tl::expected<std::unique_ptr<AST::Item>, Item> make_malformed ()
+  static gcc::expected<std::unique_ptr<AST::Item>, Item> make_malformed ()
   {
-    return tl::unexpected<Item> (Item (Kind::MALFORMED));
+    return gcc::unexpected<Item> (Item (Kind::MALFORMED));
   }
 
   enum class Kind
@@ -222,10 +222,10 @@ private:
 
 struct Items
 {
-  static tl::expected<std::vector<std::unique_ptr<AST::Item>>, Items>
+  static gcc::expected<std::vector<std::unique_ptr<AST::Item>>, Items>
   make_malformed (std::vector<std::unique_ptr<AST::Item>> items)
   {
-    return tl::unexpected<Items> (Items (Kind::MALFORMED, std::move (items)));
+    return gcc::unexpected<Items> (Items (Kind::MALFORMED, std::move (items)));
   }
 
   enum class Kind
@@ -250,14 +250,14 @@ private:
 
 struct Visibility
 {
-  static tl::expected<AST::Visibility, Visibility> make_malformed ()
+  static gcc::expected<AST::Visibility, Visibility> make_malformed ()
   {
-    return tl::unexpected<Visibility> (Visibility (Kind::MALFORMED));
+    return gcc::unexpected<Visibility> (Visibility (Kind::MALFORMED));
   }
 
-  static tl::expected<AST::Visibility, Visibility> make_missing_path ()
+  static gcc::expected<AST::Visibility, Visibility> make_missing_path ()
   {
-    return tl::unexpected<Visibility> (Visibility (Kind::MISSING_PATH));
+    return gcc::unexpected<Visibility> (Visibility (Kind::MISSING_PATH));
   }
 
   enum class Kind
@@ -272,10 +272,10 @@ private:
 
 struct LifetimeParam
 {
-  static tl::expected<AST::LifetimeParam, LifetimeParam>
+  static gcc::expected<AST::LifetimeParam, LifetimeParam>
   make_not_a_lifetime_param ()
   {
-    return tl::unexpected<LifetimeParam> (
+    return gcc::unexpected<LifetimeParam> (
       LifetimeParam (Kind::NOT_A_LIFETIME_PARAM));
   }
 
@@ -294,14 +294,14 @@ class Lifetime
 
 struct LoopLabel
 {
-  static tl::expected<AST::LoopLabel, LoopLabel> make_not_loop_label ()
+  static gcc::expected<AST::LoopLabel, LoopLabel> make_not_loop_label ()
   {
-    return tl::unexpected<LoopLabel> (LoopLabel (Kind::NOT_LOOP_LABEL));
+    return gcc::unexpected<LoopLabel> (LoopLabel (Kind::NOT_LOOP_LABEL));
   }
 
-  static tl::expected<AST::LoopLabel, LoopLabel> make_missing_colon ()
+  static gcc::expected<AST::LoopLabel, LoopLabel> make_missing_colon ()
   {
-    return tl::unexpected<LoopLabel> (LoopLabel (Kind::MISSING_COLON));
+    return gcc::unexpected<LoopLabel> (LoopLabel (Kind::MISSING_COLON));
   }
 
   enum class Kind
@@ -318,20 +318,20 @@ private:
 
 struct Self
 {
-  static tl::expected<std::unique_ptr<AST::Param>, Self>
+  static gcc::expected<std::unique_ptr<AST::Param>, Self>
   make_self_raw_pointer ()
   {
-    return tl::unexpected<Self> (Self (Kind::SELF_RAW_PTR));
+    return gcc::unexpected<Self> (Self (Kind::SELF_RAW_PTR));
   }
 
-  static tl::expected<std::unique_ptr<AST::Param>, Self> make_not_self ()
+  static gcc::expected<std::unique_ptr<AST::Param>, Self> make_not_self ()
   {
-    return tl::unexpected<Self> (Self (Kind::NOT_SELF));
+    return gcc::unexpected<Self> (Self (Kind::NOT_SELF));
   }
 
-  static tl::expected<std::unique_ptr<AST::Param>, Self> make_parsing_error ()
+  static gcc::expected<std::unique_ptr<AST::Param>, Self> make_parsing_error ()
   {
-    return tl::unexpected<Self> (Self (Kind::PARSING));
+    return gcc::unexpected<Self> (Self (Kind::PARSING));
   }
 
   enum class Kind

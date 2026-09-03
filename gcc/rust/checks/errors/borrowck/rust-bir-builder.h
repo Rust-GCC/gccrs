@@ -132,7 +132,7 @@ private:
       {
 	translated = ctx.place_db.add_temporary (param_type);
 	ctx.arguments.push_back (translated);
-	PatternBindingBuilder (ctx, translated, tl::nullopt)
+	PatternBindingBuilder (ctx, translated, gcc::nullopt)
 	  .go (param.get_param_name ());
       }
 

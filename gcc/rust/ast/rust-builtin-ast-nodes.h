@@ -21,7 +21,7 @@
 
 #include "rust-system.h"
 #include "line-map.h"
-#include "optional.h"
+#include "stdbackport/optional"
 #include "rust-ast.h"
 #include "rust-fmt.h"
 
@@ -77,7 +77,7 @@ public:
     return ident.value ();
   }
 
-  FormatArgumentKind (Kind kind, tl::optional<Identifier> ident)
+  FormatArgumentKind (Kind kind, gcc::optional<Identifier> ident)
     : kind (kind), ident (ident)
   {}
 
@@ -96,7 +96,7 @@ public:
   }
 
 private:
-  tl::optional<Identifier> ident;
+  gcc::optional<Identifier> ident;
 };
 
 class FormatArgument
@@ -104,7 +104,7 @@ class FormatArgument
 public:
   static FormatArgument normal (std::unique_ptr<Expr> expr)
   {
-    return FormatArgument (FormatArgumentKind::Kind::Normal, tl::nullopt,
+    return FormatArgument (FormatArgumentKind::Kind::Normal, gcc::nullopt,
 			   std::move (expr));
   }
 
@@ -137,8 +137,8 @@ public:
   Expr &get_expr () { return *expr; }
 
 private:
-  FormatArgument (FormatArgumentKind::Kind kind, tl::optional<Identifier> ident,
-		  std::unique_ptr<Expr> expr)
+  FormatArgument (FormatArgumentKind::Kind kind,
+		  gcc::optional<Identifier> ident, std::unique_ptr<Expr> expr)
     : kind (FormatArgumentKind (kind, ident)), expr (std::move (expr))
   {}
 

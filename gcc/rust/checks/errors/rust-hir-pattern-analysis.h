@@ -24,7 +24,7 @@
 #include "rust-hir-type-check.h"
 #include "rust-system.h"
 #include "rust-tyty.h"
-#include "optional.h"
+#include "stdbackport/optional"
 #include "rust-hir-visitor.h"
 #include "rust-finalized-name-resolution-context.h"
 
@@ -315,7 +315,7 @@ public:
   bool is_covered_by (const Constructor &c) const;
 
   // Returns the pattern if it is not a wildcard.
-  const tl::optional<DeconstructedPat> &get_pat () const
+  const gcc::optional<DeconstructedPat> &get_pat () const
   {
     rust_assert (pat.has_value ());
     return pat;
@@ -335,9 +335,9 @@ public:
   std::string to_string () const;
 
 private:
-  PatOrWild (tl::optional<DeconstructedPat> pat) : pat (pat) {}
+  PatOrWild (gcc::optional<DeconstructedPat> pat) : pat (pat) {}
 
-  tl::optional<DeconstructedPat> pat;
+  gcc::optional<DeconstructedPat> pat;
 };
 
 class PatStack

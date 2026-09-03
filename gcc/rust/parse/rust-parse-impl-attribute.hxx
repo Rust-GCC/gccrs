@@ -23,7 +23,7 @@
 #include "rust-parse.h"
 #include "rust-parse-error.h"
 #include "rust-attribute-values.h"
-#include "expected.h"
+#include "stdbackport/expected"
 
 namespace Rust {
 
@@ -50,7 +50,7 @@ Parser<ManagedTokenSource>::parse_doc_comment ()
 
 // Parse a single inner attribute.
 template <typename ManagedTokenSource>
-tl::expected<AST::Attribute, Parse::Error::Attribute>
+gcc::expected<AST::Attribute, Parse::Error::Attribute>
 Parser<ManagedTokenSource>::parse_inner_attribute ()
 {
   if (lexer.peek_token ()->get_id () == INNER_DOC_COMMENT)
@@ -94,7 +94,7 @@ Parser<ManagedTokenSource>::parse_inner_attribute ()
 
 // Parse a single outer attribute.
 template <typename ManagedTokenSource>
-tl::expected<AST::Attribute, Parse::Error::Attribute>
+gcc::expected<AST::Attribute, Parse::Error::Attribute>
 Parser<ManagedTokenSource>::parse_outer_attribute ()
 {
   if (lexer.peek_token ()->get_id () == OUTER_DOC_COMMENT)
@@ -160,7 +160,7 @@ Parser<ManagedTokenSource>::parse_outer_attribute ()
 
 // Parses the body of an attribute (inner or outer).
 template <typename ManagedTokenSource>
-tl::expected<Parse::AttributeBody, Parse::Error::AttributeBody>
+gcc::expected<Parse::AttributeBody, Parse::Error::AttributeBody>
 Parser<ManagedTokenSource>::parse_attribute_body ()
 {
   location_t locus = lexer.peek_token ()->get_locus ();
@@ -265,7 +265,7 @@ Parser<ManagedTokenSource>::parse_outer_attributes ()
 
 // Parses an AttrInput AST node (polymorphic, as AttrInput is abstract)
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::AttrInput>, Parse::Error::AttrInput>
+gcc::expected<std::unique_ptr<AST::AttrInput>, Parse::Error::AttrInput>
 Parser<ManagedTokenSource>::parse_attr_input ()
 {
   const_TokenPtr t = lexer.peek_token ();
@@ -283,7 +283,7 @@ Parser<ManagedTokenSource>::parse_attr_input ()
 	std::unique_ptr<AST::AttrInput> input_tree (
 	  new AST::DelimTokenTree (dtoken_tree.value ()));
 
-	return tl::expected<std::unique_ptr<AST::AttrInput>,
+	return gcc::expected<std::unique_ptr<AST::AttrInput>,
 			    Parse::Error::AttrInput>{std::move (input_tree)};
       }
     case EQUAL:
@@ -355,7 +355,7 @@ Parser<ManagedTokenSource>::parse_attr_input ()
 
 	// FIXME: shouldn't a skip token be required here?
 
-	return tl::expected<std::unique_ptr<AST::AttrInput>,
+	return gcc::expected<std::unique_ptr<AST::AttrInput>,
 			    Parse::Error::AttrInput>{
 	  std::move (attr_input_lit)};
       }

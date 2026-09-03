@@ -19,7 +19,7 @@
 #ifndef RUST_AST_TYPE_H
 #define RUST_AST_TYPE_H
 
-#include "optional.h"
+#include "stdbackport/optional"
 #include "rust-ast.h"
 #include "rust-expr.h"
 #include "rust-path.h"
@@ -619,7 +619,7 @@ protected:
 class ReferenceType : public TypeNoBounds
 {
   // bool has_lifetime; // TODO: handle in lifetime or something?
-  tl::optional<Lifetime> lifetime;
+  gcc::optional<Lifetime> lifetime;
 
   bool has_mut;
   std::unique_ptr<TypeNoBounds> type;
@@ -635,7 +635,7 @@ public:
   // Constructor
   ReferenceType (bool is_mut, std::unique_ptr<TypeNoBounds> type_no_bounds,
 		 location_t locus,
-		 tl::optional<Lifetime> lifetime = Lifetime::elided ())
+		 gcc::optional<Lifetime> lifetime = Lifetime::elided ())
     : lifetime (std::move (lifetime)), has_mut (is_mut),
       type (std::move (type_no_bounds)), locus (locus)
   {}
@@ -701,11 +701,11 @@ protected:
   {
     return new ReferenceType (has_mut, type->reconstruct (), locus,
 			      // TODO: Improve this - it's ugly!
-			      has_lifetime () ? tl::make_optional<Lifetime> (
+			      has_lifetime () ? gcc::make_optional<Lifetime> (
 				lifetime->get_lifetime_type (),
 				lifetime->get_lifetime_name (),
 				lifetime->get_locus ())
-					      : tl::nullopt);
+					      : gcc::nullopt);
   }
 
   Type::Kind get_type_kind () const override { return Type::Kind::Reference; }

@@ -20,7 +20,7 @@
 #define RUST_FMT_H
 
 #include "rust-system.h"
-#include "optional.h"
+#include "stdbackport/optional"
 
 // PR122498 "rust-enabled bootstrap is broken after r16-4897"
 #pragma GCC diagnostic warning "-Warray-bounds"
@@ -137,20 +137,20 @@ public:
     return *this;
   }
 
-  tl::optional<std::reference_wrapper<T>> get_opt ()
+  gcc::optional<std::reference_wrapper<T>> get_opt ()
   {
     if (has_value ())
       return std::ref (some.val);
     else
-      return tl::nullopt;
+      return gcc::nullopt;
   }
 
-  tl::optional<std::reference_wrapper<const T>> get_opt () const
+  gcc::optional<std::reference_wrapper<const T>> get_opt () const
   {
     if (has_value ())
       return std::ref (some.val);
     else
-      return tl::nullopt;
+      return gcc::nullopt;
   }
 
   bool has_value () const { return some.kind == Some::KIND; }

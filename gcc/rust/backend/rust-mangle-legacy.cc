@@ -63,7 +63,7 @@ legacy_mangle_name (const std::string &name)
   // <example::Identity as example::FnLike<&T,&T>>::call
   // _ZN74_$LT$example..Identity$u20$as$u20$example..FnLike$LT$$RF$T$C$$RF$T$GT$$GT$4call17ha9ee58935895acb3E
 
-  tl::optional<Utf8String> utf8_name = Utf8String::make_utf8_string (name);
+  gcc::optional<Utf8String> utf8_name = Utf8String::make_utf8_string (name);
   rust_assert (utf8_name.has_value ());
   std::vector<Codepoint> chars = utf8_name.value ().get_chars ();
   std::string buffer;

@@ -16,7 +16,8 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-#include "optional.h"
+#include "rust-system.h"
+#include "stdbackport/optional"
 #include "rust-forever-stack.h"
 #include "rust-name-resolution-context.h"
 
@@ -49,7 +50,7 @@ NameResolutionContext::should_search_prelude (
 }
 
 template <Namespace N>
-tl::optional<Rib::Definition>
+gcc::optional<Rib::Definition>
 NameResolutionContext::resolve_path (
   ForeverStack<N> &stack, const ResolutionPath &path, ResolutionMode mode,
   std::function<void (Usage, Definition, Namespace)> insert_segment_resolution,
@@ -64,7 +65,7 @@ NameResolutionContext::resolve_path (
 }
 
 template <Namespace N>
-tl::optional<Rib::Definition>
+gcc::optional<Rib::Definition>
 NameResolutionContext::resolve_path (
   ForeverStack<N> &stack, const ResolutionPath &path, ResolutionMode mode,
   std::function<void (Usage, Definition, Namespace)> insert_segment_resolution,
@@ -76,7 +77,7 @@ NameResolutionContext::resolve_path (
   // We may have a prelude, but haven't visited it yet and thus it's not in
   // our nodes
   if (!starting_point)
-    return tl::nullopt;
+    return gcc::nullopt;
 
   return NameResolutionContext::resolve_path (stack, path, mode,
 					      insert_segment_resolution,
@@ -84,7 +85,7 @@ NameResolutionContext::resolve_path (
 }
 
 template <Namespace N>
-tl::optional<Rib::Definition>
+gcc::optional<Rib::Definition>
 NameResolutionContext::resolve_path (
   ForeverStack<N> &stack, const ResolutionPath &path, ResolutionMode mode,
   std::function<void (Usage, Definition, Namespace)> insert_segment_resolution,
@@ -139,7 +140,7 @@ NameResolutionContext::resolve_path (
     {
       auto &seg = segments.front ();
 
-      tl::optional<Rib::Definition> res
+      gcc::optional<Rib::Definition> res
 	= stack.get (starting_point.get (), seg.name);
 
       if (!res)
@@ -170,7 +171,7 @@ NameResolutionContext::resolve_path (
 		{
 		  rust_error_at (seg.locus, ErrorCode::E0433,
 				 "too many leading %<super%> keywords");
-		  return tl::nullopt;
+		  return gcc::nullopt;
 		}
 
 	      NodeId id
@@ -197,7 +198,7 @@ NameResolutionContext::resolve_path (
 						collect_errors))
 	iterator = *res;
       else
-	return tl::nullopt;
+	return gcc::nullopt;
 
       // if find_starting_point used all segments, return early
       if (iterator == segments.end ())
@@ -205,7 +206,7 @@ NameResolutionContext::resolve_path (
 	  if (N == Namespace::Types)
 	    return Rib::Definition::NonShadowable (starting_point.get ().id);
 	  else
-	    return tl::nullopt;
+	    return gcc::nullopt;
 	}
     }
 
@@ -217,7 +218,7 @@ NameResolutionContext::resolve_path (
 				insert_segment_resolution, collect_errors);
 
   if (!node)
-    return tl::nullopt;
+    return gcc::nullopt;
 
   // This node now represents the Node which *should* contain the definition
   // used by the last segment.
@@ -225,12 +226,12 @@ NameResolutionContext::resolve_path (
 
   // leave resolution within impl blocks to type checker
   if (final_node.rib (N).kind == Rib::Kind::TraitOrImpl)
-    return tl::nullopt;
+    return gcc::nullopt;
 
   auto &seg = segments.back ();
   std::string seg_name = seg.name;
 
-  tl::optional<Rib::Definition> res
+  gcc::optional<Rib::Definition> res
     = resolve_final_segment (stack, final_node, seg_name,
 			     seg.is_lower_self_seg ());
   // Ok we didn't find it in the rib, Lets try the prelude...
@@ -245,7 +246,7 @@ NameResolutionContext::resolve_path (
 }
 
 template <Namespace N>
-tl::optional<typename ForeverStack<N>::Node &>
+gcc::optional<typename ForeverStack<N>::Node &>
 NameResolutionContext::resolve_segments (
   ForeverStack<N> &stack, typename ForeverStack<N>::Node &starting_point,
   const RawPath<ResolutionPathSegment> &path,
@@ -266,10 +267,10 @@ NameResolutionContext::resolve_segments (
 				     seg.is_crate_path_seg ()
 				       || seg.is_super_path_seg ()
 				       || seg.is_lower_self_seg ()))
-	return tl::nullopt;
+	return gcc::nullopt;
 
-      tl::optional<std::reference_wrapper<typename ForeverStack<N>::Node>> child
-	= tl::nullopt;
+      gcc::optional<std::reference_wrapper<typename ForeverStack<N>::Node>>
+	child = gcc::nullopt;
 
       /*
        * On every iteration this loop either
@@ -304,12 +305,12 @@ NameResolutionContext::resolve_segments (
 	    {
 	      auto &link = kv.first;
 
-	      if (link.path.map_or (
-		    [&str] (Identifier path) {
+	      if (link.path
+		    .transform ([&str] (Identifier path) {
 		      auto &path_str = path.as_string ();
 		      return str == path_str;
-		    },
-		    false))
+		    })
+		    .value_or (false))
 		{
 		  child = kv.second;
 		  break;
@@ -340,7 +341,7 @@ NameResolutionContext::resolve_segments (
 		    }
 		  else
 		    {
-		      return tl::nullopt;
+		      return gcc::nullopt;
 		    }
 		}
 	      else
@@ -358,7 +359,7 @@ NameResolutionContext::resolve_segments (
 					       rib_lookup->get_node_id ()),
 					     N);
 
-		  return tl::nullopt;
+		  return gcc::nullopt;
 		}
 	    }
 
@@ -374,7 +375,7 @@ NameResolutionContext::resolve_segments (
 	      || current_node->rib (N).kind == Rib::Kind::Module
 	      || current_node->is_prelude ())
 	    {
-	      return tl::nullopt;
+	      return gcc::nullopt;
 	    }
 
 	  current_node = &current_node->parent.value ();
@@ -391,7 +392,7 @@ NameResolutionContext::resolve_segments (
 }
 
 template <>
-inline tl::optional<Rib::Definition>
+inline gcc::optional<Rib::Definition>
 NameResolutionContext::resolve_final_segment (
   ForeverStack<Namespace::Types> &stack,
   typename ForeverStack<Namespace::Types>::Node &final_node,
@@ -404,7 +405,7 @@ NameResolutionContext::resolve_final_segment (
 }
 
 template <Namespace N>
-tl::optional<Rib::Definition>
+gcc::optional<Rib::Definition>
 NameResolutionContext::resolve_final_segment (
   ForeverStack<N> &stack, typename ForeverStack<N>::Node &final_node,
   std::string &seg_name, bool is_lower_self)

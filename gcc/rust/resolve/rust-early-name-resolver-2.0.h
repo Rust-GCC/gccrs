@@ -19,7 +19,9 @@
 #ifndef RUST_EARLY_NAME_RESOLVER_2_0_H
 #define RUST_EARLY_NAME_RESOLVER_2_0_H
 
-#include "optional.h"
+#include "rust-system.h"
+#include "stdbackport/optional"
+
 #include "rust-ast.h"
 #include "rust-ast-visitor.h"
 #include "rust-name-resolution-context.h"
@@ -195,7 +197,7 @@ private:
     void pop ();
 
     void insert (std::string name, NodeId id);
-    tl::optional<NodeId> get (const std::string &name);
+    gcc::optional<NodeId> get (const std::string &name);
 
   private:
     std::vector<std::unordered_map<std::string, NodeId>> scopes;
@@ -233,12 +235,15 @@ private:
 	  resolved.emplace_back (new_def);
 	};
 
-    ctx.resolve_path (path, mode, value_errors, Namespace::Values)
-      .map (resolved_fn);
-    ctx.resolve_path (path, mode, type_errors, Namespace::Types)
-      .map (resolved_fn);
-    ctx.resolve_path (path, mode, macro_errors, Namespace::Macros)
-      .map (resolved_fn);
+    if (auto resolved
+	= ctx.resolve_path (path, mode, value_errors, Namespace::Values))
+      resolved_fn (resolved.value ());
+    if (auto resolved
+	= ctx.resolve_path (path, mode, type_errors, Namespace::Types))
+      resolved_fn (resolved.value ());
+    if (auto resolved
+	= ctx.resolve_path (path, mode, macro_errors, Namespace::Macros))
+      resolved_fn (resolved.value ());
 
     if (!value_errors.empty () && !type_errors.empty ()
 	&& !macro_errors.empty ())

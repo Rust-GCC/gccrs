@@ -21,7 +21,7 @@
 #include "rust-macro-builtins-helpers.h"
 
 namespace Rust {
-tl::optional<AST::Fragment>
+gcc::optional<AST::Fragment>
 MacroBuiltin::file_handler (location_t invoc_locus, AST::MacroInvocData &,
 			    AST::InvocKind)
 {
@@ -33,7 +33,7 @@ MacroBuiltin::file_handler (location_t invoc_locus, AST::MacroInvocData &,
   return AST::Fragment ({file_str}, std::move (str_token));
 }
 
-tl::optional<AST::Fragment>
+gcc::optional<AST::Fragment>
 MacroBuiltin::column_handler (location_t invoc_locus, AST::MacroInvocData &,
 			      AST::InvocKind)
 {
@@ -50,7 +50,7 @@ MacroBuiltin::column_handler (location_t invoc_locus, AST::MacroInvocData &,
   return AST::Fragment ({column_no}, std::move (column_tok));
 }
 
-tl::optional<AST::Fragment>
+gcc::optional<AST::Fragment>
 MacroBuiltin::line_handler (location_t invoc_locus, AST::MacroInvocData &,
 			    AST::InvocKind)
 {

@@ -628,7 +628,7 @@ public:
 	   location_t locus, bool is_semi_coloned = false)
   {
     return std::unique_ptr<MacroInvocation> (
-      new MacroInvocation (InvocKind::Regular, tl::nullopt, invoc_data,
+      new MacroInvocation (InvocKind::Regular, gcc::nullopt, invoc_data,
 			   outer_attrs, locus, is_semi_coloned, {}));
   }
 
@@ -679,7 +679,7 @@ public:
   bool has_semicolon () const { return is_semi_coloned; }
 
   InvocKind get_kind () const { return kind; }
-  tl::optional<BuiltinMacro> get_builtin_kind () const { return builtin_kind; }
+  gcc::optional<BuiltinMacro> get_builtin_kind () const { return builtin_kind; }
 
   /**
    * Turn the current MacroInvocation into a builtin macro invocation
@@ -705,7 +705,7 @@ public:
 private:
   /* Full constructor */
   MacroInvocation (
-    InvocKind kind, tl::optional<BuiltinMacro> builtin_kind,
+    InvocKind kind, gcc::optional<BuiltinMacro> builtin_kind,
     MacroInvocData invoc_data, std::vector<Attribute> outer_attrs,
     location_t locus, bool is_semi_coloned,
     std::vector<std::unique_ptr<MacroInvocation>> &&pending_eager_invocs)
@@ -745,7 +745,7 @@ private:
   InvocKind kind;
 
   /* If it is a builtin macro, which one */
-  tl::optional<BuiltinMacro> builtin_kind = tl::nullopt;
+  gcc::optional<BuiltinMacro> builtin_kind = gcc::nullopt;
 
   /**
    * Pending invocations within a builtin macro invocation. This vector is empty

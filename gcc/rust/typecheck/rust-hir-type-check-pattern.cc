@@ -69,12 +69,12 @@ TypeCheckPattern::visit (HIR::PathInExpression &pattern)
 
   if (maybe_item)
     {
-      tl::optional<HirId> definition_id
+      gcc::optional<HirId> definition_id
 	= mappings.lookup_node_to_hir (ref_node_id);
       rust_assert (definition_id.has_value ());
       HirId def_id = definition_id.value ();
 
-      tl::optional<HIR::Item *> hir_item = mappings.hir.items.lookup (def_id);
+      gcc::optional<HIR::Item *> hir_item = mappings.hir.items.lookup (def_id);
       // If the path references an item, it must be constants or structs.
       if (hir_item.has_value ())
 	{

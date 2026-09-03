@@ -78,7 +78,7 @@ VisibilityResolver::resolve_module_path (const HIR::SimplePath &restriction,
   // TODO: For the hint, can we point to the original item's definition if
   // present?
 
-  tl::optional<HirId> hid = mappings.lookup_node_to_hir (ref_node_id);
+  gcc::optional<HirId> hid = mappings.lookup_node_to_hir (ref_node_id);
   rust_assert (hid.has_value ());
   auto ref = hid.value ();
 

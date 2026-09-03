@@ -95,8 +95,8 @@ DeriveVisitor::ImplGenerics
 DeriveVisitor::setup_impl_generics (
   const std::string &type_name,
   const std::vector<std::unique_ptr<GenericParam>> &type_generics,
-  tl::optional<std::function<std::unique_ptr<TypeParamBound> ()>> &&extra_bound)
-  const
+  gcc::optional<std::function<std::unique_ptr<TypeParamBound> ()>>
+    &&extra_bound) const
 {
   std::vector<Lifetime> lifetime_args;
   std::vector<GenericArg> generic_args;

@@ -40,7 +40,7 @@ public:
 
   static TyTy::TypeBoundPredicate ResolvePredicateFromBound (
     HIR::TypePath &path,
-    tl::optional<std::reference_wrapper<HIR::Type>> associated_self,
+    gcc::optional<std::reference_wrapper<HIR::Type>> associated_self,
     BoundPolarity polarity = BoundPolarity::RegularBound,
     bool is_qualified_type = false, bool is_super_trait = false);
 
@@ -51,7 +51,7 @@ protected:
 
   TyTy::TypeBoundPredicate get_predicate_from_bound (
     HIR::TypePath &path,
-    tl::optional<std::reference_wrapper<HIR::Type>> associated_self,
+    gcc::optional<std::reference_wrapper<HIR::Type>> associated_self,
     BoundPolarity polarity = BoundPolarity::RegularBound,
     bool is_qualified_type = false, bool is_super_trait = false,
     bool defer_bindings = false);

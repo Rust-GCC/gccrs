@@ -20,11 +20,11 @@
 #include "rust-macro-builtins.h"
 #include "rust-macro-builtins-helpers.h"
 #include "rust-ast-builder.h"
-#include "optional.h"
+#include "stdbackport/optional"
 #include "rust-ast-collector.h"
 
 namespace Rust {
-tl::optional<AST::Fragment>
+gcc::optional<AST::Fragment>
 MacroBuiltin::assert_handler (location_t invoc_locus,
 			      AST::MacroInvocData &invoc,
 			      AST::InvocKind semicolon)

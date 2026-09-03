@@ -23,8 +23,8 @@
 #include "rust-rib.h"
 #include "rust-ast.h"
 #include "rust-path.h"
-#include "optional.h"
-#include "expected.h"
+#include "stdbackport/optional"
+#include "stdbackport/expected"
 #include "rust-name-resolution.h"
 #include "rust-unwrap-segment.h"
 
@@ -445,7 +445,7 @@ public:
 
   ResolutionPath () : RawPath ({}, false), node_id (UNKNOWN_NODEID) {}
 
-  tl::optional<std::pair<LangItem::Kind, NodeId>> get_lang_prefix () const
+  gcc::optional<std::pair<LangItem::Kind, NodeId>> get_lang_prefix () const
   {
     return lang_prefix;
   }
@@ -480,7 +480,7 @@ public:
   }
 
 private:
-  tl::optional<std::pair<LangItem::Kind, NodeId>> lang_prefix;
+  gcc::optional<std::pair<LangItem::Kind, NodeId>> lang_prefix;
   NodeId node_id;
 };
 
@@ -508,12 +508,12 @@ public:
   class Link
   {
   public:
-    Link (NodeId id, tl::optional<Identifier> path) : id (id), path (path) {}
+    Link (NodeId id, gcc::optional<Identifier> path) : id (id), path (path) {}
 
     bool compare (const Link &other) const { return id < other.id; }
 
     NodeId id;
-    tl::optional<Identifier> path;
+    gcc::optional<Identifier> path;
   };
 
   /* Link comparison class, which we use in a Node's `children` map */
@@ -576,7 +576,7 @@ public:
 
     NodeId id; // The node id of the Node's scope
 
-    tl::optional<Node &> parent; // `None` only if the node is a root
+    gcc::optional<Node &> parent; // `None` only if the node is a root
   };
 
   ForeverStackBase (Node &root, Node &lang_prelude, Node &extern_prelude)
@@ -630,7 +630,8 @@ public:
    * @param path An optional path if the Rib was created due to a "named"
    *        lexical scope, like a module's.
    */
-  void push (Rib::Kind rib_kind, NodeId id, tl::optional<Identifier> path = {});
+  void push (Rib::Kind rib_kind, NodeId id,
+	     gcc::optional<Identifier> path = {});
 
   /**
    * Pop the innermost Rib from the stack
@@ -649,10 +650,10 @@ public:
    * @aborts if there are no `Rib`s inserted in the current map, this function
    *         aborts the program.
    */
-  tl::expected<NodeId, DuplicateNameError> insert (Identifier name, NodeId id);
+  gcc::expected<NodeId, DuplicateNameError> insert (Identifier name, NodeId id);
 
-  tl::expected<NodeId, DuplicateNameError> insert_variant (Identifier name,
-							   NodeId id);
+  gcc::expected<NodeId, DuplicateNameError> insert_variant (Identifier name,
+							    NodeId id);
 
   void insert_crate_in_prelude (Identifier crate_name, NodeId crate_id);
 
@@ -668,8 +669,8 @@ public:
    * @aborts if there are no `Rib`s inserted in the current map, this function
    *         aborts the program.
    */
-  tl::expected<NodeId, DuplicateNameError> insert_shadowable (Identifier name,
-							      NodeId id);
+  gcc::expected<NodeId, DuplicateNameError> insert_shadowable (Identifier name,
+							       NodeId id);
 
   /**
    * Insert a new glob-originated definition in the innermost `Rib` in this
@@ -684,8 +685,8 @@ public:
    * @aborts if there are no `Rib`s inserted in the current map, this function
    *         aborts the program.
    */
-  tl::expected<NodeId, DuplicateNameError> insert_globbed (Identifier name,
-							   NodeId id);
+  gcc::expected<NodeId, DuplicateNameError> insert_globbed (Identifier name,
+							    NodeId id);
 
   /**
    * Insert a new definition at the root of this stack
@@ -699,8 +700,8 @@ public:
    * @aborts if there are no `Rib`s inserted in the current map, this function
    *         aborts the program.
    */
-  tl::expected<NodeId, DuplicateNameError> insert_at_root (Identifier name,
-							   NodeId id);
+  gcc::expected<NodeId, DuplicateNameError> insert_at_root (Identifier name,
+							    NodeId id);
 
   /**
    * Insert an item within the lang prelude
@@ -726,15 +727,15 @@ public:
    * @return a valid option with the Definition if the identifier is present in
    * the current map, an empty one otherwise.
    */
-  tl::optional<Rib::Definition> get (const Identifier &name);
-  tl::optional<Rib::Definition> get_lang_prelude (const Identifier &name);
-  tl::optional<Rib::Definition> get_lang_prelude (const std::string &name);
-  tl::optional<Rib::Definition> get_from_prelude (NodeId prelude,
-						  const Identifier &name);
+  gcc::optional<Rib::Definition> get (const Identifier &name);
+  gcc::optional<Rib::Definition> get_lang_prelude (const Identifier &name);
+  gcc::optional<Rib::Definition> get_lang_prelude (const std::string &name);
+  gcc::optional<Rib::Definition> get_from_prelude (NodeId prelude,
+						   const Identifier &name);
 
   // FIXME: Documentation
-  tl::optional<Rib &> to_rib (NodeId rib_id);
-  tl::optional<const Rib &> to_rib (NodeId rib_id) const;
+  gcc::optional<Rib &> to_rib (NodeId rib_id);
+  gcc::optional<const Rib &> to_rib (NodeId rib_id) const;
 
   std::string as_debug_string () const;
 
@@ -744,7 +745,7 @@ public:
    */
   bool is_module_descendant (NodeId parent, NodeId child) const;
 
-  tl::optional<Rib::Definition> get (Node &start, const Identifier &name);
+  gcc::optional<Rib::Definition> get (Node &start, const Identifier &name);
 
   /* Should we keep going upon seeing a Rib? */
   enum class KeepGoing
@@ -784,7 +785,7 @@ public:
 
   Node &find_closest_module (Node &starting_point);
 
-  tl::optional<SegIterator>
+  gcc::optional<SegIterator>
   find_starting_point (const RawPath<ResolutionPathSegment> &path,
 		       std::reference_wrapper<Node> &starting_point,
 		       std::function<void (Usage, Definition, Namespace)>
@@ -804,20 +805,20 @@ public:
   };
 
   // FIXME: Documentation
-  tl::optional<DfsResult> dfs (Node &starting_point, NodeId to_find);
-  tl::optional<ConstDfsResult> dfs (const Node &starting_point,
-				    NodeId to_find) const;
-  // FIXME: Documentation
-  tl::optional<Rib &> dfs_rib (Node &starting_point, NodeId to_find);
-  tl::optional<const Rib &> dfs_rib (const Node &starting_point,
+  gcc::optional<DfsResult> dfs (Node &starting_point, NodeId to_find);
+  gcc::optional<ConstDfsResult> dfs (const Node &starting_point,
 				     NodeId to_find) const;
   // FIXME: Documentation
-  tl::optional<Node &> dfs_node (Node &starting_point, NodeId to_find);
-  tl::optional<const Node &> dfs_node (const Node &starting_point,
-				       NodeId to_find) const;
+  gcc::optional<Rib &> dfs_rib (Node &starting_point, NodeId to_find);
+  gcc::optional<const Rib &> dfs_rib (const Node &starting_point,
+				      NodeId to_find) const;
+  // FIXME: Documentation
+  gcc::optional<Node &> dfs_node (Node &starting_point, NodeId to_find);
+  gcc::optional<const Node &> dfs_node (const Node &starting_point,
+					NodeId to_find) const;
 
   std::unordered_map<NodeId, Node &> dfs_cache;
-  tl::optional<Node &> check_cache (NodeId to_find);
+  gcc::optional<Node &> check_cache (NodeId to_find);
   void cache (NodeId found, Node &result);
 
   bool forward_declared (NodeId definition, NodeId usage)
@@ -853,17 +854,17 @@ public:
     // rust_assert (inserted.first->first.id == definition.id);
   }
 
-  tl::optional<NodeId> lookup (NodeId usage) const
+  gcc::optional<NodeId> lookup (NodeId usage) const
   {
     auto it = resolved_nodes.find (Usage (usage));
 
     if (it == resolved_nodes.end ())
-      return tl::nullopt;
+      return gcc::nullopt;
 
     return it->second.id;
   }
 
-  tl::expected<Definition, LookupFinalizeError>
+  gcc::expected<Definition, LookupFinalizeError>
   find_leaf_definition (const NodeId &key) const;
 
   // Flattening is not needed for now but should be used later?
