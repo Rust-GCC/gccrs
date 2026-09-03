@@ -24,3 +24,6 @@
 
 FEATURE_ACTIVE ("extended_key_value_attributes", EXTENDED_KEY_VALUE_ATTRIBUTES,
 		"1.50.0", ISSUE_SOME (78835), EDITION_NONE)
+// FIXME: We need to enable this when the compatibility mode is >= 1.60 I guess?
+FEATURE_ACTIVE ("used_with_arg", USED_WITH_ARG, "1.60.0", ISSUE_SOME (93798),
+		EDITION_NONE)
