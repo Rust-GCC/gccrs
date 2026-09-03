@@ -19,6 +19,9 @@
 #ifndef RUST_INTRINSIC_HANDLERS_H
 #define RUST_INTRINSIC_HANDLERS_H
 
+#include "rust-system.h"
+#include "stdbackport/optional"
+
 #include "rust-compile-context.h"
 #include "rust-gcc.h"
 #include "rust-hir-map.h"
@@ -73,7 +76,7 @@ struct IntrinsicCtx
    * Items can be forward compiled which means we may not need to invoke this
    * code. We might also have already compiled this generic function as well.
    */
-  tl::optional<tree> check_for_cached_intrinsic ();
+  gcc::optional<tree> check_for_cached_intrinsic ();
 
   /**
    * Maybe override the Hir Lookups for the substitutions in this context

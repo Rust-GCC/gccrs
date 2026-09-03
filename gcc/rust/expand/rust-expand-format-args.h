@@ -19,13 +19,15 @@
 #ifndef RUST_EXPAND_FORMAT_ARGS_H
 #define RUST_EXPAND_FORMAT_ARGS_H
 
-#include "optional.h"
+#include "rust-system.h"
+#include "stdbackport/optional"
+
 #include "rust-ast-fragment.h"
 
 namespace Rust {
 namespace Fmt {
 
-tl::optional<AST::Fragment>
+gcc::optional<AST::Fragment>
 expand_format_args (AST::FormatArgs &fmt,
 		    std::vector<std::unique_ptr<AST::Token>> &&tokens);
 

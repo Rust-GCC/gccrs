@@ -16,7 +16,9 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-#include "optional.h"
+#include "rust-system.h"
+#include "stdbackport/optional"
+
 #include "rust-ast-full.h"
 #include "rust-diagnostics.h"
 #include "rust-expr.h"
@@ -27,7 +29,6 @@
 #include "rust-resolve-builtins.h"
 #include "rust-path.h"
 #include "rust-rib.h"
-#include "rust-system.h"
 #include "rust-tyty.h"
 #include "rust-hir-type-check.h"
 #include "rust-ice-finalizer.h"
@@ -360,8 +361,8 @@ Late::visit (AST::IdentifierExpr &expr)
 {
   // TODO: same thing as visit(PathInExpression) here?
 
-  tl::optional<Rib::Definition> resolved = tl::nullopt;
-  tl::optional<Namespace> ns = tl::nullopt;
+  gcc::optional<Rib::Definition> resolved = gcc::nullopt;
+  gcc::optional<Namespace> ns = gcc::nullopt;
 
   if (auto value = ctx.values.get (expr.get_ident ()))
     {
@@ -415,7 +416,7 @@ Late::visit (AST::IdentifierExpr &expr)
 void
 Late::visit (AST::StructExprFieldIdentifier &expr)
 {
-  tl::optional<Rib::Definition> resolved = tl::nullopt;
+  gcc::optional<Rib::Definition> resolved = gcc::nullopt;
 
   if (auto value = ctx.values.get (expr.get_field_name ()))
     {

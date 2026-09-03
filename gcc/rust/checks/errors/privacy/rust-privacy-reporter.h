@@ -171,7 +171,7 @@ types
   const Rust::Resolver::TypeCheckContext &ty_ctx;
 
   // `None` means we're in the root module - the crate
-  tl::optional<NodeId> current_module;
+  gcc::optional<NodeId> current_module;
 };
 
 } // namespace Privacy

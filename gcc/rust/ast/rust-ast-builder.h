@@ -139,7 +139,7 @@ public:
   std::unique_ptr<BlockExpr> block (std::vector<std::unique_ptr<Stmt>> &&stmts,
 				    std::unique_ptr<Expr> &&tail_expr
 				    = nullptr) const;
-  std::unique_ptr<BlockExpr> block (tl::optional<std::unique_ptr<Stmt>> &&stmt,
+  std::unique_ptr<BlockExpr> block (gcc::optional<std::unique_ptr<Stmt>> &&stmt,
 				    std::unique_ptr<Expr> &&tail_expr
 				    = nullptr) const;
   /* Create an empty block */

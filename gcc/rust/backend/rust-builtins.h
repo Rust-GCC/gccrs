@@ -24,8 +24,8 @@
 #include "langhooks.h"
 #include "tree.h"
 #include "selftest.h"
-#include "util/expected.h"
-#include "util/optional.h"
+#include "stdbackport/expected"
+#include "stdbackport/optional"
 #include "util/rust-ggc.h"
 #include "rust-diagnostics.h"
 
@@ -145,9 +145,9 @@ class BuiltinsContext
 public:
   static BuiltinsContext &get ();
 
-  tl::optional<tree> lookup_simple_builtin (const std::string &name);
+  gcc::optional<tree> lookup_simple_builtin (const std::string &name);
 
-  tl::expected<std::pair<tree, LlvmBuiltinAdapter>, LlvmBuiltinMappingError>
+  gcc::expected<std::pair<tree, LlvmBuiltinAdapter>, LlvmBuiltinMappingError>
   map_llvm_to_gcc_builtin (const std::string &name);
 
   void register_builtin (tree decl);
@@ -275,7 +275,7 @@ private:
 
   void setup ();
 
-  tl::optional<tree> lookup_gcc_builtin (const std::string &name);
+  gcc::optional<tree> lookup_gcc_builtin (const std::string &name);
 
   // A mapping of the GCC built-ins exposed to GCC Rust.
   std::map<std::string, tree> builtin_functions;

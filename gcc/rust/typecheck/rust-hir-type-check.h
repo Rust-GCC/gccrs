@@ -323,10 +323,10 @@ public:
   bool trait_query_in_progress (DefId id) const;
 
   Lifetime intern_lifetime (const HIR::Lifetime &name);
-  WARN_UNUSED_RESULT tl::optional<Lifetime>
+  WARN_UNUSED_RESULT gcc::optional<Lifetime>
   lookup_lifetime (const HIR::Lifetime &lifetime) const;
 
-  WARN_UNUSED_RESULT tl::optional<TyTy::Region>
+  WARN_UNUSED_RESULT gcc::optional<TyTy::Region>
   lookup_and_resolve_lifetime (const HIR::Lifetime &lifetime) const;
 
   void intern_and_insert_lifetime (const HIR::Lifetime &lifetime);
@@ -465,7 +465,7 @@ private:
 	{placeholder, {get_current_scope (), binder_size_stack.top ()++}});
     }
 
-    WARN_UNUSED_RESULT tl::optional<TyTy::Region>
+    WARN_UNUSED_RESULT gcc::optional<TyTy::Region>
     resolve (const Lifetime &placeholder) const;
 
     /** Only to be used by the guard. */

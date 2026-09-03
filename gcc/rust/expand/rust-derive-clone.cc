@@ -58,12 +58,12 @@ std::unique_ptr<AssociatedItem>
 DeriveClone::clone_fn (std::unique_ptr<Expr> &&clone_expr)
 {
   auto block = std::unique_ptr<BlockExpr> (
-    new BlockExpr ({}, std::move (clone_expr), {}, {}, tl::nullopt, loc, loc));
+    new BlockExpr ({}, std::move (clone_expr), {}, {}, gcc::nullopt, loc, loc));
   auto big_self_type = builder.single_type_path ("Self");
 
   std::vector<std::unique_ptr<Param>> params;
 
-  params.emplace_back (new SelfParam (tl::nullopt,
+  params.emplace_back (new SelfParam (gcc::nullopt,
 				      /* is_mut */ false, loc));
 
   return std::unique_ptr<AssociatedItem> (

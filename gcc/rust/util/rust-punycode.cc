@@ -21,7 +21,7 @@
 
 #include "rust-system.h"
 #include "rust-unicode.h"
-#include "optional.h"
+#include "stdbackport/optional"
 #include "selftest.h"
 
 namespace Rust {
@@ -91,7 +91,7 @@ encode_digit (const uint32_t d)
   return d + 22 + (d < 26 ? 75 : 0);
 }
 
-tl::optional<std::string>
+gcc::optional<std::string>
 encode_punycode (const Utf8String &input)
 {
   std::vector<Codepoint> input_chars = input.get_chars ();
@@ -111,7 +111,7 @@ encode_punycode (const Utf8String &input)
       const uint32_t m = min_gt_or_eq (input_chars, n);
 
       if (m - n > ((UINT32_MAX - delta) / (h + 1)))
-	return tl::nullopt;
+	return gcc::nullopt;
 
       delta += (m - n) * (h + 1);
       n = m;

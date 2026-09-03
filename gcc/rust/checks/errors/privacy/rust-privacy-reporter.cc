@@ -34,12 +34,12 @@ PrivacyReporter::PrivacyReporter (
   const Resolver2_0::FinalizedNameResolutionContext &resolver,
   const Rust::Resolver::TypeCheckContext &ty_ctx)
   : mappings (mappings), resolver (resolver), ty_ctx (ty_ctx),
-    current_module (tl::nullopt)
+    current_module (gcc::nullopt)
 {}
 
 // Find a proc_macro, proc_macro_derive or proc_macro_attribute
 // attribute in a vector of attribute
-static tl::optional<std::string>
+static gcc::optional<std::string>
 find_proc_macro_attribute (const AST::AttrVec &outer_attrs)
 {
   for (auto &a : outer_attrs)
@@ -54,7 +54,7 @@ find_proc_macro_attribute (const AST::AttrVec &outer_attrs)
 	return name;
     }
 
-  return tl::nullopt;
+  return gcc::nullopt;
 }
 
 // Common check on crate items when dealing with 'proc-macro' crate type.

@@ -19,8 +19,10 @@
 #ifndef RUST_FEATURE_H
 #define RUST_FEATURE_H
 
+#include "rust-system.h"
+#include "stdbackport/optional"
+
 #include "rust-edition.h"
-#include "optional.h"
 
 namespace Rust {
 
@@ -52,18 +54,18 @@ public:
 
   Name name () const { return m_name; }
   State state () const { return m_state; }
-  tl::optional<unsigned> issue () const { return m_issue; }
+  gcc::optional<unsigned> issue () const { return m_issue; }
 
-  static tl::optional<Name> as_name (const std::string &name);
+  static gcc::optional<Name> as_name (const std::string &name);
 
-  static tl::optional<std::reference_wrapper<const Feature>>
+  static gcc::optional<std::reference_wrapper<const Feature>>
   lookup (const std::string &name);
   static const Feature &lookup (Name name);
 
 private:
   Feature (Name name, State state, const char *name_str, const char *rust_since,
-	   tl::optional<unsigned> issue_number, tl::optional<Edition> edition,
-	   tl::optional<const char *> reason)
+	   gcc::optional<unsigned> issue_number, gcc::optional<Edition> edition,
+	   gcc::optional<const char *> reason)
     : m_name (name), m_state (state), m_name_str (name_str),
       m_rust_since (rust_since), m_issue (issue_number), edition (edition),
       m_reason (reason)
@@ -73,9 +75,9 @@ private:
   State m_state;
   std::string m_name_str;
   std::string m_rust_since;
-  tl::optional<unsigned> m_issue;
-  tl::optional<Edition> edition;
-  tl::optional<const char *> m_reason;
+  gcc::optional<unsigned> m_issue;
+  gcc::optional<Edition> edition;
+  gcc::optional<const char *> m_reason;
 
   static Feature feature_list[];
   static const std::map<std::string, Name> name_hash_map;

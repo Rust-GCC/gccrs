@@ -20,7 +20,7 @@
 #define RUST_INPUT_SOURCE_H
 
 #include "rust-codepoint.h"
-#include "optional.h"
+#include "stdbackport/optional"
 
 namespace Rust {
 
@@ -165,12 +165,12 @@ public:
 
   // Returns codepoint if input source is a valid UTF-8 string. Returns
   // nullopt otherwise.
-  tl::optional<std::vector<Codepoint>> get_chars ()
+  gcc::optional<std::vector<Codepoint>> get_chars ()
   {
     if (is_valid ())
       return {chars};
     else
-      return tl::nullopt;
+      return gcc::nullopt;
   }
 };
 

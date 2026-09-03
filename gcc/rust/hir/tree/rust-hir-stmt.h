@@ -103,10 +103,10 @@ class LetStmt : public Stmt
 
   std::unique_ptr<Pattern> variables_pattern;
 
-  tl::optional<std::unique_ptr<Type>> type;
+  gcc::optional<std::unique_ptr<Type>> type;
 
-  tl::optional<std::unique_ptr<Expr>> init_expr;
-  tl::optional<std::unique_ptr<Expr>> else_expr;
+  gcc::optional<std::unique_ptr<Expr>> init_expr;
+  gcc::optional<std::unique_ptr<Expr>> else_expr;
 
   location_t locus;
 
@@ -126,9 +126,9 @@ public:
 
   LetStmt (Analysis::NodeMapping mappings,
 	   std::unique_ptr<Pattern> variables_pattern,
-	   tl::optional<std::unique_ptr<Expr>> init_expr,
-	   tl::optional<std::unique_ptr<Expr>> else_expr,
-	   tl::optional<std::unique_ptr<Type>> type, AST::AttrVec outer_attrs,
+	   gcc::optional<std::unique_ptr<Expr>> init_expr,
+	   gcc::optional<std::unique_ptr<Expr>> else_expr,
+	   gcc::optional<std::unique_ptr<Type>> type, AST::AttrVec outer_attrs,
 	   location_t locus);
 
   // Copy constructor with clone

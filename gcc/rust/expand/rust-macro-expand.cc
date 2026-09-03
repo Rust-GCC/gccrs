@@ -17,7 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-macro-expand.h"
-#include "optional.h"
+#include "stdbackport/optional"
 #include "rust-ast-fragment.h"
 #include "rust-macro-builtins.h"
 #include "rust-macro-substitute-ctx.h"

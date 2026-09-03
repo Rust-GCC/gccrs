@@ -19,7 +19,8 @@
 #ifndef RUST_MACRO_BUILTINS_H
 #define RUST_MACRO_BUILTINS_H
 
-#include "optional.h"
+#include "rust-system.h"
+#include "stdbackport/optional"
 #include "rust-ast.h"
 #include "rust-builtin-ast-nodes.h"
 #include "rust-ast-fragment.h"
@@ -79,7 +80,7 @@ enum class BuiltinMacro
   CoercePointee,
 };
 
-tl::optional<BuiltinMacro>
+gcc::optional<BuiltinMacro>
 builtin_macro_from_string (const std::string &identifier);
 
 //
@@ -126,85 +127,85 @@ public:
   static std::unordered_map<std::string, AST::MacroTranscriberFunc>
     builtin_transcribers;
 
-  static tl::optional<AST::Fragment> assert_handler (location_t invoc_locus,
-						     AST::MacroInvocData &invoc,
-						     AST::InvocKind semicolon);
+  static gcc::optional<AST::Fragment>
+  assert_handler (location_t invoc_locus, AST::MacroInvocData &invoc,
+		  AST::InvocKind semicolon);
 
-  static tl::optional<AST::Fragment> file_handler (location_t invoc_locus,
-						   AST::MacroInvocData &invoc,
-						   AST::InvocKind semicolon);
+  static gcc::optional<AST::Fragment> file_handler (location_t invoc_locus,
+						    AST::MacroInvocData &invoc,
+						    AST::InvocKind semicolon);
 
-  static tl::optional<AST::Fragment> column_handler (location_t invoc_locus,
-						     AST::MacroInvocData &invoc,
-						     AST::InvocKind semicolon);
+  static gcc::optional<AST::Fragment>
+  column_handler (location_t invoc_locus, AST::MacroInvocData &invoc,
+		  AST::InvocKind semicolon);
 
-  static tl::optional<AST::Fragment>
+  static gcc::optional<AST::Fragment>
   include_bytes_handler (location_t invoc_locus, AST::MacroInvocData &invoc,
 			 AST::InvocKind semicolon);
 
-  static tl::optional<AST::Fragment>
+  static gcc::optional<AST::Fragment>
   include_str_handler (location_t invoc_locus, AST::MacroInvocData &invoc,
 		       AST::InvocKind semicolon);
 
-  static tl::optional<AST::Fragment>
+  static gcc::optional<AST::Fragment>
   stringify_handler (location_t invoc_locus, AST::MacroInvocData &invoc,
 		     AST::InvocKind semicolon);
 
-  static tl::optional<AST::Fragment>
+  static gcc::optional<AST::Fragment>
   compile_error_handler (location_t invoc_locus, AST::MacroInvocData &invoc,
 			 AST::InvocKind semicolon);
 
-  static tl::optional<AST::Fragment> concat_handler (location_t invoc_locus,
-						     AST::MacroInvocData &invoc,
-						     AST::InvocKind semicolon);
+  static gcc::optional<AST::Fragment>
+  concat_handler (location_t invoc_locus, AST::MacroInvocData &invoc,
+		  AST::InvocKind semicolon);
 
-  static tl::optional<AST::Fragment> env_handler (location_t invoc_locus,
-						  AST::MacroInvocData &invoc,
-						  AST::InvocKind semicolon);
-
-  static tl::optional<AST::Fragment>
-  option_env_handler (location_t invoc_locus, AST::MacroInvocData &invoc,
-		      AST::InvocKind semicolon);
-
-  static tl::optional<AST::Fragment> cfg_handler (location_t invoc_locus,
-						  AST::MacroInvocData &invoc,
-						  AST::InvocKind semicolon);
-
-  static tl::optional<AST::Fragment>
-  cfg_select_handler (location_t invoc_locus, AST::MacroInvocData &invoc,
-		      AST::InvocKind semicolon);
-
-  static tl::optional<AST::Fragment>
-  include_handler (location_t invoc_locus, AST::MacroInvocData &invoc,
-		   AST::InvocKind semicolon);
-
-  static tl::optional<AST::Fragment> line_handler (location_t invoc_locus,
+  static gcc::optional<AST::Fragment> env_handler (location_t invoc_locus,
 						   AST::MacroInvocData &invoc,
 						   AST::InvocKind semicolon);
 
-  static tl::optional<AST::Fragment> asm_handler (location_t invoc_locus,
-						  AST::MacroInvocData &invoc,
-						  AST::InvocKind semicolon,
-						  AST::AsmKind is_global_asm);
+  static gcc::optional<AST::Fragment>
+  option_env_handler (location_t invoc_locus, AST::MacroInvocData &invoc,
+		      AST::InvocKind semicolon);
 
-  static tl::optional<AST::Fragment>
+  static gcc::optional<AST::Fragment> cfg_handler (location_t invoc_locus,
+						   AST::MacroInvocData &invoc,
+						   AST::InvocKind semicolon);
+
+  static gcc::optional<AST::Fragment>
+  cfg_select_handler (location_t invoc_locus, AST::MacroInvocData &invoc,
+		      AST::InvocKind semicolon);
+
+  static gcc::optional<AST::Fragment>
+  include_handler (location_t invoc_locus, AST::MacroInvocData &invoc,
+		   AST::InvocKind semicolon);
+
+  static gcc::optional<AST::Fragment> line_handler (location_t invoc_locus,
+						    AST::MacroInvocData &invoc,
+						    AST::InvocKind semicolon);
+
+  static gcc::optional<AST::Fragment> asm_handler (location_t invoc_locus,
+						   AST::MacroInvocData &invoc,
+						   AST::InvocKind semicolon,
+						   AST::AsmKind is_global_asm);
+
+  static gcc::optional<AST::Fragment>
   llvm_asm_handler (location_t invoc_locus, AST::MacroInvocData &invoc,
 		    AST::InvocKind semicolon, AST::AsmKind is_global_asm);
 
-  static tl::optional<AST::Fragment>
+  static gcc::optional<AST::Fragment>
   format_args_handler (location_t invoc_locus, AST::MacroInvocData &invoc,
 		       AST::InvocKind semicolon, AST::FormatArgs::Newline nl);
 
-  static tl::optional<AST::Fragment>
+  static gcc::optional<AST::Fragment>
   offset_of_handler (location_t, AST::MacroInvocData &, AST::InvocKind);
 
-  static tl::optional<AST::Fragment> sorry (location_t invoc_locus,
-					    AST::MacroInvocData &invoc,
-					    AST::InvocKind semicolon);
+  static gcc::optional<AST::Fragment> sorry (location_t invoc_locus,
+					     AST::MacroInvocData &invoc,
+					     AST::InvocKind semicolon);
 
   /* Builtin procedural macros do not work directly on tokens, but still need a
    * builtin transcriber to be considered proper builtin macros */
-  static tl::optional<AST::Fragment>
+  static gcc::optional<AST::Fragment>
   proc_macro_builtin (location_t, AST::MacroInvocData &, AST::InvocKind);
 };
 } // namespace Rust

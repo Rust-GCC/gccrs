@@ -18,7 +18,7 @@
 
 #include "rust-hir-expr.h"
 #include "rust-hir-map.h"
-#include "optional.h"
+#include "stdbackport/optional"
 #include "rust-operators.h"
 #include "rust-hir-stmt.h"
 
@@ -518,7 +518,7 @@ StructExprFieldIndexValue::StructExprFieldIndexValue (
 StructExprStructFields::StructExprStructFields (
   Analysis::NodeMapping mappings, PathInExpression struct_path,
   std::vector<std::unique_ptr<StructExprField>> expr_fields, location_t locus,
-  tl::optional<std::unique_ptr<StructBase>> base_struct,
+  gcc::optional<std::unique_ptr<StructBase>> base_struct,
   AST::AttrVec inner_attribs = AST::AttrVec (),
   AST::AttrVec outer_attribs = AST::AttrVec ())
   : StructExprStruct (std::move (mappings), std::move (struct_path),
@@ -531,9 +531,9 @@ StructExprStructFields::StructExprStructFields (
   StructExprStructFields const &other)
   : StructExprStruct (other),
     struct_base (other.has_struct_base ()
-		   ? tl::optional<std::unique_ptr<StructBase>> (
+		   ? gcc::optional<std::unique_ptr<StructBase>> (
 		     std::make_unique<StructBase> (*other.struct_base.value ()))
-		   : tl::nullopt),
+		   : gcc::nullopt),
     union_index (other.union_index)
 {
   fields.reserve (other.fields.size ());
@@ -546,9 +546,9 @@ StructExprStructFields::operator= (StructExprStructFields const &other)
 {
   StructExprStruct::operator= (other);
   struct_base = other.has_struct_base ()
-		  ? tl::optional<std::unique_ptr<StructBase>> (
+		  ? gcc::optional<std::unique_ptr<StructBase>> (
 		    std::make_unique<StructBase> (*other.struct_base.value ()))
-		  : tl::nullopt;
+		  : gcc::nullopt;
   union_index = other.union_index;
 
   fields.reserve (other.fields.size ());
@@ -738,7 +738,7 @@ BlockExpr::BlockExpr (Analysis::NodeMapping mappings,
 		      std::vector<std::unique_ptr<Stmt>> block_statements,
 		      std::unique_ptr<Expr> block_expr, bool tail_reachable,
 		      AST::AttrVec inner_attribs, AST::AttrVec outer_attribs,
-		      tl::optional<LoopLabel> label, location_t start_locus,
+		      gcc::optional<LoopLabel> label, location_t start_locus,
 		      location_t end_locus)
   : ExprWithBlock (std::move (mappings), std::move (outer_attribs)),
     WithInnerAttrs (std::move (inner_attribs)),
@@ -787,7 +787,7 @@ AnonConst::AnonConst (Analysis::NodeMapping mappings,
 
 AnonConst::AnonConst (Analysis::NodeMapping mappings, location_t locus)
   : ExprWithBlock (std::move (mappings), {}), locus (locus),
-    kind (Kind::DeferredInference), expr (tl::nullopt)
+    kind (Kind::DeferredInference), expr (gcc::nullopt)
 {}
 
 AnonConst::AnonConst (const AnonConst &other)
@@ -833,14 +833,14 @@ ConstBlock::operator= (const ConstBlock &other)
 }
 
 ContinueExpr::ContinueExpr (Analysis::NodeMapping mappings, location_t locus,
-			    tl::optional<Lifetime> label,
+			    gcc::optional<Lifetime> label,
 			    AST::AttrVec outer_attribs)
   : ExprWithoutBlock (std::move (mappings), std::move (outer_attribs)),
     label (std::move (label)), locus (locus)
 {}
 
 BreakExpr::BreakExpr (Analysis::NodeMapping mappings, location_t locus,
-		      tl::optional<Lifetime> break_label,
+		      gcc::optional<Lifetime> break_label,
 		      std::unique_ptr<Expr> expr_in_break,
 		      AST::AttrVec outer_attribs)
   : ExprWithoutBlock (std::move (mappings), std::move (outer_attribs)),
@@ -1031,7 +1031,7 @@ UnsafeBlockExpr::operator= (UnsafeBlockExpr const &other)
 BaseLoopExpr::BaseLoopExpr (Analysis::NodeMapping mappings,
 			    std::unique_ptr<BlockExpr> loop_block,
 			    location_t locus,
-			    tl::optional<LoopLabel> loop_label,
+			    gcc::optional<LoopLabel> loop_label,
 			    AST::AttrVec outer_attribs)
   : ExprWithBlock (std::move (mappings), std::move (outer_attribs)),
     loop_label (std::move (loop_label)), loop_block (std::move (loop_block)),
@@ -1056,7 +1056,7 @@ BaseLoopExpr::operator= (BaseLoopExpr const &other)
 
 LoopExpr::LoopExpr (Analysis::NodeMapping mappings,
 		    std::unique_ptr<BlockExpr> loop_block, location_t locus,
-		    tl::optional<LoopLabel> loop_label,
+		    gcc::optional<LoopLabel> loop_label,
 		    AST::AttrVec outer_attribs)
   : BaseLoopExpr (std::move (mappings), std::move (loop_block), locus,
 		  std::move (loop_label), std::move (outer_attribs))
@@ -1066,7 +1066,7 @@ WhileLoopExpr::WhileLoopExpr (Analysis::NodeMapping mappings,
 			      std::unique_ptr<Expr> loop_condition,
 			      std::unique_ptr<BlockExpr> loop_block,
 			      location_t locus,
-			      tl::optional<LoopLabel> loop_label,
+			      gcc::optional<LoopLabel> loop_label,
 			      AST::AttrVec outer_attribs)
   : BaseLoopExpr (std::move (mappings), std::move (loop_block), locus,
 		  std::move (loop_label), std::move (outer_attribs)),
@@ -1090,7 +1090,7 @@ WhileLetLoopExpr::WhileLetLoopExpr (Analysis::NodeMapping mappings,
 				    std::unique_ptr<Expr> condition,
 				    std::unique_ptr<BlockExpr> loop_block,
 				    location_t locus,
-				    tl::optional<LoopLabel> loop_label,
+				    gcc::optional<LoopLabel> loop_label,
 				    AST::AttrVec outer_attribs)
   : BaseLoopExpr (std::move (mappings), std::move (loop_block), locus,
 		  std::move (loop_label), std::move (outer_attribs)),
@@ -1336,7 +1336,7 @@ OperatorExprMeta::OperatorExprMeta (HIR::ComparisonExpr &expr)
 {}
 
 InlineAsmOperand::In::In (
-  const tl::optional<struct AST::InlineAsmRegOrRegClass> &reg,
+  const gcc::optional<struct AST::InlineAsmRegOrRegClass> &reg,
   std::unique_ptr<Expr> expr)
   : reg (reg), expr (std::move (expr))
 {
@@ -1360,7 +1360,7 @@ InlineAsmOperand::In::operator= (const struct In &other)
 }
 
 InlineAsmOperand::Out::Out (
-  tl::optional<struct AST::InlineAsmRegOrRegClass> &reg, bool late,
+  gcc::optional<struct AST::InlineAsmRegOrRegClass> &reg, bool late,
   std::unique_ptr<Expr> expr)
   : reg (reg), late (late), expr (std::move (expr))
 {
@@ -1384,7 +1384,7 @@ InlineAsmOperand::Out::operator= (const struct Out &other)
 }
 
 InlineAsmOperand::InOut::InOut (
-  tl::optional<struct AST::InlineAsmRegOrRegClass> &reg, bool late,
+  gcc::optional<struct AST::InlineAsmRegOrRegClass> &reg, bool late,
   std::unique_ptr<Expr> expr)
   : reg (reg), late (late), expr (std::move (expr))
 {
@@ -1409,7 +1409,7 @@ InlineAsmOperand::InOut::operator= (const struct InOut &other)
 }
 
 InlineAsmOperand::SplitInOut::SplitInOut (
-  tl::optional<struct AST::InlineAsmRegOrRegClass> &reg, bool late,
+  gcc::optional<struct AST::InlineAsmRegOrRegClass> &reg, bool late,
   std::unique_ptr<Expr> in_expr, std::unique_ptr<Expr> out_expr)
   : reg (reg), late (late), in_expr (std::move (in_expr)),
     out_expr (std::move (out_expr))
@@ -1455,7 +1455,7 @@ InlineAsmOperand::Sym::operator= (const struct Sym &other)
   return *this;
 }
 
-InlineAsmOperand::Label::Label (tl::optional<std::string> label_name,
+InlineAsmOperand::Label::Label (gcc::optional<std::string> label_name,
 				std::unique_ptr<Expr> expr)
   : expr (std::move (expr))
 {

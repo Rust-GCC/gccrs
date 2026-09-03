@@ -30,7 +30,7 @@
 #include "fold-const.h"
 #include "stringpool.h"
 #include "stor-layout.h"
-#include "util/optional.h"
+#include "stdbackport/optional"
 #include "varasm.h"
 #include "tree-iterator.h"
 #include "tm.h"
@@ -1092,7 +1092,7 @@ static tree
 builtin_remainder_float_call (tree lhs, tree rhs, location_t loc)
 {
   auto builtin_ctx = Rust::Compile::BuiltinsContext::get ();
-  tl::optional<tree> remainder = tl::nullopt;
+  gcc::optional<tree> remainder = gcc::nullopt;
 
   if (TYPE_PRECISION (TREE_TYPE (lhs)) == TYPE_PRECISION (float_type_node))
     remainder = builtin_ctx.lookup_simple_builtin ("__builtin_remainderf");
@@ -1215,7 +1215,7 @@ fetch_overflow_builtins (ArithmeticOrLogicalOperator op)
 {
   auto builtin_ctx = Rust::Compile::BuiltinsContext::get ();
 
-  tl::optional<tree> builtin = NULL_TREE;
+  gcc::optional<tree> builtin = NULL_TREE;
 
   switch (op)
     {
@@ -2295,7 +2295,7 @@ temporary_variable (tree fndecl, tree bind_tree, tree type_tree, tree init_tree,
 // Make a label.
 
 tree
-label (tree func_tree, tl::optional<GGC::Ident> name, location_t location)
+label (tree func_tree, gcc::optional<GGC::Ident> name, location_t location)
 {
   tree decl;
   if (!name.has_value ())
@@ -2350,7 +2350,7 @@ label_address (tree label, location_t location)
 // Declare or define a new function.
 
 tree
-function (tree functype, GGC::Ident name, tl::optional<GGC::Ident> asm_name,
+function (tree functype, GGC::Ident name, gcc::optional<GGC::Ident> asm_name,
 	  unsigned int flags, location_t location)
 {
   if (error_operand_p (functype))

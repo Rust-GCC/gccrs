@@ -19,7 +19,8 @@
 #ifndef RUST_RESOLVE_BUILTINS_H
 #define RUST_RESOLVE_BUILTINS_H
 
-#include "optional.h"
+#include "rust-system.h"
+#include "stdbackport/optional"
 #include "rust-ast.h"
 
 namespace Rust {
@@ -34,7 +35,7 @@ void setup_lang_prelude (NameResolutionContext &ctx);
 void setup_type_ctx ();
 
 // Return the NodeId associated with a builtin type name if it exists
-tl::optional<NodeId> find_builtin_node_id (const std::string &name);
+gcc::optional<NodeId> find_builtin_node_id (const std::string &name);
 
 } // namespace Builtins
 } // namespace Resolver2_0

@@ -195,7 +195,7 @@ public:
     HIR::BlockExpr *loop_block
       = ASTLoweringBlock::translate (expr.get_loop_block (), &terminated);
 
-    tl::optional<HIR::LoopLabel> loop_label = tl::nullopt;
+    gcc::optional<HIR::LoopLabel> loop_label = gcc::nullopt;
     if (expr.has_loop_label ())
       loop_label = lower_loop_label (expr.get_loop_label ());
 

@@ -34,9 +34,9 @@ class PatternBindingBuilder : protected AbstractBuilder,
 			      public HIR::HIRPatternVisitor
 {
   /** Value of initialization expression. */
-  tl::optional<PlaceId> init;
-  tl::optional<TyTy::BaseType *> type_annotation;
-  tl::optional<FreeRegions> regions;
+  gcc::optional<PlaceId> init;
+  gcc::optional<TyTy::BaseType *> type_annotation;
+  gcc::optional<FreeRegions> regions;
 
   /** Emulates recursive stack saving and restoring inside a visitor. */
   class SavedState
@@ -44,8 +44,8 @@ class PatternBindingBuilder : protected AbstractBuilder,
     PatternBindingBuilder *builder;
 
   public:
-    const tl::optional<PlaceId> init;
-    const tl::optional<FreeRegions> regions;
+    const gcc::optional<PlaceId> init;
+    const gcc::optional<FreeRegions> regions;
 
   public:
     explicit SavedState (PatternBindingBuilder *builder)
@@ -56,10 +56,10 @@ class PatternBindingBuilder : protected AbstractBuilder,
   };
 
 public:
-  PatternBindingBuilder (BuilderContext &ctx, tl::optional<PlaceId> init,
-			 tl::optional<TyTy::BaseType *> type_annotation)
+  PatternBindingBuilder (BuilderContext &ctx, gcc::optional<PlaceId> init,
+			 gcc::optional<TyTy::BaseType *> type_annotation)
     : AbstractBuilder (ctx), init (init), type_annotation (type_annotation),
-      regions (tl::nullopt)
+      regions (gcc::nullopt)
   {}
 
   void go (HIR::Pattern &pattern) { pattern.accept_vis (*this); }

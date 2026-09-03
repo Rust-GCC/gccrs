@@ -35,7 +35,7 @@
 #include "rust-cfg-parser.h"
 #include "rust-privacy-ctx.h"
 #include "rust-lex.h"
-#include "optional.h"
+#include "stdbackport/optional"
 #include "rust-unicode.h"
 #include "rust-punycode.h"
 #include "rust-builtins.h"

@@ -2,7 +2,7 @@
 #include "rust-ast-fragment.h"
 #include "rust-macro-builtins.h"
 #include "rust-macro-builtins-helpers.h"
-#include "expected.h"
+#include "stdbackport/expected"
 #include "rust-macro-invoc-lexer.h"
 #include "rust/ast/rust-expr.h"
 #include "system.h"
@@ -55,7 +55,7 @@ public:
   //     last_token_id (inline_asm_ctx.last_token_id)
   // {}
 
-  // InlineAsmContext(tl::expected<InlineAsmContext, InlineAsmParseError>
+  // InlineAsmContext(gcc::expected<InlineAsmContext, InlineAsmParseError>
   // &expected)
   //     : allow_templates(expected->allow_templates),
   //     is_explicit(expected->is_explicit),
@@ -84,68 +84,68 @@ public:
   }
 };
 WARN_UNUSED_RESULT
-tl::expected<InlineAsmContext, InlineAsmParseError>
+gcc::expected<InlineAsmContext, InlineAsmParseError>
 expand_inline_asm_strings (InlineAsmContext inline_asm_ctx);
 
 // Expected calls
 WARN_UNUSED_RESULT
-tl::expected<InlineAsmContext, InlineAsmParseError>
+gcc::expected<InlineAsmContext, InlineAsmParseError>
 validate (InlineAsmContext inline_asm_ctx);
 
 WARN_UNUSED_RESULT
-tl::expected<InlineAsmContext, InlineAsmParseError>
+gcc::expected<InlineAsmContext, InlineAsmParseError>
 parse_asm_arg (InlineAsmContext inline_asm_ctx);
 
 WARN_UNUSED_RESULT
-tl::expected<InlineAsmContext, InlineAsmParseError>
+gcc::expected<InlineAsmContext, InlineAsmParseError>
 parse_format_strings (InlineAsmContext inline_asm_ctx);
 
 WARN_UNUSED_RESULT
-tl::expected<InlineAsmContext, InlineAsmParseError>
+gcc::expected<InlineAsmContext, InlineAsmParseError>
 parse_clobber_abi (InlineAsmContext inline_asm_ctx);
 
 // From rustc
 WARN_UNUSED_RESULT
-tl::expected<InlineAsmContext, InlineAsmParseError>
+gcc::expected<InlineAsmContext, InlineAsmParseError>
 parse_reg_operand (InlineAsmContext inline_asm_ctx);
 
 WARN_UNUSED_RESULT
-tl::expected<InlineAsmContext, InlineAsmParseError>
+gcc::expected<InlineAsmContext, InlineAsmParseError>
 parse_reg_operand_in (InlineAsmContext inline_asm_ctx);
 
 WARN_UNUSED_RESULT
-tl::expected<InlineAsmContext, InlineAsmParseError>
+gcc::expected<InlineAsmContext, InlineAsmParseError>
 parse_reg_operand_out (InlineAsmContext inline_asm_ctx);
 
 WARN_UNUSED_RESULT
-tl::expected<InlineAsmContext, InlineAsmParseError>
+gcc::expected<InlineAsmContext, InlineAsmParseError>
 parse_reg_operand_lateout (InlineAsmContext inline_asm_ctx);
 
 WARN_UNUSED_RESULT
-tl::expected<InlineAsmContext, InlineAsmParseError>
+gcc::expected<InlineAsmContext, InlineAsmParseError>
 parse_reg_operand_inout (InlineAsmContext inline_asm_ctx);
 
 WARN_UNUSED_RESULT
-tl::expected<InlineAsmContext, InlineAsmParseError>
+gcc::expected<InlineAsmContext, InlineAsmParseError>
 parse_reg_operand_inlateout (InlineAsmContext inline_asm_ctx);
 
 WARN_UNUSED_RESULT
-tl::expected<InlineAsmContext, InlineAsmParseError>
+gcc::expected<InlineAsmContext, InlineAsmParseError>
 parse_reg_operand_const (InlineAsmContext inline_asm_ctx);
 
 WARN_UNUSED_RESULT
-tl::expected<InlineAsmContext, InlineAsmParseError>
+gcc::expected<InlineAsmContext, InlineAsmParseError>
 parse_reg_operand_sym (InlineAsmContext inline_asm_ctx);
 
 WARN_UNUSED_RESULT
-tl::expected<InlineAsmContext, InlineAsmParseError>
+gcc::expected<InlineAsmContext, InlineAsmParseError>
 parse_reg_operand_unexpected (InlineAsmContext inline_asm_ctx);
 
 WARN_UNUSED_RESULT
-tl::optional<AST::Fragment> parse_asm (location_t invoc_locus,
-				       AST::MacroInvocData &invoc,
-				       AST::InvocKind semicolon,
-				       AST::AsmKind is_global_asm);
+gcc::optional<AST::Fragment> parse_asm (location_t invoc_locus,
+					AST::MacroInvocData &invoc,
+					AST::InvocKind semicolon,
+					AST::AsmKind is_global_asm);
 
 WARN_UNUSED_RESULT
 bool check_identifier (Parser<MacroInvocLexer> &parser, std::string ident);
@@ -155,22 +155,22 @@ void check_and_set (InlineAsmContext &inline_asm_ctx,
 
 // From rustc
 WARN_UNUSED_RESULT
-tl::expected<InlineAsmContext, InlineAsmParseError>
+gcc::expected<InlineAsmContext, InlineAsmParseError>
 parse_options (InlineAsmContext &inline_asm_ctx);
 
 // From rustc
 WARN_UNUSED_RESULT
-tl::optional<AST::InlineAsmRegOrRegClass>
+gcc::optional<AST::InlineAsmRegOrRegClass>
 parse_reg (InlineAsmContext &inline_asm_ctx);
 
 WARN_UNUSED_RESULT
-tl::optional<std::string>
+gcc::optional<std::string>
 parse_format_string (InlineAsmContext &inline_asm_ctx);
 
 WARN_UNUSED_RESULT
-tl::optional<std::string> parse_label (Parser<MacroInvocLexer> &parser,
-				       TokenId last_token_id,
-				       InlineAsmContext &inline_asm_ctx);
+gcc::optional<std::string> parse_label (Parser<MacroInvocLexer> &parser,
+					TokenId last_token_id,
+					InlineAsmContext &inline_asm_ctx);
 
 // LLVM ASM bits
 
@@ -196,7 +196,7 @@ void parse_llvm_clobbers (LlvmAsmContext &ctx);
 
 void parse_llvm_options (LlvmAsmContext &ctx);
 
-WARN_UNUSED_RESULT tl::optional<AST::Fragment>
+WARN_UNUSED_RESULT gcc::optional<AST::Fragment>
 parse_llvm_asm (location_t invoc_locus, AST::MacroInvocData &invoc,
 		AST::InvocKind semicolon, AST::AsmKind is_global_asm);
 

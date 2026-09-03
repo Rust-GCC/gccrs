@@ -19,7 +19,7 @@
 #ifndef RUST_UNICODE_H
 #define RUST_UNICODE_H
 
-#include "optional.h"
+#include "stdbackport/optional"
 #include "rust-system.h"
 #include "rust-input-source.h"
 
@@ -31,15 +31,15 @@ private:
   std::vector<Codepoint> chars;
 
 public:
-  static tl::optional<Utf8String>
+  static gcc::optional<Utf8String>
   make_utf8_string (const std::string &maybe_utf8)
   {
     BufferInputSource input_source = {maybe_utf8, 0};
-    tl::optional<std::vector<Codepoint>> chars_opt = input_source.get_chars ();
+    gcc::optional<std::vector<Codepoint>> chars_opt = input_source.get_chars ();
     if (chars_opt.has_value ())
       return {Utf8String (chars_opt.value ())};
     else
-      return tl::nullopt;
+      return gcc::nullopt;
   }
 
   Utf8String (const std::vector<Codepoint> codepoints) : chars ({codepoints}) {}

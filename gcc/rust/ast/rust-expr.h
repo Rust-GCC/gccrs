@@ -1,7 +1,9 @@
 #ifndef RUST_AST_EXPR_H
 #define RUST_AST_EXPR_H
 
-#include "optional.h"
+#include "rust-system.h"
+#include "stdbackport/optional"
+
 #include "rust-ast.h"
 #include "rust-common.h"
 #include "rust-path.h"
@@ -2715,7 +2717,7 @@ class BlockExpr : public ExprWithBlock
   std::vector<Attribute> inner_attrs;
   std::vector<std::unique_ptr<Stmt>> statements;
   std::unique_ptr<Expr> expr;
-  tl::optional<LoopLabel> label;
+  gcc::optional<LoopLabel> label;
   location_t start_locus;
   location_t end_locus;
   bool marked_for_strip = false;
@@ -2733,7 +2735,7 @@ public:
 	     std::unique_ptr<Expr> block_expr,
 	     std::vector<Attribute> inner_attribs,
 	     std::vector<Attribute> outer_attribs,
-	     tl::optional<LoopLabel> label, location_t start_locus,
+	     gcc::optional<LoopLabel> label, location_t start_locus,
 	     location_t end_locus)
     : outer_attrs (std::move (outer_attribs)),
       inner_attrs (std::move (inner_attribs)),
@@ -2892,7 +2894,7 @@ public:
 
   AnonConst (location_t locus = UNKNOWN_LOCATION)
     : ExprWithBlock (), locus (locus), kind (Kind::DeferredInference),
-      expr (tl::nullopt)
+      expr (gcc::nullopt)
   {}
 
   AnonConst (const AnonConst &other)
@@ -2960,7 +2962,7 @@ public:
 private:
   location_t locus;
   Kind kind;
-  tl::optional<std::unique_ptr<Expr>> expr;
+  gcc::optional<std::unique_ptr<Expr>> expr;
 
   AnonConst *clone_expr_with_block_impl () const override
   {
@@ -3131,7 +3133,7 @@ protected:
 class ContinueExpr : public ExprWithoutBlock
 {
   std::vector<Attribute> outer_attrs;
-  tl::optional<Lifetime> label;
+  gcc::optional<Lifetime> label;
   location_t locus;
 
   // TODO: find another way to store this to save memory?
@@ -3144,7 +3146,7 @@ public:
   bool has_label () const { return label.has_value (); }
 
   // Constructor for a ContinueExpr with a label.
-  ContinueExpr (tl::optional<Lifetime> label,
+  ContinueExpr (gcc::optional<Lifetime> label,
 		std::vector<Attribute> outer_attribs, location_t locus)
     : outer_attrs (std::move (outer_attribs)), label (std::move (label)),
       locus (locus)
@@ -3169,8 +3171,8 @@ public:
   Lifetime &get_label_unchecked () { return label.value (); }
   const Lifetime &get_label_unchecked () const { return label.value (); }
 
-  tl::optional<Lifetime> &get_label () { return label; }
-  const tl::optional<Lifetime> &get_label () const { return label; }
+  gcc::optional<Lifetime> &get_label () { return label; }
+  const gcc::optional<Lifetime> &get_label () const { return label; }
 
   Expr::Kind get_expr_kind () const override { return Expr::Kind::Continue; }
 
@@ -3188,8 +3190,8 @@ protected:
 class BreakExpr : public ExprWithoutBlock
 {
   std::vector<Attribute> outer_attrs;
-  tl::optional<LoopLabel> label;
-  tl::optional<std::unique_ptr<Expr>> break_expr;
+  gcc::optional<LoopLabel> label;
+  gcc::optional<std::unique_ptr<Expr>> break_expr;
   location_t locus;
 
   // TODO: find another way to store this to save memory?
@@ -3206,8 +3208,8 @@ public:
   bool has_break_expr () const { return break_expr.has_value (); }
 
   // Constructor for a break expression
-  BreakExpr (tl::optional<LoopLabel> break_label,
-	     tl::optional<std::unique_ptr<Expr>> expr_in_break,
+  BreakExpr (gcc::optional<LoopLabel> break_label,
+	     gcc::optional<std::unique_ptr<Expr>> expr_in_break,
 	     std::vector<Attribute> outer_attribs, location_t locus)
     : outer_attrs (std::move (outer_attribs)), label (std::move (break_label)),
       break_expr (std::move (expr_in_break)), locus (locus)
@@ -3239,7 +3241,7 @@ public:
     if (other.has_break_expr ())
       break_expr = other.get_break_expr_unchecked ().clone_expr ();
     else
-      break_expr = tl::nullopt;
+      break_expr = gcc::nullopt;
 
     return *this;
   }
@@ -3286,8 +3288,8 @@ public:
   LoopLabel &get_label_unchecked () { return label.value (); }
   const LoopLabel &get_label_unchecked () const { return label.value (); }
 
-  tl::optional<LoopLabel> &get_label () { return label; }
-  const tl::optional<LoopLabel> &get_label () const { return label; }
+  gcc::optional<LoopLabel> &get_label () { return label; }
+  const gcc::optional<LoopLabel> &get_label () const { return label; }
 
   Expr::Kind get_expr_kind () const override { return Expr::Kind::Break; }
 
@@ -3837,7 +3839,7 @@ protected:
 class ReturnExpr : public ExprWithoutBlock
 {
   std::vector<Attribute> outer_attrs;
-  tl::optional<std::unique_ptr<Expr>> return_expr;
+  gcc::optional<std::unique_ptr<Expr>> return_expr;
   location_t locus;
 
   // TODO: find another way to store this to save memory?
@@ -3851,7 +3853,7 @@ public:
   bool has_returned_expr () const { return return_expr.has_value (); }
 
   // Constructor for ReturnExpr.
-  ReturnExpr (tl::optional<std::unique_ptr<Expr>> returned_expr,
+  ReturnExpr (gcc::optional<std::unique_ptr<Expr>> returned_expr,
 	      std::vector<Attribute> outer_attribs, location_t locus)
     : outer_attrs (std::move (outer_attribs)),
       return_expr (std::move (returned_expr)), locus (locus)
@@ -3879,7 +3881,7 @@ public:
     if (other.return_expr)
       return_expr = other.return_expr.value ()->clone_expr ();
     else
-      return_expr = tl::nullopt;
+      return_expr = gcc::nullopt;
 
     return *this;
   }
@@ -4107,7 +4109,7 @@ class BaseLoopExpr : public ExprWithBlock
 protected:
   // protected to allow subclasses better use of them
   std::vector<Attribute> outer_attrs;
-  tl::optional<LoopLabel> loop_label;
+  gcc::optional<LoopLabel> loop_label;
   std::unique_ptr<BlockExpr> loop_block;
 
 private:
@@ -4116,7 +4118,7 @@ private:
 protected:
   // Constructor for BaseLoopExpr
   BaseLoopExpr (std::unique_ptr<BlockExpr> loop_block, location_t locus,
-		tl::optional<LoopLabel> loop_label = tl::nullopt,
+		gcc::optional<LoopLabel> loop_label = gcc::nullopt,
 		std::vector<Attribute> outer_attribs
 		= std::vector<Attribute> ())
     : outer_attrs (std::move (outer_attribs)),
@@ -4209,7 +4211,7 @@ public:
 
   // Constructor for LoopExpr
   LoopExpr (std::unique_ptr<BlockExpr> loop_block, location_t locus,
-	    tl::optional<LoopLabel> loop_label = tl::nullopt,
+	    gcc::optional<LoopLabel> loop_label = gcc::nullopt,
 	    std::vector<Attribute> outer_attribs = std::vector<Attribute> ())
     : BaseLoopExpr (std::move (loop_block), locus, std::move (loop_label),
 		    std::move (outer_attribs))
@@ -4242,7 +4244,7 @@ public:
   // Constructor for while loop with loop label
   WhileLoopExpr (std::unique_ptr<Expr> loop_condition,
 		 std::unique_ptr<BlockExpr> loop_block, location_t locus,
-		 tl::optional<LoopLabel> loop_label = tl::nullopt,
+		 gcc::optional<LoopLabel> loop_label = gcc::nullopt,
 		 std::vector<Attribute> outer_attribs
 		 = std::vector<Attribute> ())
     : BaseLoopExpr (std::move (loop_block), locus, std::move (loop_label),
@@ -4314,7 +4316,7 @@ public:
   WhileLetLoopExpr (std::unique_ptr<Pattern> match_arm_pattern,
 		    std::unique_ptr<Expr> scrutinee,
 		    std::unique_ptr<BlockExpr> loop_block, location_t locus,
-		    tl::optional<LoopLabel> loop_label = tl::nullopt,
+		    gcc::optional<LoopLabel> loop_label = gcc::nullopt,
 		    std::vector<Attribute> outer_attribs
 		    = std::vector<Attribute> ())
     : BaseLoopExpr (std::move (loop_block), locus, std::move (loop_label),
@@ -4394,7 +4396,7 @@ public:
   ForLoopExpr (std::unique_ptr<Pattern> loop_pattern,
 	       std::unique_ptr<Expr> iterator_expr,
 	       std::unique_ptr<BlockExpr> loop_body, location_t locus,
-	       tl::optional<LoopLabel> loop_label = tl::nullopt,
+	       gcc::optional<LoopLabel> loop_label = gcc::nullopt,
 	       std::vector<Attribute> outer_attribs = std::vector<Attribute> ())
     : BaseLoopExpr (std::move (loop_body), locus, std::move (loop_label),
 		    std::move (outer_attribs)),
@@ -5370,10 +5372,10 @@ public:
   class In : public Register
   {
   public:
-    tl::optional<InlineAsmRegOrRegClass> reg;
+    gcc::optional<InlineAsmRegOrRegClass> reg;
     std::unique_ptr<Expr> expr;
 
-    In (tl::optional<struct InlineAsmRegOrRegClass> &reg,
+    In (gcc::optional<struct InlineAsmRegOrRegClass> &reg,
 	std::unique_ptr<Expr> expr)
       : reg (reg), expr (std::move (expr))
     {
@@ -5402,11 +5404,11 @@ public:
   class Out : public Register
   {
   public:
-    tl::optional<InlineAsmRegOrRegClass> reg;
+    gcc::optional<InlineAsmRegOrRegClass> reg;
     bool late;
     std::unique_ptr<Expr> expr; // can be null
 
-    Out (tl::optional<struct InlineAsmRegOrRegClass> &reg, bool late,
+    Out (gcc::optional<struct InlineAsmRegOrRegClass> &reg, bool late,
 	 std::unique_ptr<Expr> expr)
       : reg (reg), late (late), expr (std::move (expr))
     {
@@ -5435,11 +5437,11 @@ public:
   class InOut : public Register
   {
   public:
-    tl::optional<InlineAsmRegOrRegClass> reg;
+    gcc::optional<InlineAsmRegOrRegClass> reg;
     bool late;
     std::unique_ptr<Expr> expr; // this can't be null
 
-    InOut (tl::optional<struct InlineAsmRegOrRegClass> &reg, bool late,
+    InOut (gcc::optional<struct InlineAsmRegOrRegClass> &reg, bool late,
 	   std::unique_ptr<Expr> expr)
       : reg (reg), late (late), expr (std::move (expr))
     {
@@ -5469,12 +5471,12 @@ public:
   class SplitInOut : public Register
   {
   public:
-    tl::optional<InlineAsmRegOrRegClass> reg;
+    gcc::optional<InlineAsmRegOrRegClass> reg;
     bool late;
     std::unique_ptr<Expr> in_expr;
     std::unique_ptr<Expr> out_expr; // could be null
 
-    SplitInOut (tl::optional<struct InlineAsmRegOrRegClass> &reg, bool late,
+    SplitInOut (gcc::optional<struct InlineAsmRegOrRegClass> &reg, bool late,
 		std::unique_ptr<Expr> in_expr, std::unique_ptr<Expr> out_expr)
       : reg (reg), late (late), in_expr (std::move (in_expr)),
 	out_expr (std::move (out_expr))
@@ -5544,7 +5546,7 @@ public:
     std::string label_name;
     std::unique_ptr<Expr> expr;
 
-    Label (tl::optional<std::string> label_name, std::unique_ptr<Expr> expr)
+    Label (gcc::optional<std::string> label_name, std::unique_ptr<Expr> expr)
       : expr (std::move (expr))
     {
       rust_assert (this->expr != nullptr);

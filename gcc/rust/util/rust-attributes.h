@@ -19,7 +19,7 @@
 #define RUST_ATTRIBUTES_H
 
 #include "rust-ast.h"
-#include "optional.h"
+#include "stdbackport/optional"
 
 namespace Rust {
 namespace Analysis {
@@ -46,7 +46,7 @@ public:
 
   static AttributeKnowledge is_known (const std::string &attribute_path);
   static bool valid_outer_attribute (const std::string &attribute_path);
-  static tl::optional<std::string>
+  static gcc::optional<std::string>
   extract_string_literal (const AST::Attribute &attr);
 };
 
@@ -100,7 +100,7 @@ private:
   std::map<std::string, const BuiltinAttrDefinition> mappings;
 };
 
-tl::optional<BuiltinAttrDefinition>
+gcc::optional<BuiltinAttrDefinition>
 lookup_builtin (const AST::Attribute &attribute);
 
 } // namespace Analysis

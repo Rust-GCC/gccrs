@@ -62,6 +62,8 @@
 #include <iostream>
 #include <iomanip>
 
+// So that check_system_h.h does not complain.
+#define INCLUDE_FUNCTIONAL
 #include "system.h"
 #include "ansidecl.h"
 #include "coretypes.h"

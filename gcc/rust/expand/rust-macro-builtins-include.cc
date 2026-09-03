@@ -21,13 +21,13 @@
 #include "rust-macro-builtins.h"
 #include "rust-macro-builtins-helpers.h"
 #include "rust-session-manager.h"
-#include "optional.h"
+#include "stdbackport/optional"
 namespace Rust {
 /* Expand builtin macro include_bytes!("filename"), which includes the contents
 of the given file as reference to a byte array. Yields an expression of type
 &'static [u8; N].  */
 
-tl::optional<AST::Fragment>
+gcc::optional<AST::Fragment>
 MacroBuiltin::include_bytes_handler (location_t invoc_locus,
 				     AST::MacroInvocData &invoc,
 				     AST::InvocKind semicolon)
@@ -99,7 +99,7 @@ MacroBuiltin::include_bytes_handler (location_t invoc_locus,
    of the given file as a string. The file must be UTF-8 encoded. Yields an
    expression of type &'static str.  */
 
-tl::optional<AST::Fragment>
+gcc::optional<AST::Fragment>
 MacroBuiltin::include_str_handler (location_t invoc_locus,
 				   AST::MacroInvocData &invoc,
 				   AST::InvocKind semicolon)
@@ -189,7 +189,7 @@ MacroBuiltin::include_str_handler (location_t invoc_locus,
 /* Expand builtin macro include!(), which includes a source file at the current
 scope compile time. */
 
-tl::optional<AST::Fragment>
+gcc::optional<AST::Fragment>
 MacroBuiltin::include_handler (location_t invoc_locus,
 			       AST::MacroInvocData &invoc,
 			       AST::InvocKind semicolon)

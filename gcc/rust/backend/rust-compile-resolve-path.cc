@@ -134,7 +134,7 @@ ResolvePathRef::resolve_with_node_id (
   bool ok = ctx->get_tyctx ()->lookup_type (mappings.get_hirid (), &lookup);
   rust_assert (ok);
 
-  tl::optional<HirId> hid
+  gcc::optional<HirId> hid
     = ctx->get_mappings ().lookup_node_to_hir (resolved_node_id);
   if (!hid.has_value ())
     return error_mark_node;

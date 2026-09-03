@@ -16,9 +16,11 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
+#include "rust-system.h"
+#include "stdbackport/optional"
+
 #include "rust-toplevel-name-resolver-2.0.h"
 #include "input.h"
-#include "optional.h"
 #include "rust-ast-full.h"
 #include "rust-hir-map.h"
 #include "rust-attribute-values.h"
@@ -41,8 +43,8 @@ TopLevel::insert_enum_variant_or_error_out (const Identifier &identifier,
 
 void
 TopLevel::check_multiple_insertion_error (
-  tl::expected<NodeId, DuplicateNameError> result, const Identifier &identifier,
-  const location_t &locus, const NodeId node_id)
+  gcc::expected<NodeId, DuplicateNameError> result,
+  const Identifier &identifier, const location_t &locus, const NodeId node_id)
 {
   if (result)
     dirty = true;
@@ -109,7 +111,7 @@ TopLevel::go (AST::Crate &crate)
   visit (crate);
 
   if (Analysis::Mappings::get ().lookup_glob_container (crate.get_node_id ())
-      == tl::nullopt)
+      == gcc::nullopt)
     Analysis::Mappings::get ().insert_glob_container (crate.get_node_id (),
 						      &crate);
 }
@@ -118,7 +120,7 @@ void
 TopLevel::visit (AST::Module &module)
 {
   if (Analysis::Mappings::get ().lookup_glob_container (module.get_node_id ())
-      == tl::nullopt)
+      == gcc::nullopt)
     Analysis::Mappings::get ().insert_glob_container (module.get_node_id (),
 						      &module);
 
@@ -398,7 +400,7 @@ TopLevel::visit (AST::Enum &enum_item)
   // do for modules
   if (Analysis::Mappings::get ().lookup_glob_container (
 	enum_item.get_node_id ())
-      == tl::nullopt)
+      == gcc::nullopt)
     Analysis::Mappings::get ().insert_glob_container (enum_item.get_node_id (),
 						      &enum_item);
 }

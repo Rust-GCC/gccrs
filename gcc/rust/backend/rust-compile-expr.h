@@ -19,7 +19,9 @@
 #ifndef RUST_COMPILE_EXPR
 #define RUST_COMPILE_EXPR
 
-#include "optional.h"
+#include "rust-system.h"
+#include "stdbackport/optional"
+
 #include "rust-compile-base.h"
 #include "rust-gcc.h"
 #include "rust-hir-expr.h"
@@ -107,7 +109,7 @@ protected:
   tree resolve_operator_overload (
     LangItem::Kind lang_item_type, HIR::OperatorExprMeta expr, tree lhs,
     tree rhs, HIR::Expr &lhs_expr,
-    tl::optional<std::reference_wrapper<HIR::Expr>> rhs_expr,
+    gcc::optional<std::reference_wrapper<HIR::Expr>> rhs_expr,
     HIR::PathIdentSegment specified_segment
     = HIR::PathIdentSegment::create_error ());
 
@@ -166,7 +168,7 @@ protected:
   Bvariable *lookup_label_temp_var (NodeId to_be_resolved);
   HirId resolve_nodeid (NodeId to_be_resolved, Resolver2_0::Namespace ns);
   std::pair<tree, tree>
-  construct_loop_labels (tl::optional<HIR::LoopLabel> loop_label);
+  construct_loop_labels (gcc::optional<HIR::LoopLabel> loop_label);
 
 private:
   CompileExpr (Context *ctx);
