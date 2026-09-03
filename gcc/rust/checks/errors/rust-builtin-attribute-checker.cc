@@ -360,6 +360,41 @@ BuiltinAttributeChecker::expect_no_input (AST::Attribute &attribute)
     }
 }
 
+void
+BuiltinAttributeChecker::derive (AST::Attribute &attribute)
+{
+  if (attribute.is_derive ())
+    {
+      for (const auto &to_derive : attribute.get_traits_to_derive ())
+	if (to_derive.get ().as_string () == "CoercePointee")
+	  feature_gate.gate (
+	    Feature::Name::DERIVE_COERCE_POINTEE, attribute.get_locus (),
+	    "use of unstable library feature `derive_coerce_pointee`");
+
+      // NOTE: This is technically a library feature, so I don't think this is
+      // how it should be gated. But as far as I can tell at the moment we have
+      // no mechanisms for handling these, and furthermore this will go through
+      // our compatibility layer.
+      //
+      // What this means is that the `CoercePointee` macro will *not* be defined
+      // in the `core` that we will be using to compile the kernel at first.
+      //
+      // The basic example for `CoercePointee` is something like this:
+      //
+      // ```rust
+      // use std::marker::CoercePointee;
+      //
+      // #[derive(CoercePointee)]
+      // struct Flip<Flop>(*const Flop);
+      // ```
+      //
+      // but the marker will not be present in the `core` we will be using at
+      // first, so we will need to fake its existence with
+      // -frust-compat-version, and then the compiler can assume that it is a
+      // built-in derive. At least that's my expectation.
+    }
+}
+
 tl::optional<BuiltinAttributeChecker::Handler>
 lookup_handler (const std::string &attr_name)
 {
@@ -387,6 +422,7 @@ lookup_handler (const std::string &attr_name)
       {Attrs::GLOBAL_ALLOCATOR, &BuiltinAttributeChecker::expect_no_input},
       {Attrs::RUSTC_CONVERSION_SUGGESTION,
        &BuiltinAttributeChecker::expect_no_input},
+      {Attrs::DERIVE_ATTR, &BuiltinAttributeChecker::derive},
     };
 
   auto res = handlers.find (attr_name);
