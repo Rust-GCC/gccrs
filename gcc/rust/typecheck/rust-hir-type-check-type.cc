@@ -273,11 +273,18 @@ TypeCheckType::visit (HIR::QualifiedPathInType &path)
 		= new TyTy::ErrorType (path.get_mappings ().get_hirid ());
 	      return;
 	    }
-	  translated
-	    = SubstMapper::Resolve (translated, path.get_locus (),
-				    &generic_seg.get_generic_args (),
-				    context->regions_from_generic_args (
-				      generic_seg.get_generic_args ()));
+	  auto regions = context->regions_from_generic_args (
+	    generic_seg.get_generic_args ());
+	  if (!regions.has_value ())
+	    {
+	      translated
+		= new TyTy::ErrorType (path.get_mappings ().get_hirid ());
+	      return;
+	    }
+
+	  translated = SubstMapper::Resolve (translated, path.get_locus (),
+					     &generic_seg.get_generic_args (),
+					     regions.value ());
 
 	  // unwrap the sweets
 	  if (auto *proj = translated->try_as<TyTy::ProjectionType> ())
@@ -442,9 +449,12 @@ TypeCheckType::resolve_root_path (HIR::TypePath &path, size_t *offset,
 
 	  auto regions = context->regions_from_generic_args (
 	    generic_segment.get_generic_args ());
+	  if (!regions.has_value ())
+	    return new TyTy::ErrorType (seg->get_mappings ().get_hirid ());
+
 	  lookup = SubstMapper::Resolve (lookup, path.get_locus (),
 					 &generic_segment.get_generic_args (),
-					 regions);
+					 regions.value ());
 	  if (lookup->get_kind () == TyTy::TypeKind::ERROR)
 	    return new TyTy::ErrorType (seg->get_mappings ().get_hirid ());
 	}
@@ -452,9 +462,9 @@ TypeCheckType::resolve_root_path (HIR::TypePath &path, size_t *offset,
 	{
 	  HIR::GenericArgs empty
 	    = HIR::GenericArgs::create_empty (path.get_locus ());
-	  lookup
-	    = SubstMapper::Resolve (lookup, path.get_locus (), &empty,
-				    context->regions_from_generic_args (empty));
+	  lookup = SubstMapper::Resolve (
+	    lookup, path.get_locus (), &empty,
+	    context->regions_from_generic_args (empty).value ());
 	}
 
       *offset = *offset + 1;
@@ -755,6 +765,12 @@ void
 TypeCheckType::visit (HIR::ReferenceType &type)
 {
   TyTy::BaseType *base = TypeCheckType::Resolve (type.get_base_type ());
+  if (base->is<TyTy::ErrorType> ())
+    {
+      translated = new TyTy::ErrorType (type.get_mappings ().get_hirid ());
+      return;
+    }
+
   rust_assert (type.has_lifetime ());
   auto region = context->lookup_and_resolve_lifetime (type.get_lifetime ());
   if (!region.has_value ())
