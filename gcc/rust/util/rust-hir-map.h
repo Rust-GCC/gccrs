@@ -244,9 +244,8 @@ public:
 	return;
   }
 
-  void iterate_trait_impl_blocks_for_item (const std::string &name,
-					  std::function<bool (
-					    HirId, HIR::ImplBlock *)> cb);
+  void iterate_trait_impl_blocks_for_item (
+    const std::string &name, std::function<bool (HirId, HIR::ImplBlock *)> cb);
 
   void iterate_impl_blocks (std::function<bool (HirId, HIR::ImplBlock *)> cb);
 

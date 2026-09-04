@@ -490,7 +490,8 @@ Mappings::insert_hir_impl_block (HIR::ImplBlock *item)
 	    continue;
 
 	  auto name = function->get_function_name ().as_string ();
-	  hirInherentImplItemMappings[name].emplace_back (impl_item.get (), item);
+	  hirInherentImplItemMappings[name].emplace_back (impl_item.get (),
+							  item);
 	}
     }
   hirImplBlockTypeMappings[impl_type_id] = item;
@@ -896,8 +897,7 @@ Mappings::insert_trait_impl_mapping (DefId trait_id, HIR::ImplBlock *impl)
 
 void
 Mappings::iterate_trait_impl_blocks_for_item (
-  const std::string &name,
-  std::function<bool (HirId, HIR::ImplBlock *)> cb)
+  const std::string &name, std::function<bool (HirId, HIR::ImplBlock *)> cb)
 {
   auto traits = hirTraitItemNameMappings.find (name);
   if (traits == hirTraitItemNameMappings.end ())
@@ -924,8 +924,7 @@ Mappings::insert_trait_item_mapping (HirId trait_item_id, HIR::Trait *trait)
 
   auto item = lookup_hir_trait_item (trait_item_id);
   rust_assert (item.has_value ());
-  if (item.value ()->get_item_kind ()
-      != HIR::TraitItem::TraitItemKind::FUNC)
+  if (item.value ()->get_item_kind () != HIR::TraitItem::TraitItemKind::FUNC)
     return;
 
   auto *function = static_cast<HIR::TraitItemFunc *> (item.value ());

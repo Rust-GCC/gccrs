@@ -149,8 +149,7 @@ MethodResolver::assemble_inherent_impl_candidates (
       // see:
       // https://gcc-rust.zulipchat.com/#narrow/stream/266897-general/topic/Method.20Resolution/near/338646280
       // https://github.com/rust-lang/rust/blob/7eac88abb2e57e752f3302f02be5f3ce3d7adfb4/compiler/rustc_typeck/src/check/method/probe.rs#L650-L660
-      bool impl_self_is_ptr
-	= impl_self->get_kind () == TyTy::TypeKind::POINTER;
+      bool impl_self_is_ptr = impl_self->get_kind () == TyTy::TypeKind::POINTER;
       bool impl_self_is_ref = impl_self->get_kind () == TyTy::TypeKind::REF;
       if (receiver_is_raw_ptr && impl_self_is_ptr)
 	{
