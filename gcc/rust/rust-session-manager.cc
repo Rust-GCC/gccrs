@@ -94,6 +94,48 @@ const char *kTargetOptionsDumpFile = "gccrs.target-options.dump";
 const std::string kDefaultCrateName = "rust_out";
 const size_t kMaxNameLength = 64;
 
+static void
+index_impl_blocks (Analysis::Mappings &mappings)
+{
+  auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
+  auto resolve_item = [&] (const HIR::Type &type) -> HIR::Item * {
+    auto node_id = nr_ctx.lookup (type.get_mappings ().get_nodeid (),
+				  Resolver2_0::Namespace::Types);
+    if (!node_id.has_value ())
+      return nullptr;
+
+    auto hir_id = mappings.lookup_node_to_hir (node_id.value ());
+    if (!hir_id.has_value ())
+      return nullptr;
+
+    auto item = mappings.lookup_hir_item (hir_id.value ());
+    return item.has_value () ? item.value () : nullptr;
+  };
+
+  mappings.iterate_impl_blocks ([&] (HirId, HIR::ImplBlock *impl) -> bool {
+    HIR::Item *self_item = resolve_item (impl->get_type ());
+    if (self_item != nullptr)
+      {
+	auto kind = self_item->get_item_kind ();
+	if (kind == HIR::Item::ItemKind::Struct
+	    || kind == HIR::Item::ItemKind::Enum
+	    || kind == HIR::Item::ItemKind::Union)
+	  mappings.insert_adt_impl_mapping (
+	    self_item->get_mappings ().get_defid (), impl);
+      }
+
+    if (impl->has_trait_ref ())
+      {
+	HIR::Item *trait_item = resolve_item (impl->get_trait_ref ());
+	if (trait_item != nullptr
+	    && trait_item->get_item_kind () == HIR::Item::ItemKind::Trait)
+	  mappings.insert_trait_impl_mapping (
+	    trait_item->get_mappings ().get_defid (), impl);
+      }
+    return true;
+  });
+}
+
 Session &
 Session::get_instance ()
 {
@@ -792,6 +834,7 @@ Session::compile_crate (const char *filename)
 
   // add the mappings to it
   HIR::Crate &hir = mappings.insert_hir_crate (std::move (lowered));
+  index_impl_blocks (mappings);
   if (options.dump_option_enabled (CompileOptions::HIR_DUMP))
     {
       dump_hir (hir);

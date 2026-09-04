@@ -321,7 +321,7 @@ MethodResolver::assemble_trait_impl_candidates (
 						 process_impl);
   else
     mappings.iterate_trait_impl_blocks (
-      specified_trait->get_mappings ().get_nodeid (), process_impl);
+      specified_trait->get_mappings ().get_defid (), process_impl);
 }
 
 bool
@@ -333,8 +333,8 @@ MethodResolver::try_select_predicate_candidates (TyTy::BaseType &receiver)
       if (specified_trait != nullptr)
 	{
 	  const TraitReference *parent = predicate.lookup.get_parent ()->get ();
-	  if (parent->get_mappings ().get_nodeid ()
-	      != specified_trait->get_mappings ().get_nodeid ())
+	  if (parent->get_mappings ().get_defid ()
+	      != specified_trait->get_mappings ().get_defid ())
 	    continue;
 	}
 
