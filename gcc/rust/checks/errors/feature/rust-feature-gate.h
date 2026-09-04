@@ -51,10 +51,12 @@ public:
   void visit (AST::TraitItemType &trait_item_type) override;
   void visit (AST::Enum &enum_item) override;
   void visit (AST::EnumItem &enum_variant) override;
+  void visit (AST::StaticItem &static_item) override;
 
 private:
   void gate (Feature::Name name, location_t loc, const std::string &error_msg);
   void check_no_core_attribute (const AST::Attribute &attribute);
+  void check_used_attribute (const AST::Attribute &attribute);
   void check_rustc_attri (const std::vector<AST::Attribute> &attributes);
   void
   check_may_dangle_attribute (const std::vector<AST::Attribute> &attributes);
