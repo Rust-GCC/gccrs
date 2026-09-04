@@ -111,16 +111,19 @@ MarkLive::visit (HIR::PathInExpression &expr)
   // after iterate the path segments, we should mark functions and associated
   // functions alive.
   NodeId ast_node_id = expr.get_mappings ().get_nodeid ();
-  NodeId ref_node_id = UNKNOWN_NODEID;
+  tl::optional<NodeId> ref_node_id;
 
   if (expr.is_lang_item ())
     ref_node_id
       = Analysis::Mappings::get ().get_lang_item_node (expr.get_lang_item ());
   else
-    find_value_definition (ast_node_id, ref_node_id);
+    ref_node_id = find_value_definition (ast_node_id);
+
+  if (!ref_node_id)
+    return;
 
   // node back to HIR
-  tl::optional<HirId> hid = mappings.lookup_node_to_hir (ref_node_id);
+  tl::optional<HirId> hid = mappings.lookup_node_to_hir (*ref_node_id);
   rust_assert (hid.has_value ());
   auto ref = hid.value ();
 
@@ -141,11 +144,12 @@ MarkLive::visit (HIR::MethodCallExpr &expr)
 
   // Trying to find the method definition and mark it alive.
   NodeId ast_node_id = expr.get_mappings ().get_nodeid ();
-  NodeId ref_node_id = UNKNOWN_NODEID;
-  find_value_definition (ast_node_id, ref_node_id);
+  auto ref_node_id = find_value_definition (ast_node_id);
+  if (!ref_node_id)
+    return;
 
   // node back to HIR
-  if (auto hid = mappings.lookup_node_to_hir (ref_node_id))
+  if (auto hid = mappings.lookup_node_to_hir (*ref_node_id))
     mark_hir_id (*hid);
   else
     rust_unreachable ();
@@ -291,14 +295,15 @@ MarkLive::mark_hir_id (HirId id)
   liveSymbols.emplace (id);
 }
 
-void
-MarkLive::find_value_definition (NodeId ast_node_id, NodeId &ref_node_id)
+tl::optional<NodeId>
+MarkLive::find_value_definition (NodeId ast_node_id)
 {
   auto resolved = resolver.lookup (ast_node_id, Resolver2_0::Namespace::Values,
 				   Resolver2_0::Namespace::Types);
-  rust_assert (resolved.has_value ());
+  if (!resolved)
+    return tl::nullopt;
 
-  ref_node_id = resolved->id;
+  return resolved->id;
 }
 
 } // namespace Analysis
