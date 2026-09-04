@@ -83,6 +83,8 @@ const BiMap<std::string, BuiltinMacro> MacroBuiltin::builtins = {{
   {"Ord", BuiltinMacro::Ord},
   {"PartialOrd", BuiltinMacro::PartialOrd},
   {"Hash", BuiltinMacro::Hash},
+  // FIXME: Only in compatibility mode >= 1.84
+  {"CoercePointee", BuiltinMacro::CoercePointee},
 }};
 
 AST::MacroTranscriberFunc

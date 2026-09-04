@@ -258,6 +258,8 @@ FeatureGate::visit (AST::ExternalTypeItem &item)
   // `AST::ExternalTypeItem`.
   gate (Feature::Name::EXTERN_TYPES, item.get_locus (),
 	"extern types are experimental");
+
+  AST::DefaultASTVisitor::visit (item);
 }
 
 void

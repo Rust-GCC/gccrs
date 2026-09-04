@@ -25,6 +25,9 @@
 #include "rust-derive-ord.h"
 #include "rust-derive-partial-eq.h"
 #include "rust-derive-hash.h"
+#include "rust-diagnostics.h"
+#include "rust-feature.h"
+#include "rust-session-manager.h"
 #include "rust-system.h"
 
 namespace Rust {
@@ -82,6 +85,19 @@ DeriveVisitor::derive (Item &item, const Attribute &attr,
 		     to_derive == BuiltinMacro::RustcEncodable
 		       ? "RustcEncodable"
 		       : "RustcDecodable");
+      return {};
+    case BuiltinMacro::CoercePointee:
+      if (!Session::get_instance ().should_support_coerce_pointee ())
+	{
+	  rust_error_at (loc,
+			 "derive(CoercePointee) requires a compatibility mode "
+			 "greater or equal to 1.84");
+	  return {};
+	}
+
+      rust_warning_at (
+	loc, 0,
+	"derive(CoercePointee) is currently unimplemented and has no effect");
       return {};
     default:
       rust_unreachable ();
