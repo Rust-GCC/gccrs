@@ -122,6 +122,8 @@ public:
 
   static constexpr auto &RUSTC_CONVERSION_SUGGESTION
     = "rustc_conversion_suggestion";
+
+  static constexpr auto &USED = "used";
 };
 } // namespace Values
 } // namespace Rust
