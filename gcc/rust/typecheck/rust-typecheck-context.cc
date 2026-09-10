@@ -109,6 +109,66 @@ TypeCheckContext::lookup_type (HirId id, TyTy::BaseType **type) const
   return true;
 }
 
+bool
+TypeCheckContext::lookup_type (const TyTy::TyVar &var,
+			       TyTy::BaseType **type) const
+{
+  return var.has_id () ? lookup_type_var (var.get_id (), type)
+			       : lookup_type (var.get_ref (), type);
+}
+
+TyTy::TypeVarId
+TypeCheckContext::new_type_var (location_t locus)
+{
+  TyTy::TypeVarId id = next_type_var;
+  next_type_var = TyTy::TypeVarId (next_type_var.get_value () + 1);
+  type_vars.emplace (id, TypeVarEntry{id, nullptr, locus});
+  return id;
+}
+
+bool
+TypeCheckContext::lookup_type_var (TyTy::TypeVarId id,
+				   TyTy::BaseType **type) const
+{
+  auto it = type_vars.find (id);
+  if (it == type_vars.end ())
+    return false;
+
+  while (!(it->second.parent == id))
+    {
+      id = it->second.parent;
+      it = type_vars.find (id);
+      if (it == type_vars.end ())
+	return false;
+    }
+
+  if (it->second.type == nullptr)
+    return false;
+  *type = it->second.type;
+  return true;
+}
+
+bool
+TypeCheckContext::bind_type_var (TyTy::TypeVarId id, TyTy::BaseType *type)
+{
+  auto it = type_vars.find (id);
+  if (it == type_vars.end () || type == nullptr)
+    return false;
+  it->second.type = type;
+  return true;
+}
+
+bool
+TypeCheckContext::alias_type_var (TyTy::TypeVarId from, TyTy::TypeVarId to)
+{
+  auto from_it = type_vars.find (from);
+  auto to_it = type_vars.find (to);
+  if (from_it == type_vars.end () || to_it == type_vars.end ())
+    return false;
+  from_it->second.parent = to;
+  return true;
+}
+
 void
 TypeCheckContext::mark_function_body_pending (DefId id)
 {

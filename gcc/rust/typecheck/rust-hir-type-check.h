@@ -207,6 +207,11 @@ public:
   void insert_type (const Analysis::NodeMapping &mappings,
 		    TyTy::BaseType *type);
   bool lookup_type (HirId id, TyTy::BaseType **type) const;
+  bool lookup_type (const TyTy::TyVar &var, TyTy::BaseType **type) const;
+  TyTy::TypeVarId new_type_var (location_t locus);
+  bool lookup_type_var (TyTy::TypeVarId id, TyTy::BaseType **type) const;
+  bool bind_type_var (TyTy::TypeVarId id, TyTy::BaseType *type);
+  bool alias_type_var (TyTy::TypeVarId from, TyTy::TypeVarId to);
   void clear_type (TyTy::BaseType *ty);
 
   void mark_function_body_pending (DefId id);
@@ -343,6 +348,14 @@ private:
 
   std::map<NodeId, HirId> node_id_refs;
   std::map<HirId, TyTy::BaseType *> resolved;
+  struct TypeVarEntry
+  {
+    TyTy::TypeVarId parent;
+    TyTy::BaseType *type;
+    location_t locus;
+  };
+  TyTy::TypeVarId next_type_var = TyTy::TypeVarId (1);
+  std::map<TyTy::TypeVarId, TypeVarEntry> type_vars;
   std::set<DefId> function_bodies_pending;
   std::vector<std::unique_ptr<TyTy::BaseType>> builtins;
   std::vector<std::pair<TypeCheckContextItem, TyTy::BaseType *>>

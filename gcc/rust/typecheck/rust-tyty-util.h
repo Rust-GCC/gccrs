@@ -27,13 +27,40 @@ namespace TyTy {
 class BaseType;
 class ConstType;
 
+/* Identity for a context-owned inference variable.  This is deliberately
+   separate from HIR IDs: one variable may be observed by several HIR nodes,
+   and compiler-generated variables need not have a source node.  */
+class TypeVarId
+{
+public:
+  using Value = uint64_t;
+
+  constexpr TypeVarId () : value (0) {}
+  explicit constexpr TypeVarId (Value value) : value (value) {}
+
+  constexpr Value get_value () const { return value; }
+  constexpr bool is_valid () const { return value != 0; }
+
+  friend constexpr bool operator== (TypeVarId lhs, TypeVarId rhs)
+  { return lhs.value == rhs.value; }
+  friend constexpr bool operator< (TypeVarId lhs, TypeVarId rhs)
+  { return lhs.value < rhs.value; }
+
+private:
+  Value value;
+};
+
 // this is a placeholder for types that can change like inference variables
 class TyVar
 {
 public:
+  TyVar () : ref (UNKNOWN_HIRID), id () {}
   explicit TyVar (HirId ref);
+  explicit TyVar (TypeVarId id);
 
   HirId get_ref () const { return ref; }
+  TypeVarId get_id () const { return id; }
+  bool has_id () const { return id.is_valid (); }
 
   BaseType *get_tyty () const;
 
@@ -51,6 +78,24 @@ public:
 
 private:
   HirId ref;
+  TypeVarId id;
+};
+
+/* A type occurrence can either refer to a concrete TyTy node or to shared
+   inference state. */
+class TypeRef
+{
+public:
+  explicit TypeRef (BaseType *type) : type (type), variable () {}
+  explicit TypeRef (const TyVar &var) : type (nullptr), variable (var) {}
+
+  BaseType *get_tyty () const;
+  bool is_variable () const { return variable.has_id (); }
+  const TyVar &get_variable () const { return variable; }
+
+private:
+  BaseType *type;
+  TyVar variable;
 };
 
 class TyWithLocation
@@ -58,6 +103,8 @@ class TyWithLocation
 public:
   explicit TyWithLocation (BaseType *ty, location_t locus);
   explicit TyWithLocation (BaseType *ty);
+  explicit TyWithLocation (const TyVar &var, location_t locus);
+  explicit TyWithLocation (const TyVar &var);
 
   BaseType *get_ty () const { return ty; }
   location_t get_locus () const { return locus; }

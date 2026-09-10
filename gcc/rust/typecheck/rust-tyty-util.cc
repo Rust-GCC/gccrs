@@ -34,15 +34,24 @@ TyVar::TyVar (HirId ref) : ref (ref)
     return;
 }
 
+TyVar::TyVar (TypeVarId id) : ref (UNKNOWN_HIRID), id (id) {}
+
 BaseType *
 TyVar::get_tyty () const
 {
   auto context = Resolver::TypeCheckContext::get ();
   BaseType *lookup = nullptr;
-  bool ok = context->lookup_type (ref, &lookup);
+  bool ok = has_id () ? context->lookup_type_var (id, &lookup)
+		      : context->lookup_type (ref, &lookup);
   if (!ok || lookup == nullptr)
     return nullptr;
   return lookup;
+}
+
+BaseType *
+TypeRef::get_tyty () const
+{
+  return is_variable () ? variable.get_tyty () : type;
 }
 
 TyVar
@@ -136,6 +145,16 @@ TyWithLocation::TyWithLocation (BaseType *ty) : ty (ty)
 {
   auto &mappings = Analysis::Mappings::get ();
   locus = mappings.lookup_location (ty->get_ref ());
+}
+
+TyWithLocation::TyWithLocation (const TyVar &var, location_t locus)
+  : ty (var.get_tyty ()), locus (locus)
+{}
+
+TyWithLocation::TyWithLocation (const TyVar &var) : ty (var.get_tyty ())
+{
+  if (ty != nullptr)
+    locus = Analysis::Mappings::get ().lookup_location (ty->get_ref ());
 }
 
 } // namespace TyTy
