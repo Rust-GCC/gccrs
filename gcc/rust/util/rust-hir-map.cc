@@ -98,9 +98,12 @@ static const HirId kDefaultNodeIdBegin = 1;
 static const HirId kDefaultHirIdBegin = 1;
 static const HirId kDefaultCrateNumBegin = 0;
 
+CrateMappings::CrateMappings ()
+  : crateNumItr (kDefaultCrateNumBegin), currentCrateNum (UNKNOWN_CRATENUM)
+{}
+
 Mappings::Mappings ()
-  : crateNumItr (kDefaultCrateNumBegin), currentCrateNum (UNKNOWN_CRATENUM),
-    hirIdIter (kDefaultHirIdBegin), nodeIdIter (kDefaultNodeIdBegin),
+  : hirIdIter (kDefaultHirIdBegin), nodeIdIter (kDefaultNodeIdBegin),
     hirImplIndexesBuilt (false)
 {
   Analysis::NodeMapping node (0, 0, 0, 0);
@@ -121,7 +124,7 @@ Mappings::get ()
 }
 
 CrateNum
-Mappings::get_next_crate_num (const std::string &name)
+CrateMappings::get_next_crate_num (const std::string &name)
 {
   auto id = crateNumItr;
   crateNumItr++;
@@ -130,19 +133,19 @@ Mappings::get_next_crate_num (const std::string &name)
 }
 
 void
-Mappings::set_current_crate (CrateNum crateNum)
+CrateMappings::set_current_crate (CrateNum crateNum)
 {
   currentCrateNum = crateNum;
 }
 
 CrateNum
-Mappings::get_current_crate () const
+CrateMappings::get_current_crate () const
 {
   return currentCrateNum;
 }
 
 tl::optional<const std::string &>
-Mappings::get_crate_name (CrateNum crate_num) const
+CrateMappings::get_crate_name (CrateNum crate_num) const
 {
   auto it = crate_names.find (crate_num);
   if (it == crate_names.end ())
@@ -152,7 +155,7 @@ Mappings::get_crate_name (CrateNum crate_num) const
 }
 
 tl::optional<CrateNum>
-Mappings::lookup_crate_num (NodeId node_id) const
+CrateMappings::lookup_crate_num (NodeId node_id) const
 {
   auto it = crate_node_to_crate_num.find (node_id);
   if (it == crate_node_to_crate_num.end ())
@@ -162,19 +165,19 @@ Mappings::lookup_crate_num (NodeId node_id) const
 }
 
 void
-Mappings::set_crate_name (CrateNum crate_num, const std::string &name)
+CrateMappings::set_crate_name (CrateNum crate_num, const std::string &name)
 {
   crate_names[crate_num] = name;
 }
 
 const std::string &
-Mappings::get_current_crate_name () const
+CrateMappings::get_current_crate_name () const
 {
   return get_crate_name (get_current_crate ()).value ();
 }
 
 tl::optional<CrateNum>
-Mappings::lookup_crate_name (const std::string &crate_name) const
+CrateMappings::lookup_crate_name (const std::string &crate_name) const
 {
   for (const auto &it : crate_names)
     {
@@ -185,7 +188,7 @@ Mappings::lookup_crate_name (const std::string &crate_name) const
 }
 
 tl::optional<NodeId>
-Mappings::crate_num_to_nodeid (const CrateNum &crate_num) const
+CrateMappings::crate_num_to_nodeid (const CrateNum &crate_num) const
 {
   auto it = ast_crate_mappings.find (crate_num);
   if (it == ast_crate_mappings.end ())
@@ -195,7 +198,7 @@ Mappings::crate_num_to_nodeid (const CrateNum &crate_num) const
 }
 
 bool
-Mappings::node_is_crate (NodeId node_id) const
+CrateMappings::node_is_crate (NodeId node_id) const
 {
   return lookup_crate_num (node_id).has_value ();
 }
@@ -244,7 +247,7 @@ Mappings::get_next_localdef_id (CrateNum crateNum)
 }
 
 AST::Crate &
-Mappings::get_ast_crate (CrateNum crateNum)
+CrateMappings::get_ast_crate (CrateNum crateNum)
 {
   auto it = ast_crate_mappings.find (crateNum);
   rust_assert (it != ast_crate_mappings.end ());
@@ -254,11 +257,11 @@ Mappings::get_ast_crate (CrateNum crateNum)
 AST::Crate &
 Mappings::get_ast_crate_by_node_id (NodeId id)
 {
-  return *get_ast_crate_by_node_id_raw (id);
+  return *crate_mapping.get_ast_crate_by_node_id_raw (id);
 }
 
 AST::Crate *
-Mappings::get_ast_crate_by_node_id_raw (NodeId id)
+CrateMappings::get_ast_crate_by_node_id_raw (NodeId id)
 {
   CrateNum crateNum = lookup_crate_num (id).value ();
   auto it = ast_crate_mappings.find (crateNum);
@@ -267,8 +270,8 @@ Mappings::get_ast_crate_by_node_id_raw (NodeId id)
 }
 
 AST::Crate &
-Mappings::insert_ast_crate (std::unique_ptr<AST::Crate> &&crate,
-			    CrateNum crate_num)
+CrateMappings::insert_ast_crate (std::unique_ptr<AST::Crate> &&crate,
+				 CrateNum crate_num)
 {
   auto it = ast_crate_mappings.find (crate_num);
   rust_assert (it == ast_crate_mappings.end ());
@@ -1074,7 +1077,8 @@ Mappings::insert_macro_def (AST::MacroRulesDefinition *macro)
   auto it = macroMappings.find (macro->get_node_id ());
   rust_assert (it == macroMappings.end ());
 
-  macroMappings[macro->get_node_id ()] = {macro, currentCrateNum};
+  macroMappings[macro->get_node_id ()]
+    = {macro, crate_mapping.get_current_crate ()};
 }
 
 tl::optional<AST::MacroRulesDefinition *>
@@ -1130,67 +1134,67 @@ Mappings::get_exported_macros ()
 }
 
 void
-Mappings::insert_derive_proc_macros (CrateNum num,
-				     std::vector<CustomDeriveProcMacro> macros)
+ProcMacroMappings::insert_derive_proc_macros (
+  CrateNum num, std::vector<CustomDeriveProcMacro> macros)
 {
-  auto it = procmacrosDeriveMappings.find (num);
-  rust_assert (it == procmacrosDeriveMappings.end ());
+  auto it = deriveMappings.find (num);
+  rust_assert (it == deriveMappings.end ());
 
-  procmacrosDeriveMappings[num] = macros;
+  deriveMappings[num] = macros;
 }
 
 void
-Mappings::insert_bang_proc_macros (CrateNum num,
-				   std::vector<BangProcMacro> macros)
+ProcMacroMappings::insert_bang_proc_macros (CrateNum num,
+					    std::vector<BangProcMacro> macros)
 {
-  auto it = procmacrosBangMappings.find (num);
-  rust_assert (it == procmacrosBangMappings.end ());
+  auto it = bangMappings.find (num);
+  rust_assert (it == bangMappings.end ());
 
-  procmacrosBangMappings[num] = macros;
+  bangMappings[num] = macros;
 }
 
 void
-Mappings::insert_attribute_proc_macros (CrateNum num,
-					std::vector<AttributeProcMacro> macros)
+ProcMacroMappings::insert_attribute_proc_macros (
+  CrateNum num, std::vector<AttributeProcMacro> macros)
 {
-  auto it = procmacrosAttributeMappings.find (num);
-  rust_assert (it == procmacrosAttributeMappings.end ());
+  auto it = attributeMappings.find (num);
+  rust_assert (it == attributeMappings.end ());
 
-  procmacrosAttributeMappings[num] = macros;
+  attributeMappings[num] = macros;
 }
 
 tl::optional<std::vector<CustomDeriveProcMacro> &>
-Mappings::lookup_derive_proc_macros (CrateNum num)
+ProcMacroMappings::lookup_derive_proc_macros (CrateNum num)
 {
-  auto it = procmacrosDeriveMappings.find (num);
-  if (it == procmacrosDeriveMappings.end ())
+  auto it = deriveMappings.find (num);
+  if (it == deriveMappings.end ())
     return tl::nullopt;
 
   return it->second;
 }
 
 tl::optional<std::vector<BangProcMacro> &>
-Mappings::lookup_bang_proc_macros (CrateNum num)
+ProcMacroMappings::lookup_bang_proc_macros (CrateNum num)
 {
-  auto it = procmacrosBangMappings.find (num);
-  if (it == procmacrosBangMappings.end ())
+  auto it = bangMappings.find (num);
+  if (it == bangMappings.end ())
     return tl::nullopt;
 
   return it->second;
 }
 
 tl::optional<std::vector<AttributeProcMacro> &>
-Mappings::lookup_attribute_proc_macros (CrateNum num)
+ProcMacroMappings::lookup_attribute_proc_macros (CrateNum num)
 {
-  auto it = procmacrosAttributeMappings.find (num);
-  if (it == procmacrosAttributeMappings.end ())
+  auto it = attributeMappings.find (num);
+  if (it == attributeMappings.end ())
     return tl::nullopt;
 
   return it->second;
 }
 
 void
-Mappings::insert_derive_proc_macro_def (CustomDeriveProcMacro macro)
+ProcMacroMappings::insert_derive_def (CustomDeriveProcMacro macro)
 {
   auto it = procmacroDeriveMappings.find (macro.get_node_id ());
   rust_assert (it == procmacroDeriveMappings.end ());
@@ -1199,7 +1203,7 @@ Mappings::insert_derive_proc_macro_def (CustomDeriveProcMacro macro)
 }
 
 void
-Mappings::insert_bang_proc_macro_def (BangProcMacro macro)
+ProcMacroMappings::insert_bang_def (BangProcMacro macro)
 {
   auto it = procmacroBangMappings.find (macro.get_node_id ());
   rust_assert (it == procmacroBangMappings.end ());
@@ -1208,7 +1212,7 @@ Mappings::insert_bang_proc_macro_def (BangProcMacro macro)
 }
 
 void
-Mappings::insert_attribute_proc_macro_def (AttributeProcMacro macro)
+ProcMacroMappings::insert_attribute_def (AttributeProcMacro macro)
 {
   auto it = procmacroAttributeMappings.find (macro.get_node_id ());
   rust_assert (it == procmacroAttributeMappings.end ());
@@ -1217,7 +1221,7 @@ Mappings::insert_attribute_proc_macro_def (AttributeProcMacro macro)
 }
 
 tl::optional<CustomDeriveProcMacro &>
-Mappings::lookup_derive_proc_macro_def (NodeId id)
+ProcMacroMappings::lookup_derive_def (NodeId id)
 {
   auto it = procmacroDeriveMappings.find (id);
   if (it == procmacroDeriveMappings.end ())
@@ -1227,7 +1231,7 @@ Mappings::lookup_derive_proc_macro_def (NodeId id)
 }
 
 tl::optional<BangProcMacro &>
-Mappings::lookup_bang_proc_macro_def (NodeId id)
+ProcMacroMappings::lookup_bang_def (NodeId id)
 {
   auto it = procmacroBangMappings.find (id);
   if (it == procmacroBangMappings.end ())
@@ -1237,7 +1241,7 @@ Mappings::lookup_bang_proc_macro_def (NodeId id)
 }
 
 tl::optional<AttributeProcMacro &>
-Mappings::lookup_attribute_proc_macro_def (NodeId id)
+ProcMacroMappings::lookup_attribute_def (NodeId id)
 {
   auto it = procmacroAttributeMappings.find (id);
   if (it == procmacroAttributeMappings.end ())
@@ -1247,8 +1251,8 @@ Mappings::lookup_attribute_proc_macro_def (NodeId id)
 }
 
 void
-Mappings::insert_derive_proc_macro_invocation (AST::SimplePath &invoc,
-					       CustomDeriveProcMacro def)
+ProcMacroMappings::insert_derive_invocation (AST::SimplePath &invoc,
+					     CustomDeriveProcMacro def)
 {
   auto it = procmacroDeriveInvocations.find (invoc.get_node_id ());
   rust_assert (it == procmacroDeriveInvocations.end ());
@@ -1257,7 +1261,7 @@ Mappings::insert_derive_proc_macro_invocation (AST::SimplePath &invoc,
 }
 
 tl::optional<CustomDeriveProcMacro &>
-Mappings::lookup_derive_proc_macro_invocation (AST::SimplePath &invoc)
+ProcMacroMappings::lookup_derive_invocation (AST::SimplePath &invoc)
 {
   auto it = procmacroDeriveInvocations.find (invoc.get_node_id ());
   if (it == procmacroDeriveInvocations.end ())
@@ -1267,8 +1271,8 @@ Mappings::lookup_derive_proc_macro_invocation (AST::SimplePath &invoc)
 }
 
 void
-Mappings::insert_bang_proc_macro_invocation (AST::MacroInvocation &invoc,
-					     BangProcMacro def)
+ProcMacroMappings::insert_bang_invocation (AST::MacroInvocation &invoc,
+					   BangProcMacro def)
 {
   auto it = procmacroBangInvocations.find (invoc.get_node_id ());
   rust_assert (it == procmacroBangInvocations.end ());
@@ -1277,7 +1281,7 @@ Mappings::insert_bang_proc_macro_invocation (AST::MacroInvocation &invoc,
 }
 
 tl::optional<BangProcMacro &>
-Mappings::lookup_bang_proc_macro_invocation (AST::MacroInvocation &invoc)
+ProcMacroMappings::lookup_bang_invocation (AST::MacroInvocation &invoc)
 {
   auto it = procmacroBangInvocations.find (invoc.get_node_id ());
   if (it == procmacroBangInvocations.end ())
@@ -1287,8 +1291,8 @@ Mappings::lookup_bang_proc_macro_invocation (AST::MacroInvocation &invoc)
 }
 
 void
-Mappings::insert_attribute_proc_macro_invocation (AST::SimplePath &invoc,
-						  AttributeProcMacro def)
+ProcMacroMappings::insert_attribute_invocation (AST::SimplePath &invoc,
+						AttributeProcMacro def)
 {
   auto it = procmacroAttributeInvocations.find (invoc.get_node_id ());
   rust_assert (it == procmacroAttributeInvocations.end ());
@@ -1297,26 +1301,10 @@ Mappings::insert_attribute_proc_macro_invocation (AST::SimplePath &invoc,
 }
 
 tl::optional<AttributeProcMacro &>
-Mappings::lookup_attribute_proc_macro_invocation (AST::SimplePath &invoc)
+ProcMacroMappings::lookup_attribute_invocation (AST::SimplePath &invoc)
 {
   auto it = procmacroAttributeInvocations.find (invoc.get_node_id ());
   if (it == procmacroAttributeInvocations.end ())
-    return tl::nullopt;
-
-  return it->second;
-}
-
-void
-Mappings::insert_visibility (NodeId id, Privacy::ModuleVisibility visibility)
-{
-  visibility_map.insert ({id, visibility});
-}
-
-tl::optional<Privacy::ModuleVisibility &>
-Mappings::lookup_visibility (NodeId id)
-{
-  auto it = visibility_map.find (id);
-  if (it == visibility_map.end ())
     return tl::nullopt;
 
   return it->second;
@@ -1349,7 +1337,7 @@ Mappings::insert_glob_container (NodeId id, AST::GlobContainer *container)
 
   // Crates have different memory managements that regular items
   if (container->get_glob_container_kind () == AST::GlobContainer::Kind::Crate)
-    glob_containers[id] = get_ast_crate_by_node_id_raw (id);
+    glob_containers[id] = crate_mapping.get_ast_crate_by_node_id_raw (id);
   else
     glob_containers[id] = container;
 }
