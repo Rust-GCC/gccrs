@@ -1209,7 +1209,7 @@ TypeCheckExpr::visit (HIR::ArrayExpr &expr)
 			    expr.get_locus ());
 	  }
 
-	auto crate_num = mappings.get_current_crate ();
+	auto crate_num = mappings.crate_mapping.get_current_crate ();
 	Analysis::NodeMapping mapping (crate_num, UNKNOWN_NODEID,
 				       mappings.get_next_hir_id (crate_num),
 				       UNKNOWN_LOCAL_DEFID);
@@ -1944,7 +1944,7 @@ TypeCheckExpr::visit (HIR::ClosureExpr &expr)
   TyTy::TyVar result_type
     = expr.has_return_type ()
 	? TyTy::TyVar (
-	  TypeCheckType::Resolve (expr.get_return_type ())->get_ref ())
+	    TypeCheckType::Resolve (expr.get_return_type ())->get_ref ())
 	: TyTy::TyVar::get_implicit_infer_var (expr.get_locus ());
 
   // resolve the block
@@ -2005,7 +2005,7 @@ TypeCheckExpr::visit (HIR::ClosureExpr &expr)
 
   // lets generate an implicit Type so that it resolves to the implict tuple
   // type we have created
-  auto crate_num = mappings.get_current_crate ();
+  auto crate_num = mappings.crate_mapping.get_current_crate ();
   Analysis::NodeMapping mapping (crate_num, expr.get_mappings ().get_nodeid (),
 				 implicit_args_id, UNKNOWN_LOCAL_DEFID);
   HIR::TupleType *implicit_tuple
@@ -2408,8 +2408,9 @@ TypeCheckExpr::resolve_fn_trait_call (HIR::CallExpr &expr,
 
   // crate implicit tuple
   HirId implicit_arg_id = mappings.get_next_hir_id ();
-  Analysis::NodeMapping mapping (mappings.get_current_crate (), UNKNOWN_NODEID,
-				 implicit_arg_id, UNKNOWN_LOCAL_DEFID);
+  Analysis::NodeMapping mapping (mappings.crate_mapping.get_current_crate (),
+				 UNKNOWN_NODEID, implicit_arg_id,
+				 UNKNOWN_LOCAL_DEFID);
 
   TyTy::TupleType *tuple
     = new TyTy::TupleType (implicit_arg_id, expr.get_locus (), call_args);
