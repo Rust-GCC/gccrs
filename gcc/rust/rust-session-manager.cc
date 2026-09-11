@@ -715,8 +715,7 @@ Session::compile_crate (const char *filename)
 
   EarlyCfgStrip ().go (parsed_crate);
 
-  auto parsed_crate_features
-    = Features::FeatureCollector{}.collect (parsed_crate);
+  auto crate_features = Features::FeatureCollector ().collect (parsed_crate);
 
   // Do not inject core if some errors were emitted
   if (!saw_errors ()
@@ -738,9 +737,9 @@ Session::compile_crate (const char *filename)
   auto name_resolution_ctx = Resolver2_0::NameResolutionContext ();
   // expansion pipeline stage
 
-  expansion (parsed_crate, name_resolution_ctx);
+  Analysis::BuiltinAttributeChecker (crate_features).go (parsed_crate);
 
-  Analysis::BuiltinAttributeChecker ().go (parsed_crate);
+  expansion (parsed_crate, name_resolution_ctx);
 
   AST::CollectLangItems ().go (parsed_crate);
 
@@ -763,7 +762,7 @@ Session::compile_crate (const char *filename)
   if (last_step == CompileOptions::CompileStep::FeatureGating)
     return;
 
-  FeatureGate (parsed_crate_features).check (parsed_crate);
+  FeatureGate (crate_features).check (parsed_crate);
 
   if (last_step == CompileOptions::CompileStep::NameResolution)
     return;

@@ -27,7 +27,7 @@ namespace Rust {
 class FeatureGate : public AST::DefaultASTVisitor
 {
 public:
-  FeatureGate (Features::CrateFeatures &features) : features (features) {}
+  FeatureGate (const Features::CrateFeatures &features) : features (features) {}
 
   using AST::DefaultASTVisitor::visit;
 
@@ -52,8 +52,9 @@ public:
   void visit (AST::Enum &enum_item) override;
   void visit (AST::EnumItem &enum_variant) override;
 
-private:
   void gate (Feature::Name name, location_t loc, const std::string &error_msg);
+
+private:
   void check_no_core_attribute (const AST::Attribute &attribute);
   void check_rustc_attri (const std::vector<AST::Attribute> &attributes);
   void
@@ -62,7 +63,7 @@ private:
   check_lang_item_attribute (const std::vector<AST::Attribute> &attributes);
   void note_stability_attribute (const std::vector<AST::Attribute> &attributes);
 
-  Features::CrateFeatures &features;
+  const Features::CrateFeatures &features;
 
   enum class Stability
   {

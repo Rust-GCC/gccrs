@@ -19,7 +19,10 @@
 #ifndef RUST_BUILTIN_ATTRIBUTE_CHECKER_H
 #define RUST_BUILTIN_ATTRIBUTE_CHECKER_H
 
+#include "rust-feature-collector.h"
+#include "rust-feature-gate.h"
 #include "rust-ast-visitor.h"
+#include "rust-ast.h"
 
 namespace Rust {
 namespace Analysis {
@@ -51,7 +54,8 @@ class BuiltinAttributeChecker : public AST::DefaultASTVisitor
   }
 
 public:
-  BuiltinAttributeChecker ();
+  BuiltinAttributeChecker (const Features::CrateFeatures &crate_features);
+
   void go (AST::Crate &crate);
   void visit (AST::Crate &crate) override;
   void visit (AST::Attribute &attribute) override;
@@ -72,6 +76,37 @@ public:
   void visit (AST::InherentImpl &impl) override;
   void visit (AST::TraitImpl &impl) override;
   void visit (AST::ExternBlock &block) override;
+
+private:
+  FeatureGate feature_gate;
+
+protected:
+  // Handlers for various attributes that require specific checks. They must
+  // verify the attribute's internal structure and emit the appropriate error
+  // message if the structure is incorrect.
+  //
+  // They DO NOT check the attribute validity on the parent item.
+  void doc (AST::Attribute &attribute);
+  void deprecated (AST::Attribute &attribute);
+  void link_section (AST::Attribute &attribute);
+  void export_name (AST::Attribute &attribute);
+  void lint (AST::Attribute &attribute);
+  void link_name (AST::Attribute &attribute);
+  void target_feature (AST::Attribute &attribute);
+  void derive (AST::Attribute &attribute);
+
+  // Proc-macro related checkers
+  void check_crate_type (AST::Attribute &attribute);
+  void proc_macro_derive (AST::Attribute &attribute);
+  void proc_macro (AST::Attribute &attribute);
+
+  // General purpose check to ensure the attribute has no input
+  void expect_no_input (AST::Attribute &attribute);
+
+  // Disgusting. Pointer to member functions are evil.
+  typedef void (BuiltinAttributeChecker::*Handler) (AST::Attribute &);
+
+  friend tl::optional<Handler> lookup_handler (const std::string &attr_name);
 };
 
 } // namespace Analysis
