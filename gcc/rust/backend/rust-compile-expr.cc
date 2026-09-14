@@ -28,6 +28,7 @@
 #include "rust-compile-block.h"
 #include "rust-compile-drop.h"
 #include "rust-compile-implitem.h"
+#include "rust-compile-platform-intrinsic.h"
 #include "rust-constexpr.h"
 #include "rust-compile-type.h"
 #include "rust-finalized-name-resolution-context.h"
@@ -1204,6 +1205,21 @@ CompileExpr::visit (HIR::BorrowExpr &expr)
       return;
     }
 
+  // const expr needs these to be addressable temps otherwise it cant cope. We
+  // get away with this during regular compilation because gcc middle end
+  // optimizes it
+  if (TREE_CODE (main_expr) == CONSTRUCTOR && !TREE_CONSTANT (main_expr))
+    {
+      tree init_stmt = NULL_TREE;
+      Bvariable *tmp
+	= Backend::temporary_variable (ctx->peek_fn ().fndecl,
+				       ctx->peek_enclosing_scope (),
+				       TREE_TYPE (main_expr), main_expr, true,
+				       expr.get_locus (), &init_stmt);
+      ctx->add_statement (init_stmt);
+      main_expr = Backend::var_expression (tmp, expr.get_locus ());
+    }
+
   TyTy::BaseType *tyty = nullptr;
   if (!ctx->get_tyctx ()->lookup_type (expr.get_mappings ().get_hirid (),
 				       &tyty))
@@ -1681,6 +1697,23 @@ CompileExpr::visit (HIR::CallExpr &expr)
     return true;
   };
 
+  // special check for platform-intrinsic functions
+  TyTy::FnType *platform_intrinsic = nullptr;
+  if (tyty->get_kind () == TyTy::TypeKind::FNDEF)
+    {
+      auto *fn_ty = static_cast<TyTy::FnType *> (tyty);
+      if (fn_ty->get_abi () == ABI::PLATFORM_INTRINSIC)
+	platform_intrinsic = fn_ty;
+    }
+
+  if (ctx->const_context_p () && platform_intrinsic != nullptr)
+    {
+      rust_sorry_at (
+	expr.get_locus (),
+	"platform intrinsic calls in consts are not supported yet");
+      return;
+    }
+
   auto fn_address = CompileExpr::Compile (expr.get_fnexpr (), ctx);
   if (ctx->const_context_p ())
     {
@@ -1759,6 +1792,13 @@ CompileExpr::visit (HIR::CallExpr &expr)
 
       // add it to the list
       args.push_back (rvalue);
+    }
+
+  if (platform_intrinsic != nullptr)
+    {
+      translated = PlatformIntrinsic::compile_call (ctx, platform_intrinsic,
+						    args, expr.get_locus ());
+      return;
     }
 
   // must be a regular call to a function

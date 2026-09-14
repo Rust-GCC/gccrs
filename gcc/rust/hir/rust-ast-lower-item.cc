@@ -765,6 +765,7 @@ ASTLoweringItem::visit (AST::TraitImpl &impl_block)
   translated = hir_impl_block;
 
   mappings.insert_hir_impl_block (hir_impl_block);
+
   for (auto &impl_item_id : impl_item_ids)
     {
       mappings.insert_impl_item_mapping (impl_item_id, hir_impl_block);

@@ -22,18 +22,21 @@
 #include "rust-substitution-mapper.h"
 #include "rust-hir-trait-resolve.h"
 #include "rust-type-util.h"
+#include "rust-tyty.h"
 
 namespace Rust {
 namespace Resolver {
 
-TypeBoundsProbe::TypeBoundsProbe (TyTy::BaseType *receiver)
-  : TypeCheckBase (), receiver (receiver)
+TypeBoundsProbe::TypeBoundsProbe (TyTy::BaseType *receiver,
+				  const HIR::Trait *specified_trait)
+  : TypeCheckBase (), receiver (receiver), specified_trait (specified_trait)
 {}
 
 std::vector<std::pair<TraitReference *, HIR::ImplBlock *>>
-TypeBoundsProbe::Probe (TyTy::BaseType *receiver)
+TypeBoundsProbe::Probe (TyTy::BaseType *receiver,
+			const HIR::Trait *specified_trait)
 {
-  TypeBoundsProbe probe (receiver);
+  TypeBoundsProbe probe (receiver, specified_trait);
   probe.scan ();
   return probe.trait_references;
 }
@@ -50,7 +53,7 @@ TypeBoundsProbe::is_bound_satisfied_for_type (TyTy::BaseType *receiver,
     }
 
   std::vector<std::pair<TraitReference *, HIR::ImplBlock *>> bounds
-    = Probe (receiver);
+    = Probe (receiver, ref->get_hir_trait_ref ());
   for (auto &bound : bounds)
     {
       const TraitReference *b = bound.first;
@@ -95,10 +98,15 @@ TypeBoundsProbe::scan ()
 {
   std::vector<std::pair<HIR::TypePath *, HIR::ImplBlock *>>
     possible_trait_paths;
-  mappings.iterate_impl_blocks (
-    [&] (HirId id, HIR::ImplBlock *impl) mutable -> bool {
-      return process_impl_block (id, impl, possible_trait_paths);
-    });
+  auto process_impl = [&] (HirId id, HIR::ImplBlock *impl) mutable -> bool {
+    return process_impl_block (id, impl, possible_trait_paths);
+  };
+
+  if (specified_trait == nullptr)
+    mappings.iterate_trait_impl_blocks (process_impl);
+  else
+    mappings.iterate_trait_impl_blocks (
+      specified_trait->get_mappings ().get_defid (), process_impl);
 
   for (auto &path : possible_trait_paths)
     {
@@ -163,10 +171,17 @@ TypeBoundsProbe::assemble_marker_builtins ()
       // FIXME str and slice need to be moved and test cases updated
     case TyTy::SLICE:
     case TyTy::STR:
-    case TyTy::ADT:
     case TyTy::TUPLE:
       // FIXME add extra checks
       assemble_builtin_candidate (LangItem::Kind::SIZED);
+      break;
+
+    case TyTy::ADT:
+      {
+	const auto &adt = *static_cast<const TyTy::ADTType *> (raw);
+	if (adt.get_adt_kind () != TyTy::ADTType::ADTKind::EXTERN)
+	  assemble_builtin_candidate (LangItem::Kind::SIZED);
+      }
       break;
 
     case TyTy::CONST:
@@ -246,7 +261,8 @@ TyTy::TypeBoundPredicate
 TypeCheckBase::get_predicate_from_bound (
   HIR::TypePath &type_path,
   tl::optional<std::reference_wrapper<HIR::Type>> associated_self,
-  BoundPolarity polarity, bool is_qualified_type_path, bool is_super_trait)
+  BoundPolarity polarity, bool is_qualified_type_path, bool is_super_trait,
+  bool defer_bindings)
 {
   TyTy::TypeBoundPredicate lookup = TyTy::TypeBoundPredicate::error ();
   bool already_resolved
@@ -317,11 +333,6 @@ TypeCheckBase::get_predicate_from_bound (
 	  std::make_unique<HIR::TupleType> (mapping, std::move (params_copy),
 					    final_seg.get_locus ()));
 
-	// resolve the fn_once_output type which assumes there must be an output
-	// set
-	rust_assert (fn.has_return_type ());
-	TypeCheckType::Resolve (fn.get_return_type ());
-
 	HIR::TraitItem *trait_item
 	  = mappings
 	      .lookup_trait_item_lang_item (LangItem::Kind::FN_ONCE_OUTPUT,
@@ -329,10 +340,16 @@ TypeCheckBase::get_predicate_from_bound (
 	      .value ();
 
 	std::vector<HIR::GenericArgsBinding> bindings;
-	location_t output_locus = fn.get_return_type ().get_locus ();
-	bindings.emplace_back (Identifier (trait_item->trait_identifier ()),
-			       fn.get_return_type ().clone_type (),
-			       output_locus);
+
+	if (fn.has_return_type () && !defer_bindings)
+	  {
+	    TypeCheckType::Resolve (fn.get_return_type ());
+
+	    location_t output_locus = fn.get_return_type ().get_locus ();
+	    bindings.emplace_back (Identifier (trait_item->trait_identifier ()),
+				   fn.get_return_type ().clone_type (),
+				   output_locus);
+	  }
 
 	args = HIR::GenericArgs ({} /* lifetimes */,
 				 std::move (inputs) /* type_args*/,
@@ -361,6 +378,9 @@ TypeCheckBase::get_predicate_from_bound (
 			       args.get_locus ());
     }
 
+  if (defer_bindings)
+    args.get_binding_args ().clear ();
+
   // we try to apply generic arguments when they are non empty and or when the
   // predicate requires them so that we get the relevant Foo expects x number
   // arguments but got zero see test case rust/compile/traits12.rs
@@ -371,8 +391,9 @@ TypeCheckBase::get_predicate_from_bound (
 					 is_super_trait);
     }
 
-  context->insert_resolved_predicate (type_path.get_mappings ().get_hirid (),
-				      predicate);
+  if (!defer_bindings)
+    context->insert_resolved_predicate (type_path.get_mappings ().get_hirid (),
+					predicate);
 
   return predicate;
 }
@@ -434,14 +455,6 @@ TypeBoundPredicate::TypeBoundPredicate (const TypeBoundPredicate &other)
   for (const auto &p : other.get_substs ())
     substitutions.push_back (p.clone ());
 
-  std::vector<SubstitutionArg> mappings;
-  for (size_t i = 0; i < other.used_arguments.get_mappings ().size (); i++)
-    {
-      const SubstitutionArg &oa = other.used_arguments.get_mappings ().at (i);
-      SubstitutionArg arg (oa);
-      mappings.push_back (std::move (arg));
-    }
-
   // we need to remap the argument mappings based on this copied constructor
   std::vector<SubstitutionArg> copied_arg_mappings;
   size_t i = 0;
@@ -453,11 +466,10 @@ TypeBoundPredicate::TypeBoundPredicate (const TypeBoundPredicate &other)
       copied_arg_mappings.push_back (std::move (c));
     }
 
-  used_arguments
-    = SubstitutionArgumentMappings (copied_arg_mappings,
-				    other.used_arguments.get_binding_args (),
-				    other.used_arguments.get_regions (),
-				    other.used_arguments.get_locus ());
+  used_arguments = SubstitutionArgumentMappings (
+    copied_arg_mappings, other.used_arguments.get_binding_args (),
+    other.used_arguments.get_regions (), other.used_arguments.get_locus (),
+    false, false, other.used_arguments.get_constraint_args ());
 }
 
 TypeBoundPredicate &
@@ -476,14 +488,6 @@ TypeBoundPredicate::operator= (const TypeBoundPredicate &other)
   if (other.is_error ())
     return *this;
 
-  std::vector<SubstitutionArg> mappings;
-  for (size_t i = 0; i < other.used_arguments.get_mappings ().size (); i++)
-    {
-      const SubstitutionArg &oa = other.used_arguments.get_mappings ().at (i);
-      SubstitutionArg arg (oa);
-      mappings.push_back (std::move (arg));
-    }
-
   // we need to remap the argument mappings based on this copied constructor
   std::vector<SubstitutionArg> copied_arg_mappings;
   size_t i = 0;
@@ -495,11 +499,10 @@ TypeBoundPredicate::operator= (const TypeBoundPredicate &other)
       copied_arg_mappings.emplace_back (&substitutions.at (i++), argument);
     }
 
-  used_arguments
-    = SubstitutionArgumentMappings (copied_arg_mappings,
-				    other.used_arguments.get_binding_args (),
-				    other.used_arguments.get_regions (),
-				    other.used_arguments.get_locus ());
+  used_arguments = SubstitutionArgumentMappings (
+    copied_arg_mappings, other.used_arguments.get_binding_args (),
+    other.used_arguments.get_regions (), other.used_arguments.get_locus (),
+    false, false, other.used_arguments.get_constraint_args ());
   super_traits = other.super_traits;
 
   return *this;
@@ -721,7 +724,6 @@ TypeBoundPredicateItem::get_tyty_for_receiver (const TyTy::BaseType *receiver)
   SubstitutionArgumentMappings adjusted (adjusted_mappings, {},
 					 gargs.get_regions (),
 					 gargs.get_locus (),
-					 gargs.get_subst_cb (),
 					 true /* trait-mode-flag */);
   TyTy::BaseType *res
     = Resolver::SubstMapperInternal::Resolve (trait_item_tyty, adjusted);
@@ -933,7 +935,8 @@ TypeBoundPredicate::validate_type_implements_this (TyTy::BaseType &self,
 						   HIR::Type &trait) const
 {
   const auto &ptref = *get ();
-  auto probed_bounds = Resolver::TypeBoundsProbe::Probe (&self);
+  auto probed_bounds
+    = Resolver::TypeBoundsProbe::Probe (&self, ptref.get_hir_trait_ref ());
   for (auto &elem : probed_bounds)
     {
       auto &tref = *(elem.first);
@@ -968,7 +971,7 @@ TypeBoundPredicateItem::get_locus () const
 
 TypeBoundsMappings::TypeBoundsMappings (
   std::vector<TypeBoundPredicate> specified_bounds)
-  : specified_bounds (specified_bounds)
+  : specified_bounds (std::move (specified_bounds))
 {}
 
 std::vector<TypeBoundPredicate> &
@@ -1034,7 +1037,7 @@ TypeBoundsMappings::raw_bounds_as_name () const
 }
 
 void
-TypeBoundsMappings::add_bound (TypeBoundPredicate predicate)
+TypeBoundsMappings::add_bound (const TypeBoundPredicate &predicate)
 {
   for (auto &bound : specified_bounds)
     {

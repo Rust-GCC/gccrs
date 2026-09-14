@@ -46,7 +46,14 @@ private:
 class TypeCheckType : public TypeCheckBase, public HIR::HIRTypeVisitor
 {
 public:
-  static TyTy::BaseType *Resolve (HIR::Type &type);
+  enum class ResolutionMode
+  {
+    REFERENCE,
+    CANONICAL
+  };
+
+  static TyTy::BaseType *Resolve (HIR::Type &type, ResolutionMode mode
+						   = ResolutionMode::REFERENCE);
 
   void visit (HIR::BareFunctionType &fntype) override;
   void visit (HIR::TupleType &tuple) override;
@@ -67,8 +74,8 @@ public:
   void visit (HIR::TraitBound &bound) override {}
 
 private:
-  TypeCheckType (HirId id)
-    : TypeCheckBase (), translated (new TyTy::ErrorType (id))
+  TypeCheckType (HirId id, ResolutionMode mode)
+    : TypeCheckBase (), translated (new TyTy::ErrorType (id)), mode (mode)
   {}
 
   TyTy::BaseType *resolve_root_path (HIR::TypePath &path, size_t *offset,
@@ -84,7 +91,12 @@ private:
 				TypeCheckBlockContextItem &ctx,
 				TyTy::BaseType **result);
 
+  bool try_resolve_contextual_self_associated_type (
+    const HIR::TypePathSegment &segment, bool first_segment,
+    bool ty_seg_is_big_self, TyTy::BaseType **result);
+
   TyTy::BaseType *translated;
+  ResolutionMode mode;
 };
 
 class TypeResolveGenericParam : public TypeCheckBase
@@ -120,7 +132,7 @@ class ResolveWhereClauseItem : public TypeCheckBase
   TyTy::RegionConstraints &region_constraints;
 
 public:
-  static void Resolve (HIR::WhereClauseItem &item,
+  static void Resolve (HIR::WhereClause &clause,
 		       TyTy::RegionConstraints &region_constraints);
 
 protected:
@@ -128,6 +140,12 @@ protected:
   void visit (HIR::TypeBoundWhereClauseItem &item);
 
 private:
+  static void Resolve (HIR::WhereClauseItem &item,
+		       TyTy::RegionConstraints &region_constraints);
+
+  bool defer_bindings = false;
+  bool complete_bindings = false;
+
   ResolveWhereClauseItem (TyTy::RegionConstraints &region_constraints)
     : region_constraints (region_constraints)
   {}

@@ -93,7 +93,14 @@ TypeCheckItem::Resolve (HIR::Item &item)
   bool already_resolved
     = context->lookup_type (item.get_mappings ().get_hirid (), &resolved);
   if (already_resolved)
-    return resolved;
+    {
+      bool function_body_pending = false;
+      if (auto fn = resolved->try_as<TyTy::FnType> ())
+	function_body_pending = context->function_body_pending (fn->get_id ());
+
+      if (!function_body_pending)
+	return resolved;
+    }
 
   rust_assert (item.get_hir_kind () == HIR::Node::BaseKind::VIS_ITEM);
   HIR::VisItem &vis_item = static_cast<HIR::VisItem &> (item);
@@ -101,6 +108,24 @@ TypeCheckItem::Resolve (HIR::Item &item)
   TypeCheckItem resolver;
   vis_item.accept_vis (resolver);
   return resolver.infered;
+}
+
+TyTy::FnType *
+TypeCheckItem::ResolveFunctionSignature (HIR::Function &function)
+{
+  TypeCheckItem resolver;
+  auto lifetime_pin = resolver.context->push_clean_lifetime_resolver ();
+  TyTy::FnType *result = resolver.resolve_function_signature (function);
+  if (result != nullptr)
+    resolver.context->mark_function_body_pending (result->get_id ());
+  return result;
+}
+
+TyTy::BaseType *
+TypeCheckItem::ResolveTraitSignature (HIR::Trait &trait)
+{
+  TypeCheckItem resolver;
+  return resolver.resolve_trait (trait, false);
 }
 
 TyTy::BaseType *
@@ -114,6 +139,7 @@ TyTy::BaseType *
 TypeCheckItem::ResolveImplBlockSelf (HIR::ImplBlock &impl_block)
 {
   TypeCheckItem resolver;
+  auto lifetime_pin = resolver.context->push_clean_lifetime_resolver (true);
 
   bool failed_flag = false;
   auto result
@@ -135,6 +161,7 @@ TypeCheckItem::ResolveImplBlockSelfWithInference (
   TyTy::SubstitutionArgumentMappings *infer_arguments)
 {
   TypeCheckItem resolver;
+  auto lifetime_pin = resolver.context->push_clean_lifetime_resolver (true);
 
   bool failed_flag = false;
   auto result = resolver.resolve_impl_block_substitutions (impl, failed_flag);
@@ -283,10 +310,8 @@ TypeCheckItem::visit (HIR::TypeAlias &alias)
   context->insert_type (alias.get_mappings (), actual_type);
 
   TyTy::RegionConstraints region_constraints;
-  for (auto &where_clause_item : alias.get_where_clause ().get_items ())
-    {
-      ResolveWhereClauseItem::Resolve (*where_clause_item, region_constraints);
-    }
+  ResolveWhereClauseItem::Resolve (alias.get_where_clause (),
+				   region_constraints);
   infered = actual_type;
 }
 
@@ -302,10 +327,8 @@ TypeCheckItem::visit (HIR::TupleStruct &struct_decl)
 			    struct_decl.get_generic_params (), substitutions);
 
   TyTy::RegionConstraints region_constraints;
-  for (auto &where_clause_item : struct_decl.get_where_clause ().get_items ())
-    {
-      ResolveWhereClauseItem::Resolve (*where_clause_item, region_constraints);
-    }
+  ResolveWhereClauseItem::Resolve (struct_decl.get_where_clause (),
+				   region_constraints);
 
   // Process #[repr(X)] attribute, if any
   const AST::AttrVec &attrs = struct_decl.get_outer_attrs ();
@@ -383,10 +406,8 @@ TypeCheckItem::visit (HIR::StructStruct &struct_decl)
 			    struct_decl.get_generic_params (), substitutions);
 
   TyTy::RegionConstraints region_constraints;
-  for (auto &where_clause_item : struct_decl.get_where_clause ().get_items ())
-    {
-      ResolveWhereClauseItem::Resolve (*where_clause_item, region_constraints);
-    }
+  ResolveWhereClauseItem::Resolve (struct_decl.get_where_clause (),
+				   region_constraints);
 
   // Process #[repr(X)] attribute, if any
   const AST::AttrVec &attrs = struct_decl.get_outer_attrs ();
@@ -550,10 +571,8 @@ TypeCheckItem::visit (HIR::Union &union_decl)
 			    union_decl.get_generic_params (), substitutions);
 
   TyTy::RegionConstraints region_constraints;
-  for (auto &where_clause_item : union_decl.get_where_clause ().get_items ())
-    {
-      ResolveWhereClauseItem::Resolve (*where_clause_item, region_constraints);
-    }
+  ResolveWhereClauseItem::Resolve (union_decl.get_where_clause (),
+				   region_constraints);
 
   std::vector<TyTy::StructFieldType *> fields;
   for (auto &variant : union_decl.get_variants ())
@@ -621,7 +640,9 @@ void
 TypeCheckItem::visit (HIR::ConstantItem &constant)
 {
   TyTy::BaseType *type = TypeCheckType::Resolve (constant.get_type ());
+  context->push_const_context ();
   TyTy::BaseType *expr_type = TypeCheckExpr::Resolve (constant.get_expr ());
+  context->pop_const_context ();
 
   TyTy::BaseType *unified = unify_site (
     constant.get_mappings ().get_hirid (),
@@ -794,10 +815,9 @@ TypeCheckItem::resolve_impl_item (HIR::ImplBlock &impl_block,
   return TypeCheckImplItem::Resolve (impl_block, item, self, substitutions);
 }
 
-void
-TypeCheckItem::visit (HIR::Function &function)
+TyTy::FnType *
+TypeCheckItem::resolve_function_signature (HIR::Function &function)
 {
-  auto lifetime_pin = context->push_clean_lifetime_resolver ();
   std::vector<TyTy::SubstitutionParamMapping> substitutions;
   if (function.has_generics ())
     resolve_generic_params (HIR::Item::ItemKind::Function,
@@ -805,10 +825,8 @@ TypeCheckItem::visit (HIR::Function &function)
 			    function.get_generic_params (), substitutions);
 
   TyTy::RegionConstraints region_constraints;
-  for (auto &where_clause_item : function.get_where_clause ().get_items ())
-    {
-      ResolveWhereClauseItem::Resolve (*where_clause_item, region_constraints);
-    }
+  ResolveWhereClauseItem::Resolve (function.get_where_clause (),
+				   region_constraints);
 
   TyTy::BaseType *ret_type = nullptr;
   if (!function.has_function_return_type ())
@@ -817,7 +835,7 @@ TypeCheckItem::visit (HIR::Function &function)
     {
       auto resolved = TypeCheckType::Resolve (function.get_return_type ());
       if (resolved->get_kind () == TyTy::TypeKind::ERROR)
-	return;
+	return nullptr;
 
       ret_type = resolved->clone ();
       ret_type->set_ref (
@@ -855,8 +873,33 @@ TypeCheckItem::visit (HIR::Function &function)
 
   context->insert_type (function.get_mappings (), fn_type);
 
+  return fn_type;
+}
+
+void
+TypeCheckItem::visit (HIR::Function &function)
+{
+  auto lifetime_pin = context->push_clean_lifetime_resolver ();
+
+  TyTy::BaseType *resolved = nullptr;
+  TyTy::FnType *resolved_fn_type = nullptr;
+  if (context->lookup_type (function.get_mappings ().get_hirid (), &resolved))
+    {
+      if (resolved->get_kind () != TyTy::TypeKind::FNDEF)
+	return;
+      resolved_fn_type = static_cast<TyTy::FnType *> (resolved);
+    }
+  else
+    resolved_fn_type = resolve_function_signature (function);
+
+  if (resolved_fn_type == nullptr)
+    return;
+
+  // Mark the body as claimed before resolving it.  Recursive queries from the
+  // body must reuse the cached signature rather than re-entering this body.
+  context->clear_function_body_pending (resolved_fn_type->get_id ());
+
   // need to get the return type from this
-  TyTy::FnType *resolved_fn_type = fn_type;
   auto expected_ret_tyty = resolved_fn_type->get_return_type ();
   context->push_return_type (TypeCheckContextItem (&function),
 			     expected_ret_tyty);
@@ -866,7 +909,7 @@ TypeCheckItem::visit (HIR::Function &function)
 
   // emit check for
   // error[E0121]: the type placeholder `_` is not allowed within types on item
-  const auto placeholder = ret_type->contains_infer ();
+  const auto placeholder = expected_ret_tyty->contains_infer ();
   if (placeholder != nullptr && function.has_return_type ())
     {
       // FIXME
@@ -906,7 +949,7 @@ TypeCheckItem::visit (HIR::Function &function)
 
   context->pop_return_type ();
 
-  infered = fn_type;
+  infered = resolved_fn_type;
 }
 
 void
@@ -918,6 +961,12 @@ TypeCheckItem::visit (HIR::Module &module)
 
 void
 TypeCheckItem::visit (HIR::Trait &trait)
+{
+  infered = resolve_trait (trait, true);
+}
+
+TyTy::BaseType *
+TypeCheckItem::resolve_trait (HIR::Trait &trait, bool resolve_bodies)
 {
   auto lifetime_pin = context->push_clean_lifetime_resolver ();
 
@@ -943,11 +992,14 @@ TypeCheckItem::visit (HIR::Trait &trait)
   if (trait_ref->is_error ())
     {
       infered = new TyTy::ErrorType (trait.get_mappings ().get_hirid ());
-      return;
+      return infered;
     }
 
+  if (resolve_bodies)
+    trait_ref->resolve_default_function_bodies ();
+
   RustIdent ident{CanonicalPath::create_empty (), trait.get_locus ()};
-  infered = new TyTy::DynamicObjectType (
+  return new TyTy::DynamicObjectType (
     trait.get_mappings ().get_hirid (), ident,
     {TyTy::TypeBoundPredicate (*trait_ref, BoundPolarity::RegularBound,
 			       trait.get_locus ())});
@@ -991,10 +1043,8 @@ TypeCheckItem::resolve_impl_block_substitutions (HIR::ImplBlock &impl_block,
 			    impl_block.get_generic_params (), substitutions);
 
   TyTy::RegionConstraints region_constraints;
-  for (auto &where_clause_item : impl_block.get_where_clause ().get_items ())
-    {
-      ResolveWhereClauseItem::Resolve (*where_clause_item, region_constraints);
-    }
+  ResolveWhereClauseItem::Resolve (impl_block.get_where_clause (),
+				   region_constraints);
 
   auto specified_bound = TyTy::TypeBoundPredicate::error ();
   TraitReference *trait_reference = &TraitReference::error_node ();
@@ -1024,7 +1074,7 @@ TypeCheckItem::resolve_impl_block_substitutions (HIR::ImplBlock &impl_block,
 
   // inherit the bounds
   if (!specified_bound.is_error ())
-    self->inherit_bounds ({specified_bound});
+    self->inherit_bound (specified_bound);
 
   // check for any unconstrained type-params
   const TyTy::SubstitutionArgumentMappings trait_constraints

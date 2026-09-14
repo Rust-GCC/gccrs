@@ -30,6 +30,10 @@ class TypeCheckItem : private TypeCheckBase, private HIR::HIRVisItemVisitor
 public:
   static TyTy::BaseType *Resolve (HIR::Item &item);
 
+  static TyTy::FnType *ResolveFunctionSignature (HIR::Function &function);
+
+  static TyTy::BaseType *ResolveTraitSignature (HIR::Trait &trait);
+
   static TyTy::BaseType *ResolveImplItem (HIR::ImplBlock &impl_block,
 					  HIR::ImplItem &item);
 
@@ -87,6 +91,10 @@ protected:
 				     HIR::ImplItem &item);
 
   TyTy::BaseType *resolve_impl_block_self (HIR::ImplBlock &impl_block);
+
+  TyTy::FnType *resolve_function_signature (HIR::Function &function);
+
+  TyTy::BaseType *resolve_trait (HIR::Trait &trait, bool resolve_bodies);
 
   bool validate_repr_simd (const std::vector<TyTy::StructFieldType *> &fields,
 			   location_t locus);

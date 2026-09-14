@@ -207,7 +207,7 @@ public:
   std::string raw_bounds_as_name () const;
 
 protected:
-  void add_bound (TypeBoundPredicate predicate);
+  void add_bound (const TypeBoundPredicate &predicate);
 
   std::vector<TypeBoundPredicate> specified_bounds;
 };
@@ -244,6 +244,8 @@ public:
   bool bounds_compatible (BaseType &other, location_t locus, bool emit_error);
 
   void inherit_bounds (const BaseType &other);
+
+  void inherit_bound (const TypeBoundPredicate &bound);
 
   void inherit_bounds (
     const std::vector<TyTy::TypeBoundPredicate> &specified_bounds);
@@ -500,7 +502,7 @@ protected:
   BaseGeneric (HirId ref, HirId ty_ref, TypeKind kind, RustIdent ident,
 	       std::vector<TypeBoundPredicate> specified_bounds,
 	       std::set<HirId> refs = std::set<HirId> ())
-    : BaseType (ref, ty_ref, kind, ident, specified_bounds, refs)
+    : BaseType (ref, ty_ref, kind, ident, std::move (specified_bounds), refs)
   {}
 };
 
@@ -917,7 +919,8 @@ public:
     STRUCT_STRUCT,
     TUPLE_STRUCT,
     UNION,
-    ENUM
+    ENUM,
+    EXTERN
   };
 
   enum ReprKind
@@ -1099,7 +1102,7 @@ public:
   static const uint8_t FNTYPE_DEFAULT_FLAGS = 0x00;
   static const uint8_t FNTYPE_IS_METHOD_FLAG = 0x01;
   static const uint8_t FNTYPE_IS_EXTERN_FLAG = 0x02;
-  static const uint8_t FNTYPE_IS_VARADIC_FLAG = 0X04;
+  static const uint8_t FNTYPE_IS_VARIADIC_FLAG = 0X04;
   static const uint8_t FNTYPE_IS_SYN_CONST_FLAG = 0X08;
 
   FnType (HirId ref, DefId id, std::string identifier, RustIdent ident,
@@ -1160,7 +1163,7 @@ public:
 
   bool is_extern () const { return (flags & FNTYPE_IS_EXTERN_FLAG) != 0; }
 
-  bool is_variadic () const { return (flags & FNTYPE_IS_VARADIC_FLAG) != 0; }
+  bool is_variadic () const { return (flags & FNTYPE_IS_VARIADIC_FLAG) != 0; }
 
   bool is_syn_constant () const
   {

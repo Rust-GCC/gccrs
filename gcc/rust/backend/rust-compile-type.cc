@@ -342,6 +342,13 @@ TyTyResolveCompile::visit (const TyTy::ADTType &type)
 
       type_record = build_vector_type (inner_type, variant.num_fields ());
     }
+  else if (type.get_adt_kind () == TyTy::ADTType::ADTKind::EXTERN)
+    {
+      // Extern types are codegen'd as C's void type. They can only be used
+      // through indirection, so they're effectively always codegen'd as
+      // `void *` types.
+      type_record = void_type_node;
+    }
   else if (!type.is_enum ())
     {
       rust_assert (type.number_of_variants () == 1);

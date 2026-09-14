@@ -17,6 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-hir-type-check-implitem.h"
+#include "rust-canonical-path.h"
 #include "rust-diagnostics.h"
 #include "rust-hir-full-decls.h"
 #include "rust-hir-pattern.h"
@@ -79,14 +80,8 @@ TypeCheckTopLevelExternItem::visit (HIR::ExternalFunctionItem &function)
     }
 
   TyTy::RegionConstraints region_constraints;
-  if (function.has_where_clause ())
-    {
-      for (auto &where_clause_item : function.get_where_clause ().get_items ())
-	{
-	  ResolveWhereClauseItem::Resolve (*where_clause_item,
-					   region_constraints);
-	}
-    }
+  ResolveWhereClauseItem::Resolve (function.get_where_clause (),
+				   region_constraints);
 
   TyTy::BaseType *ret_type = nullptr;
   if (!function.has_return_type ())
@@ -134,7 +129,7 @@ TypeCheckTopLevelExternItem::visit (HIR::ExternalFunctionItem &function)
   uint8_t flags = TyTy::FnType::FNTYPE_IS_EXTERN_FLAG;
   if (function.is_variadic ())
     {
-      flags |= TyTy::FnType::FNTYPE_IS_VARADIC_FLAG;
+      flags |= TyTy::FnType::FNTYPE_IS_VARIADIC_FLAG;
       if (parent.get_abi () != Rust::ABI::C)
 	{
 	  rust_error_at (
@@ -169,8 +164,26 @@ TypeCheckTopLevelExternItem::visit (HIR::ExternalFunctionItem &function)
 void
 TypeCheckTopLevelExternItem::visit (HIR::ExternalTypeItem &type)
 {
-  rust_sorry_at (type.get_locus (), "extern types are not supported yet");
-  // TODO
+  CanonicalPath path
+    = CanonicalPath::new_seg (type.get_mappings ().get_nodeid (),
+			      type.get_item_name ().as_string ());
+
+  RustIdent ident{path, type.get_locus ()};
+
+  TyTy::ADTType::ReprOptions repr;
+  std::vector<TyTy::VariantDef *> variants;
+  TyTy::RegionConstraints region_constraints;
+  std::vector<TyTy::SubstitutionParamMapping> substitutions;
+
+  auto *extern_type = new TyTy::ADTType (
+    type.get_mappings ().get_defid (), type.get_mappings ().get_hirid (),
+    type.get_mappings ().get_hirid (), type.get_item_name ().as_string (),
+    ident, TyTy::ADTType::ADTKind::EXTERN, std::move (variants),
+    std::move (substitutions), repr,
+    TyTy::SubstitutionArgumentMappings::empty (0), region_constraints);
+
+  context->insert_type (type.get_mappings (), extern_type);
+  resolved = extern_type;
 }
 
 TypeCheckImplItem::TypeCheckImplItem (
@@ -191,7 +204,14 @@ TypeCheckImplItem::Resolve (
   bool already_resolved
     = context->lookup_type (item.get_impl_mappings ().get_hirid (), &resolved);
   if (already_resolved)
-    return resolved;
+    {
+      bool function_body_pending = false;
+      if (auto fn = resolved->try_as<TyTy::FnType> ())
+	function_body_pending = context->function_body_pending (fn->get_id ());
+
+      if (!function_body_pending)
+	return resolved;
+    }
 
   // resolve
   TypeCheckImplItem resolver (parent, self, substitutions);
@@ -203,22 +223,33 @@ TypeCheckImplItem::Resolve (
   return resolver.result;
 }
 
-void
-TypeCheckImplItem::visit (HIR::Function &function)
+TyTy::FnType *
+TypeCheckImplItem::ResolveFunctionSignature (
+  HIR::ImplBlock &parent, HIR::Function &function, TyTy::BaseType *self,
+  std::vector<TyTy::SubstitutionParamMapping> substitutions)
 {
-  auto binder_pin = context->push_lifetime_binder ();
+  TypeCheckImplItem resolver (parent, self, std::move (substitutions));
+  auto binder_pin = resolver.context->push_lifetime_binder ();
+  resolver.context->block_context ().enter (
+    TypeCheckBlockContextItem (&parent));
+  TyTy::FnType *result = resolver.resolve_function_signature (function);
+  resolver.context->block_context ().exit ();
+  if (result != nullptr)
+    resolver.context->mark_function_body_pending (result->get_id ());
+  return result;
+}
 
+TyTy::FnType *
+TypeCheckImplItem::resolve_function_signature (HIR::Function &function)
+{
   if (function.has_generics ())
     resolve_generic_params (HIR::Item::ItemKind::Function,
 			    function.get_locus (),
 			    function.get_generic_params (), substitutions);
 
   TyTy::RegionConstraints region_constraints;
-  for (auto &where_clause_item : function.get_where_clause ().get_items ())
-    {
-      ResolveWhereClauseItem::Resolve (*where_clause_item.get (),
-				       region_constraints);
-    }
+  ResolveWhereClauseItem::Resolve (function.get_where_clause (),
+				   region_constraints);
 
   TyTy::BaseType *ret_type = nullptr;
   if (!function.has_function_return_type ())
@@ -230,7 +261,7 @@ TypeCheckImplItem::visit (HIR::Function &function)
 	{
 	  rust_error_at (function.get_locus (),
 			 "failed to resolve return type");
-	  return;
+	  return nullptr;
 	}
 
       ret_type = resolved->clone ();
@@ -285,7 +316,7 @@ TypeCheckImplItem::visit (HIR::Function &function)
 		      {
 			rust_inform (self_param.get_locus (),
 				     "failed to resolve lifetime");
-			return;
+			return nullptr;
 		      }
 		  }
 		else
@@ -310,7 +341,7 @@ TypeCheckImplItem::visit (HIR::Function &function)
 		      {
 			rust_error_at (self_param.get_locus (),
 				       "failed to resolve lifetime");
-			return;
+			return nullptr;
 		      }
 		  }
 		else
@@ -326,7 +357,7 @@ TypeCheckImplItem::visit (HIR::Function &function)
 
 	    default:
 	      rust_unreachable ();
-	      return;
+	      return nullptr;
 	    }
 	}
 
@@ -367,8 +398,34 @@ TypeCheckImplItem::visit (HIR::Function &function)
   context->insert_type (function.get_mappings (), fnType);
   result = fnType;
 
+  return fnType;
+}
+
+void
+TypeCheckImplItem::visit (HIR::Function &function)
+{
+  auto binder_pin = context->push_lifetime_binder ();
+
+  TyTy::BaseType *resolved = nullptr;
+  TyTy::FnType *resolve_fn_type = nullptr;
+  if (context->lookup_type (function.get_mappings ().get_hirid (), &resolved))
+    {
+      if (resolved->get_kind () != TyTy::TypeKind::FNDEF)
+	return;
+      resolve_fn_type = static_cast<TyTy::FnType *> (resolved);
+      result = resolve_fn_type;
+    }
+  else
+    resolve_fn_type = resolve_function_signature (function);
+
+  if (resolve_fn_type == nullptr)
+    return;
+
+  // Mark the body as claimed before resolving it.  Recursive queries from the
+  // body must reuse the cached signature rather than re-entering this body.
+  context->clear_function_body_pending (resolve_fn_type->get_id ());
+
   // need to get the return type from this
-  TyTy::FnType *resolve_fn_type = fnType;
   auto expected_ret_tyty = resolve_fn_type->get_return_type ();
   context->push_return_type (TypeCheckContextItem (parent, &function),
 			     expected_ret_tyty);
@@ -391,7 +448,9 @@ void
 TypeCheckImplItem::visit (HIR::ConstantItem &constant)
 {
   TyTy::BaseType *type = TypeCheckType::Resolve (constant.get_type ());
+  context->push_const_context ();
   TyTy::BaseType *expr_type = TypeCheckExpr::Resolve (constant.get_expr ());
+  context->pop_const_context ();
 
   TyTy::BaseType *unified = unify_site (
     constant.get_mappings ().get_hirid (),
@@ -442,11 +501,8 @@ TypeCheckImplItem::visit (HIR::TypeAlias &alias)
   context->insert_type (alias.get_mappings (), actual_type);
   result = actual_type;
   TyTy::RegionConstraints region_constraints;
-  for (auto &where_clause_item : alias.get_where_clause ().get_items ())
-    {
-      ResolveWhereClauseItem::Resolve (*where_clause_item.get (),
-				       region_constraints);
-    }
+  ResolveWhereClauseItem::Resolve (alias.get_where_clause (),
+				   region_constraints);
 }
 
 TypeCheckImplItemWithTrait::TypeCheckImplItemWithTrait (

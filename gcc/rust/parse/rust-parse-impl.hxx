@@ -5247,7 +5247,8 @@ Parser<ManagedTokenSource>::parse_path_generic_args ()
 
       // ensure not binding being parsed as type accidently
       if (t->get_id () == IDENTIFIER
-	  && lexer.peek_token (1)->get_id () == EQUAL)
+	  && (lexer.peek_token (1)->get_id () == EQUAL
+	      || lexer.peek_token (1)->get_id () == COLON))
 	break;
 
       auto arg = parse_generic_arg ();
@@ -5324,11 +5325,20 @@ Parser<ManagedTokenSource>::parse_generic_args_binding ()
   lexer.skip_token ();
   Identifier ident{ident_tok};
 
-  if (!skip_token (EQUAL))
+  if (lexer.peek_token ()->get_id () == COLON)
     {
-      // skip after somewhere?
-      return AST::GenericArgsBinding::create_error ();
+      lexer.skip_token ();
+      auto bounds_locus = lexer.peek_token ()->get_locus ();
+      auto bounds = parse_type_param_bounds ();
+      auto type = std::unique_ptr<AST::Type> (
+	new AST::ImplTraitType (std::move (bounds), bounds_locus));
+      return AST::GenericArgsBinding (
+	std::move (ident), std::move (type), ident_tok->get_locus (),
+	AST::GenericArgsBinding::Kind::Constraint);
     }
+
+  if (!skip_token (EQUAL))
+    return AST::GenericArgsBinding::create_error ();
 
   // parse type (required)
   std::unique_ptr<AST::Type> type = parse_type ();
@@ -7294,15 +7304,6 @@ Parser<ManagedTokenSource>::parse_stmt_or_expr ()
     case DOLLAR_SIGN:
       {
 	AST::PathInExpression path = parse_path_in_expression ();
-	if (path.is_error ())
-	  {
-	    Error error (t->get_locus (), "expected identifier");
-	    add_error (std::move (error));
-	    skip_after_semicolon ();
-	    return tl::unexpected<Parse::Error::Node> (
-	      Parse::Error::Node::CHILD_ERROR);
-	  }
-
 	tl::expected<std::unique_ptr<AST::Expr>, Parse::Error::Expr>
 	  null_denotation;
 

@@ -26,7 +26,6 @@
 #include "rust-type-util.h"
 #include "rust-attribute-values.h"
 #include "rust-tyty.h"
-#include "tree.h"
 
 namespace Rust {
 namespace Resolver {
@@ -58,6 +57,9 @@ TypeCheckBase::ResolvePredicateFromBound (
 				       is_qualified_type, is_super_trait);
 }
 
+static void walk_type_to_constrain (std::set<HirId> &constrained_symbols,
+				    TyTy::BaseType &r);
+
 static void
 walk_types_to_constrain (std::set<HirId> &constrained_symbols,
 			 const TyTy::SubstitutionArgumentMappings &constraints)
@@ -70,6 +72,7 @@ walk_types_to_constrain (std::set<HirId> &constrained_symbols,
 	  const auto p = arg->get_root ();
 	  constrained_symbols.insert (p->get_ref ());
 	  constrained_symbols.insert (p->get_ty_ref ());
+	  walk_type_to_constrain (constrained_symbols, *arg);
 
 	  if (p->has_substitutions_defined ())
 	    {
@@ -101,6 +104,7 @@ walk_type_to_constrain (std::set<HirId> &constrained_symbols, TyTy::BaseType &r)
       {
 	auto &arr = static_cast<TyTy::ArrayType &> (r);
 	walk_type_to_constrain (constrained_symbols, *arr.get_element_type ());
+	walk_type_to_constrain (constrained_symbols, *arr.get_capacity ());
       }
       break;
     case TyTy::TypeKind::FNDEF:
@@ -115,6 +119,13 @@ walk_type_to_constrain (std::set<HirId> &constrained_symbols, TyTy::BaseType &r)
       {
 	auto &param = static_cast<TyTy::ParamType &> (r);
 	constrained_symbols.insert (param.get_ty_ref ());
+      }
+      break;
+    case TyTy::TypeKind::CONST:
+      {
+	auto *constant = r.as_const_type ();
+	if (constant->const_kind () == TyTy::BaseConstType::ConstKind::Decl)
+	  constrained_symbols.insert (r.get_ty_ref ());
       }
       break;
     case TyTy::SLICE:
@@ -185,6 +196,17 @@ TypeCheckBase::check_for_unconstrained (
   walk_types_to_constrain (constrained_symbols, constraint_a);
   walk_types_to_constrain (constrained_symbols, constraint_b);
   walk_type_to_constrain (constrained_symbols, *reference);
+
+  for (const auto &param : params_to_constrain)
+    {
+      auto *ty = param.get_param_ty ();
+      for (const auto &bound : ty->get_specified_bounds ())
+	{
+	  const auto &args = bound.get_substitution_arguments ();
+	  for (const auto &binding : args.get_binding_args ())
+	    walk_type_to_constrain (constrained_symbols, *binding.second);
+	}
+    }
 
   // check for unconstrained
   bool unconstrained = false;
@@ -647,7 +669,8 @@ TypeCheckBase::resolve_generic_params (
 
 	case HIR::GenericParam::GenericKind::CONST:
 	  {
-	    if (is_foreign && abi != Rust::ABI::INTRINSIC)
+	    if (is_foreign && abi != Rust::ABI::INTRINSIC
+		&& abi != Rust::ABI::PLATFORM_INTRINSIC)
 	      {
 		rust_error_at (generic_param->get_locus (), ErrorCode::E0044,
 			       "foreign items may not have const parameters");
@@ -725,7 +748,8 @@ TypeCheckBase::resolve_generic_params (
 
 	case HIR::GenericParam::GenericKind::TYPE:
 	  {
-	    if (is_foreign && abi != Rust::ABI::INTRINSIC)
+	    if (is_foreign && abi != Rust::ABI::INTRINSIC
+		&& abi != Rust::ABI::PLATFORM_INTRINSIC)
 	      {
 		rust_error_at (generic_param->get_locus (), ErrorCode::E0044,
 			       "foreign items may not have type parameters");

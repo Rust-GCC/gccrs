@@ -26,6 +26,7 @@
 #include "rust-macro-builtins.h"
 #include "rust-mapping-common.h"
 #include "rust-attribute-values.h"
+#include "rust-finalized-name-resolution-context.h"
 
 namespace Rust {
 namespace Analysis {
@@ -99,7 +100,8 @@ static const HirId kDefaultCrateNumBegin = 0;
 
 Mappings::Mappings ()
   : crateNumItr (kDefaultCrateNumBegin), currentCrateNum (UNKNOWN_CRATENUM),
-    hirIdIter (kDefaultHirIdBegin), nodeIdIter (kDefaultNodeIdBegin)
+    hirIdIter (kDefaultHirIdBegin), nodeIdIter (kDefaultNodeIdBegin),
+    hirImplIndexesBuilt (false)
 {
   Analysis::NodeMapping node (0, 0, 0, 0);
   builtinMarker
@@ -258,10 +260,7 @@ Mappings::get_ast_crate_by_node_id (NodeId id)
 AST::Crate *
 Mappings::get_ast_crate_by_node_id_raw (NodeId id)
 {
-  auto i = crate_node_to_crate_num.find (id);
-  rust_assert (i != crate_node_to_crate_num.end ());
-
-  CrateNum crateNum = i->second;
+  CrateNum crateNum = lookup_crate_num (id).value ();
   auto it = ast_crate_mappings.find (crateNum);
   rust_assert (it != ast_crate_mappings.end ());
   return it->second;
@@ -475,6 +474,25 @@ Mappings::insert_hir_impl_block (HIR::ImplBlock *item)
 
   HirId impl_type_id = item->get_type ().get_mappings ().get_hirid ();
   hirImplBlockMappings[id] = item;
+  if (item->has_trait_ref ())
+    hirTraitImplBlockMappings[id] = item;
+  else
+    {
+      for (auto &impl_item : item->get_impl_items ())
+	{
+	  if (impl_item->get_impl_item_type ()
+	      != HIR::ImplItem::ImplItemType::FUNCTION)
+	    continue;
+
+	  auto *function = static_cast<HIR::Function *> (impl_item.get ());
+	  if (!function->is_method ())
+	    continue;
+
+	  auto name = function->get_function_name ().as_string ();
+	  hirInherentImplItemMappings[name].emplace_back (impl_item.get (),
+							  item);
+	}
+    }
   hirImplBlockTypeMappings[impl_type_id] = item;
   insert_node_to_hir (item->get_mappings ().get_nodeid (), id);
 }
@@ -827,6 +845,174 @@ Mappings::iterate_impl_items (
       if (!cb (id, impl_item, impl))
 	return;
     }
+}
+
+void
+Mappings::insert_adt_impl_mapping (DefId adt_id, HIR::ImplBlock *impl)
+{
+  hirAdtImplMappings[adt_id].push_back (impl);
+  hirIndexedAdtImpls.insert (impl);
+}
+
+void
+Mappings::build_impl_indexes ()
+{
+  gcc_checking_assert (!hirImplIndexesBuilt);
+  if (hirImplIndexesBuilt)
+    return;
+  hirImplIndexesBuilt = true;
+
+  auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
+  auto resolve_item = [&] (const HIR::Type &type) -> HIR::Item * {
+    auto node_id = nr_ctx.lookup (type.get_mappings ().get_nodeid (),
+				  Resolver2_0::Namespace::Types);
+    if (!node_id.has_value ())
+      return nullptr;
+
+    auto hir_id = lookup_node_to_hir (node_id.value ());
+    gcc_checking_assert (hir_id.has_value ());
+    if (!hir_id.has_value ())
+      return nullptr;
+
+    auto item = lookup_hir_item (hir_id.value ());
+    return item.has_value () ? item.value () : nullptr;
+  };
+
+  iterate_impl_blocks ([&] (HirId, HIR::ImplBlock *impl) -> bool {
+    HIR::Item *self_item = resolve_item (impl->get_type ());
+    if (self_item != nullptr)
+      {
+	auto kind = self_item->get_item_kind ();
+	if (kind == HIR::Item::ItemKind::Struct
+	    || kind == HIR::Item::ItemKind::Enum
+	    || kind == HIR::Item::ItemKind::Union)
+	  insert_adt_impl_mapping (self_item->get_mappings ().get_defid (),
+				   impl);
+      }
+
+    if (impl->has_trait_ref ())
+      {
+	HIR::Item *trait_item = resolve_item (impl->get_trait_ref ());
+	if (trait_item != nullptr
+	    && trait_item->get_item_kind () == HIR::Item::ItemKind::Trait)
+	  insert_trait_impl_mapping (trait_item->get_mappings ().get_defid (),
+				     impl);
+      }
+    return true;
+  });
+}
+
+void
+Mappings::iterate_adt_impl_items (
+  DefId adt_id,
+  std::function<bool (HirId, HIR::ImplItem *, HIR::ImplBlock *)> cb)
+{
+  auto iterate_impl = [&] (HIR::ImplBlock *impl) {
+    for (auto &item : impl->get_impl_items ())
+      {
+	HIR::ImplItem *impl_item = item.get ();
+	HirId id = impl_item->get_impl_mappings ().get_hirid ();
+	if (!cb (id, impl_item, impl))
+	  return false;
+      }
+    return true;
+  };
+
+  auto adt_impls = hirAdtImplMappings.find (adt_id);
+  if (adt_impls != hirAdtImplMappings.end ())
+    for (auto *impl : adt_impls->second)
+      if (!iterate_impl (impl))
+	return;
+
+  // Impl self types which cannot be classified as a concrete ADT include
+  // blanket implementations such as `impl<T> Trait for T`.  They must remain
+  // candidates for every ADT receiver.
+  for (auto &mapping : hirImplBlockMappings)
+    {
+      HIR::ImplBlock *impl = mapping.second;
+      if (hirIndexedAdtImpls.find (impl) == hirIndexedAdtImpls.end ())
+	if (!iterate_impl (impl))
+	  return;
+    }
+}
+
+void
+Mappings::insert_trait_impl_mapping (DefId trait_id, HIR::ImplBlock *impl)
+{
+  hirTraitImplMappings[trait_id].push_back (impl);
+}
+
+void
+Mappings::iterate_trait_impl_blocks_for_item (
+  const std::string &name, std::function<bool (HirId, HIR::ImplBlock *)> cb)
+{
+  auto traits = hirTraitItemNameMappings.find (name);
+  if (traits == hirTraitItemNameMappings.end ())
+    return;
+
+  for (auto trait_id : traits->second)
+    {
+      auto impls = hirTraitImplMappings.find (trait_id);
+      if (impls == hirTraitImplMappings.end ())
+	continue;
+
+      for (auto *impl : impls->second)
+	if (!cb (impl->get_mappings ().get_hirid (), impl))
+	  return;
+    }
+}
+
+void
+Mappings::insert_trait_item_mapping (HirId trait_item_id, HIR::Trait *trait)
+{
+  rust_assert (hirTraitItemsToTraitMappings.find (trait_item_id)
+	       == hirTraitItemsToTraitMappings.end ());
+  hirTraitItemsToTraitMappings[trait_item_id] = trait;
+
+  auto item = lookup_hir_trait_item (trait_item_id);
+  rust_assert (item.has_value ());
+  if (item.value ()->get_item_kind () != HIR::TraitItem::TraitItemKind::FUNC)
+    return;
+
+  auto *function = static_cast<HIR::TraitItemFunc *> (item.value ());
+  if (!function->get_decl ().is_method ())
+    return;
+
+  auto name = function->get_decl ().get_function_name ().as_string ();
+  hirTraitItemNameMappings[name].push_back (
+    trait->get_mappings ().get_defid ());
+}
+
+void
+Mappings::iterate_trait_impl_items (
+  DefId trait_id,
+  std::function<bool (HirId, HIR::ImplItem *, HIR::ImplBlock *)> cb)
+{
+  auto trait_impls = hirTraitImplMappings.find (trait_id);
+  if (trait_impls == hirTraitImplMappings.end ())
+    return;
+
+  for (auto *impl : trait_impls->second)
+    for (auto &item : impl->get_impl_items ())
+      {
+	HIR::ImplItem *impl_item = item.get ();
+	HirId id = impl_item->get_impl_mappings ().get_hirid ();
+	if (!cb (id, impl_item, impl))
+	  return;
+      }
+}
+
+void
+Mappings::iterate_trait_impl_blocks (
+  DefId trait_id, std::function<bool (HirId, HIR::ImplBlock *)> cb)
+{
+  auto trait_impls = hirTraitImplMappings.find (trait_id);
+  if (trait_impls == hirTraitImplMappings.end ())
+    return;
+
+  for (auto *impl : trait_impls->second)
+    if (!cb (impl->get_mappings ().get_hirid (), impl))
+      return;
 }
 
 void

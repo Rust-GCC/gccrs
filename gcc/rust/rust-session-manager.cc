@@ -780,6 +780,10 @@ Session::compile_crate (const char *filename)
   if (last_step == CompileOptions::CompileStep::Lowering)
     return;
 
+  // Name resolution is complete.  Freeze its context before lowering so HIR
+  // construction can register information keyed by resolved definitions.
+  Resolver2_0::FinalizedNameResolutionContext::init (name_resolution_ctx);
+
   // lower AST to HIR
   std::unique_ptr<HIR::Crate> lowered
     = HIR::ASTLowering::Resolve (parsed_crate);
@@ -788,6 +792,7 @@ Session::compile_crate (const char *filename)
 
   // add the mappings to it
   HIR::Crate &hir = mappings.insert_hir_crate (std::move (lowered));
+  mappings.build_impl_indexes ();
   if (options.dump_option_enabled (CompileOptions::HIR_DUMP))
     {
       dump_hir (hir);
@@ -799,9 +804,6 @@ Session::compile_crate (const char *filename)
 
   if (last_step == CompileOptions::CompileStep::TypeCheck)
     return;
-
-  // name resolution is done, we now freeze the name resolver for type checking
-  Resolver2_0::FinalizedNameResolutionContext::init (name_resolution_ctx);
 
   // type resolve
   Compile::Context *ctx = Compile::Context::get ();

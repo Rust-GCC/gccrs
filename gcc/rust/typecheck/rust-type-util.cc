@@ -16,6 +16,7 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
+#include "rust-hir-item.h"
 #include "rust-system.h"
 #include "rust-type-util.h"
 #include "rust-diagnostics.h"
@@ -73,7 +74,34 @@ query_type (HirId reference, TyTy::BaseType **result)
     {
       rust_debug_loc (item.value ()->get_locus (), "resolved item {%u} to",
 		      reference);
-      *result = TypeCheckItem::Resolve (*item.value ());
+
+      DefId item_defid = item.value ()->get_mappings ().get_defid ();
+      bool is_local = item_defid.crateNum == mappings.get_current_crate ();
+      bool is_fn
+	= item.value ()->get_item_kind () == HIR::Item::ItemKind::Function;
+      bool is_const_fn = false;
+      if (is_fn)
+	{
+	  auto &fn = *static_cast<HIR::Function *> (item.value ());
+	  is_const_fn = fn.get_qualifiers ().is_const ();
+	}
+
+      bool needs_full_resolve_for_const
+	= is_fn && context->const_context_p () && is_const_fn;
+      if (is_fn && is_local && !needs_full_resolve_for_const)
+	{
+	  HIR::Function &fn = *static_cast<HIR::Function *> (item.value ());
+	  *result = TypeCheckItem::ResolveFunctionSignature (fn);
+	}
+      else if (item.value ()->get_item_kind () == HIR::Item::ItemKind::Trait
+	       && is_local && !context->const_context_p ())
+	{
+	  HIR::Trait &trait = *static_cast<HIR::Trait *> (item.value ());
+	  *result = TypeCheckItem::ResolveTraitSignature (trait);
+	}
+      else
+	*result = TypeCheckItem::Resolve (*item.value ());
+
       context->query_completed (reference);
       return true;
     }
@@ -82,30 +110,33 @@ query_type (HirId reference, TyTy::BaseType **result)
     {
       auto impl_block
 	= mappings.lookup_hir_impl_block (impl_item->second).value ();
+      auto lifetime_pin = context->push_clean_lifetime_resolver (true);
+
+      bool failure_flag = false;
+      auto substitutions
+	= TypeCheckItem::ResolveImplBlockSubstitutions (*impl_block,
+							failure_flag);
+      if (failure_flag)
+	{
+	  *result
+	    = TypeCheckItem::ResolveImplItem (*impl_block, *impl_item->first);
+	  context->query_completed (reference);
+	  return true;
+	}
+
+      TyTy::BaseType *self = nullptr;
+      bool ok
+	= query_type (impl_block->get_type ().get_mappings ().get_hirid (),
+		      &self);
+      if (!ok)
+	{
+	  context->query_completed (reference);
+	  return false;
+	}
 
       tl::optional<ImplTraitFrameGuard> guard;
       if (impl_block->has_trait_ref ())
 	{
-	  bool failure_flag = false;
-	  auto substitutions
-	    = TypeCheckItem::ResolveImplBlockSubstitutions (*impl_block,
-							    failure_flag);
-	  if (failure_flag)
-	    {
-	      context->query_completed (reference);
-	      return false;
-	    }
-
-	  TyTy::BaseType *self = nullptr;
-	  bool ok
-	    = query_type (impl_block->get_type ().get_mappings ().get_hirid (),
-			  &self);
-	  if (!ok)
-	    {
-	      context->query_completed (reference);
-	      return false;
-	    }
-
 	  HIR::TypePath &ref = impl_block->get_trait_ref ();
 	  auto trait_reference = TraitResolver::Resolve (ref);
 	  if (trait_reference->is_error ())
@@ -132,7 +163,29 @@ query_type (HirId reference, TyTy::BaseType **result)
       rust_debug_loc (impl_item->first->get_locus (),
 		      "resolved impl-item {%u} to", reference);
 
-      *result = TypeCheckItem::ResolveImplItem (*impl_block, *impl_item->first);
+      DefId item_defid = impl_item->first->get_impl_mappings ().get_defid ();
+      bool is_local = item_defid.crateNum == mappings.get_current_crate ();
+      bool is_fn
+	= impl_item->first->get_impl_item_type () == HIR::ImplItem::FUNCTION;
+      bool is_const_fn = false;
+      if (is_fn)
+	{
+	  auto &fn = *static_cast<HIR::Function *> (impl_item->first);
+	  is_const_fn = fn.get_qualifiers ().is_const ();
+	}
+
+      bool needs_full_resolve_for_const
+	= is_fn && context->const_context_p () && is_const_fn;
+      if (is_fn && is_local && !needs_full_resolve_for_const)
+	{
+	  HIR::Function &fn = *static_cast<HIR::Function *> (impl_item->first);
+	  *result = TypeCheckImplItem::ResolveFunctionSignature (
+	    *impl_block, fn, self, std::move (substitutions));
+	}
+      else
+	*result = TypeCheckImplItem::Resolve (*impl_block, *impl_item->first,
+					      self, std::move (substitutions));
+
       context->query_completed (reference);
       return true;
     }
@@ -221,8 +274,8 @@ unify_site (HirId id, TyTy::TyWithLocation lhs, TyTy::TyWithLocation rhs,
   std::vector<UnifyRules::CommitSite> commits;
   std::vector<UnifyRules::InferenceSite> infers;
   return UnifyRules::Resolve (lhs, rhs, unify_locus, true /*commit*/,
-			      true /*emit_error*/, false /*infer*/,
-			      true /*check_bounds*/, commits, infers);
+			      true /*emit_error*/, true /*check_bounds*/,
+			      false /*infer*/, commits, infers);
 }
 
 TyTy::BaseType *
@@ -247,7 +300,7 @@ unify_site_and (HirId id, TyTy::TyWithLocation lhs, TyTy::TyWithLocation rhs,
   std::vector<UnifyRules::InferenceSite> infers;
   TyTy::BaseType *result
     = UnifyRules::Resolve (lhs, rhs, unify_locus, false /*commit inline*/,
-			   emit_errors, implicit_infer_vars, check_bounds,
+			   emit_errors, check_bounds, implicit_infer_vars,
 			   commits, infers);
   bool ok = result->get_kind () != TyTy::TypeKind::ERROR;
 
@@ -382,7 +435,8 @@ lookup_associated_impl_block (const TyTy::TypeBoundPredicate &bound,
 
   // setup any associated type mappings for the specified bonds and this
   // type
-  auto candidates = TypeBoundsProbe::Probe (binding);
+  auto candidates
+    = TypeBoundsProbe::Probe (binding, bound.get ()->get_hir_trait_ref ());
   std::vector<AssociatedImplTrait *> associated_impl_traits;
   for (auto &probed_bound : candidates)
     {
@@ -563,7 +617,22 @@ normalize_projection (TyTy::ProjectionType *proj, location_t locus,
   ScopedPush<TyTy::ProjectionType *> guard (active_projections, proj);
 
   if (!proj->is_trait_position ())
-    return proj->get ();
+    {
+      TyTy::BaseType *base = proj->get ();
+      if (auto *param = base->try_as<TyTy::ParamType> ())
+	{
+	  if (param->can_resolve ())
+	    {
+	      TyTy::BaseType *resolved
+		= TyTy::TyVar (param->get_ty_ref ()).get_tyty ();
+	      if (!resolved->is<TyTy::ParamType> ())
+		base = resolved;
+	    }
+	}
+      if (auto *base_proj = base->try_as<TyTy::ProjectionType> ())
+	return normalize_projection (base_proj, locus, emit_errors, unify_self);
+      return base;
+    }
 
   // special case the discriminant_type lang item
   auto &mappings = Analysis::Mappings::get ();
@@ -590,7 +659,8 @@ normalize_projection (TyTy::ProjectionType *proj, location_t locus,
     }
 
   ImplTraitContextFrame frame;
-  if (!ctx->find_matching_impl_trait_frame (*proj->get_trait_ref (), &frame))
+  if (!ctx->find_matching_impl_trait_frame (*proj->get_trait_ref (),
+					    *proj->get_self (), &frame))
     {
       // No concrete impl frame check WHERE clause bindings on the self type
       //
@@ -626,6 +696,24 @@ normalize_projection (TyTy::ProjectionType *proj, location_t locus,
 	      auto it = binding.find (assoc_name);
 	      if (it != binding.end ())
 		return it->second;
+
+	      const auto &constraints
+		= bound.get_substitution_arguments ().get_constraint_args ();
+	      auto constraint = constraints.find (assoc_name);
+	      if (constraint != constraints.end ())
+		{
+		  TyTy::BaseType *constrained = proj->clone ();
+		  constrained->inherit_bounds (*constraint->second);
+
+		  // Keep the constrained projection distinct from the canonical
+		  // associated-type declaration.
+		  auto &mappings = Analysis::Mappings::get ();
+		  HirId fresh = mappings.get_next_hir_id ();
+		  constrained->set_ref (fresh);
+		  constrained->set_ty_ref (fresh);
+		  ctx->insert_implicit_type (fresh, constrained);
+		  return constrained;
+		}
 	    }
 	}
 
@@ -654,7 +742,8 @@ normalize_projection (TyTy::ProjectionType *proj, location_t locus,
 	  && self->get_kind () != TyTy::TypeKind::INFER
 	  && self->get_kind () != TyTy::TypeKind::PROJECTION)
 	{
-	  auto candidates = TypeBoundsProbe::Probe (self);
+	  auto candidates = TypeBoundsProbe::Probe (
+	    self, proj->get_trait_ref ()->get_hir_trait_ref ());
 	  for (auto &probed : candidates)
 	    {
 	      HIR::ImplBlock *impl_block = probed.second;

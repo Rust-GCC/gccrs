@@ -224,7 +224,6 @@ SubstitutionParamMapping::fill_param_ty (
 	  bound.handle_substitions (subst_mappings);
 
       param->set_ty_ref (type.get_ref ());
-      subst_mappings.on_param_subst (p, arg);
     }
 
   return true;
@@ -335,18 +334,19 @@ SubstitutionArgumentMappings::get_mut_regions ()
 SubstitutionArgumentMappings::SubstitutionArgumentMappings (
   std::vector<SubstitutionArg> mappings,
   std::map<std::string, BaseType *> binding_args, RegionParamList regions,
-  location_t locus, ParamSubstCb param_subst_cb, bool trait_item_flag,
-  bool error_flag)
+  location_t locus, bool trait_item_flag, bool error_flag,
+  std::map<std::string, BaseType *> constraint_args)
   : mappings (std::move (mappings)), binding_args (binding_args),
-    regions (regions), locus (locus), param_subst_cb (param_subst_cb),
+    constraint_args (constraint_args), regions (regions), locus (locus),
     trait_item_flag (trait_item_flag), error_flag (error_flag)
 {}
 
 SubstitutionArgumentMappings::SubstitutionArgumentMappings (
   const SubstitutionArgumentMappings &other)
   : mappings (other.mappings), binding_args (other.binding_args),
-    regions (other.regions), locus (other.locus), param_subst_cb (nullptr),
-    trait_item_flag (other.trait_item_flag), error_flag (other.error_flag)
+    constraint_args (other.constraint_args), regions (other.regions),
+    locus (other.locus), trait_item_flag (other.trait_item_flag),
+    error_flag (other.error_flag)
 {}
 
 SubstitutionArgumentMappings &
@@ -355,9 +355,9 @@ SubstitutionArgumentMappings::operator= (
 {
   mappings = other.mappings;
   binding_args = other.binding_args;
+  constraint_args = other.constraint_args;
   regions = other.regions;
   locus = other.locus;
-  param_subst_cb = nullptr;
   trait_item_flag = other.trait_item_flag;
   error_flag = other.error_flag;
 
@@ -367,15 +367,14 @@ SubstitutionArgumentMappings::operator= (
 SubstitutionArgumentMappings
 SubstitutionArgumentMappings::error ()
 {
-  return SubstitutionArgumentMappings ({}, {}, 0, UNDEF_LOCATION, nullptr,
-				       false, true);
+  return SubstitutionArgumentMappings ({}, {}, 0, UNDEF_LOCATION, false, true);
 }
 
 SubstitutionArgumentMappings
 SubstitutionArgumentMappings::empty (size_t num_regions)
 {
   return SubstitutionArgumentMappings ({}, {}, num_regions, UNDEF_LOCATION,
-				       nullptr, false, false);
+				       false, false);
 }
 
 bool
@@ -476,6 +475,12 @@ SubstitutionArgumentMappings::get_binding_args () const
   return binding_args;
 }
 
+const std::map<std::string, BaseType *> &
+SubstitutionArgumentMappings::get_constraint_args () const
+{
+  return constraint_args;
+}
+
 std::string
 SubstitutionArgumentMappings::as_string () const
 {
@@ -485,22 +490,6 @@ SubstitutionArgumentMappings::as_string () const
       buffer += mapping.as_string () + ", ";
     }
   return "<" + buffer + ">";
-}
-
-void
-SubstitutionArgumentMappings::on_param_subst (const ParamType &p,
-					      const SubstitutionArg &a) const
-{
-  if (param_subst_cb == nullptr)
-    return;
-
-  param_subst_cb (p, a);
-}
-
-ParamSubstCb
-SubstitutionArgumentMappings::get_subst_cb () const
-{
-  return param_subst_cb;
 }
 
 bool
@@ -685,6 +674,7 @@ SubstitutionRef::get_mappings_from_generic_args (
   HIR::GenericArgs &args, const std::vector<Region> &regions)
 {
   std::map<std::string, BaseType *> binding_arguments;
+  std::map<std::string, BaseType *> constraint_arguments;
   if (args.get_binding_args ().size () > 0)
     {
       if (supports_associated_bindings ())
@@ -721,8 +711,13 @@ SubstitutionRef::get_mappings_from_generic_args (
 		  return SubstitutionArgumentMappings::error ();
 		}
 
-	      binding_arguments[binding.get_identifier ().as_string ()]
-		= resolved;
+	      if (binding.get_kind ()
+		  == HIR::GenericArgsBinding::Kind::Constraint)
+		constraint_arguments[binding.get_identifier ().as_string ()]
+		  = resolved;
+	      else
+		binding_arguments[binding.get_identifier ().as_string ()]
+		  = resolved;
 	    }
 	}
       else
@@ -945,10 +940,14 @@ SubstitutionRef::get_mappings_from_generic_args (
 	}
     }
 
-  return {mappings, binding_arguments,
+  return {mappings,
+	  binding_arguments,
 	  RegionParamList::from_subst (used_arguments.get_regions ().size (),
 				       regions),
-	  args.get_locus ()};
+	  args.get_locus (),
+	  false,
+	  false,
+	  constraint_arguments};
 }
 
 BaseType *
@@ -1040,8 +1039,8 @@ SubstitutionRef::adjust_mappings_for_this (
 				       mappings.get_binding_args (),
 				       mappings.get_regions (),
 				       mappings.get_locus (),
-				       mappings.get_subst_cb (),
-				       mappings.trait_item_mode ());
+				       mappings.trait_item_mode (), false,
+				       mappings.get_constraint_args ());
 }
 
 bool
@@ -1101,7 +1100,8 @@ SubstitutionRef::solve_mappings_from_receiver_for_self (
   return SubstitutionArgumentMappings (resolved_mappings,
 				       mappings.get_binding_args (),
 				       mappings.get_regions (),
-				       mappings.get_locus ());
+				       mappings.get_locus (), false, false,
+				       mappings.get_constraint_args ());
 }
 
 bool

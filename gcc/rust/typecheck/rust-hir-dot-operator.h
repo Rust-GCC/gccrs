@@ -59,11 +59,13 @@ public:
 
   static std::set<MethodCandidate>
   Probe (TyTy::BaseType *receiver, const HIR::PathIdentSegment &segment_name,
-	 bool autoderef_flag = false);
+	 bool autoderef_flag = false,
+	 const HIR::Trait *specified_trait = nullptr);
 
   static std::set<MethodCandidate>
   Select (std::set<MethodCandidate> &candidates, TyTy::BaseType *receiver,
-	  std::vector<TyTy::BaseType *> arguments);
+	  std::vector<TyTy::BaseType *> arguments,
+	  TyTy::BaseType *result_type = nullptr);
 
   static std::vector<predicate_candidate> get_predicate_items (
     const HIR::PathIdentSegment &segment_name, const TyTy::BaseType &receiver,
@@ -99,7 +101,8 @@ public:
 
 protected:
   MethodResolver (bool autoderef_flag,
-		  const HIR::PathIdentSegment &segment_name);
+		  const HIR::PathIdentSegment &segment_name,
+		  const HIR::Trait *specified_trait);
 
   void try_hook (const TyTy::BaseType &r) override;
 
@@ -131,6 +134,7 @@ private:
 private:
   // search
   const HIR::PathIdentSegment &segment_name;
+  const HIR::Trait *specified_trait;
   std::vector<MethodResolver::predicate_candidate> predicate_items;
 
   // mutable fields

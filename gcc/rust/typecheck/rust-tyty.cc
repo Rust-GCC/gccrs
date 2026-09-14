@@ -156,7 +156,7 @@ BaseType::BaseType (HirId ref, HirId ty_ref, TypeKind kind, RustIdent ident,
 BaseType::BaseType (HirId ref, HirId ty_ref, TypeKind kind, RustIdent ident,
 		    std::vector<TypeBoundPredicate> specified_bounds,
 		    std::set<HirId> refs)
-  : TypeBoundsMappings (specified_bounds), kind (kind), ref (ref),
+  : TypeBoundsMappings (std::move (specified_bounds)), kind (kind), ref (ref),
     ty_ref (ty_ref), orig_ref (ref), combined (refs), ident (ident),
     mappings (Analysis::Mappings::get ())
 {}
@@ -395,7 +395,9 @@ BaseType::satisfies_bound (const TypeBoundPredicate &predicate, bool emit_error)
     return true;
 
   bool satisfied = false;
-  auto probed = Resolver::TypeBoundsProbe::Probe (this);
+  auto tref = predicate.get ();
+  auto probed
+    = Resolver::TypeBoundsProbe::Probe (this, tref->get_hir_trait_ref ());
   for (const auto &b : probed)
     {
       const Resolver::TraitReference *bound = b.first;
@@ -529,6 +531,12 @@ void
 BaseType::inherit_bounds (const BaseType &other)
 {
   inherit_bounds (other.get_specified_bounds ());
+}
+
+void
+BaseType::inherit_bound (const TypeBoundPredicate &bound)
+{
+  add_bound (bound);
 }
 
 void
@@ -3699,7 +3707,7 @@ ParamType::ParamType (std::string symbol, location_t locus, HirId ref,
   : BaseGeneric (ref, ref, KIND,
 		 {Resolver::CanonicalPath::new_seg (UNKNOWN_NODEID, symbol),
 		  locus},
-		 specified_bounds, refs),
+		 std::move (specified_bounds), refs),
     is_trait_self (false), symbol (symbol)
 {}
 
@@ -3710,7 +3718,7 @@ ParamType::ParamType (bool is_trait_self, std::string symbol, location_t locus,
   : BaseGeneric (ref, ty_ref, KIND,
 		 {Resolver::CanonicalPath::new_seg (UNKNOWN_NODEID, symbol),
 		  locus},
-		 specified_bounds, refs),
+		 std::move (specified_bounds), refs),
     is_trait_self (is_trait_self), symbol (symbol)
 {}
 
@@ -3833,8 +3841,6 @@ ParamType::handle_substitions (SubstitutionArgumentMappings &subst_mappings)
     return this;
 
   ParamType *p = static_cast<ParamType *> (clone ());
-  subst_mappings.on_param_subst (*p, arg);
-
   const BaseType *resolved = arg.get_tyty ();
   if (resolved->get_kind () == TyTy::TypeKind::PARAM)
     {

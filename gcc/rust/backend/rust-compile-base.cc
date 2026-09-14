@@ -30,7 +30,7 @@
 #include "rust-expr.h" // for AST::AttrInputLiteral
 #include "rust-hir-map.h"
 #include "rust-macro.h" // for AST::MetaNameValueStr
-#include "rust-hir-path-probe.h"
+#include "rust-hir-path-probe-impl-trait.h"
 #include "rust-type-util.h"
 #include "rust-compile-implitem.h"
 #include "rust-attribute-values.h"
@@ -509,6 +509,7 @@ HIRCompileBase::setup_abi_options (tree fndecl, ABI abi)
     {
     case Rust::ABI::RUST:
     case Rust::ABI::INTRINSIC:
+    case Rust::ABI::PLATFORM_INTRINSIC:
     case Rust::ABI::C:
     case Rust::ABI::CDECL:
       // `decl_attributes` function (not the macro) has the side-effect of

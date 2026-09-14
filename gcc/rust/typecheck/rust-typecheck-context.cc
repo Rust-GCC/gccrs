@@ -110,6 +110,24 @@ TypeCheckContext::lookup_type (HirId id, TyTy::BaseType **type) const
 }
 
 void
+TypeCheckContext::mark_function_body_pending (DefId id)
+{
+  function_bodies_pending.insert (id);
+}
+
+void
+TypeCheckContext::clear_function_body_pending (DefId id)
+{
+  function_bodies_pending.erase (id);
+}
+
+bool
+TypeCheckContext::function_body_pending (DefId id) const
+{
+  return function_bodies_pending.find (id) != function_bodies_pending.end ();
+}
+
+void
 TypeCheckContext::clear_type (TyTy::BaseType *ty)
 {
   auto it = resolved.find (ty->get_ref ());
@@ -155,12 +173,16 @@ TypeCheckContext::push_return_type (TypeCheckContextItem item,
 				    TyTy::BaseType *return_type)
 {
   return_type_stack.emplace_back (std::move (item), return_type);
+  // a query can check another function body while an expression in the
+  // caller has an expected type
+  push_expected_type (nullptr);
 }
 
 void
 TypeCheckContext::pop_return_type ()
 {
   rust_assert (!return_type_stack.empty ());
+  pop_expected_type ();
   return_type_stack.pop_back ();
 }
 
@@ -253,7 +275,8 @@ TypeCheckContext::swap_head_loop_context (TyTy::BaseType *val)
 
 bool
 TypeCheckContext::find_matching_impl_trait_frame (
-  const TraitReference &tref, struct ImplTraitContextFrame *find) const
+  const TraitReference &tref, TyTy::BaseType &self,
+  struct ImplTraitContextFrame *find) const
 {
   if (!have_impl_trait_context ())
     return false;
@@ -262,7 +285,26 @@ TypeCheckContext::find_matching_impl_trait_frame (
        it != impl_trait_frame_stack.rend (); ++it)
     {
       const auto &i = *it;
-      if (i.trait->is_equal (tref))
+      if (!i.trait->is_equal (tref))
+	continue;
+
+      TyTy::BaseType *resolved_self = &self;
+      bool unresolved_trait_self = false;
+      if (auto param = self.try_as<TyTy::ParamType> ())
+	{
+	  if (param->can_resolve ())
+	    resolved_self = param->resolve ();
+	  else
+	    unresolved_trait_self = param->is_implicit_self_trait ();
+	}
+
+      bool compatible_self
+	= unresolved_trait_self
+	  || types_compatable (TyTy::TyWithLocation (i.self),
+			       TyTy::TyWithLocation (resolved_self),
+			       UNDEF_LOCATION, false /* emit_errors */,
+			       false /* check_bounds */);
+      if (compatible_self)
 	{
 	  *find = i;
 	  return true;
@@ -536,13 +578,13 @@ TypeCheckContext::have_checked_for_unconstrained (HirId id, bool *result)
 }
 
 void
-TypeCheckContext::insert_resolved_predicate (HirId id,
-					     TyTy::TypeBoundPredicate predicate)
+TypeCheckContext::insert_resolved_predicate (
+  HirId id, const TyTy::TypeBoundPredicate &predicate)
 {
   // auto it = predicates.find (id);
   // rust_assert (it == predicates.end ());
 
-  predicates.insert ({id, predicate});
+  predicates.emplace (id, predicate);
 }
 
 bool
@@ -687,8 +729,7 @@ bool
 TypeCheckContext::compute_ambigious_op_overload (HirId id,
 						 DeferredOpOverload &op)
 {
-  rust_debug ("attempting resolution of op overload: %s",
-	      op.predicate.as_string ().c_str ());
+  rust_debug ("attempting resolution of deferred operator overload");
 
   TyTy::BaseType *lhs = nullptr;
   bool ok = lookup_type (op.op.get_lvalue_mappings ().get_hirid (), &lhs);
@@ -701,8 +742,28 @@ TypeCheckContext::compute_ambigious_op_overload (HirId id,
       rust_assert (ok);
     }
 
-  TypeCheckExpr::ResolveOpOverload (op.lang_item_type, op.op, lhs, rhs,
-				    op.specified_segment);
+  TyTy::BaseType *current_result = op.result_type.get_tyty ();
+  rust_assert (current_result != nullptr);
+
+  rust_debug ("deferred operator expr=%u lhs=%s rhs=%s "
+	      "stored-result=%s current-result=%s result-ref=%u ty-ref=%u",
+	      id, lhs->debug_str ().c_str (),
+	      rhs == nullptr ? "<none>" : rhs->debug_str ().c_str (),
+	      current_result->debug_str ().c_str (),
+	      current_result->debug_str ().c_str (), op.result_type.get_ref (),
+	      current_result->get_ty_ref ());
+
+  TyTy::BaseType *resolved
+    = TypeCheckExpr::ResolveOpOverload (op.lang_item_type, op.op, lhs, rhs,
+					op.specified_segment, current_result);
+  if (resolved == nullptr)
+    return false;
+
+  TyTy::BaseType *result
+    = unify_site (id, TyTy::TyWithLocation (current_result),
+		  TyTy::TyWithLocation (resolved), op.op.get_locus ());
+  rust_assert (result != nullptr);
+  rust_assert (result->get_kind () != TyTy::TypeKind::ERROR);
 
   return true;
 }
@@ -710,14 +771,33 @@ TypeCheckContext::compute_ambigious_op_overload (HirId id,
 void
 TypeCheckContext::compute_inference_variables (bool emit_error)
 {
-  iterate_deferred_operator_overloads (
-    [&] (HirId id, DeferredOpOverload &op) mutable -> bool {
-      return compute_ambigious_op_overload (id, op);
-    });
+  auto resolve_deferred_operator_overloads = [this] () {
+    bool progress;
+    do
+      {
+	progress = false;
+	for (auto it = deferred_operator_overloads.begin ();
+	     it != deferred_operator_overloads.end ();)
+	  {
+	    if (compute_ambigious_op_overload (it->first, it->second))
+	      {
+		it = deferred_operator_overloads.erase (it);
+		progress = true;
+	      }
+	    else
+	      ++it;
+	  }
+      }
+    while (progress);
+  };
+
+  resolve_deferred_operator_overloads ();
 
   iterate ([&] (HirId id, TyTy::BaseType *ty) mutable -> bool {
     return compute_infer_var (id, ty, emit_error);
   });
+
+  resolve_deferred_operator_overloads ();
 }
 
 bool
@@ -733,9 +813,15 @@ TypeCheckContext::compute_infer_var (HirId id, TyTy::BaseType *ty,
   TyTy::InferType *infer_var = static_cast<TyTy::InferType *> (ty);
   TyTy::BaseType *default_type;
 
+  TyTy::BaseType *current = TyTy::TyVar (ty->get_ref ()).get_tyty ();
+  rust_assert (current != nullptr);
+
   rust_debug_loc (mappings.lookup_location (id),
-		  "trying to default infer-var: %s",
-		  infer_var->as_string ().c_str ());
+		  "trying to default infer-var id=%u ref=%u ty-ref=%u "
+		  "stored=%s current=%s",
+		  id, ty->get_ref (), ty->get_ty_ref (),
+		  infer_var->debug_str ().c_str (),
+		  current->debug_str ().c_str ());
   bool ok = infer_var->default_type (&default_type);
   if (!ok)
     {
@@ -744,6 +830,9 @@ TypeCheckContext::compute_infer_var (HirId id, TyTy::BaseType *ty,
 		       "type annotations needed");
       return true;
     }
+
+  rust_debug_loc (mappings.lookup_location (id), "default type selected: %s",
+		  default_type->debug_str ().c_str ());
 
   auto result
     = unify_site (id, TyTy::TyWithLocation (ty),

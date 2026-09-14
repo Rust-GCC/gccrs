@@ -208,6 +208,47 @@ public:
   void iterate_impl_items (
     std::function<bool (HirId, HIR::ImplItem *, HIR::ImplBlock *)> cb);
 
+  template <typename Callback>
+  void iterate_inherent_impl_items (const std::string &name, Callback &&cb)
+  {
+    auto items = hirInherentImplItemMappings.find (name);
+    if (items == hirInherentImplItemMappings.end ())
+      return;
+
+    for (auto &item : items->second)
+      if (!cb (item.first, item.second))
+	return;
+  }
+
+  void insert_adt_impl_mapping (DefId adt_id, HIR::ImplBlock *impl);
+
+  void build_impl_indexes ();
+
+  void iterate_adt_impl_items (
+    DefId adt_id,
+    std::function<bool (HirId, HIR::ImplItem *, HIR::ImplBlock *)> cb);
+
+  void insert_trait_impl_mapping (DefId trait_id, HIR::ImplBlock *impl);
+
+  void iterate_trait_impl_items (
+    DefId trait_id,
+    std::function<bool (HirId, HIR::ImplItem *, HIR::ImplBlock *)> cb);
+
+  void
+  iterate_trait_impl_blocks (DefId trait_id,
+			     std::function<bool (HirId, HIR::ImplBlock *)> cb);
+
+  template <typename Callback> void iterate_trait_impl_blocks (Callback &&cb)
+  {
+    for (auto it = hirTraitImplBlockMappings.begin ();
+	 it != hirTraitImplBlockMappings.end (); ++it)
+      if (!cb (it->first, it->second))
+	return;
+  }
+
+  void iterate_trait_impl_blocks_for_item (
+    const std::string &name, std::function<bool (HirId, HIR::ImplBlock *)> cb);
+
   void iterate_impl_blocks (std::function<bool (HirId, HIR::ImplBlock *)> cb);
 
   void iterate_trait_items (
@@ -215,12 +256,7 @@ public:
 
   bool is_impl_item (HirId id) { return lookup_hir_implitem (id).has_value (); }
 
-  void insert_trait_item_mapping (HirId trait_item_id, HIR::Trait *trait)
-  {
-    rust_assert (hirTraitItemsToTraitMappings.find (trait_item_id)
-		 == hirTraitItemsToTraitMappings.end ());
-    hirTraitItemsToTraitMappings[trait_item_id] = trait;
-  }
+  void insert_trait_item_mapping (HirId trait_item_id, HIR::Trait *trait);
 
   HIR::Trait *lookup_trait_item_mapping (HirId trait_item_id)
   {
@@ -395,7 +431,16 @@ private:
   std::map<HirId, HIR::SelfParam *> hirSelfParamMappings;
   std::map<HirId, HIR::ImplBlock *> hirImplItemsToImplMappings;
   std::map<HirId, HIR::ImplBlock *> hirImplBlockMappings;
+  std::map<HirId, HIR::ImplBlock *> hirTraitImplBlockMappings;
+  std::map<std::string,
+	   std::vector<std::pair<HIR::ImplItem *, HIR::ImplBlock *>>>
+    hirInherentImplItemMappings;
   std::map<HirId, HIR::ImplBlock *> hirImplBlockTypeMappings;
+  std::map<DefId, std::vector<HIR::ImplBlock *>> hirAdtImplMappings;
+  std::set<HIR::ImplBlock *> hirIndexedAdtImpls;
+  std::map<DefId, std::vector<HIR::ImplBlock *>> hirTraitImplMappings;
+  std::map<std::string, std::vector<DefId>> hirTraitItemNameMappings;
+  bool hirImplIndexesBuilt;
   std::map<HirId, HIR::TraitItem *> hirTraitItemMappings;
   std::map<HirId, HIR::ExternBlock *> hirExternBlockMappings;
   std::map<HirId, std::pair<HIR::ExternalItem *, HirId>> hirExternItemMappings;
