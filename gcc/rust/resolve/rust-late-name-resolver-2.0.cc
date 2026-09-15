@@ -169,6 +169,12 @@ visit_identifier_as_pattern (NameResolutionContext &ctx,
   // but values does not allow shadowing... since functions cannot shadow
   // do we insert functions in labels as well?
 
+  if (ident.as_string () == "None" && !is_ref && !is_mut)
+    {
+      rust_sorry_at (
+	locus, "%<None%> as an identifier pattern is probably a resolver bug");
+    }
+
   if (ctx.bindings.peek ().is_and_bound (ident))
     {
       if (ctx.bindings.peek ().get_source () == BindingSource::Param)
