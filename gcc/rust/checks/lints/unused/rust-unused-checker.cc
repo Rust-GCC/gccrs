@@ -26,13 +26,24 @@
 #include "rust-keyword-values.h"
 #include "rust-attribute-values.h"
 #include "rust-rib.h"
+#include "rust-tyty.h"
 
 namespace Rust {
 namespace Analysis {
 UnusedChecker::UnusedChecker ()
   : nr_context (Resolver2_0::FinalizedNameResolutionContext::get ()),
-    mappings (Analysis::Mappings::get ()), unused_context (UnusedContext ())
+    mappings (Analysis::Mappings::get ()),
+    context (*Resolver::TypeCheckContext::get ()),
+    unused_context (UnusedContext ())
 {}
+
+static bool
+is_numeric (TyTy::BaseType *type)
+{
+  auto kind = type->get_kind ();
+  return kind == TyTy::INT || kind == TyTy::UINT || kind == TyTy::FLOAT
+	 || kind == TyTy::USIZE || kind == TyTy::ISIZE;
+}
 void
 UnusedChecker::go (HIR::Crate &crate)
 {
@@ -324,6 +335,41 @@ UnusedChecker::visit (HIR::MatchExpr &expr)
 			 "multiple ranges are one apart");
     }
 
+  // Every arm after an unguarded wildcard can never match. A bare identifier
+  // is not treated as irrefutable: the resolver does not yet disambiguate a
+  // unit-variant path (e.g. None) from a fresh binding.
+  bool seen_irrefutable = false;
+  for (auto &match_case : expr.get_match_cases ())
+    {
+      auto &arm = match_case.get_arm ();
+      if (seen_irrefutable)
+	{
+	  rust_warning_at (arm.get_pattern ()->get_locus (), OPT_Wunused,
+			   "unreachable pattern");
+	  continue;
+	}
+
+      if (!arm.has_match_arm_guard ()
+	  && arm.get_pattern ()->get_pattern_type ()
+	       == HIR::Pattern::PatternType::WILDCARD)
+	seen_irrefutable = true;
+    }
+
+  // An inclusive range whose upper endpoint equals another range's lower
+  // endpoint overlaps it on that single point.
+  for (size_t i = 0; i < ranges.size (); i++)
+    {
+      if (!ranges[i].inclusive)
+	continue;
+      for (size_t j = 0; j < ranges.size (); j++)
+	if (i != j && ranges[i].hi == ranges[j].lo)
+	  {
+	    rust_warning_at (ranges[i].locus, OPT_Wunused,
+			     "multiple patterns overlap on their endpoints");
+	    break;
+	  }
+    }
+
   walk (expr);
 }
 
@@ -411,6 +457,151 @@ UnusedChecker::visit (HIR::BreakExpr &expr)
       "this labeled %<break%> expression is easy to confuse with "
       "an unlabeled %<break%> with a labeled value expression");
   walk (expr);
+}
+
+namespace {
+
+// Collects the value of a boolean literal expression, if the visited
+// expression is one.
+class BoolLiteral : public HIR::HIRFullVisitorBase
+{
+public:
+  bool found = false;
+  bool value = false;
+
+  using HIR::HIRFullVisitorBase::visit;
+  void visit (HIR::LiteralExpr &lit) override
+  {
+    if (lit.get_literal ().get_lit_type () == HIR::Literal::LitType::BOOL)
+      {
+	found = true;
+	value
+	  = lit.get_literal ().as_string () == Values::Keywords::TRUE_LITERAL;
+      }
+  }
+};
+
+// Detects a predicate that is constantly true: the `true` literal, or a
+// comparison of two boolean literals that always holds.
+class ConstantTruth : public HIR::HIRFullVisitorBase
+{
+public:
+  bool is_true = false;
+
+  using HIR::HIRFullVisitorBase::visit;
+  void visit (HIR::LiteralExpr &lit) override
+  {
+    if (lit.get_literal ().get_lit_type () == HIR::Literal::LitType::BOOL)
+      is_true
+	= lit.get_literal ().as_string () == Values::Keywords::TRUE_LITERAL;
+  }
+
+  void visit (HIR::ComparisonExpr &cmp) override
+  {
+    BoolLiteral lhs, rhs;
+    cmp.get_lhs ().accept_vis (lhs);
+    cmp.get_rhs ().accept_vis (rhs);
+    if (lhs.found && rhs.found)
+      {
+	if (cmp.get_kind () == ComparisonOperator::EQUAL)
+	  is_true = lhs.value == rhs.value;
+	else if (cmp.get_kind () == ComparisonOperator::NOT_EQUAL)
+	  is_true = lhs.value != rhs.value;
+      }
+  }
+};
+
+} // namespace
+
+void
+UnusedChecker::visit (HIR::WhileLoopExpr &expr)
+{
+  ConstantTruth predicate;
+  expr.get_predicate_expr ().accept_vis (predicate);
+  if (predicate.is_true)
+    rust_warning_at (expr.get_locus (), OPT_Wunused,
+		     "denote infinite loops with %<loop { ... }%>");
+  walk (expr);
+}
+
+void
+UnusedChecker::visit (HIR::ExprStmt &stmt)
+{
+  if (stmt.get_expr ().get_expression_type () == HIR::Expr::ExprType::Path)
+    rust_warning_at (stmt.get_locus (), OPT_Wunused_value,
+		     "path statement with no effect");
+  walk (stmt);
+}
+
+void
+UnusedChecker::visit (HIR::ComparisonExpr &expr)
+{
+  auto is_zero = [] (HIR::Expr &e) {
+    return e.get_expression_type () == HIR::Expr::ExprType::Lit
+	   && static_cast<HIR::LiteralExpr &> (e).get_literal ().as_string ()
+		== "0";
+  };
+  auto is_unsigned = [this] (HIR::Expr &e) {
+    TyTy::BaseType *type;
+    if (!context.lookup_type (e.get_mappings ().get_hirid (), &type))
+      return false;
+    return type->get_kind () == TyTy::UINT || type->get_kind () == TyTy::USIZE;
+  };
+
+  auto op = expr.get_expr_type ();
+  bool useless = (is_zero (expr.get_rhs ()) && is_unsigned (expr.get_lhs ())
+		  && (op == ComparisonOperator::LESS_THAN
+		      || op == ComparisonOperator::GREATER_OR_EQUAL))
+		 || (is_zero (expr.get_lhs ()) && is_unsigned (expr.get_rhs ())
+		     && (op == ComparisonOperator::GREATER_THAN
+			 || op == ComparisonOperator::LESS_OR_EQUAL));
+  if (useless)
+    rust_warning_at (expr.get_locus (), OPT_Wtype_limits,
+		     "comparison is useless due to type limits");
+  walk (expr);
+}
+
+void
+UnusedChecker::visit (HIR::TypeCastExpr &expr)
+{
+  TyTy::BaseType *from;
+  TyTy::BaseType *to;
+  bool found_from
+    = context.lookup_type (expr.get_casted_expr ().get_mappings ().get_hirid (),
+			   &from);
+  bool found_to = context.lookup_type (expr.get_mappings ().get_hirid (), &to);
+
+  if (found_from && found_to)
+    {
+      bool is_numeric_cast = is_numeric (from) && is_numeric (to);
+      bool type_names_match = from->as_string () == to->as_string ();
+
+      if (is_numeric_cast && type_names_match)
+	rust_warning_at (expr.get_locus (), OPT_Wunused,
+			 "trivial numeric cast: %qs as %qs",
+			 from->as_string ().c_str (),
+			 to->as_string ().c_str ());
+    }
+  walk (expr);
+}
+
+void
+UnusedChecker::visit (HIR::TypeAlias &type_alias)
+{
+  bool has_bounds = type_alias.has_where_clause ();
+  for (auto &param : type_alias.get_generic_params ())
+    if (param->get_kind () == HIR::GenericParam::GenericKind::TYPE)
+      {
+	auto &type_param = static_cast<HIR::TypeParam &> (*param);
+	if (type_param.has_type_param_bounds ())
+	  has_bounds = true;
+      }
+
+  if (has_bounds)
+    rust_warning_at (type_alias.get_locus (), OPT_Wunused,
+		     "bounds on generic parameters in type aliases are not "
+		     "enforced");
+  walk (type_alias);
 }
 
 } // namespace Analysis
