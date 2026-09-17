@@ -599,6 +599,8 @@ public:
     // TODO: Is this how we should be getting the crate node id?
     auto &mappings = Analysis::Mappings::get ();
     root.id = *mappings.crate_num_to_nodeid (mappings.get_current_crate ());
+    extern_prelude.id = mappings.get_next_node_id ();
+    lang_prelude.id = mappings.get_next_node_id ();
   }
 
   /**
