@@ -70,13 +70,14 @@ query_type (HirId reference, TyTy::BaseType **result)
       return true;
     }
 
-  if (auto item = mappings.lookup_hir_item (reference))
+  if (auto item = mappings.hir.item.lookup (reference))
     {
       rust_debug_loc (item.value ()->get_locus (), "resolved item {%u} to",
 		      reference);
 
       DefId item_defid = item.value ()->get_mappings ().get_defid ();
-      bool is_local = item_defid.crateNum == mappings.get_current_crate ();
+      bool is_local
+	= item_defid.crateNum == mappings.crate_mapping.get_current_crate ();
       bool is_fn
 	= item.value ()->get_item_kind () == HIR::Item::ItemKind::Function;
       bool is_const_fn = false;
@@ -164,7 +165,8 @@ query_type (HirId reference, TyTy::BaseType **result)
 		      "resolved impl-item {%u} to", reference);
 
       DefId item_defid = impl_item->first->get_impl_mappings ().get_defid ();
-      bool is_local = item_defid.crateNum == mappings.get_current_crate ();
+      bool is_local
+	= item_defid.crateNum == mappings.crate_mapping.get_current_crate ();
       bool is_fn
 	= impl_item->first->get_impl_item_type () == HIR::ImplItem::FUNCTION;
       bool is_const_fn = false;
@@ -231,7 +233,7 @@ query_type (HirId reference, TyTy::BaseType **result)
   // is it an extern item?
   if (auto extern_item = mappings.lookup_hir_extern_item (reference))
     {
-      auto block = mappings.lookup_hir_extern_block (extern_item->second);
+      auto block = mappings.hir.extern_block.lookup (extern_item->second);
       rust_assert (block.has_value ());
 
       *result

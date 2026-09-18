@@ -71,11 +71,21 @@ private:
   LocalDefId localDefId;
 };
 
-class Mappings
+class CrateMappings
 {
+  std::map<CrateNum, AST::Crate *> ast_crate_mappings;
+
+  // crate names
+  std::map<CrateNum, std::string> crate_names;
+
+  CrateNum crateNumItr;
+
+  CrateNum currentCrateNum;
+
+  std::map<NodeId, CrateNum> crate_node_to_crate_num;
+
 public:
-  static Mappings &get ();
-  ~Mappings ();
+  CrateMappings ();
 
   CrateNum get_next_crate_num (const std::string &name);
   void set_current_crate (CrateNum crateNum);
@@ -90,19 +100,157 @@ public:
   tl::optional<NodeId> crate_num_to_nodeid (const CrateNum &crate_num) const;
   bool node_is_crate (NodeId node_id) const;
 
+  AST::Crate &insert_ast_crate (std::unique_ptr<AST::Crate> &&crate,
+				CrateNum crate_num);
+
+  AST::Crate &get_ast_crate (CrateNum crateNum);
+
+  AST::Crate *get_ast_crate_by_node_id_raw (NodeId id);
+};
+
+class ProcMacroMappings
+{
+  std::map<CrateNum, std::vector<CustomDeriveProcMacro>> deriveMappings;
+  std::map<CrateNum, std::vector<BangProcMacro>> bangMappings;
+  std::map<CrateNum, std::vector<AttributeProcMacro>> attributeMappings;
+
+  std::map<NodeId, CustomDeriveProcMacro> procmacroDeriveMappings;
+  std::map<NodeId, BangProcMacro> procmacroBangMappings;
+  std::map<NodeId, AttributeProcMacro> procmacroAttributeMappings;
+  std::map<NodeId, CustomDeriveProcMacro> procmacroDeriveInvocations;
+  std::map<NodeId, BangProcMacro> procmacroBangInvocations;
+  std::map<NodeId, AttributeProcMacro> procmacroAttributeInvocations;
+
+public:
+  void insert_derive_proc_macros (CrateNum num,
+				  std::vector<CustomDeriveProcMacro> macros);
+  void insert_bang_proc_macros (CrateNum num,
+				std::vector<BangProcMacro> macros);
+  void insert_attribute_proc_macros (CrateNum num,
+				     std::vector<AttributeProcMacro> macros);
+
+  tl::optional<std::vector<CustomDeriveProcMacro> &>
+  lookup_derive_proc_macros (CrateNum num);
+  tl::optional<std::vector<BangProcMacro> &>
+  lookup_bang_proc_macros (CrateNum num);
+  tl::optional<std::vector<AttributeProcMacro> &>
+  lookup_attribute_proc_macros (CrateNum num);
+
+  void insert_derive_def (CustomDeriveProcMacro macro);
+  void insert_bang_def (BangProcMacro macro);
+  void insert_attribute_def (AttributeProcMacro macro);
+
+  tl::optional<CustomDeriveProcMacro &> lookup_derive_def (NodeId id);
+  tl::optional<BangProcMacro &> lookup_bang_def (NodeId id);
+  tl::optional<AttributeProcMacro &> lookup_attribute_def (NodeId id);
+
+  tl::optional<CustomDeriveProcMacro &>
+  lookup_derive_invocation (AST::SimplePath &invoc);
+  tl::optional<BangProcMacro &>
+  lookup_bang_invocation (AST::MacroInvocation &invoc_id);
+  tl::optional<AttributeProcMacro &>
+  lookup_attribute_invocation (AST::SimplePath &invoc);
+  void insert_derive_invocation (AST::SimplePath &invoc,
+				 CustomDeriveProcMacro def);
+  void insert_bang_invocation (AST::MacroInvocation &invoc, BangProcMacro def);
+  void insert_attribute_invocation (AST::SimplePath &invoc,
+				    AttributeProcMacro def);
+};
+
+template <typename Id, typename Item> class Mapping
+{
+  std::unordered_map<Id, Item> storage;
+
+public:
+  tl::optional<Item &> lookup (Id id)
+  {
+    auto it = storage.find (id);
+    if (it == storage.cend ())
+      return tl::nullopt;
+    return it->second;
+  }
+  void insert (Id id, Item item) { storage.insert ({id, item}); }
+};
+
+enum class InsertionPolicy
+{
+  FORBID_DUPLICATES,
+  ALLOW_DUPLICATES,
+};
+
+enum class InsertLocation
+{
+  YES,
+  NO,
+};
+
+template <typename Item,
+	  InsertionPolicy policy = InsertionPolicy::FORBID_DUPLICATES,
+	  InsertLocation insert_location = InsertLocation::NO>
+class PtrMapping
+{
+  std::unordered_map<HirId, Item *> storage;
+
+public:
+  tl::optional<Item *> lookup (HirId id);
+  void insert (Item *item);
+};
+
+class ASTMappings
+{
+public:
+  Mapping<NodeId, Privacy::ModuleVisibility> module_visibility;
+};
+
+class HIRMappings
+{
+public:
+  PtrMapping<HIR::Item> item;
+  PtrMapping<HIR::TraitItem> trait_item;
+  PtrMapping<HIR::ExternBlock> extern_block;
+  PtrMapping<HIR::Module> module;
+  PtrMapping<HIR::Expr, InsertionPolicy::ALLOW_DUPLICATES, InsertLocation::YES>
+    expr;
+  PtrMapping<HIR::PathExprSegment, InsertionPolicy::FORBID_DUPLICATES,
+	     InsertLocation::YES>
+    path_expr_segment;
+  PtrMapping<HIR::GenericParam, InsertionPolicy::FORBID_DUPLICATES,
+	     InsertLocation::YES>
+    generic_param;
+  PtrMapping<HIR::Type> type;
+  PtrMapping<HIR::Stmt> stmt;
+  PtrMapping<HIR::FunctionParam, InsertionPolicy::ALLOW_DUPLICATES>
+    function_param;
+  PtrMapping<HIR::SelfParam> self_param;
+  PtrMapping<HIR::StructExprField> struct_expr_field;
+  PtrMapping<HIR::Pattern> pattern;
+};
+
+class Mappings
+{
+public:
+  static Mappings &get ();
+  ~Mappings ();
+
+  CrateMappings crate_mapping;
+  ProcMacroMappings pmacro_mappings;
+  ASTMappings ast;
+  HIRMappings hir;
+
   NodeId get_next_node_id ();
-  HirId get_next_hir_id () { return get_next_hir_id (get_current_crate ()); }
+  HirId get_next_hir_id ()
+  {
+    return get_next_hir_id (crate_mapping.get_current_crate ());
+  }
   HirId get_next_hir_id (CrateNum crateNum);
   LocalDefId get_next_localdef_id ()
   {
-    return get_next_localdef_id (get_current_crate ());
+    return get_next_localdef_id (crate_mapping.get_current_crate ());
   }
   LocalDefId get_next_localdef_id (CrateNum crateNum);
 
-  AST::Crate &get_ast_crate (CrateNum crateNum);
   AST::Crate &get_ast_crate_by_node_id (NodeId id);
-  AST::Crate &insert_ast_crate (std::unique_ptr<AST::Crate> &&crate,
-				CrateNum crate_num);
+
   HIR::Crate &insert_hir_crate (std::unique_ptr<HIR::Crate> &&crate);
   HIR::Crate &get_hir_crate (CrateNum crateNum);
   bool is_local_hirid_crate (HirId crateNum);
@@ -117,17 +265,8 @@ public:
   tl::optional<HIR::Item *> lookup_local_defid (CrateNum crateNum,
 						LocalDefId id);
 
-  void insert_hir_item (HIR::Item *item);
-  tl::optional<HIR::Item *> lookup_hir_item (HirId id);
-
   void insert_hir_enumitem (HIR::Enum *parent, HIR::EnumItem *item);
   std::pair<HIR::Enum *, HIR::EnumItem *> lookup_hir_enumitem (HirId id);
-
-  void insert_hir_trait_item (HIR::TraitItem *item);
-  tl::optional<HIR::TraitItem *> lookup_hir_trait_item (HirId id);
-
-  void insert_hir_extern_block (HIR::ExternBlock *block);
-  tl::optional<HIR::ExternBlock *> lookup_hir_extern_block (HirId id);
 
   void insert_hir_extern_item (HIR::ExternalItem *item, HirId parent_block);
 
@@ -139,40 +278,10 @@ public:
   tl::optional<HIR::ImplBlock *> lookup_hir_impl_block (HirId id);
   tl::optional<HIR::ImplBlock *> lookup_impl_block_type (HirId id);
 
-  void insert_module (HIR::Module *module);
-  tl::optional<HIR::Module *> lookup_module (HirId id);
-
   void insert_hir_implitem (HirId parent_impl_id, HIR::ImplItem *item);
   // Optional<ImpItem, ParentImpl Hir id>
   tl::optional<std::pair<HIR::ImplItem *, HirId>>
   lookup_hir_implitem (HirId id);
-
-  void insert_hir_expr (HIR::Expr *expr);
-  tl::optional<HIR::Expr *> lookup_hir_expr (HirId id);
-
-  void insert_hir_path_expr_seg (HIR::PathExprSegment *expr);
-  tl::optional<HIR::PathExprSegment *> lookup_hir_path_expr_seg (HirId id);
-
-  void insert_hir_generic_param (HIR::GenericParam *expr);
-  tl::optional<HIR::GenericParam *> lookup_hir_generic_param (HirId id);
-
-  void insert_hir_type (HIR::Type *type);
-  tl::optional<HIR::Type *> lookup_hir_type (HirId id);
-
-  void insert_hir_stmt (HIR::Stmt *stmt);
-  tl::optional<HIR::Stmt *> lookup_hir_stmt (HirId id);
-
-  void insert_hir_param (HIR::FunctionParam *type);
-  tl::optional<HIR::FunctionParam *> lookup_hir_param (HirId id);
-
-  void insert_hir_self_param (HIR::SelfParam *type);
-  tl::optional<HIR::SelfParam *> lookup_hir_self_param (HirId id);
-
-  void insert_hir_struct_field (HIR::StructExprField *type);
-  tl::optional<HIR::StructExprField *> lookup_hir_struct_field (HirId id);
-
-  void insert_hir_pattern (HIR::Pattern *pattern);
-  tl::optional<HIR::Pattern *> lookup_hir_pattern (HirId id);
 
   void walk_local_defids_for_crate (CrateNum crateNum,
 				    std::function<bool (HIR::Item *)> cb);
@@ -318,46 +427,6 @@ public:
   void insert_exported_macro (AST::MacroRulesDefinition &def);
   std::vector<AST::MacroRulesDefinition> get_exported_macros ();
 
-  void insert_derive_proc_macros (CrateNum num,
-				  std::vector<CustomDeriveProcMacro> macros);
-  void insert_bang_proc_macros (CrateNum num,
-				std::vector<BangProcMacro> macros);
-  void insert_attribute_proc_macros (CrateNum num,
-				     std::vector<AttributeProcMacro> macros);
-
-  tl::optional<std::vector<CustomDeriveProcMacro> &>
-  lookup_derive_proc_macros (CrateNum num);
-  tl::optional<std::vector<BangProcMacro> &>
-  lookup_bang_proc_macros (CrateNum num);
-  tl::optional<std::vector<AttributeProcMacro> &>
-  lookup_attribute_proc_macros (CrateNum num);
-
-  void insert_derive_proc_macro_def (CustomDeriveProcMacro macro);
-  void insert_bang_proc_macro_def (BangProcMacro macro);
-  void insert_attribute_proc_macro_def (AttributeProcMacro macro);
-
-  tl::optional<CustomDeriveProcMacro &>
-  lookup_derive_proc_macro_def (NodeId id);
-  tl::optional<BangProcMacro &> lookup_bang_proc_macro_def (NodeId id);
-  tl::optional<AttributeProcMacro &>
-  lookup_attribute_proc_macro_def (NodeId id);
-
-  tl::optional<CustomDeriveProcMacro &>
-  lookup_derive_proc_macro_invocation (AST::SimplePath &invoc);
-  tl::optional<BangProcMacro &>
-  lookup_bang_proc_macro_invocation (AST::MacroInvocation &invoc_id);
-  tl::optional<AttributeProcMacro &>
-  lookup_attribute_proc_macro_invocation (AST::SimplePath &invoc);
-  void insert_derive_proc_macro_invocation (AST::SimplePath &invoc,
-					    CustomDeriveProcMacro def);
-  void insert_bang_proc_macro_invocation (AST::MacroInvocation &invoc,
-					  BangProcMacro def);
-  void insert_attribute_proc_macro_invocation (AST::SimplePath &invoc,
-					       AttributeProcMacro def);
-
-  void insert_visibility (NodeId id, Privacy::ModuleVisibility visibility);
-  tl::optional<Privacy::ModuleVisibility &> lookup_visibility (NodeId id);
-
   void insert_glob_container (NodeId, AST::GlobContainer *);
   tl::optional<AST::GlobContainer *> lookup_glob_container (NodeId id);
 
@@ -403,17 +472,11 @@ public:
 private:
   Mappings ();
 
-  CrateNum crateNumItr;
-  CrateNum currentCrateNum;
   HirId hirIdIter;
   NodeId nodeIdIter;
   std::map<CrateNum, LocalDefId> localIdIter;
   HIR::ImplBlock *builtinMarker;
 
-  AST::Crate *get_ast_crate_by_node_id_raw (NodeId id);
-
-  std::map<NodeId, CrateNum> crate_node_to_crate_num;
-  std::map<CrateNum, AST::Crate *> ast_crate_mappings;
   std::map<CrateNum, HIR::Crate *> hir_crate_mappings;
   std::map<DefId, HIR::Item *> defIdMappings;
   std::map<DefId, HIR::TraitItem *> defIdTraitItemMappings;
@@ -471,23 +534,6 @@ private:
   std::map<NodeId, AST::MacroRulesDefinition *> macroInvocations;
   std::vector<AST::MacroRulesDefinition> exportedMacros;
 
-  // Procedural macros
-  std::map<CrateNum, std::vector<CustomDeriveProcMacro>>
-    procmacrosDeriveMappings;
-  std::map<CrateNum, std::vector<BangProcMacro>> procmacrosBangMappings;
-  std::map<CrateNum, std::vector<AttributeProcMacro>>
-    procmacrosAttributeMappings;
-
-  std::map<NodeId, CustomDeriveProcMacro> procmacroDeriveMappings;
-  std::map<NodeId, BangProcMacro> procmacroBangMappings;
-  std::map<NodeId, AttributeProcMacro> procmacroAttributeMappings;
-  std::map<NodeId, CustomDeriveProcMacro> procmacroDeriveInvocations;
-  std::map<NodeId, BangProcMacro> procmacroBangInvocations;
-  std::map<NodeId, AttributeProcMacro> procmacroAttributeInvocations;
-
-  // crate names
-  std::map<CrateNum, std::string> crate_names;
-
   // Low level visibility map for each DefId
   std::map<NodeId, Privacy::ModuleVisibility> visibility_map;
 
@@ -516,5 +562,7 @@ private:
 
 } // namespace Analysis
 } // namespace Rust
+
+#include "rust-hir-map.hxx"
 
 #endif // RUST_HIR_MAP_H

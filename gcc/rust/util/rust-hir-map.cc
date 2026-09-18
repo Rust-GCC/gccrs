@@ -98,9 +98,12 @@ static const HirId kDefaultNodeIdBegin = 1;
 static const HirId kDefaultHirIdBegin = 1;
 static const HirId kDefaultCrateNumBegin = 0;
 
+CrateMappings::CrateMappings ()
+  : crateNumItr (kDefaultCrateNumBegin), currentCrateNum (UNKNOWN_CRATENUM)
+{}
+
 Mappings::Mappings ()
-  : crateNumItr (kDefaultCrateNumBegin), currentCrateNum (UNKNOWN_CRATENUM),
-    hirIdIter (kDefaultHirIdBegin), nodeIdIter (kDefaultNodeIdBegin),
+  : hirIdIter (kDefaultHirIdBegin), nodeIdIter (kDefaultNodeIdBegin),
     hirImplIndexesBuilt (false)
 {
   Analysis::NodeMapping node (0, 0, 0, 0);
@@ -121,7 +124,7 @@ Mappings::get ()
 }
 
 CrateNum
-Mappings::get_next_crate_num (const std::string &name)
+CrateMappings::get_next_crate_num (const std::string &name)
 {
   auto id = crateNumItr;
   crateNumItr++;
@@ -130,19 +133,19 @@ Mappings::get_next_crate_num (const std::string &name)
 }
 
 void
-Mappings::set_current_crate (CrateNum crateNum)
+CrateMappings::set_current_crate (CrateNum crateNum)
 {
   currentCrateNum = crateNum;
 }
 
 CrateNum
-Mappings::get_current_crate () const
+CrateMappings::get_current_crate () const
 {
   return currentCrateNum;
 }
 
 tl::optional<const std::string &>
-Mappings::get_crate_name (CrateNum crate_num) const
+CrateMappings::get_crate_name (CrateNum crate_num) const
 {
   auto it = crate_names.find (crate_num);
   if (it == crate_names.end ())
@@ -152,7 +155,7 @@ Mappings::get_crate_name (CrateNum crate_num) const
 }
 
 tl::optional<CrateNum>
-Mappings::lookup_crate_num (NodeId node_id) const
+CrateMappings::lookup_crate_num (NodeId node_id) const
 {
   auto it = crate_node_to_crate_num.find (node_id);
   if (it == crate_node_to_crate_num.end ())
@@ -162,19 +165,19 @@ Mappings::lookup_crate_num (NodeId node_id) const
 }
 
 void
-Mappings::set_crate_name (CrateNum crate_num, const std::string &name)
+CrateMappings::set_crate_name (CrateNum crate_num, const std::string &name)
 {
   crate_names[crate_num] = name;
 }
 
 const std::string &
-Mappings::get_current_crate_name () const
+CrateMappings::get_current_crate_name () const
 {
   return get_crate_name (get_current_crate ()).value ();
 }
 
 tl::optional<CrateNum>
-Mappings::lookup_crate_name (const std::string &crate_name) const
+CrateMappings::lookup_crate_name (const std::string &crate_name) const
 {
   for (const auto &it : crate_names)
     {
@@ -185,7 +188,7 @@ Mappings::lookup_crate_name (const std::string &crate_name) const
 }
 
 tl::optional<NodeId>
-Mappings::crate_num_to_nodeid (const CrateNum &crate_num) const
+CrateMappings::crate_num_to_nodeid (const CrateNum &crate_num) const
 {
   auto it = ast_crate_mappings.find (crate_num);
   if (it == ast_crate_mappings.end ())
@@ -195,7 +198,7 @@ Mappings::crate_num_to_nodeid (const CrateNum &crate_num) const
 }
 
 bool
-Mappings::node_is_crate (NodeId node_id) const
+CrateMappings::node_is_crate (NodeId node_id) const
 {
   return lookup_crate_num (node_id).has_value ();
 }
@@ -244,7 +247,7 @@ Mappings::get_next_localdef_id (CrateNum crateNum)
 }
 
 AST::Crate &
-Mappings::get_ast_crate (CrateNum crateNum)
+CrateMappings::get_ast_crate (CrateNum crateNum)
 {
   auto it = ast_crate_mappings.find (crateNum);
   rust_assert (it != ast_crate_mappings.end ());
@@ -254,11 +257,11 @@ Mappings::get_ast_crate (CrateNum crateNum)
 AST::Crate &
 Mappings::get_ast_crate_by_node_id (NodeId id)
 {
-  return *get_ast_crate_by_node_id_raw (id);
+  return *crate_mapping.get_ast_crate_by_node_id_raw (id);
 }
 
 AST::Crate *
-Mappings::get_ast_crate_by_node_id_raw (NodeId id)
+CrateMappings::get_ast_crate_by_node_id_raw (NodeId id)
 {
   CrateNum crateNum = lookup_crate_num (id).value ();
   auto it = ast_crate_mappings.find (crateNum);
@@ -267,8 +270,8 @@ Mappings::get_ast_crate_by_node_id_raw (NodeId id)
 }
 
 AST::Crate &
-Mappings::insert_ast_crate (std::unique_ptr<AST::Crate> &&crate,
-			    CrateNum crate_num)
+CrateMappings::insert_ast_crate (std::unique_ptr<AST::Crate> &&crate,
+				 CrateNum crate_num)
 {
   auto it = ast_crate_mappings.find (crate_num);
   rust_assert (it == ast_crate_mappings.end ());
@@ -367,25 +370,6 @@ Mappings::lookup_trait_item_defid (DefId id)
 }
 
 void
-Mappings::insert_hir_item (HIR::Item *item)
-{
-  auto id = item->get_mappings ().get_hirid ();
-  rust_assert (!lookup_hir_item (id).has_value ());
-
-  hirItemMappings[id] = item;
-  insert_node_to_hir (item->get_mappings ().get_nodeid (), id);
-}
-
-tl::optional<HIR::Item *>
-Mappings::lookup_hir_item (HirId id)
-{
-  auto it = hirItemMappings.find (id);
-  if (it == hirItemMappings.end ())
-    return tl::nullopt;
-  return it->second;
-}
-
-void
 Mappings::insert_hir_enumitem (HIR::Enum *parent, HIR::EnumItem *item)
 {
   auto id = item->get_mappings ().get_hirid ();
@@ -402,46 +386,6 @@ Mappings::lookup_hir_enumitem (HirId id)
   auto it = hirEnumItemMappings.find (id);
   if (it == hirEnumItemMappings.end ())
     return {nullptr, nullptr};
-
-  return it->second;
-}
-
-void
-Mappings::insert_hir_trait_item (HIR::TraitItem *item)
-{
-  auto id = item->get_mappings ().get_hirid ();
-  rust_assert (!lookup_hir_trait_item (id).has_value ());
-
-  hirTraitItemMappings[id] = item;
-  insert_node_to_hir (item->get_mappings ().get_nodeid (), id);
-}
-
-tl::optional<HIR::TraitItem *>
-Mappings::lookup_hir_trait_item (HirId id)
-{
-  auto it = hirTraitItemMappings.find (id);
-  if (it == hirTraitItemMappings.end ())
-    return tl::nullopt;
-
-  return it->second;
-}
-
-void
-Mappings::insert_hir_extern_block (HIR::ExternBlock *block)
-{
-  auto id = block->get_mappings ().get_hirid ();
-  rust_assert (!lookup_hir_extern_block (id).has_value ());
-
-  hirExternBlockMappings[id] = block;
-  insert_node_to_hir (block->get_mappings ().get_nodeid (), id);
-}
-
-tl::optional<HIR::ExternBlock *>
-Mappings::lookup_hir_extern_block (HirId id)
-{
-  auto it = hirExternBlockMappings.find (id);
-  if (it == hirExternBlockMappings.end ())
-    return tl::nullopt;
 
   return it->second;
 }
@@ -518,26 +462,6 @@ Mappings::lookup_impl_block_type (HirId id)
 }
 
 void
-Mappings::insert_module (HIR::Module *module)
-{
-  auto id = module->get_mappings ().get_hirid ();
-  rust_assert (!lookup_module (id));
-
-  hirModuleMappings[id] = module;
-  insert_node_to_hir (module->get_mappings ().get_nodeid (), id);
-}
-
-tl::optional<HIR::Module *>
-Mappings::lookup_module (HirId id)
-{
-  auto it = hirModuleMappings.find (id);
-  if (it == hirModuleMappings.end ())
-    return tl::nullopt;
-
-  return it->second;
-}
-
-void
 Mappings::insert_hir_implitem (HirId parent_impl_id, HIR::ImplItem *item)
 {
   auto id = item->get_impl_mappings ().get_hirid ();
@@ -556,188 +480,6 @@ Mappings::lookup_hir_implitem (HirId id)
     return tl::nullopt;
 
   return std::make_pair (it->second.second, it->second.first);
-}
-
-void
-Mappings::insert_hir_expr (HIR::Expr *expr)
-{
-  auto id = expr->get_mappings ().get_hirid ();
-  hirExprMappings[id] = expr;
-
-  insert_node_to_hir (expr->get_mappings ().get_nodeid (), id);
-  insert_location (id, expr->get_locus ());
-}
-
-tl::optional<HIR::Expr *>
-Mappings::lookup_hir_expr (HirId id)
-{
-  auto it = hirExprMappings.find (id);
-  if (it == hirExprMappings.end ())
-    return tl::nullopt;
-
-  return it->second;
-}
-
-void
-Mappings::insert_hir_path_expr_seg (HIR::PathExprSegment *expr)
-{
-  auto id = expr->get_mappings ().get_hirid ();
-  rust_assert (!lookup_hir_path_expr_seg (id));
-
-  hirPathSegMappings[id] = expr;
-  insert_node_to_hir (expr->get_mappings ().get_nodeid (), id);
-  insert_location (id, expr->get_locus ());
-}
-
-tl::optional<HIR::PathExprSegment *>
-Mappings::lookup_hir_path_expr_seg (HirId id)
-{
-  auto it = hirPathSegMappings.find (id);
-  if (it == hirPathSegMappings.end ())
-    return tl::nullopt;
-
-  return it->second;
-}
-
-void
-Mappings::insert_hir_generic_param (HIR::GenericParam *param)
-{
-  auto id = param->get_mappings ().get_hirid ();
-  rust_assert (!lookup_hir_generic_param (id));
-
-  hirGenericParamMappings[id] = param;
-  insert_node_to_hir (param->get_mappings ().get_nodeid (), id);
-  insert_location (id, param->get_locus ());
-}
-
-tl::optional<HIR::GenericParam *>
-Mappings::lookup_hir_generic_param (HirId id)
-{
-  auto it = hirGenericParamMappings.find (id);
-  if (it == hirGenericParamMappings.end ())
-    return tl::nullopt;
-
-  return it->second;
-}
-
-void
-Mappings::insert_hir_type (HIR::Type *type)
-{
-  auto id = type->get_mappings ().get_hirid ();
-  rust_assert (!lookup_hir_type (id));
-
-  hirTypeMappings[id] = type;
-  insert_node_to_hir (type->get_mappings ().get_nodeid (), id);
-}
-
-tl::optional<HIR::Type *>
-Mappings::lookup_hir_type (HirId id)
-{
-  auto it = hirTypeMappings.find (id);
-  if (it == hirTypeMappings.end ())
-    return tl::nullopt;
-
-  return it->second;
-}
-
-void
-Mappings::insert_hir_stmt (HIR::Stmt *stmt)
-{
-  auto id = stmt->get_mappings ().get_hirid ();
-  rust_assert (!lookup_hir_stmt (id));
-
-  hirStmtMappings[id] = stmt;
-  insert_node_to_hir (stmt->get_mappings ().get_nodeid (), id);
-}
-
-tl::optional<HIR::Stmt *>
-Mappings::lookup_hir_stmt (HirId id)
-{
-  auto it = hirStmtMappings.find (id);
-  if (it == hirStmtMappings.end ())
-    return tl::nullopt;
-
-  return it->second;
-}
-
-void
-Mappings::insert_hir_param (HIR::FunctionParam *param)
-{
-  auto id = param->get_mappings ().get_hirid ();
-  rust_assert (!lookup_hir_param (id));
-
-  hirParamMappings[id] = param;
-  insert_node_to_hir (param->get_mappings ().get_nodeid (), id);
-}
-
-tl::optional<HIR::FunctionParam *>
-Mappings::lookup_hir_param (HirId id)
-{
-  auto it = hirParamMappings.find (id);
-  if (it == hirParamMappings.end ())
-    return tl::nullopt;
-
-  return it->second;
-}
-
-void
-Mappings::insert_hir_self_param (HIR::SelfParam *param)
-{
-  auto id = param->get_mappings ().get_hirid ();
-  rust_assert (!lookup_hir_self_param (id));
-
-  hirSelfParamMappings[id] = param;
-  insert_node_to_hir (param->get_mappings ().get_nodeid (), id);
-}
-
-tl::optional<HIR::SelfParam *>
-Mappings::lookup_hir_self_param (HirId id)
-{
-  auto it = hirSelfParamMappings.find (id);
-  if (it == hirSelfParamMappings.end ())
-    return tl::nullopt;
-
-  return it->second;
-}
-
-void
-Mappings::insert_hir_struct_field (HIR::StructExprField *field)
-{
-  auto id = field->get_mappings ().get_hirid ();
-  rust_assert (!lookup_hir_struct_field (id));
-
-  hirStructFieldMappings[id] = field;
-  insert_node_to_hir (field->get_mappings ().get_nodeid (), id);
-}
-
-tl::optional<HIR::StructExprField *>
-Mappings::lookup_hir_struct_field (HirId id)
-{
-  auto it = hirStructFieldMappings.find (id);
-  if (it == hirStructFieldMappings.end ())
-    return tl::nullopt;
-
-  return it->second;
-}
-
-void
-Mappings::insert_hir_pattern (HIR::Pattern *pattern)
-{
-  auto id = pattern->get_mappings ().get_hirid ();
-  rust_assert (!lookup_hir_pattern (id));
-
-  hirPatternMappings[id] = pattern;
-  insert_node_to_hir (pattern->get_mappings ().get_nodeid (), id);
-}
-
-tl::optional<HIR::Pattern *>
-Mappings::lookup_hir_pattern (HirId id)
-{
-  auto it = hirPatternMappings.find (id);
-  if (it == hirPatternMappings.end ())
-    return tl::nullopt;
-
-  return it->second;
 }
 
 void
@@ -828,7 +570,7 @@ Mappings::resolve_nodeid_to_stmt (NodeId id)
     return tl::nullopt;
 
   HirId resolved = it->second;
-  return lookup_hir_stmt (resolved);
+  return hir.stmt.lookup (resolved);
 }
 
 void
@@ -874,7 +616,7 @@ Mappings::build_impl_indexes ()
     if (!hir_id.has_value ())
       return nullptr;
 
-    auto item = lookup_hir_item (hir_id.value ());
+    auto item = hir.item.lookup (hir_id.value ());
     return item.has_value () ? item.value () : nullptr;
   };
 
@@ -969,7 +711,7 @@ Mappings::insert_trait_item_mapping (HirId trait_item_id, HIR::Trait *trait)
 	       == hirTraitItemsToTraitMappings.end ());
   hirTraitItemsToTraitMappings[trait_item_id] = trait;
 
-  auto item = lookup_hir_trait_item (trait_item_id);
+  auto item = hir.trait_item.lookup (trait_item_id);
   rust_assert (item.has_value ());
   if (item.value ()->get_item_kind () != HIR::TraitItem::TraitItemKind::FUNC)
     return;
@@ -1074,7 +816,8 @@ Mappings::insert_macro_def (AST::MacroRulesDefinition *macro)
   auto it = macroMappings.find (macro->get_node_id ());
   rust_assert (it == macroMappings.end ());
 
-  macroMappings[macro->get_node_id ()] = {macro, currentCrateNum};
+  macroMappings[macro->get_node_id ()]
+    = {macro, crate_mapping.get_current_crate ()};
 }
 
 tl::optional<AST::MacroRulesDefinition *>
@@ -1130,67 +873,67 @@ Mappings::get_exported_macros ()
 }
 
 void
-Mappings::insert_derive_proc_macros (CrateNum num,
-				     std::vector<CustomDeriveProcMacro> macros)
+ProcMacroMappings::insert_derive_proc_macros (
+  CrateNum num, std::vector<CustomDeriveProcMacro> macros)
 {
-  auto it = procmacrosDeriveMappings.find (num);
-  rust_assert (it == procmacrosDeriveMappings.end ());
+  auto it = deriveMappings.find (num);
+  rust_assert (it == deriveMappings.end ());
 
-  procmacrosDeriveMappings[num] = macros;
+  deriveMappings[num] = macros;
 }
 
 void
-Mappings::insert_bang_proc_macros (CrateNum num,
-				   std::vector<BangProcMacro> macros)
+ProcMacroMappings::insert_bang_proc_macros (CrateNum num,
+					    std::vector<BangProcMacro> macros)
 {
-  auto it = procmacrosBangMappings.find (num);
-  rust_assert (it == procmacrosBangMappings.end ());
+  auto it = bangMappings.find (num);
+  rust_assert (it == bangMappings.end ());
 
-  procmacrosBangMappings[num] = macros;
+  bangMappings[num] = macros;
 }
 
 void
-Mappings::insert_attribute_proc_macros (CrateNum num,
-					std::vector<AttributeProcMacro> macros)
+ProcMacroMappings::insert_attribute_proc_macros (
+  CrateNum num, std::vector<AttributeProcMacro> macros)
 {
-  auto it = procmacrosAttributeMappings.find (num);
-  rust_assert (it == procmacrosAttributeMappings.end ());
+  auto it = attributeMappings.find (num);
+  rust_assert (it == attributeMappings.end ());
 
-  procmacrosAttributeMappings[num] = macros;
+  attributeMappings[num] = macros;
 }
 
 tl::optional<std::vector<CustomDeriveProcMacro> &>
-Mappings::lookup_derive_proc_macros (CrateNum num)
+ProcMacroMappings::lookup_derive_proc_macros (CrateNum num)
 {
-  auto it = procmacrosDeriveMappings.find (num);
-  if (it == procmacrosDeriveMappings.end ())
+  auto it = deriveMappings.find (num);
+  if (it == deriveMappings.end ())
     return tl::nullopt;
 
   return it->second;
 }
 
 tl::optional<std::vector<BangProcMacro> &>
-Mappings::lookup_bang_proc_macros (CrateNum num)
+ProcMacroMappings::lookup_bang_proc_macros (CrateNum num)
 {
-  auto it = procmacrosBangMappings.find (num);
-  if (it == procmacrosBangMappings.end ())
+  auto it = bangMappings.find (num);
+  if (it == bangMappings.end ())
     return tl::nullopt;
 
   return it->second;
 }
 
 tl::optional<std::vector<AttributeProcMacro> &>
-Mappings::lookup_attribute_proc_macros (CrateNum num)
+ProcMacroMappings::lookup_attribute_proc_macros (CrateNum num)
 {
-  auto it = procmacrosAttributeMappings.find (num);
-  if (it == procmacrosAttributeMappings.end ())
+  auto it = attributeMappings.find (num);
+  if (it == attributeMappings.end ())
     return tl::nullopt;
 
   return it->second;
 }
 
 void
-Mappings::insert_derive_proc_macro_def (CustomDeriveProcMacro macro)
+ProcMacroMappings::insert_derive_def (CustomDeriveProcMacro macro)
 {
   auto it = procmacroDeriveMappings.find (macro.get_node_id ());
   rust_assert (it == procmacroDeriveMappings.end ());
@@ -1199,7 +942,7 @@ Mappings::insert_derive_proc_macro_def (CustomDeriveProcMacro macro)
 }
 
 void
-Mappings::insert_bang_proc_macro_def (BangProcMacro macro)
+ProcMacroMappings::insert_bang_def (BangProcMacro macro)
 {
   auto it = procmacroBangMappings.find (macro.get_node_id ());
   rust_assert (it == procmacroBangMappings.end ());
@@ -1208,7 +951,7 @@ Mappings::insert_bang_proc_macro_def (BangProcMacro macro)
 }
 
 void
-Mappings::insert_attribute_proc_macro_def (AttributeProcMacro macro)
+ProcMacroMappings::insert_attribute_def (AttributeProcMacro macro)
 {
   auto it = procmacroAttributeMappings.find (macro.get_node_id ());
   rust_assert (it == procmacroAttributeMappings.end ());
@@ -1217,7 +960,7 @@ Mappings::insert_attribute_proc_macro_def (AttributeProcMacro macro)
 }
 
 tl::optional<CustomDeriveProcMacro &>
-Mappings::lookup_derive_proc_macro_def (NodeId id)
+ProcMacroMappings::lookup_derive_def (NodeId id)
 {
   auto it = procmacroDeriveMappings.find (id);
   if (it == procmacroDeriveMappings.end ())
@@ -1227,7 +970,7 @@ Mappings::lookup_derive_proc_macro_def (NodeId id)
 }
 
 tl::optional<BangProcMacro &>
-Mappings::lookup_bang_proc_macro_def (NodeId id)
+ProcMacroMappings::lookup_bang_def (NodeId id)
 {
   auto it = procmacroBangMappings.find (id);
   if (it == procmacroBangMappings.end ())
@@ -1237,7 +980,7 @@ Mappings::lookup_bang_proc_macro_def (NodeId id)
 }
 
 tl::optional<AttributeProcMacro &>
-Mappings::lookup_attribute_proc_macro_def (NodeId id)
+ProcMacroMappings::lookup_attribute_def (NodeId id)
 {
   auto it = procmacroAttributeMappings.find (id);
   if (it == procmacroAttributeMappings.end ())
@@ -1247,8 +990,8 @@ Mappings::lookup_attribute_proc_macro_def (NodeId id)
 }
 
 void
-Mappings::insert_derive_proc_macro_invocation (AST::SimplePath &invoc,
-					       CustomDeriveProcMacro def)
+ProcMacroMappings::insert_derive_invocation (AST::SimplePath &invoc,
+					     CustomDeriveProcMacro def)
 {
   auto it = procmacroDeriveInvocations.find (invoc.get_node_id ());
   rust_assert (it == procmacroDeriveInvocations.end ());
@@ -1257,7 +1000,7 @@ Mappings::insert_derive_proc_macro_invocation (AST::SimplePath &invoc,
 }
 
 tl::optional<CustomDeriveProcMacro &>
-Mappings::lookup_derive_proc_macro_invocation (AST::SimplePath &invoc)
+ProcMacroMappings::lookup_derive_invocation (AST::SimplePath &invoc)
 {
   auto it = procmacroDeriveInvocations.find (invoc.get_node_id ());
   if (it == procmacroDeriveInvocations.end ())
@@ -1267,8 +1010,8 @@ Mappings::lookup_derive_proc_macro_invocation (AST::SimplePath &invoc)
 }
 
 void
-Mappings::insert_bang_proc_macro_invocation (AST::MacroInvocation &invoc,
-					     BangProcMacro def)
+ProcMacroMappings::insert_bang_invocation (AST::MacroInvocation &invoc,
+					   BangProcMacro def)
 {
   auto it = procmacroBangInvocations.find (invoc.get_node_id ());
   rust_assert (it == procmacroBangInvocations.end ());
@@ -1277,7 +1020,7 @@ Mappings::insert_bang_proc_macro_invocation (AST::MacroInvocation &invoc,
 }
 
 tl::optional<BangProcMacro &>
-Mappings::lookup_bang_proc_macro_invocation (AST::MacroInvocation &invoc)
+ProcMacroMappings::lookup_bang_invocation (AST::MacroInvocation &invoc)
 {
   auto it = procmacroBangInvocations.find (invoc.get_node_id ());
   if (it == procmacroBangInvocations.end ())
@@ -1287,8 +1030,8 @@ Mappings::lookup_bang_proc_macro_invocation (AST::MacroInvocation &invoc)
 }
 
 void
-Mappings::insert_attribute_proc_macro_invocation (AST::SimplePath &invoc,
-						  AttributeProcMacro def)
+ProcMacroMappings::insert_attribute_invocation (AST::SimplePath &invoc,
+						AttributeProcMacro def)
 {
   auto it = procmacroAttributeInvocations.find (invoc.get_node_id ());
   rust_assert (it == procmacroAttributeInvocations.end ());
@@ -1297,26 +1040,10 @@ Mappings::insert_attribute_proc_macro_invocation (AST::SimplePath &invoc,
 }
 
 tl::optional<AttributeProcMacro &>
-Mappings::lookup_attribute_proc_macro_invocation (AST::SimplePath &invoc)
+ProcMacroMappings::lookup_attribute_invocation (AST::SimplePath &invoc)
 {
   auto it = procmacroAttributeInvocations.find (invoc.get_node_id ());
   if (it == procmacroAttributeInvocations.end ())
-    return tl::nullopt;
-
-  return it->second;
-}
-
-void
-Mappings::insert_visibility (NodeId id, Privacy::ModuleVisibility visibility)
-{
-  visibility_map.insert ({id, visibility});
-}
-
-tl::optional<Privacy::ModuleVisibility &>
-Mappings::lookup_visibility (NodeId id)
-{
-  auto it = visibility_map.find (id);
-  if (it == visibility_map.end ())
     return tl::nullopt;
 
   return it->second;
@@ -1349,7 +1076,7 @@ Mappings::insert_glob_container (NodeId id, AST::GlobContainer *container)
 
   // Crates have different memory managements that regular items
   if (container->get_glob_container_kind () == AST::GlobContainer::Kind::Crate)
-    glob_containers[id] = get_ast_crate_by_node_id_raw (id);
+    glob_containers[id] = crate_mapping.get_ast_crate_by_node_id_raw (id);
   else
     glob_containers[id] = container;
 }
