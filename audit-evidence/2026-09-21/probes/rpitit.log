@@ -1,0 +1,11 @@
+/tmp/gccrs-compat-audit/probes/rpitit.rs:4:28: error: ‘impl Trait’ not allowed outside of function and inherent method return types [E0562]
+    4 | trait Foo { fn a(&self) -> impl Foo; }
+      |                            ^~~~
+
+Analyzing compilation unit
+
+Time variable                                  wall           GGC
+ phase setup                        :   0.01 ( 86%)  2758k (100%)
+ TOTAL                              :   0.01         2766k
+Extra diagnostic checks enabled; compiler may run slowly.
+Configure with --enable-checking=release to disable checks.

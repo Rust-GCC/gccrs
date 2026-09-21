@@ -1,0 +1,51 @@
+/home/philbert/workspace/gccrs/branch-open-issues/blanket-into-iterator.rs:38:9: error: bounds not satisfied for Pairs ‘Iterator’ is not satisfied [E0277]
+   19 |     type IntoIter: Iterator<Item = Self::Item>;
+      |                    ~~~~~~~~
+......
+   38 |     for (a, b) in Pairs {
+      |         ^
+crab1: internal compiler error: in visit, at rust/backend/rust-compile-item.cc:162
+0x6047a4c internal_error(char const*, ...)
+	../../gccrs/gcc/diagnostic-global-context.cc:787
+0x60596a4 fancy_abort(char const*, int, char const*)
+	../../gccrs/gcc/diagnostics/context.cc:1813
+0x32bf3f2 Rust::Compile::CompileItem::visit(Rust::HIR::Function&)
+	../../gccrs/gcc/rust/backend/rust-compile-item.cc:162
+0x2fbfd8d Rust::HIR::Function::accept_vis(Rust::HIR::HIRStmtVisitor&)
+	../../gccrs/gcc/rust/hir/tree/rust-hir.cc:5214
+0x2f09128 Rust::Compile::CompileInherentImplItem::Compile(Rust::HIR::ImplItem*, Rust::Compile::Context*, Rust::TyTy::BaseType*, unsigned long)
+	../../gccrs/gcc/rust/backend/rust-compile-implitem.h:36
+0x3312370 Rust::Compile::HIRCompileBase::resolve_method_address(Rust::TyTy::FnType*, Rust::TyTy::BaseType*, unsigned long)
+	../../gccrs/gcc/rust/backend/rust-compile-base.cc:1180
+0x2f169a1 Rust::Compile::HIRCompileBase::query_compile(unsigned int, Rust::TyTy::BaseType*, Rust::HIR::PathIdentSegment const&, Rust::Analysis::NodeMapping const&, unsigned long, bool)
+	../../gccrs/gcc/rust/backend/rust-compile-resolve-path.cc:292
+0x2f1657c Rust::Compile::ResolvePathRef::resolve_with_node_id(Rust::HIR::PathIdentSegment const&, Rust::Analysis::NodeMapping const&, unsigned long, bool, unsigned int)
+	../../gccrs/gcc/rust/backend/rust-compile-resolve-path.cc:219
+0x2f1c828 tree_node* Rust::Compile::ResolvePathRef::resolve_path_like<Rust::HIR::PathInExpression>(Rust::HIR::PathInExpression&)
+	../../gccrs/gcc/rust/backend/rust-compile-resolve-path.cc:65
+0x2f15ce7 Rust::Compile::ResolvePathRef::Compile(Rust::HIR::PathInExpression&, Rust::Compile::Context*)
+	../../gccrs/gcc/rust/backend/rust-compile-resolve-path.cc:47
+0x32cabda Rust::Compile::CompileExpr::visit(Rust::HIR::PathInExpression&)
+	../../gccrs/gcc/rust/backend/rust-compile-expr.cc:950
+0x2fbc9b3 Rust::HIR::PathInExpression::accept_vis(Rust::HIR::HIRExpressionVisitor&)
+	../../gccrs/gcc/rust/hir/tree/rust-hir.cc:3896
+0x32c7598 Rust::Compile::CompileExpr::Compile(Rust::HIR::Expr&, Rust::Compile::Context*)
+	../../gccrs/gcc/rust/backend/rust-compile-expr.cc:164
+0x32ce03b Rust::Compile::CompileExpr::visit(Rust::HIR::CallExpr&)
+	../../gccrs/gcc/rust/backend/rust-compile-expr.cc:1717
+0x2fbf769 Rust::HIR::CallExpr::accept_vis(Rust::HIR::HIRExpressionVisitor&)
+	../../gccrs/gcc/rust/hir/tree/rust-hir.cc:5046
+0x32c7598 Rust::Compile::CompileExpr::Compile(Rust::HIR::Expr&, Rust::Compile::Context*)
+	../../gccrs/gcc/rust/backend/rust-compile-expr.cc:164
+0x32cd12e Rust::Compile::CompileExpr::visit(Rust::HIR::MatchExpr&)
+	../../gccrs/gcc/rust/backend/rust-compile-expr.cc:1489
+0x2fbf5e1 Rust::HIR::MatchExpr::accept_vis(Rust::HIR::HIRExpressionVisitor&)
+	../../gccrs/gcc/rust/hir/tree/rust-hir.cc:5004
+0x32c7598 Rust::Compile::CompileExpr::Compile(Rust::HIR::Expr&, Rust::Compile::Context*)
+	../../gccrs/gcc/rust/backend/rust-compile-expr.cc:164
+0x32c1950 Rust::Compile::CompileStmt::visit(Rust::HIR::LetStmt&)
+	../../gccrs/gcc/rust/backend/rust-compile-stmt.cc:82
+/home/philbert/workspace/gccrs-build/gcc/crab1 -frust-edition=2018 -frust-incomplete-and-experimental-compiler-do-not-use -fno-rust-overflow-checks -w /home/philbert/workspace/gccrs/branch-open-issues/blanket-into-iterator.rs -o /tmp/gccrs-compat-audit/reproducer-runs/blanket-into-iterator.s
+Please submit a full bug report, with preprocessed source (by using -freport-bug).
+Please include the complete backtrace with any bug report.
+See <https://gcc.gnu.org/bugs/> for instructions.

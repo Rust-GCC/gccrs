@@ -1,0 +1,904 @@
+log_line	diagnostic
+607	./num/bignum.rs:163:74: error: no method named ‘count’ found in the current scope [E0599]
+611	./num/bignum.rs:164:42: error: cannot find value ‘zeros’ in this scope [E0425]
+614	./num/bignum.rs:164:27: error: cannot apply operator ‘-’ to types usize and <tyty::error>
+617	./num/bignum.rs:165:41: error: cannot find value ‘end’ in this scope [E0425]
+620	./num/bignum.rs:165:39: error: bounds not satisfied for <tyty::error> ‘Sized’ is not satisfied [E0277]
+623	./num/bignum.rs:165:32: error: the type ‘& [u32]’ cannot be indexed by ‘RangeTo<Idx>’ [E0277]
+626	./num/bignum.rs:167:20: error: cannot find value ‘nonzero’ in this scope [E0425]
+629	./num/bignum.rs:167:20: error: failed to resolve receiver in MethodCallExpr
+630	./num/bignum.rs:167:17: error: mismatched types, expected ‘bool’ but got ‘<tyty::error>’ [E0308]
+636	./num/bignum.rs:174:29: error: cannot find value ‘nonzero’ in this scope [E0425]
+639	./num/bignum.rs:174:29: error: failed to resolve receiver in MethodCallExpr
+640	./num/bignum.rs:174:29: error: cannot apply operator ‘*’ to types <tyty::error> and usize
+641	./num/bignum.rs:174:29: error: cannot apply operator ‘-’ to types <tyty::error> and <integer>
+642	./num/bignum.rs:175:36: error: cannot find value ‘i’ in this scope [E0425]
+645	./num/bignum.rs:175:36: error: failed to resolve type for argument
+646	./num/bignum.rs:175:23: error: failed to lookup type to MethodCallExpr
+649	./num/bignum.rs:175:23: error: mismatched types, expected ‘<tyty::error>’ but got ‘<integer>’ [E0308]
+652	./num/bignum.rs:176:21: error: cannot find value ‘i’ in this scope [E0425]
+655	./num/bignum.rs:176:21: error: cannot apply operator ‘-=’ to types <tyty::error> and <integer>
+656	./num/bignum.rs:178:17: error: cannot find value ‘i’ in this scope [E0425]
+659	./num/bignum.rs:178:17: error: cannot apply operator ‘+’ to types <tyty::error> and <integer>
+660	./num/bignum.rs:188:21: error: expected <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>, found tuple
+663	./num/bignum.rs:189:36: error: cannot find value ‘a’ in this scope [E0425]
+666	./num/bignum.rs:189:35: error: expected reference type got <tyty::error>
+669	./num/bignum.rs:189:34: error: failed to resolve receiver in MethodCallExpr
+672	./num/bignum.rs:190:22: error: cannot find value ‘a’ in this scope [E0425]
+675	./num/bignum.rs:190:21: error: expected reference type got <tyty::error>
+678	./num/bignum.rs:190:26: error: cannot find value ‘v’ in this scope [E0425]
+681	./num/bignum.rs:191:29: error: cannot find value ‘c’ in this scope [E0425]
+684	./num/bignum.rs:226:21: error: expected <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>, found tuple
+687	./num/bignum.rs:227:36: error: cannot find value ‘a’ in this scope [E0425]
+690	./num/bignum.rs:227:35: error: expected reference type got <tyty::error>
+693	./num/bignum.rs:227:34: error: failed to resolve receiver in MethodCallExpr
+696	./num/bignum.rs:228:22: error: cannot find value ‘a’ in this scope [E0425]
+699	./num/bignum.rs:228:21: error: expected reference type got <tyty::error>
+702	./num/bignum.rs:228:26: error: cannot find value ‘v’ in this scope [E0425]
+705	./num/bignum.rs:229:32: error: cannot find value ‘c’ in this scope [E0425]
+708	./num/bignum.rs:244:35: error: expected reference type got <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>
+711	./num/bignum.rs:244:34: error: failed to resolve receiver in MethodCallExpr
+714	./num/bignum.rs:245:21: error: expected reference type got <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>
+717	./num/bignum.rs:245:26: error: cannot find value ‘v’ in this scope [E0425]
+720	./num/bignum.rs:246:29: error: cannot find value ‘c’ in this scope [E0425]
+723	./num/bignum.rs:268:31: error: cannot apply operator ‘+’ to types <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>> and usize
+726	./num/bignum.rs:268:45: error: the type ‘[u32; 40]’ cannot be indexed by ‘<Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>’ [E0277]
+729	./num/bignum.rs:271:21: error: the type ‘[u32; 40]’ cannot be indexed by ‘<Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>’ [E0277]
+732	./num/bignum.rs:284:25: error: the type ‘[u32; 40]’ cannot be indexed by ‘<Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>’ [E0277]
+735	./num/bignum.rs:285:30: error: the type ‘[u32; 40]’ cannot be indexed by ‘<Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>’ [E0277]
+738	./num/bignum.rs:285:30: error: cannot apply operator ‘<<’ to types <tyty::error> and usize
+739	./num/bignum.rs:285:65: error: cannot apply operator ‘-’ to types <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>> and <integer>
+742	./num/bignum.rs:285:55: error: cannot apply operator ‘>>’ to types <tyty::error> and usize
+745	./num/bignum.rs:285:29: error: cannot apply operator ‘|’ to types <tyty::error> and <tyty::error>
+748	./num/bignum.rs:331:25: error: expected <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>, found tuple
+751	./num/bignum.rs:332:28: error: cannot find value ‘a’ in this scope [E0425]
+754	./num/bignum.rs:332:28: error: mismatched types, expected ‘<tyty::error>’ but got ‘<integer>’ [E0308]
+757	./num/bignum.rs:337:29: error: expected <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>, found tuple
+760	./num/bignum.rs:338:42: error: cannot find value ‘a’ in this scope [E0425]
+763	./num/bignum.rs:338:42: error: failed to resolve receiver in MethodCallExpr
+764	./num/bignum.rs:339:33: error: cannot find value ‘i’ in this scope [E0425]
+767	./num/bignum.rs:339:37: error: cannot find value ‘j’ in this scope [E0425]
+770	./num/bignum.rs:339:33: error: cannot apply operator ‘+’ to types <tyty::error> and <tyty::error>
+773	./num/bignum.rs:339:42: error: cannot find value ‘v’ in this scope [E0425]
+776	./num/bignum.rs:340:37: error: cannot find value ‘c’ in this scope [E0425]
+779	./num/bignum.rs:343:33: error: cannot find value ‘i’ in this scope [E0425]
+782	./num/bignum.rs:343:33: error: cannot apply operator ‘+’ to types <tyty::error> and usize
+783	./num/bignum.rs:346:36: error: cannot find value ‘i’ in this scope [E0425]
+786	./num/bignum.rs:346:36: error: cannot apply operator ‘+’ to types <tyty::error> and usize
+787	./num/bignum.rs:346:28: error: mismatched types, expected ‘<integer>’ but got ‘<tyty::error>’ [E0308]
+790	./num/bignum.rs:347:37: error: cannot find value ‘i’ in this scope [E0425]
+793	./num/bignum.rs:347:37: error: cannot apply operator ‘+’ to types <tyty::error> and usize
+794	./num/bignum.rs:374:35: error: expected reference type got <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>
+797	./num/bignum.rs:374:34: error: failed to resolve receiver in MethodCallExpr
+800	./num/bignum.rs:375:21: error: expected reference type got <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>
+803	./num/bignum.rs:375:26: error: cannot find value ‘q’ in this scope [E0425]
+806	./num/bignum.rs:376:30: error: cannot find value ‘r’ in this scope [E0425]
+809	./num/bignum.rs:390:21: error: expected reference type got <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>
+812	./num/bignum.rs:393:21: error: expected reference type got <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>
+815	./num/bignum.rs:401:47: error: mismatched types, expected ‘usize’ but got ‘<Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>’ [E0308]
+821	./num/bignum.rs:401:34: error: failed to lookup type to MethodCallExpr
+824	./num/bignum.rs:405:41: error: cannot apply operator ‘/’ to types <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>> and usize
+827	./num/bignum.rs:406:39: error: cannot apply operator ‘%’ to types <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>> and usize
+830	./num/bignum.rs:408:38: error: cannot find value ‘digit_idx’ in this scope [E0425]
+833	./num/bignum.rs:408:38: error: cannot apply operator ‘+’ to types <tyty::error> and <integer>
+834	./num/bignum.rs:411:32: error: cannot find value ‘digit_idx’ in this scope [E0425]
+837	./num/bignum.rs:411:51: error: cannot find value ‘bit_idx’ in this scope [E0425]
+840	./num/bignum.rs:411:46: error: cannot apply operator ‘<<’ to types <integer> and <tyty::error>
+843	./num/bignum.rs:411:25: error: cannot apply operator ‘|=’ to types <tyty::error> and <tyty::error>
+846	./num/bignum.rs:429:50: error: duplicate definitions with name ‘cmp’ [E0592]
+853	./num/bignum.rs:429:45: error: failed to resolve argument type
+856	./num/bignum.rs:455:21: error: expected <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>, found reference
+859	./num/bignum.rs:456:42: error: cannot find value ‘v’ in this scope [E0425]
+862	./num/bignum.rs:456:27: error: mismatched types, expected ‘T?’ but got ‘<tyty::error>’ [E0308]
+865	./num/bignum.rs:456:27: error: mismatched types, expected ‘[ArgumentV1{ArgumentV1 {value:& Opaque, formatter:abi:rust fnptr (& Opaque ,&mut Formatter ,) -> Result<(), Error>}}]’ but got ‘[<tyty::error>; 1]’ [E0308]
+868	./num/bignum.rs:456:27: error: failed to resolve type for argument
+869	./num/bignum.rs:456:28: error: failed to lookup type to MethodCallExpr
+872	./num/bignum.rs:456:21: error: mismatched types, expected ‘<tyty::error>’ but got ‘Result<T?, T?>’ [E0308]
+875	./num/bignum.rs:456:21: error: mismatched types, expected ‘<tyty::error>’ but got ‘Result<T?, T?>’ [E0308]
+878	./num/bignum.rs:140:44: error: mismatched types, expected ‘u8’ but got ‘u32’ [E0308]
+884	./num/bignum.rs:163:74: error: no method named ‘count’ found in the current scope [E0599]
+888	./num/bignum.rs:164:42: error: cannot find value ‘zeros’ in this scope [E0425]
+891	./num/bignum.rs:164:27: error: cannot apply operator ‘-’ to types usize and <tyty::error>
+894	./num/bignum.rs:165:41: error: cannot find value ‘end’ in this scope [E0425]
+897	./num/bignum.rs:165:39: error: bounds not satisfied for <tyty::error> ‘Sized’ is not satisfied [E0277]
+900	./num/bignum.rs:165:32: error: the type ‘& [u8]’ cannot be indexed by ‘RangeTo<Idx>’ [E0277]
+903	./num/bignum.rs:167:20: error: cannot find value ‘nonzero’ in this scope [E0425]
+906	./num/bignum.rs:167:20: error: failed to resolve receiver in MethodCallExpr
+907	./num/bignum.rs:167:17: error: mismatched types, expected ‘bool’ but got ‘<tyty::error>’ [E0308]
+913	./num/bignum.rs:174:29: error: cannot find value ‘nonzero’ in this scope [E0425]
+916	./num/bignum.rs:174:29: error: failed to resolve receiver in MethodCallExpr
+917	./num/bignum.rs:174:29: error: cannot apply operator ‘*’ to types <tyty::error> and usize
+918	./num/bignum.rs:174:29: error: cannot apply operator ‘-’ to types <tyty::error> and <integer>
+919	./num/bignum.rs:175:36: error: cannot find value ‘i’ in this scope [E0425]
+922	./num/bignum.rs:175:36: error: failed to resolve type for argument
+923	./num/bignum.rs:175:23: error: failed to lookup type to MethodCallExpr
+926	./num/bignum.rs:175:23: error: mismatched types, expected ‘<tyty::error>’ but got ‘<integer>’ [E0308]
+929	./num/bignum.rs:176:21: error: cannot find value ‘i’ in this scope [E0425]
+932	./num/bignum.rs:176:21: error: cannot apply operator ‘-=’ to types <tyty::error> and <integer>
+933	./num/bignum.rs:178:17: error: cannot find value ‘i’ in this scope [E0425]
+936	./num/bignum.rs:178:17: error: cannot apply operator ‘+’ to types <tyty::error> and <integer>
+937	./num/bignum.rs:188:21: error: expected <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>, found tuple
+940	./num/bignum.rs:189:36: error: cannot find value ‘a’ in this scope [E0425]
+943	./num/bignum.rs:189:35: error: expected reference type got <tyty::error>
+946	./num/bignum.rs:189:34: error: failed to resolve receiver in MethodCallExpr
+949	./num/bignum.rs:190:22: error: cannot find value ‘a’ in this scope [E0425]
+952	./num/bignum.rs:190:21: error: expected reference type got <tyty::error>
+955	./num/bignum.rs:190:26: error: cannot find value ‘v’ in this scope [E0425]
+958	./num/bignum.rs:191:29: error: cannot find value ‘c’ in this scope [E0425]
+961	./num/bignum.rs:226:21: error: expected <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>, found tuple
+964	./num/bignum.rs:227:36: error: cannot find value ‘a’ in this scope [E0425]
+967	./num/bignum.rs:227:35: error: expected reference type got <tyty::error>
+970	./num/bignum.rs:227:34: error: failed to resolve receiver in MethodCallExpr
+973	./num/bignum.rs:228:22: error: cannot find value ‘a’ in this scope [E0425]
+976	./num/bignum.rs:228:21: error: expected reference type got <tyty::error>
+979	./num/bignum.rs:228:26: error: cannot find value ‘v’ in this scope [E0425]
+982	./num/bignum.rs:229:32: error: cannot find value ‘c’ in this scope [E0425]
+985	./num/bignum.rs:244:35: error: expected reference type got <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>
+988	./num/bignum.rs:244:34: error: failed to resolve receiver in MethodCallExpr
+991	./num/bignum.rs:245:21: error: expected reference type got <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>
+994	./num/bignum.rs:245:26: error: cannot find value ‘v’ in this scope [E0425]
+997	./num/bignum.rs:246:29: error: cannot find value ‘c’ in this scope [E0425]
+1000	./num/bignum.rs:268:31: error: cannot apply operator ‘+’ to types <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>> and usize
+1003	./num/bignum.rs:268:45: error: the type ‘[u8; 3]’ cannot be indexed by ‘<Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>’ [E0277]
+1006	./num/bignum.rs:271:21: error: the type ‘[u8; 3]’ cannot be indexed by ‘<Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>’ [E0277]
+1009	./num/bignum.rs:284:25: error: the type ‘[u8; 3]’ cannot be indexed by ‘<Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>’ [E0277]
+1012	./num/bignum.rs:285:30: error: the type ‘[u8; 3]’ cannot be indexed by ‘<Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>’ [E0277]
+1015	./num/bignum.rs:285:30: error: cannot apply operator ‘<<’ to types <tyty::error> and usize
+1016	./num/bignum.rs:285:65: error: cannot apply operator ‘-’ to types <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>> and <integer>
+1019	./num/bignum.rs:285:55: error: cannot apply operator ‘>>’ to types <tyty::error> and usize
+1022	./num/bignum.rs:285:29: error: cannot apply operator ‘|’ to types <tyty::error> and <tyty::error>
+1025	./num/bignum.rs:331:25: error: expected <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>, found tuple
+1028	./num/bignum.rs:332:28: error: cannot find value ‘a’ in this scope [E0425]
+1031	./num/bignum.rs:332:28: error: mismatched types, expected ‘<tyty::error>’ but got ‘<integer>’ [E0308]
+1034	./num/bignum.rs:337:29: error: expected <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>, found tuple
+1037	./num/bignum.rs:338:42: error: cannot find value ‘a’ in this scope [E0425]
+1040	./num/bignum.rs:338:42: error: failed to resolve receiver in MethodCallExpr
+1041	./num/bignum.rs:339:33: error: cannot find value ‘i’ in this scope [E0425]
+1044	./num/bignum.rs:339:37: error: cannot find value ‘j’ in this scope [E0425]
+1047	./num/bignum.rs:339:33: error: cannot apply operator ‘+’ to types <tyty::error> and <tyty::error>
+1050	./num/bignum.rs:339:42: error: cannot find value ‘v’ in this scope [E0425]
+1053	./num/bignum.rs:340:37: error: cannot find value ‘c’ in this scope [E0425]
+1056	./num/bignum.rs:343:33: error: cannot find value ‘i’ in this scope [E0425]
+1059	./num/bignum.rs:343:33: error: cannot apply operator ‘+’ to types <tyty::error> and usize
+1060	./num/bignum.rs:346:36: error: cannot find value ‘i’ in this scope [E0425]
+1063	./num/bignum.rs:346:36: error: cannot apply operator ‘+’ to types <tyty::error> and usize
+1064	./num/bignum.rs:346:28: error: mismatched types, expected ‘<integer>’ but got ‘<tyty::error>’ [E0308]
+1067	./num/bignum.rs:347:37: error: cannot find value ‘i’ in this scope [E0425]
+1070	./num/bignum.rs:347:37: error: cannot apply operator ‘+’ to types <tyty::error> and usize
+1071	./num/bignum.rs:374:35: error: expected reference type got <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>
+1074	./num/bignum.rs:374:34: error: failed to resolve receiver in MethodCallExpr
+1077	./num/bignum.rs:375:21: error: expected reference type got <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>
+1080	./num/bignum.rs:375:26: error: cannot find value ‘q’ in this scope [E0425]
+1083	./num/bignum.rs:376:30: error: cannot find value ‘r’ in this scope [E0425]
+1086	./num/bignum.rs:390:21: error: expected reference type got <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>
+1089	./num/bignum.rs:393:21: error: expected reference type got <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>
+1092	./num/bignum.rs:401:47: error: mismatched types, expected ‘usize’ but got ‘<Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>’ [E0308]
+1098	./num/bignum.rs:401:34: error: failed to lookup type to MethodCallExpr
+1101	./num/bignum.rs:405:41: error: cannot apply operator ‘/’ to types <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>> and usize
+1104	./num/bignum.rs:406:39: error: cannot apply operator ‘%’ to types <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>> and usize
+1107	./num/bignum.rs:408:38: error: cannot find value ‘digit_idx’ in this scope [E0425]
+1110	./num/bignum.rs:408:38: error: cannot apply operator ‘+’ to types <tyty::error> and <integer>
+1111	./num/bignum.rs:411:32: error: cannot find value ‘digit_idx’ in this scope [E0425]
+1114	./num/bignum.rs:411:51: error: cannot find value ‘bit_idx’ in this scope [E0425]
+1117	./num/bignum.rs:411:46: error: cannot apply operator ‘<<’ to types <integer> and <tyty::error>
+1120	./num/bignum.rs:411:25: error: cannot apply operator ‘|=’ to types <tyty::error> and <tyty::error>
+1123	./num/bignum.rs:429:50: error: duplicate definitions with name ‘cmp’ [E0592]
+1130	./num/bignum.rs:429:45: error: failed to resolve argument type
+1133	./num/bignum.rs:455:21: error: expected <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>, found reference
+1136	./num/bignum.rs:456:42: error: cannot find value ‘v’ in this scope [E0425]
+1139	./num/bignum.rs:456:27: error: mismatched types, expected ‘T?’ but got ‘<tyty::error>’ [E0308]
+1142	./num/bignum.rs:456:27: error: mismatched types, expected ‘[ArgumentV1{ArgumentV1 {value:& Opaque, formatter:abi:rust fnptr (& Opaque ,&mut Formatter ,) -> Result<(), Error>}}]’ but got ‘[<tyty::error>; 1]’ [E0308]
+1145	./num/bignum.rs:456:27: error: failed to resolve type for argument
+1146	./num/bignum.rs:456:28: error: failed to lookup type to MethodCallExpr
+1149	./num/bignum.rs:456:21: error: mismatched types, expected ‘<tyty::error>’ but got ‘Result<T?, T?>’ [E0308]
+1152	./num/bignum.rs:456:21: error: mismatched types, expected ‘<tyty::error>’ but got ‘Result<T?, T?>’ [E0308]
+1155	./num/dec2flt/algorithm.rs:141:5: error: mismatched types, expected ‘<Projection=<T, T>::TRAIT_POSITION::T=T REF: 6574>’ but got ‘<Projection=<T, T>::TRAIT_POSITION::T=T REF: 6574>’ [E0308]
+1158	./num/dec2flt/algorithm.rs:192:23: error: duplicate definitions with name ‘clone’ [E0592]
+1162	./num/dec2flt/algorithm.rs:198:25: error: cannot find value ‘x’ in this scope [E0425]
+1165	./num/dec2flt/algorithm.rs:206:35: error: cannot find value ‘x’ in this scope [E0425]
+1168	./num/dec2flt/algorithm.rs:206:35: error: mismatched types, expected ‘<tyty::error>’ but got ‘Big32x40’ [E0308]
+1171	./num/dec2flt/algorithm.rs:208:13: error: cannot find value ‘x’ in this scope [E0425]
+1174	./num/dec2flt/algorithm.rs:208:13: error: failed to resolve receiver in MethodCallExpr
+1175	./num/dec2flt/algorithm.rs:208:13: error: failed to resolve receiver in MethodCallExpr
+1176	./num/dec2flt/algorithm.rs:208:13: error: failed to resolve receiver in MethodCallExpr
+1177	./num/dec2flt/algorithm.rs:209:14: error: cannot find value ‘x’ in this scope [E0425]
+1180	./num/dec2flt/algorithm.rs:213:20: error: cannot find value ‘x’ in this scope [E0425]
+1183	./num/dec2flt/algorithm.rs:213:19: error: failed to resolve type for argument
+1186	./num/dec2flt/algorithm.rs:213:13: error: failed to lookup type to MethodCallExpr
+1189	./num/dec2flt/algorithm.rs:213:13: error: failed to resolve receiver in MethodCallExpr
+1190	./num/dec2flt/algorithm.rs:213:13: error: failed to resolve receiver in MethodCallExpr
+1191	./num/dec2flt/algorithm.rs:206:32: error: mismatched types, expected ‘<tyty::error>’ but got ‘Big32x40’ [E0308]
+1200	./num/dec2flt/algorithm.rs:217:12: error: cannot find value ‘d2’ in this scope [E0425]
+1203	./num/dec2flt/algorithm.rs:217:12: error: mismatched types, expected ‘<tyty::error>’ but got ‘Big32x40’ [E0308]
+1206	./num/dec2flt/algorithm.rs:218:33: error: cannot find value ‘d2’ in this scope [E0425]
+1209	./num/dec2flt/algorithm.rs:219:13: error: cannot find value ‘d2_double’ in this scope [E0425]
+1212	./num/dec2flt/algorithm.rs:219:13: error: failed to resolve receiver in MethodCallExpr
+1213	./num/dec2flt/algorithm.rs:220:35: error: cannot find value ‘d_negative’ in this scope [E0425]
+1216	./num/dec2flt/algorithm.rs:220:16: error: mismatched types, expected ‘bool’ but got ‘<tyty::error>’ [E0308]
+1219	./num/dec2flt/algorithm.rs:220:16: error: mismatched types, expected ‘bool’ but got ‘<tyty::error>’ [E0308]
+1222	./num/dec2flt/algorithm.rs:220:49: error: cannot find value ‘d2_double’ in this scope [E0425]
+1225	./num/dec2flt/algorithm.rs:220:49: error: mismatched types, expected ‘<tyty::error>’ but got ‘Big32x40’ [E0308]
+1228	./num/dec2flt/algorithm.rs:220:16: error: mismatched types, expected ‘bool’ but got ‘<tyty::error>’ [E0308]
+1231	./num/dec2flt/algorithm.rs:220:16: error: mismatched types, expected ‘<tyty::error>’ but got ‘bool’ [E0308]
+1234	./num/dec2flt/algorithm.rs:220:13: error: mismatched types, expected ‘bool’ but got ‘<tyty::error>’ [E0308]
+1237	./num/dec2flt/algorithm.rs:225:19: error: cannot find value ‘d2’ in this scope [E0425]
+1240	./num/dec2flt/algorithm.rs:225:19: error: mismatched types, expected ‘<tyty::error>’ but got ‘Big32x40’ [E0308]
+1243	./num/dec2flt/algorithm.rs:227:39: error: cannot find value ‘d_negative’ in this scope [E0425]
+1246	./num/dec2flt/algorithm.rs:227:20: error: mismatched types, expected ‘bool’ but got ‘<tyty::error>’ [E0308]
+1249	./num/dec2flt/algorithm.rs:227:20: error: mismatched types, expected ‘bool’ but got ‘<tyty::error>’ [E0308]
+1252	./num/dec2flt/algorithm.rs:227:17: error: mismatched types, expected ‘bool’ but got ‘<tyty::error>’ [E0308]
+1258	./num/dec2flt/algorithm.rs:232:23: error: cannot find value ‘d_negative’ in this scope [E0425]
+1261	./num/dec2flt/algorithm.rs:232:20: error: mismatched types, expected ‘bool’ but got ‘<tyty::error>’ [E0308]
+1267	./num/dec2flt/algorithm.rs:237:19: error: cannot find value ‘d_negative’ in this scope [E0425]
+1270	./num/dec2flt/algorithm.rs:237:16: error: mismatched types, expected ‘bool’ but got ‘<tyty::error>’ [E0308]
+1276	./num/dec2flt/algorithm.rs:187:58: error: bounds not satisfied for () ‘RawFloat’ is not satisfied [E0277]
+1279	./num/dec2flt/algorithm.rs:300:15: error: duplicate definitions with name ‘clone’ [E0592]
+1283	./num/dec2flt/algorithm.rs:306:15: error: duplicate definitions with name ‘clone’ [E0592]
+1287	./num/dec2flt/algorithm.rs:307:11: error: duplicate definitions with name ‘mul_pow5’ [E0592]
+1291	./num/dec2flt/algorithm.rs:307:9: error: failed to resolve receiver in MethodCallExpr
+1294	./num/dec2flt/num.rs:23:22: error: mismatched types, expected ‘usize’ but got ‘<Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>’ [E0308]
+1297	./num/dec2flt/num.rs:23:12: error: failed to lookup type to MethodCallExpr
+1300	./num/dec2flt/num.rs:23:12: error: mismatched types, expected ‘<tyty::error>’ but got ‘<integer>’ [E0308]
+1303	./num/dec2flt/num.rs:44:9: error: expected <Projection=<Self>::TRAIT_POSITION::Self REF: 280128>, found reference
+1306	./num/dec2flt/num.rs:45:33: error: cannot find value ‘c’ in this scope [E0425]
+1309	./num/dec2flt/num.rs:45:33: error: cannot apply operator ‘-’ to types <tyty::error> and u8
+1310	./num/dec2flt/num.rs:55:9: error: expected <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>, found reference
+1313	./num/dec2flt/num.rs:56:18: error: cannot find value ‘c’ in this scope [E0425]
+1316	./num/dec2flt/num.rs:56:18: error: cannot apply operator ‘-’ to types <tyty::error> and u8
+1317	./num/dec2flt/num.rs:67:22: error: casting ‘<Projection=<<integer>, u32>::TRAIT_POSITION::I=<integer>>’ as ‘u64’ is invalid [E0606]
+1320	./num/dec2flt/num.rs:67:44: error: casting ‘<Projection=<<integer>, u32>::TRAIT_POSITION::I=<integer>>’ as ‘u64’ is invalid [E0606]
+1323	./num/dec2flt/num.rs:67:65: error: casting ‘<Projection=<<integer>, u32>::TRAIT_POSITION::I=<integer>>’ as ‘u64’ is invalid [E0606]
+1326	./num/dec2flt/num.rs:78:42: error: mismatched types, expected ‘usize’ but got ‘<Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>’ [E0308]
+1329	./num/dec2flt/num.rs:78:32: error: failed to lookup type to MethodCallExpr
+1332	./num/dec2flt/parse.rs:84:26: error: mismatched types, expected ‘u8’ but got ‘<Projection=<T>::T=T REF: 321133::usize>’ [E0308]
+1335	./num/dec2flt/parse.rs:84:42: error: mismatched types, expected ‘T’ but got ‘u8’ [E0308]
+1338	./num/dec2flt/parse.rs:82:43: error: mismatched types, expected ‘u8’ but got ‘u32’ [E0308]
+1341	./macros/mod.rs:43:22: error: expected reference type got T?
+1344	./macros/mod.rs:49:20: error: expected reference type got T?
+1347	./num/dec2flt/rawfp.rs:302:18: error: bounds not satisfied for u64 ‘Add’ is not satisfied [E0277]
+1353	./pin.rs:462:23: error: trait bound is not object safe
+1356	./num/dec2flt/rawfp.rs:361:74: error: bounds not satisfied for TryFromIntError ‘Add’ is not satisfied [E0277]
+1362	./num/dec2flt/rawfp.rs:361:51: error: cannot apply operator ‘+’ to types <Projection=<T>::TRAIT_POSITION::T=T REF: 12008> and <tyty::error>
+1365	./num/dec2flt/mod.rs:210:30: error: duplicate definitions with name ‘fmt’ [E0592]
+1369	./num/dec2flt/mod.rs:225:9: error: mismatched types, expected ‘<Projection=<<integer>, u8>::TRAIT_POSITION::I=<integer>>’ but got ‘u8’ [E0308]
+1374	./num/dec2flt/mod.rs:226:9: error: mismatched types, expected ‘<Projection=<<integer>, u8>::TRAIT_POSITION::I=<integer>>’ but got ‘u8’ [E0308]
+1380	./num/dec2flt/mod.rs:299:60: error: bounds not satisfied for & |(& & u8)| {bool} ‘FnMut’ is not satisfied [E0277]
+1383	./num/dec2flt/mod.rs:299:25: error: failed to lookup type to MethodCallExpr
+1386	./num/dec2flt/mod.rs:299:25: error: failed to resolve receiver in MethodCallExpr
+1387	./num/dec2flt/mod.rs:300:42: error: cannot find value ‘leading_zeros’ in this scope [E0425]
+1390	./num/dec2flt/mod.rs:300:42: error: bounds not satisfied for <tyty::error> ‘Sized’ is not satisfied [E0277]
+1393	./num/dec2flt/mod.rs:300:25: error: the type ‘& [u8]’ cannot be indexed by ‘RangeFrom<Idx>’ [E0277]
+1396	./num/dec2flt/mod.rs:301:69: error: bounds not satisfied for & |(& & u8)| {bool} ‘FnMut’ is not satisfied [E0277]
+1399	./num/dec2flt/mod.rs:301:26: error: failed to lookup type to MethodCallExpr
+1402	./num/dec2flt/mod.rs:301:26: error: failed to resolve receiver in MethodCallExpr
+1403	./num/dec2flt/mod.rs:302:42: error: cannot find value ‘trailing_zeros’ in this scope [E0425]
+1406	./num/dec2flt/mod.rs:302:15: error: cannot apply operator ‘-’ to types usize and <tyty::error>
+1409	./num/dec2flt/mod.rs:303:48: error: cannot find value ‘end’ in this scope [E0425]
+1412	./num/dec2flt/mod.rs:303:46: error: bounds not satisfied for <tyty::error> ‘Sized’ is not satisfied [E0277]
+1415	./num/dec2flt/mod.rs:303:27: error: the type ‘& [u8]’ cannot be indexed by ‘RangeTo<Idx>’ [E0277]
+1418	./num/dec2flt/mod.rs:308:66: error: bounds not satisfied for & |(& & u8)| {bool} ‘FnMut’ is not satisfied [E0277]
+1421	./num/dec2flt/mod.rs:308:29: error: failed to lookup type to MethodCallExpr
+1424	./num/dec2flt/mod.rs:308:29: error: failed to resolve receiver in MethodCallExpr
+1425	./num/dec2flt/mod.rs:309:50: error: cannot find value ‘leading_zeros’ in this scope [E0425]
+1428	./num/dec2flt/mod.rs:309:50: error: bounds not satisfied for <tyty::error> ‘Sized’ is not satisfied [E0277]
+1431	./num/dec2flt/mod.rs:309:31: error: the type ‘& [u8]’ cannot be indexed by ‘RangeFrom<Idx>’ [E0277]
+1434	./num/dec2flt/mod.rs:310:24: error: cannot find value ‘leading_zeros’ in this scope [E0425]
+1437	./num/dec2flt/mod.rs:312:71: error: bounds not satisfied for & |(& & u8)| {bool} ‘FnMut’ is not satisfied [E0277]
+1440	./num/dec2flt/mod.rs:312:30: error: failed to lookup type to MethodCallExpr
+1443	./num/dec2flt/mod.rs:312:30: error: failed to resolve receiver in MethodCallExpr
+1444	./num/dec2flt/mod.rs:313:44: error: cannot find value ‘trailing_zeros’ in this scope [E0425]
+1447	./num/dec2flt/mod.rs:313:19: error: cannot apply operator ‘-’ to types usize and <tyty::error>
+1450	./num/dec2flt/mod.rs:314:48: error: cannot find value ‘end’ in this scope [E0425]
+1453	./num/dec2flt/mod.rs:314:46: error: bounds not satisfied for <tyty::error> ‘Sized’ is not satisfied [E0277]
+1456	./num/dec2flt/mod.rs:314:29: error: the type ‘& [u8]’ cannot be indexed by ‘RangeTo<Idx>’ [E0277]
+1459	./num/dec2flt/mod.rs:315:24: error: cannot find value ‘trailing_zeros’ in this scope [E0425]
+1462	./macros/mod.rs:43:22: error: expected reference type got u64
+1465	./macros/mod.rs:43:22: error: mismatched types, expected ‘<tyty::error>’ but got ‘u64’ [E0308]
+1468	./macros/mod.rs:49:20: error: expected reference type got u64
+1471	./macros/mod.rs:47:27: error: mismatched types, expected ‘T?’ but got ‘<tyty::error>’ [E0308]
+1474	./macros/mod.rs:47:27: error: mismatched types, expected ‘<tyty::error>’ but got ‘ArgumentV1’ [E0308]
+1477	./macros/mod.rs:47:27: error: mismatched types, expected ‘[ArgumentV1{ArgumentV1 {value:& Opaque, formatter:abi:rust fnptr (& Opaque ,&mut Formatter ,) -> Result<(), Error>}}]’ but got ‘[<tyty::error>; 2]’ [E0308]
+1480	./num/flt2dec/strategy/dragon.rs:193:9: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<u8>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<u8>’ [E0308]
+1483	./num/flt2dec/strategy/dragon.rs:249:79: error: mismatched types, expected ‘MaybeUninit<u8>’ but got ‘u32’ [E0308]
+1486	./num/flt2dec/strategy/dragon.rs:249:9: error: mismatched types, expected ‘<tyty::error>’ but got ‘Option<T?>’ [E0308]
+1489	./num/flt2dec/strategy/dragon.rs:244:5: error: bounds not satisfied for <tyty::error> ‘PartialEq, PartialOrd, Ord, Eq, Debug, Default, Extend, Hash, FromIterator’ is not satisfied [E0277]
+1492	./num/flt2dec/strategy/dragon.rs:257:50: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1495	./num/flt2dec/strategy/dragon.rs:104:41: error: mismatched types, expected ‘& [u8]’ but got ‘<tyty::error>’ [E0308]
+1501	./num/flt2dec/strategy/dragon.rs:331:35: error: mismatched types, expected ‘<Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>’ but got ‘usize’ [E0308]
+1504	./num/flt2dec/strategy/dragon.rs:331:35: error: bounds not satisfied for <tyty::error> ‘Sized’ is not satisfied [E0277]
+1507	./num/flt2dec/strategy/dragon.rs:331:31: error: the type ‘&mut [MaybeUninit<u8>{MaybeUninit {uninit:(), value:ManuallyDrop<u8>}}]’ cannot be indexed by ‘Range<Idx>’ [E0277]
+1510	./num/flt2dec/strategy/dragon.rs:331:21: error: cannot find value ‘#result’ in this scope [E0425]
+1513	./num/flt2dec/strategy/dragon.rs:331:17: error: bounds not satisfied for <tyty::error> ‘PartialEq, PartialOrd, Ord, Eq, Debug, Default, Extend, Hash, FromIterator’ is not satisfied [E0277]
+1516	./num/flt2dec/strategy/dragon.rs:335:69: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1519	./num/flt2dec/strategy/dragon.rs:335:17: error: mismatched types, expected ‘& [u8]’ but got ‘<tyty::error>’ [E0308]
+1525	./num/flt2dec/strategy/dragon.rs:357:13: error: the type ‘&mut [MaybeUninit<u8>{MaybeUninit {uninit:(), value:ManuallyDrop<u8>}}]’ cannot be indexed by ‘<Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>’ [E0277]
+1528	./num/flt2dec/strategy/dragon.rs:369:51: error: no method named ‘assume_init’ found in the current scope [E0599]
+1532	./num/flt2dec/strategy/dragon.rs:369:29: error: cannot apply operator ‘&’ to types <tyty::error> and <integer>
+1535	./num/flt2dec/strategy/dragon.rs:369:29: error: mismatched types, expected ‘<tyty::error>’ but got ‘<integer>’ [E0308]
+1538	./num/flt2dec/strategy/dragon.rs:374:79: error: mismatched types, expected ‘MaybeUninit<u8>’ but got ‘u32’ [E0308]
+1541	./num/flt2dec/strategy/dragon.rs:374:9: error: mismatched types, expected ‘<tyty::error>’ but got ‘Option<T?>’ [E0308]
+1544	./num/flt2dec/strategy/dragon.rs:366:5: error: bounds not satisfied for <tyty::error> ‘PartialEq, PartialOrd, Ord, Eq, Debug, Default, Extend, Hash, FromIterator’ is not satisfied [E0277]
+1547	./num/flt2dec/strategy/dragon.rs:387:50: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1550	./num/flt2dec/strategy/dragon.rs:265:41: error: mismatched types, expected ‘& [u8]’ but got ‘<tyty::error>’ [E0308]
+1556	./num/flt2dec/strategy/grisu.rs:270:9: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<u8>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<u8>’ [E0308]
+1559	./num/flt2dec/strategy/grisu.rs:279:61: error: mismatched types, expected ‘MaybeUninit<u8>’ but got ‘u32’ [E0308]
+1562	./num/flt2dec/strategy/grisu.rs:330:61: error: mismatched types, expected ‘MaybeUninit<u8>’ but got ‘u32’ [E0308]
+1565	./num/flt2dec/strategy/grisu.rs:168:49: error: bounds not satisfied for Option<(& [u8], i16)> ‘Extend’ is not satisfied [E0277]
+1568	./num/flt2dec/strategy/grisu.rs:704:70: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1571	./num/flt2dec/strategy/grisu.rs:704:25: error: mismatched types, expected ‘<tyty::error>’ but got ‘<tyty::error>’ [E0308]
+1574	./num/flt2dec/strategy/grisu.rs:727:70: error: mismatched types, expected ‘MaybeUninit<u8>’ but got ‘u32’ [E0308]
+1577	./num/flt2dec/strategy/grisu.rs:725:13: error: mismatched types, expected ‘<tyty::error>’ but got ‘Option<T?>’ [E0308]
+1583	./num/flt2dec/strategy/grisu.rs:725:13: error: bounds not satisfied for <tyty::error> ‘PartialEq, PartialOrd, Ord, Eq, Debug, Default, Extend, Hash, FromIterator’ is not satisfied [E0277]
+1586	./num/flt2dec/strategy/grisu.rs:739:70: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1589	./num/flt2dec/strategy/grisu.rs:739:25: error: mismatched types, expected ‘<tyty::error>’ but got ‘<tyty::error>’ [E0308]
+1592	./num/flt2dec/strategy/grisu.rs:554:9: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<u8>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<u8>’ [E0308]
+1595	./num/flt2dec/strategy/grisu.rs:594:11: error: expected boolean expression in ‘while’ condition
+1598	./num/flt2dec/strategy/grisu.rs:594:5: error: bounds not satisfied for <tyty::error> ‘PartialEq, PartialOrd, Ord, Eq, Debug, Default, Extend, Hash, FromIterator’ is not satisfied [E0277]
+1601	./num/flt2dec/mod.rs:152:13: error: cannot apply operator ‘+=’ to types T=MaybeUninit<u8>{MaybeUninit {uninit:(), value:ManuallyDrop<u8>}} and <integer>
+1604	./num/flt2dec/mod.rs:154:17: error: the type ‘&mut [u8]’ cannot be indexed by ‘<Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>’ [E0277]
+1607	./num/flt2dec/mod.rs:160:13: error: mismatched types, expected ‘<Projection=<<integer>, u8>::TRAIT_POSITION::I=<integer>>’ but got ‘u8’ [E0308]
+1610	./num/flt2dec/mod.rs:162:17: error: the type ‘&mut [u8]’ cannot be indexed by ‘<Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>’ [E0277]
+1613	./num/flt2dec/mod.rs:215:25: error: expected reference type got <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>
+1616	./num/flt2dec/mod.rs:220:25: error: expected reference type got <Projection=<<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>::TRAIT_POSITION::Self=<Projection=<I>::I=I REF: 280146::I=I REF: 280146>>
+1619	./num/flt2dec/mod.rs:225:54: error: mismatched types, expected ‘u32’ but got ‘u8’ [E0308]
+1625	./num/flt2dec/mod.rs:225:21: error: failed to lookup type to MethodCallExpr
+1628	./num/flt2dec/mod.rs:251:25: error: no method named ‘len’ found in the current scope [E0599]
+1632	./num/flt2dec/mod.rs:251:13: error: cannot apply operator ‘+=’ to types usize and <tyty::error>
+1635	./num/flt2dec/mod.rs:263:48: error: mismatched types, expected ‘u32’ but got ‘u8’ [E0308]
+1638	./num/flt2dec/mod.rs:263:9: error: failed to lookup type to MethodCallExpr
+1641	./num/flt2dec/mod.rs:267:28: error: no method named ‘write’ found in the current scope [E0599]
+1645	./num/flt2dec/mod.rs:267:23: error: mismatched types, expected ‘<tyty::error>’ but got ‘Result<T?, T?>’ [E0308]
+1648	./num/flt2dec/mod.rs:267:23: error: mismatched types, expected ‘<tyty::error>’ but got ‘Result<T?, T?>’ [E0308]
+1651	./num/flt2dec/mod.rs:268:24: error: cannot find value ‘len’ in this scope [E0425]
+1654	./num/flt2dec/mod.rs:268:13: error: cannot apply operator ‘+=’ to types usize and <tyty::error>
+1657	./num/flt2dec/mod.rs:308:9: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1660	./num/flt2dec/mod.rs:309:9: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1663	./num/flt2dec/mod.rs:310:9: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1666	./num/flt2dec/mod.rs:312:13: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1669	./num/flt2dec/mod.rs:314:57: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1672	./num/flt2dec/mod.rs:317:57: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1675	./num/flt2dec/mod.rs:311:9: error: mismatched types, expected ‘<tyty::error>’ but got ‘<tyty::error>’ [E0308]
+1681	./num/flt2dec/mod.rs:323:52: error: mismatched types, expected ‘u8’ but got ‘u32’ [E0308]
+1687	./num/flt2dec/mod.rs:324:13: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1690	./num/flt2dec/mod.rs:325:13: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1693	./num/flt2dec/mod.rs:327:17: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1696	./num/flt2dec/mod.rs:329:61: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1699	./num/flt2dec/mod.rs:332:61: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1702	./num/flt2dec/mod.rs:326:13: error: mismatched types, expected ‘<tyty::error>’ but got ‘<tyty::error>’ [E0308]
+1708	./num/flt2dec/mod.rs:336:13: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1711	./num/flt2dec/mod.rs:337:13: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1714	./num/flt2dec/mod.rs:339:17: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1717	./num/flt2dec/mod.rs:340:17: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1720	./num/flt2dec/mod.rs:342:61: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1723	./num/flt2dec/mod.rs:345:61: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1726	./num/flt2dec/mod.rs:338:13: error: mismatched types, expected ‘<tyty::error>’ but got ‘<tyty::error>’ [E0308]
+1732	./num/flt2dec/mod.rs:321:9: error: mismatched types, expected ‘<tyty::error>’ but got ‘<tyty::error>’ [E0308]
+1738	./num/flt2dec/mod.rs:305:5: error: mismatched types, expected ‘<tyty::error>’ but got ‘<tyty::error>’ [E0308]
+1744	./num/flt2dec/mod.rs:373:44: error: mismatched types, expected ‘u8’ but got ‘u32’ [E0308]
+1750	./num/flt2dec/mod.rs:377:9: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1753	./num/flt2dec/mod.rs:378:9: error: mismatched types, expected ‘<Projection=<T?, MaybeUninit<Part>>::TRAIT_POSITION::I=T?>’ but got ‘MaybeUninit<Part>’ [E0308]
+1756	./num/flt2dec/mod.rs:381:13: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1759	./num/flt2dec/mod.rs:389:9: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1762	./num/flt2dec/mod.rs:390:9: error: mismatched types, expected ‘<Projection=<T?, MaybeUninit<Part>>::TRAIT_POSITION::I=T?>’ but got ‘MaybeUninit<Part>’ [E0308]
+1765	./num/flt2dec/mod.rs:392:9: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1768	./num/flt2dec/mod.rs:393:9: error: mismatched types, expected ‘<Projection=<T?, MaybeUninit<Part>>::TRAIT_POSITION::I=T?>’ but got ‘MaybeUninit<Part>’ [E0308]
+1771	./num/flt2dec/mod.rs:396:49: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1774	./num/flt2dec/mod.rs:488:13: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1777	./num/flt2dec/mod.rs:490:82: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1780	./num/flt2dec/mod.rs:493:13: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1783	./num/flt2dec/mod.rs:495:82: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1786	./num/flt2dec/mod.rs:500:17: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1789	./num/flt2dec/mod.rs:501:17: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1792	./num/flt2dec/mod.rs:505:72: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1795	./num/flt2dec/mod.rs:508:17: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1798	./num/flt2dec/mod.rs:512:72: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1801	./num/flt2dec/mod.rs:564:13: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1804	./num/flt2dec/mod.rs:566:82: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1807	./num/flt2dec/mod.rs:569:13: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1810	./num/flt2dec/mod.rs:571:82: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1813	./num/flt2dec/mod.rs:574:13: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1816	./num/flt2dec/mod.rs:580:82: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1819	./num/flt2dec/mod.rs:655:13: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1822	./num/flt2dec/mod.rs:657:82: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1825	./num/flt2dec/mod.rs:660:13: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1828	./num/flt2dec/mod.rs:662:82: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1831	./num/flt2dec/mod.rs:667:17: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1834	./num/flt2dec/mod.rs:668:17: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1837	./num/flt2dec/mod.rs:669:17: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1840	./num/flt2dec/mod.rs:673:72: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1843	./num/flt2dec/mod.rs:676:17: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1846	./num/flt2dec/mod.rs:680:72: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1849	./num/flt2dec/mod.rs:689:30: error: mismatched types, expected ‘MaybeUninit<u8>’ but got ‘u32’ [E0308]
+1855	./num/flt2dec/mod.rs:689:30: error: failed check fn trait call-expr MethodCallExpr
+1856	./num/flt2dec/mod.rs:689:30: error: expected function, found ‘F’ [E0618]
+1857	./num/flt2dec/mod.rs:690:56: error: cannot find value ‘buf’ in this scope [E0425]
+1860	./num/flt2dec/mod.rs:729:13: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1863	./num/flt2dec/mod.rs:731:82: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1866	./num/flt2dec/mod.rs:734:13: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1869	./num/flt2dec/mod.rs:736:82: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1872	./num/flt2dec/mod.rs:741:17: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1875	./num/flt2dec/mod.rs:742:17: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1878	./num/flt2dec/mod.rs:746:72: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1881	./num/flt2dec/mod.rs:749:17: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1884	./num/flt2dec/mod.rs:753:72: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1887	./num/flt2dec/mod.rs:765:30: error: mismatched types, expected ‘MaybeUninit<u8>’ but got ‘u32’ [E0308]
+1893	./num/flt2dec/mod.rs:765:30: error: failed check fn trait call-expr MethodCallExpr
+1894	./num/flt2dec/mod.rs:765:30: error: expected function, found ‘F’ [E0618]
+1895	./num/flt2dec/mod.rs:766:16: error: cannot find value ‘exp’ in this scope [E0425]
+1898	./num/flt2dec/mod.rs:766:16: error: mismatched types, expected ‘<tyty::error>’ but got ‘i16’ [E0308]
+1901	./num/flt2dec/mod.rs:770:34: error: cannot find value ‘buf’ in this scope [E0425]
+1904	./num/flt2dec/mod.rs:770:34: error: failed to resolve receiver in MethodCallExpr
+1905	./macros/mod.rs:41:9: error: mismatched types, expected ‘<tyty::error>’ but got ‘<tyty::error>’ [E0308]
+1908	./num/flt2dec/mod.rs:773:21: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1911	./num/flt2dec/mod.rs:774:21: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1914	./num/flt2dec/mod.rs:778:76: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1917	./num/flt2dec/mod.rs:781:21: error: mismatched types, expected ‘<Projection=<<integer>, MaybeUninit<Part>>::TRAIT_POSITION::I=<integer>>’ but got ‘MaybeUninit<Part>’ [E0308]
+1920	./num/flt2dec/mod.rs:785:76: error: mismatched types, expected ‘MaybeUninit<T?>’ but got ‘u32’ [E0308]
+1923	./num/flt2dec/mod.rs:789:60: error: cannot find value ‘buf’ in this scope [E0425]
+1926	./num/error.rs:8:3: error: mismatched types, expected ‘()’ but got ‘& ()’ [E0308]
+1929	./num/error.rs:27:30: error: duplicate definitions with name ‘fmt’ [E0592]
+1933	./num/error.rs:152:30: error: duplicate definitions with name ‘fmt’ [E0592]
+1937	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU8>::TRAIT_POSITION::Self=& NonZeroU8{NonZeroU8 (0:u8)}>’ [E0308]
+1940	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+1941	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+1942	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+1943	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU8>::TRAIT_POSITION::Self=& NonZeroU8{NonZeroU8 (0:u8)}>’ [E0308]
+1946	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+1947	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+1948	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+1949	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU8>::TRAIT_POSITION::Self=& NonZeroU8{NonZeroU8 (0:u8)}>’ [E0308]
+1952	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+1953	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+1954	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+1955	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU8>::TRAIT_POSITION::Self=& NonZeroU8{NonZeroU8 (0:u8)}>’ [E0308]
+1958	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+1959	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+1960	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+1961	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU8>::TRAIT_POSITION::Self=& NonZeroU8{NonZeroU8 (0:u8)}>’ [E0308]
+1964	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+1965	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+1966	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+1967	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU8>::TRAIT_POSITION::Self=& NonZeroU8{NonZeroU8 (0:u8)}>’ [E0308]
+1970	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+1971	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+1972	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+1973	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU16>::TRAIT_POSITION::Self=& NonZeroU16{NonZeroU16 (0:u16)}>’ [E0308]
+1976	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+1977	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+1978	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+1979	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU16>::TRAIT_POSITION::Self=& NonZeroU16{NonZeroU16 (0:u16)}>’ [E0308]
+1982	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+1983	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+1984	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+1985	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU16>::TRAIT_POSITION::Self=& NonZeroU16{NonZeroU16 (0:u16)}>’ [E0308]
+1988	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+1989	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+1990	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+1991	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU16>::TRAIT_POSITION::Self=& NonZeroU16{NonZeroU16 (0:u16)}>’ [E0308]
+1994	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+1995	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+1996	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+1997	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU16>::TRAIT_POSITION::Self=& NonZeroU16{NonZeroU16 (0:u16)}>’ [E0308]
+2000	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2001	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2002	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2003	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU16>::TRAIT_POSITION::Self=& NonZeroU16{NonZeroU16 (0:u16)}>’ [E0308]
+2006	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2007	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2008	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2009	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU32>::TRAIT_POSITION::Self=& NonZeroU32{NonZeroU32 (0:u32)}>’ [E0308]
+2012	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2013	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2014	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2015	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU32>::TRAIT_POSITION::Self=& NonZeroU32{NonZeroU32 (0:u32)}>’ [E0308]
+2018	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2019	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2020	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2021	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU32>::TRAIT_POSITION::Self=& NonZeroU32{NonZeroU32 (0:u32)}>’ [E0308]
+2024	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2025	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2026	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2027	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU32>::TRAIT_POSITION::Self=& NonZeroU32{NonZeroU32 (0:u32)}>’ [E0308]
+2030	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2031	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2032	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2033	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU32>::TRAIT_POSITION::Self=& NonZeroU32{NonZeroU32 (0:u32)}>’ [E0308]
+2036	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2037	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2038	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2039	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU32>::TRAIT_POSITION::Self=& NonZeroU32{NonZeroU32 (0:u32)}>’ [E0308]
+2042	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2043	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2044	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2045	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU64>::TRAIT_POSITION::Self=& NonZeroU64{NonZeroU64 (0:u64)}>’ [E0308]
+2048	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2049	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2050	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2051	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU64>::TRAIT_POSITION::Self=& NonZeroU64{NonZeroU64 (0:u64)}>’ [E0308]
+2054	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2055	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2056	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2057	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU64>::TRAIT_POSITION::Self=& NonZeroU64{NonZeroU64 (0:u64)}>’ [E0308]
+2060	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2061	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2062	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2063	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU64>::TRAIT_POSITION::Self=& NonZeroU64{NonZeroU64 (0:u64)}>’ [E0308]
+2066	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2067	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2068	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2069	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU64>::TRAIT_POSITION::Self=& NonZeroU64{NonZeroU64 (0:u64)}>’ [E0308]
+2072	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2073	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2074	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2075	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU64>::TRAIT_POSITION::Self=& NonZeroU64{NonZeroU64 (0:u64)}>’ [E0308]
+2078	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2079	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2080	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2081	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU128>::TRAIT_POSITION::Self=& NonZeroU128{NonZeroU128 (0:u128)}>’ [E0308]
+2084	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2085	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2086	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2087	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU128>::TRAIT_POSITION::Self=& NonZeroU128{NonZeroU128 (0:u128)}>’ [E0308]
+2090	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2091	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2092	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2093	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU128>::TRAIT_POSITION::Self=& NonZeroU128{NonZeroU128 (0:u128)}>’ [E0308]
+2096	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2097	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2098	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2099	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU128>::TRAIT_POSITION::Self=& NonZeroU128{NonZeroU128 (0:u128)}>’ [E0308]
+2102	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2103	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2104	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2105	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU128>::TRAIT_POSITION::Self=& NonZeroU128{NonZeroU128 (0:u128)}>’ [E0308]
+2108	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2109	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2110	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2111	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroU128>::TRAIT_POSITION::Self=& NonZeroU128{NonZeroU128 (0:u128)}>’ [E0308]
+2114	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2115	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2116	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2117	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroUsize>::TRAIT_POSITION::Self=& NonZeroUsize{NonZeroUsize (0:usize)}>’ [E0308]
+2120	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2121	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2122	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2123	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroUsize>::TRAIT_POSITION::Self=& NonZeroUsize{NonZeroUsize (0:usize)}>’ [E0308]
+2126	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2127	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2128	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2129	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroUsize>::TRAIT_POSITION::Self=& NonZeroUsize{NonZeroUsize (0:usize)}>’ [E0308]
+2132	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2133	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2134	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2135	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroUsize>::TRAIT_POSITION::Self=& NonZeroUsize{NonZeroUsize (0:usize)}>’ [E0308]
+2138	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2139	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2140	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2141	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroUsize>::TRAIT_POSITION::Self=& NonZeroUsize{NonZeroUsize (0:usize)}>’ [E0308]
+2144	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2145	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2146	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2147	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroUsize>::TRAIT_POSITION::Self=& NonZeroUsize{NonZeroUsize (0:usize)}>’ [E0308]
+2150	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2151	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2152	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2153	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI8>::TRAIT_POSITION::Self=& NonZeroI8{NonZeroI8 (0:i8)}>’ [E0308]
+2156	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2157	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2158	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2159	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI8>::TRAIT_POSITION::Self=& NonZeroI8{NonZeroI8 (0:i8)}>’ [E0308]
+2162	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2163	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2164	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2165	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI8>::TRAIT_POSITION::Self=& NonZeroI8{NonZeroI8 (0:i8)}>’ [E0308]
+2168	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2169	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2170	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2171	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI8>::TRAIT_POSITION::Self=& NonZeroI8{NonZeroI8 (0:i8)}>’ [E0308]
+2174	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2175	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2176	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2177	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI8>::TRAIT_POSITION::Self=& NonZeroI8{NonZeroI8 (0:i8)}>’ [E0308]
+2180	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2181	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2182	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2183	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI8>::TRAIT_POSITION::Self=& NonZeroI8{NonZeroI8 (0:i8)}>’ [E0308]
+2186	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2187	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2188	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2189	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI16>::TRAIT_POSITION::Self=& NonZeroI16{NonZeroI16 (0:i16)}>’ [E0308]
+2192	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2193	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2194	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2195	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI16>::TRAIT_POSITION::Self=& NonZeroI16{NonZeroI16 (0:i16)}>’ [E0308]
+2198	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2199	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2200	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2201	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI16>::TRAIT_POSITION::Self=& NonZeroI16{NonZeroI16 (0:i16)}>’ [E0308]
+2204	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2205	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2206	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2207	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI16>::TRAIT_POSITION::Self=& NonZeroI16{NonZeroI16 (0:i16)}>’ [E0308]
+2210	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2211	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2212	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2213	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI16>::TRAIT_POSITION::Self=& NonZeroI16{NonZeroI16 (0:i16)}>’ [E0308]
+2216	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2217	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2218	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2219	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI16>::TRAIT_POSITION::Self=& NonZeroI16{NonZeroI16 (0:i16)}>’ [E0308]
+2222	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2223	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2224	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2225	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI32>::TRAIT_POSITION::Self=& NonZeroI32{NonZeroI32 (0:i32)}>’ [E0308]
+2228	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2229	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2230	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2231	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI32>::TRAIT_POSITION::Self=& NonZeroI32{NonZeroI32 (0:i32)}>’ [E0308]
+2234	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2235	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2236	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2237	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI32>::TRAIT_POSITION::Self=& NonZeroI32{NonZeroI32 (0:i32)}>’ [E0308]
+2240	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2241	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2242	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2243	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI32>::TRAIT_POSITION::Self=& NonZeroI32{NonZeroI32 (0:i32)}>’ [E0308]
+2246	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2247	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2248	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2249	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI32>::TRAIT_POSITION::Self=& NonZeroI32{NonZeroI32 (0:i32)}>’ [E0308]
+2252	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2253	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2254	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2255	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI32>::TRAIT_POSITION::Self=& NonZeroI32{NonZeroI32 (0:i32)}>’ [E0308]
+2258	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2259	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2260	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2261	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI64>::TRAIT_POSITION::Self=& NonZeroI64{NonZeroI64 (0:i64)}>’ [E0308]
+2264	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2265	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2266	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2267	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI64>::TRAIT_POSITION::Self=& NonZeroI64{NonZeroI64 (0:i64)}>’ [E0308]
+2270	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2271	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2272	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2273	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI64>::TRAIT_POSITION::Self=& NonZeroI64{NonZeroI64 (0:i64)}>’ [E0308]
+2276	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2277	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2278	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2279	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI64>::TRAIT_POSITION::Self=& NonZeroI64{NonZeroI64 (0:i64)}>’ [E0308]
+2282	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2283	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2284	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2285	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI64>::TRAIT_POSITION::Self=& NonZeroI64{NonZeroI64 (0:i64)}>’ [E0308]
+2288	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2289	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2290	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2291	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI64>::TRAIT_POSITION::Self=& NonZeroI64{NonZeroI64 (0:i64)}>’ [E0308]
+2294	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2295	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2296	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2297	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI128>::TRAIT_POSITION::Self=& NonZeroI128{NonZeroI128 (0:i128)}>’ [E0308]
+2300	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2301	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2302	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2303	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI128>::TRAIT_POSITION::Self=& NonZeroI128{NonZeroI128 (0:i128)}>’ [E0308]
+2306	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2307	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2308	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2309	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI128>::TRAIT_POSITION::Self=& NonZeroI128{NonZeroI128 (0:i128)}>’ [E0308]
+2312	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2313	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2314	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2315	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI128>::TRAIT_POSITION::Self=& NonZeroI128{NonZeroI128 (0:i128)}>’ [E0308]
+2318	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2319	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2320	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2321	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI128>::TRAIT_POSITION::Self=& NonZeroI128{NonZeroI128 (0:i128)}>’ [E0308]
+2324	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2325	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2326	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2327	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroI128>::TRAIT_POSITION::Self=& NonZeroI128{NonZeroI128 (0:i128)}>’ [E0308]
+2330	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2331	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2332	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2333	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroIsize>::TRAIT_POSITION::Self=& NonZeroIsize{NonZeroIsize (0:isize)}>’ [E0308]
+2336	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2337	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2338	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2339	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroIsize>::TRAIT_POSITION::Self=& NonZeroIsize{NonZeroIsize (0:isize)}>’ [E0308]
+2342	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2343	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2344	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2345	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroIsize>::TRAIT_POSITION::Self=& NonZeroIsize{NonZeroIsize (0:isize)}>’ [E0308]
+2348	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2349	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2350	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2351	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroIsize>::TRAIT_POSITION::Self=& NonZeroIsize{NonZeroIsize (0:isize)}>’ [E0308]
+2354	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2355	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2356	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2357	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroIsize>::TRAIT_POSITION::Self=& NonZeroIsize{NonZeroIsize (0:isize)}>’ [E0308]
+2360	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2361	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2362	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2363	./num/nonzero.rs:24:21: error: mismatched types, expected ‘& str’ but got ‘<Projection=<& NonZeroIsize>::TRAIT_POSITION::Self=& NonZeroIsize{NonZeroIsize (0:isize)}>’ [E0308]
+2366	./num/nonzero.rs:24:21: error: this function takes 2 arguments but 1 argument was supplied [E0061]
+2367	./num/nonzero.rs:24:21: error: failed to lookup type to MethodCallExpr
+2368	./num/nonzero.rs:24:21: error: failed to resolve receiver in MethodCallExpr
+2369	./num/nonzero.rs:181:27: error: mismatched types, expected ‘u8’ but got ‘<Projection=<Result<T?, ParseIntError>>::TRAIT_POSITION::Result<T?, ParseIntError>{Ok (0:T?), Err (0:ParseIntError)}>’ [E0308]
+2375	./num/nonzero.rs:181:17: error: failed to resolve receiver in MethodCallExpr
+2378	./num/nonzero.rs:181:27: error: mismatched types, expected ‘u16’ but got ‘<Projection=<Result<T?, ParseIntError>>::TRAIT_POSITION::Result<T?, ParseIntError>{Ok (0:T?), Err (0:ParseIntError)}>’ [E0308]
+2384	./num/nonzero.rs:181:17: error: failed to resolve receiver in MethodCallExpr
+2387	./num/nonzero.rs:181:27: error: mismatched types, expected ‘u32’ but got ‘<Projection=<Result<T?, ParseIntError>>::TRAIT_POSITION::Result<T?, ParseIntError>{Ok (0:T?), Err (0:ParseIntError)}>’ [E0308]
+2393	./num/nonzero.rs:181:17: error: failed to resolve receiver in MethodCallExpr
+2396	./num/nonzero.rs:181:27: error: mismatched types, expected ‘u64’ but got ‘<Projection=<Result<T?, ParseIntError>>::TRAIT_POSITION::Result<T?, ParseIntError>{Ok (0:T?), Err (0:ParseIntError)}>’ [E0308]
+2402	./num/nonzero.rs:181:17: error: failed to resolve receiver in MethodCallExpr
+2405	./num/nonzero.rs:181:27: error: mismatched types, expected ‘u128’ but got ‘<Projection=<Result<T?, ParseIntError>>::TRAIT_POSITION::Result<T?, ParseIntError>{Ok (0:T?), Err (0:ParseIntError)}>’ [E0308]
+2411	./num/nonzero.rs:181:17: error: failed to resolve receiver in MethodCallExpr
+2414	./num/nonzero.rs:181:27: error: mismatched types, expected ‘usize’ but got ‘<Projection=<Result<T?, ParseIntError>>::TRAIT_POSITION::Result<T?, ParseIntError>{Ok (0:T?), Err (0:ParseIntError)}>’ [E0308]
+2420	./num/nonzero.rs:181:17: error: failed to resolve receiver in MethodCallExpr
+2423	./num/nonzero.rs:181:27: error: mismatched types, expected ‘i8’ but got ‘<Projection=<Result<T?, ParseIntError>>::TRAIT_POSITION::Result<T?, ParseIntError>{Ok (0:T?), Err (0:ParseIntError)}>’ [E0308]
+2429	./num/nonzero.rs:181:17: error: failed to resolve receiver in MethodCallExpr
+2432	./num/nonzero.rs:181:27: error: mismatched types, expected ‘i16’ but got ‘<Projection=<Result<T?, ParseIntError>>::TRAIT_POSITION::Result<T?, ParseIntError>{Ok (0:T?), Err (0:ParseIntError)}>’ [E0308]
+2438	./num/nonzero.rs:181:17: error: failed to resolve receiver in MethodCallExpr
+2441	./num/nonzero.rs:181:27: error: mismatched types, expected ‘i32’ but got ‘<Projection=<Result<T?, ParseIntError>>::TRAIT_POSITION::Result<T?, ParseIntError>{Ok (0:T?), Err (0:ParseIntError)}>’ [E0308]
+2447	./num/nonzero.rs:181:17: error: failed to resolve receiver in MethodCallExpr
+2450	./num/nonzero.rs:181:27: error: mismatched types, expected ‘i64’ but got ‘<Projection=<Result<T?, ParseIntError>>::TRAIT_POSITION::Result<T?, ParseIntError>{Ok (0:T?), Err (0:ParseIntError)}>’ [E0308]
+2456	./num/nonzero.rs:181:17: error: failed to resolve receiver in MethodCallExpr
+2459	./num/nonzero.rs:181:27: error: mismatched types, expected ‘i128’ but got ‘<Projection=<Result<T?, ParseIntError>>::TRAIT_POSITION::Result<T?, ParseIntError>{Ok (0:T?), Err (0:ParseIntError)}>’ [E0308]
+2465	./num/nonzero.rs:181:17: error: failed to resolve receiver in MethodCallExpr
+2468	./num/nonzero.rs:181:27: error: mismatched types, expected ‘isize’ but got ‘<Projection=<Result<T?, ParseIntError>>::TRAIT_POSITION::Result<T?, ParseIntError>{Ok (0:T?), Err (0:ParseIntError)}>’ [E0308]
+2474	./num/nonzero.rs:181:17: error: failed to resolve receiver in MethodCallExpr
+2477	./num/mod.rs:838:9: error: mismatched types, expected ‘<Projection=<<integer>, u8>::TRAIT_POSITION::I=<integer>>’ but got ‘u8’ [E0308]
+2482	./num/mod.rs:838:16: error: mismatched types, expected ‘<Projection=<<integer>, u8>::TRAIT_POSITION::I=<integer>>’ but got ‘u8’ [E0308]
+2487	./num/mod.rs:838:9: error: mismatched types, expected ‘T?’ but got ‘<tyty::error>’ [E0308]
+2490	./num/mod.rs:838:9: error: mismatched types, expected ‘<tyty::error>’ but got ‘<tyty::error>’ [E0308]
+2493	./num/mod.rs:841:9: error: mismatched types, expected ‘<Projection=<<integer>, u8>::TRAIT_POSITION::I=<integer>>’ but got ‘u8’ [E0308]
+2499	./num/mod.rs:842:9: error: mismatched types, expected ‘<Projection=<<integer>, u8>::TRAIT_POSITION::I=<integer>>’ but got ‘u8’ [E0308]
+2505	./num/mod.rs:847:8: error: cannot find value ‘is_positive’ in this scope [E0425]
+2508	./num/mod.rs:847:5: error: mismatched types, expected ‘bool’ but got ‘<tyty::error>’ [E0308]
+2514	./num/mod.rs:849:19: error: cannot find value ‘digits’ in this scope [E0425]
+2517	./num/mod.rs:849:13: error: cannot find value ‘#result’ in this scope [E0425]
+2520	./num/mod.rs:865:19: error: cannot find value ‘digits’ in this scope [E0425]
+2523	./num/mod.rs:865:13: error: cannot find value ‘#result’ in this scope [E0425]
+2526	./num/mod.rs:847:5: error: mismatched types, expected ‘<tyty::error>’ but got ‘<tyty::error>’ [E0308]
+2532	./num/mod.rs:847:5: error: bounds not satisfied for <tyty::error> ‘PartialEq, PartialOrd, Ord, Eq, Debug, Default, Extend, Hash, FromIterator’ is not satisfied [E0277]
+2549	./intrinsics.rs:82:9: error: unrecognized intrinsic function: ‘atomic_cxchg’ [E0093]
+2552	./intrinsics.rs:89:9: error: unrecognized intrinsic function: ‘atomic_cxchg_acq’ [E0093]
+2555	./intrinsics.rs:96:9: error: unrecognized intrinsic function: ‘atomic_cxchg_rel’ [E0093]
+2558	./intrinsics.rs:103:9: error: unrecognized intrinsic function: ‘atomic_cxchg_acqrel’ [E0093]
+2561	./intrinsics.rs:110:9: error: unrecognized intrinsic function: ‘atomic_cxchg_relaxed’ [E0093]
+2564	./intrinsics.rs:117:9: error: unrecognized intrinsic function: ‘atomic_cxchg_failrelaxed’ [E0093]
+2567	./intrinsics.rs:124:9: error: unrecognized intrinsic function: ‘atomic_cxchg_failacq’ [E0093]
+2570	./intrinsics.rs:131:9: error: unrecognized intrinsic function: ‘atomic_cxchg_acq_failrelaxed’ [E0093]
+2573	./intrinsics.rs:138:9: error: unrecognized intrinsic function: ‘atomic_cxchg_acqrel_failrelaxed’ [E0093]
+2576	./intrinsics.rs:146:9: error: unrecognized intrinsic function: ‘atomic_cxchgweak’ [E0093]
+2579	./intrinsics.rs:153:9: error: unrecognized intrinsic function: ‘atomic_cxchgweak_acq’ [E0093]
+2582	./intrinsics.rs:160:9: error: unrecognized intrinsic function: ‘atomic_cxchgweak_rel’ [E0093]
+2585	./intrinsics.rs:167:9: error: unrecognized intrinsic function: ‘atomic_cxchgweak_acqrel’ [E0093]
+2588	./intrinsics.rs:174:9: error: unrecognized intrinsic function: ‘atomic_cxchgweak_relaxed’ [E0093]
+2591	./intrinsics.rs:181:9: error: unrecognized intrinsic function: ‘atomic_cxchgweak_failrelaxed’ [E0093]
+2594	./intrinsics.rs:188:9: error: unrecognized intrinsic function: ‘atomic_cxchgweak_failacq’ [E0093]
+2597	./intrinsics.rs:195:9: error: unrecognized intrinsic function: ‘atomic_cxchgweak_acq_failrelaxed’ [E0093]
+2600	./intrinsics.rs:202:9: error: unrecognized intrinsic function: ‘atomic_cxchgweak_acqrel_failrelaxed’ [E0093]
+2603	./intrinsics.rs:209:9: error: unrecognized intrinsic function: ‘atomic_load’ [E0093]
+2606	./intrinsics.rs:215:9: error: unrecognized intrinsic function: ‘atomic_load_acq’ [E0093]
+2609	./intrinsics.rs:229:9: error: unrecognized intrinsic function: ‘atomic_store’ [E0093]
+2612	./intrinsics.rs:235:9: error: unrecognized intrinsic function: ‘atomic_store_rel’ [E0093]
+2615	./intrinsics.rs:249:9: error: unrecognized intrinsic function: ‘atomic_xchg’ [E0093]
+2618	./intrinsics.rs:255:9: error: unrecognized intrinsic function: ‘atomic_xchg_acq’ [E0093]
+2621	./intrinsics.rs:261:9: error: unrecognized intrinsic function: ‘atomic_xchg_rel’ [E0093]
+2624	./intrinsics.rs:267:9: error: unrecognized intrinsic function: ‘atomic_xchg_acqrel’ [E0093]
+2627	./intrinsics.rs:273:9: error: unrecognized intrinsic function: ‘atomic_xchg_relaxed’ [E0093]
+2630	./intrinsics.rs:280:9: error: unrecognized intrinsic function: ‘atomic_xadd’ [E0093]
+2633	./intrinsics.rs:286:9: error: unrecognized intrinsic function: ‘atomic_xadd_acq’ [E0093]
+2636	./intrinsics.rs:292:9: error: unrecognized intrinsic function: ‘atomic_xadd_rel’ [E0093]
+2639	./intrinsics.rs:298:9: error: unrecognized intrinsic function: ‘atomic_xadd_acqrel’ [E0093]
+2642	./intrinsics.rs:304:9: error: unrecognized intrinsic function: ‘atomic_xadd_relaxed’ [E0093]
+2645	./intrinsics.rs:311:9: error: unrecognized intrinsic function: ‘atomic_xsub’ [E0093]
+2648	./intrinsics.rs:317:9: error: unrecognized intrinsic function: ‘atomic_xsub_acq’ [E0093]
+2651	./intrinsics.rs:323:9: error: unrecognized intrinsic function: ‘atomic_xsub_rel’ [E0093]
+2654	./intrinsics.rs:329:9: error: unrecognized intrinsic function: ‘atomic_xsub_acqrel’ [E0093]
+2657	./intrinsics.rs:335:9: error: unrecognized intrinsic function: ‘atomic_xsub_relaxed’ [E0093]
+2660	./intrinsics.rs:342:9: error: unrecognized intrinsic function: ‘atomic_and’ [E0093]
+2663	./intrinsics.rs:348:9: error: unrecognized intrinsic function: ‘atomic_and_acq’ [E0093]
+2666	./intrinsics.rs:354:9: error: unrecognized intrinsic function: ‘atomic_and_rel’ [E0093]
+2669	./intrinsics.rs:360:9: error: unrecognized intrinsic function: ‘atomic_and_acqrel’ [E0093]
+2672	./intrinsics.rs:366:9: error: unrecognized intrinsic function: ‘atomic_and_relaxed’ [E0093]
+2675	./intrinsics.rs:373:9: error: unrecognized intrinsic function: ‘atomic_nand’ [E0093]
+2678	./intrinsics.rs:379:9: error: unrecognized intrinsic function: ‘atomic_nand_acq’ [E0093]
+2681	./intrinsics.rs:385:9: error: unrecognized intrinsic function: ‘atomic_nand_rel’ [E0093]
+2684	./intrinsics.rs:391:9: error: unrecognized intrinsic function: ‘atomic_nand_acqrel’ [E0093]
+2687	./intrinsics.rs:397:9: error: unrecognized intrinsic function: ‘atomic_nand_relaxed’ [E0093]
+2690	./intrinsics.rs:404:9: error: unrecognized intrinsic function: ‘atomic_or’ [E0093]
+2693	./intrinsics.rs:410:9: error: unrecognized intrinsic function: ‘atomic_or_acq’ [E0093]
+2696	./intrinsics.rs:416:9: error: unrecognized intrinsic function: ‘atomic_or_rel’ [E0093]
+2699	./intrinsics.rs:422:9: error: unrecognized intrinsic function: ‘atomic_or_acqrel’ [E0093]
+2702	./intrinsics.rs:428:9: error: unrecognized intrinsic function: ‘atomic_or_relaxed’ [E0093]
+2705	./intrinsics.rs:435:9: error: unrecognized intrinsic function: ‘atomic_xor’ [E0093]
+2708	./intrinsics.rs:441:9: error: unrecognized intrinsic function: ‘atomic_xor_acq’ [E0093]
+2711	./intrinsics.rs:447:9: error: unrecognized intrinsic function: ‘atomic_xor_rel’ [E0093]
+2714	./intrinsics.rs:453:9: error: unrecognized intrinsic function: ‘atomic_xor_acqrel’ [E0093]
+2717	./intrinsics.rs:459:9: error: unrecognized intrinsic function: ‘atomic_xor_relaxed’ [E0093]
+2720	./intrinsics.rs:466:9: error: unrecognized intrinsic function: ‘atomic_max’ [E0093]
+2723	./intrinsics.rs:472:9: error: unrecognized intrinsic function: ‘atomic_max_acq’ [E0093]
+2726	./intrinsics.rs:478:9: error: unrecognized intrinsic function: ‘atomic_max_rel’ [E0093]
+2729	./intrinsics.rs:484:9: error: unrecognized intrinsic function: ‘atomic_max_acqrel’ [E0093]
+2732	./intrinsics.rs:490:9: error: unrecognized intrinsic function: ‘atomic_max_relaxed’ [E0093]
+2735	./intrinsics.rs:497:9: error: unrecognized intrinsic function: ‘atomic_min’ [E0093]
+2738	./intrinsics.rs:503:9: error: unrecognized intrinsic function: ‘atomic_min_acq’ [E0093]
+2741	./intrinsics.rs:509:9: error: unrecognized intrinsic function: ‘atomic_min_rel’ [E0093]
+2744	./intrinsics.rs:515:9: error: unrecognized intrinsic function: ‘atomic_min_acqrel’ [E0093]
+2747	./intrinsics.rs:521:9: error: unrecognized intrinsic function: ‘atomic_min_relaxed’ [E0093]
+2750	./intrinsics.rs:528:9: error: unrecognized intrinsic function: ‘atomic_umin’ [E0093]
+2753	./intrinsics.rs:534:9: error: unrecognized intrinsic function: ‘atomic_umin_acq’ [E0093]
+2756	./intrinsics.rs:540:9: error: unrecognized intrinsic function: ‘atomic_umin_rel’ [E0093]
+2759	./intrinsics.rs:546:9: error: unrecognized intrinsic function: ‘atomic_umin_acqrel’ [E0093]
+2762	./intrinsics.rs:552:9: error: unrecognized intrinsic function: ‘atomic_umin_relaxed’ [E0093]
+2765	./intrinsics.rs:559:9: error: unrecognized intrinsic function: ‘atomic_umax’ [E0093]
+2768	./intrinsics.rs:565:9: error: unrecognized intrinsic function: ‘atomic_umax_acq’ [E0093]
+2771	./intrinsics.rs:571:9: error: unrecognized intrinsic function: ‘atomic_umax_rel’ [E0093]
+2774	./intrinsics.rs:577:9: error: unrecognized intrinsic function: ‘atomic_umax_acqrel’ [E0093]
+2777	./intrinsics.rs:583:9: error: unrecognized intrinsic function: ‘atomic_umax_relaxed’ [E0093]
+2780	./intrinsics.rs:614:9: error: unrecognized intrinsic function: ‘prefetch_read_instruction’ [E0093]
+2783	./intrinsics.rs:624:9: error: unrecognized intrinsic function: ‘prefetch_write_instruction’ [E0093]
+2786	./intrinsics.rs:633:9: error: unrecognized intrinsic function: ‘atomic_fence’ [E0093]
+2789	./intrinsics.rs:639:9: error: unrecognized intrinsic function: ‘atomic_fence_acq’ [E0093]
+2792	./intrinsics.rs:645:9: error: unrecognized intrinsic function: ‘atomic_fence_rel’ [E0093]
+2795	./intrinsics.rs:651:9: error: unrecognized intrinsic function: ‘atomic_fence_acqrel’ [E0093]
+2798	./intrinsics.rs:663:9: error: unrecognized intrinsic function: ‘atomic_singlethreadfence’ [E0093]
+2801	./intrinsics.rs:674:9: error: unrecognized intrinsic function: ‘atomic_singlethreadfence_acq’ [E0093]
+2804	./intrinsics.rs:685:9: error: unrecognized intrinsic function: ‘atomic_singlethreadfence_rel’ [E0093]
+2807	./intrinsics.rs:696:9: error: unrecognized intrinsic function: ‘atomic_singlethreadfence_acqrel’ [E0093]
+2810	./intrinsics.rs:760:9: error: unrecognized intrinsic function: ‘breakpoint’ [E0093]
+2813	./intrinsics.rs:787:9: error: unrecognized intrinsic function: ‘pref_align_of’ [E0093]
+2816	./intrinsics.rs:818:9: error: unrecognized intrinsic function: ‘assert_inhabited’ [E0093]
+2819	./intrinsics.rs:830:9: error: unrecognized intrinsic function: ‘assert_uninit_valid’ [E0093]
+2822	./intrinsics.rs:1133:9: error: unrecognized intrinsic function: ‘volatile_copy_nonoverlapping_memory’ [E0093]
+2825	./intrinsics.rs:1142:9: error: unrecognized intrinsic function: ‘volatile_copy_memory’ [E0093]
+2828	./intrinsics.rs:1151:9: error: unrecognized intrinsic function: ‘volatile_set_memory’ [E0093]
+2831	./intrinsics.rs:1156:9: error: unrecognized intrinsic function: ‘volatile_load’ [E0093]
+2834	./intrinsics.rs:1160:9: error: unrecognized intrinsic function: ‘volatile_store’ [E0093]
+2837	./intrinsics.rs:1166:9: error: unrecognized intrinsic function: ‘unaligned_volatile_load’ [E0093]
+2840	./intrinsics.rs:1171:9: error: unrecognized intrinsic function: ‘unaligned_volatile_store’ [E0093]
+2843	./intrinsics.rs:1401:9: error: unrecognized intrinsic function: ‘fadd_fast’ [E0093]
+2846	./intrinsics.rs:1407:9: error: unrecognized intrinsic function: ‘fsub_fast’ [E0093]
+2849	./intrinsics.rs:1413:9: error: unrecognized intrinsic function: ‘fmul_fast’ [E0093]
+2852	./intrinsics.rs:1419:9: error: unrecognized intrinsic function: ‘fdiv_fast’ [E0093]
+2855	./intrinsics.rs:1425:9: error: unrecognized intrinsic function: ‘frem_fast’ [E0093]
+2858	./intrinsics.rs:1431:9: error: unrecognized intrinsic function: ‘float_to_int_unchecked’ [E0093]
+2861	./intrinsics.rs:1587:9: error: unrecognized intrinsic function: ‘exact_div’ [E0093]
+2864	./intrinsics.rs:1722:9: error: unrecognized intrinsic function: ‘nontemporal_store’ [E0093]
+2867	./intrinsics.rs:1726:9: error: unrecognized intrinsic function: ‘ptr_offset_from’ [E0093]
+2876	./mem/maybe_uninit.rs:320:56: error: failed to resolve path segment using an impl Probe
+2879	./mem/maybe_uninit.rs:320:18: error: failed to resolve receiver in MethodCallExpr
+2888	./ptr/non_null.rs:313:14: error: no method named ‘as_ptr’ found in the current scope [E0599]
+2892	./ptr/non_null.rs:313:9: error: failed to resolve receiver in MethodCallExpr
+2895	./ptr/non_null.rs:332:46: error: no method named ‘as_ptr’ found in the current scope [E0599]
+2899	./ptr/non_null.rs:332:41: error: failed to resolve receiver in MethodCallExpr
+2902	./ptr/non_null.rs:350:32: error: no method named ‘as_ptr’ found in the current scope [E0599]
+2906	./ptr/non_null.rs:395:45: error: no method named ‘cast’ found in the current scope [E0599]
+2910	./ptr/non_null.rs:395:40: error: failed to resolve receiver in MethodCallExpr
+2913	./ptr/non_null.rs:457:49: error: no method named ‘cast’ found in the current scope [E0599]
+2917	./ptr/non_null.rs:457:44: error: failed to resolve receiver in MethodCallExpr
+2920	./ptr/non_null.rs:489:46: error: no method named ‘as_ptr’ found in the current scope [E0599]
+2924	./ptr/non_null.rs:489:41: error: failed to resolve receiver in MethodCallExpr
+2927	./ptr/non_null.rs:539:23: error: duplicate definitions with name ‘cmp’ [E0592]
+2931	./ptr/non_null.rs:547:23: error: duplicate definitions with name ‘partial_cmp’ [E0592]
+2935	./ptr/non_null.rs:555:23: error: duplicate definitions with name ‘hash’ [E0592]
+2939	./ptr/const_ptr.rs:981:17: error: no method named ‘is_null’ found in the current scope [E0599]
+2943	./ptr/const_ptr.rs:981:9: error: mismatched types, expected ‘bool’ but got ‘<tyty::error>’ [E0308]
+2946	./ptr/mut_ptr.rs:1241:17: error: no method named ‘is_null’ found in the current scope [E0599]
+2950	./ptr/mut_ptr.rs:1241:9: error: mismatched types, expected ‘bool’ but got ‘<tyty::error>’ [E0308]
+2953	./ptr/mut_ptr.rs:1293:17: error: no method named ‘is_null’ found in the current scope [E0599]
+2957	./ptr/mut_ptr.rs:1293:9: error: mismatched types, expected ‘bool’ but got ‘<tyty::error>’ [E0308]
+2960	./ptr/mut_ptr.rs:1332:19: error: duplicate definitions with name ‘cmp’ [E0592]
+2967	./ptr/mut_ptr.rs:1332:14: error: failed to resolve argument type
+2970	./ptr/mod.rs:1173:9: error: bounds not satisfied for usize ‘Extend, FromIterator’ is not satisfied [E0277]
+2979	./borrow.rs:226:10: error: expected reference type got T?
+2982	./borrow.rs:233:10: error: expected reference type got T?
+2985	./borrow.rs:240:14: error: expected reference type got T?
+2994	./clone.rs:129:9: error: expected reference type got T?
+2997	./clone.rs:224:33: error: mismatched types, expected ‘& T’ but got ‘T’ [E0308]
+3006	crab1: internal compiler error: in resolve_fn_trait_call, at rust/typecheck/rust-hir-type-check-expr.cc:2439

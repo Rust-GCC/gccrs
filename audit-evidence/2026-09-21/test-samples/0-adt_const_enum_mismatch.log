@@ -1,0 +1,13 @@
+/tmp/gccrs-compat-audit/probes/adt_const_enum_mismatch.rs:6:13: error: mismatched types, expected ‘(const struct adt_const_enum_mismatch::Key) {.RUST$ENUM$DISR=0};’ but got ‘(const struct adt_const_enum_mismatch::Key) {.RUST$ENUM$DISR=1};’ [E0308]
+    5 | struct Foo<const K: Key>;
+      |            ~~~~~
+    6 | fn main() { let _: Foo<{Key::A}> = Foo::<{Key::B}> {}; }
+      |             ^~~
+
+Analyzing compilation unit
+
+Time variable                                  wall           GGC
+ phase setup                        :   0.01 ( 88%)  2758k ( 98%)
+ TOTAL                              :   0.02         2813k
+Extra diagnostic checks enabled; compiler may run slowly.
+Configure with --enable-checking=release to disable checks.

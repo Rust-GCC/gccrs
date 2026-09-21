@@ -1,0 +1,88 @@
+e0a7a91b661 2026-09-18 gccrs: fix unconstrained check to look for constrained bindings
+5b586acf5d7 2026-09-18 gccrs: Add missing lifetime handling to trait resolve
+884c26f09db 2026-09-08 gccrs: Add type bound predicate scan
+215416773ce 2026-09-18 gccrs: Add flag to unify of expect never
+5870b08eac1 2026-09-18 gccrs: Fix bad substituion error
+9bde421dcdf 2026-09-10 gccrs: add ParamType::clone recusion guard
+50e9221c4a0 2026-08-30 gccrs: Recursive types support
+fb59a243643 2026-09-17 gccrs: Fix unconstrained when args are in the where clause
+1f3e2252b14 2026-09-15 gccrs: handle lifetimes properly on trait items
+931c22cea39 2026-09-14 gccrs: Fix ICE in constexpr for unit-structs
+883e65a539a 2026-09-14 gccrs: Remove unnessecary diagnostics on array capacity values
+36860cbddb7 2026-09-11 gccrs: Support silly legacy rustc const generics for stdarch
+62a907fe4ca 2026-09-14 gccrs: Implement some platform-intrinsic simd function support
+c8da57d9d1c 2026-09-11 gccrs: This is an utterly insane rustc shim needed for stdarch
+4dd8328181d 2026-09-11 gccrs: remove unused callback substitution system
+accb66000f9 2026-09-10 gccrs: Refactor query_type to only fully-const resolve const fns
+135675d8daf 2026-09-10 gccrs: Only the last segment should resolve to an expr item
+7f3db42635e 2026-09-10 gccrs: Fix HIR::ClosureExpr copying
+7f8f1e532dd 2026-09-08 gccrs: Fix handling where clauses into two passes
+8e999d358dd 2026-09-08 gccrs: filter out candidates by checking if self is compatable
+661fc5b5d9e 2026-09-08 gccrs: walk the binding generic arguments for unconstrained checks
+ff322832993 2026-09-08 gccrs: Track lifetimes per trait item
+fea155c20e2 2026-09-08 gccrs: Add missing isize and usize as valid options here
+f43f8834d10 2026-09-07 gccrs: Stop method selection when we hit generic params
+d35eb7b228f 2026-09-07 gccrs: Fix return type leaking into other function contexts
+39337429642 2026-09-07 gccrs: use std::move to reduce copy ctor usage on type-bound-predicate
+f9b6c987f3c 2026-09-07 gccrs: Fix bug when compiling const position intrinsic calls
+cf2bd51bdcf 2026-09-06 gccrs: Handle generic args to traits in paths
+ce880902644 2026-09-06 gccrs: Fix handling of constants in paths
+90cb5b73595 2026-09-04 gccrs: improve handling of defered operator overload handling
+80364cfb109 2026-09-04 gccrs: Cleanup bad usage of using ast node-ids instead of DefId for indexes
+541899576de 2026-09-04 gccrs: Add impl-item-name indexes for method resolution
+f04b8fa7445 2026-09-04 gccrs: update type-bounds-probe to scan trait-impls only
+05bd3e913d2 2026-09-03 gccrs: Improve method resolution to use seperate indexes for impl's
+d16fe65a7dd 2026-09-03 gccrs: method resolution try predicate items first
+c0f814d2bfb 2026-09-03 gccrs: Remove bad unify in operator overload breaking partial eq in core
+4744d62cb47 2026-09-03 gccrs: Fix parser handling for Foo<Bar: SomeTrait>
+32995206acf 2026-09-03 gccrs: Add new resolution mode CANONICAL/REFERNECE to type-check-type
+e950b09bac3 2026-08-31 gccrs: Fix debug output of variance analysis to switch to substitutionref
+fef83b56338 2026-08-31 gccrs: make fn trait return optional
+d6670740d85 2026-08-31 gccrs: Add missing handling to variance analysis
+d55547d8eab 2026-08-31 gccrs: Fix missing unconstrained check to look at the full argument
+d80a810d8fc 2026-08-31 gccrs: Fix ambigious path resolution
+bc4764064b6 2026-08-30 gccrs: Implement extern types by reusing ADT with an extern kind
+00daad1864d 2026-08-31 gccrs: Fix self referencial assocated type
+df0d1fc529f 2026-08-28 gccrs: Seperate trait fn signiture resolution from body
+82a87f71c2e 2026-08-28 gccrs: seperate implitem fntype and body resolution
+b8164e8feda 2026-08-28 gccrs: refactor fntype resolution to seperate signiture from block
+9f0e39a417f 2026-08-28 gccrs: minor select method improvement
+b69ee00a78a 2026-08-28 gccrs: New PathProbExpr to simplify path in expression to be more targeted
+fc74745d98f 2026-08-28 gccrs: Refactor PathProbeType into its own file and call it PathProbeExpr
+7280cd5f112 2026-08-28 gccrs: refactor out pathprobeimpltrait into its own class
+ea6c48b38d6 2026-08-25 gccrs: add new type path prob mechanism
+449644c649d 2026-08-25 gccrs: Register ADT mappings util helpers
+73765fd1ed7 2026-08-23 gccrs: add more filtering
+abf8961c598 2026-08-23 gccrs: add more bound filtering
+1dffb1727ed 2026-08-23 gccrs: improve type path resolution to do the trait lookup directly
+c5001164aac 2026-08-23 gccrs: Add another trait filter to bounds probe
+bcd93521e50 2026-08-23 gccrs: Add explicitly filtering for is bound satisified
+de0da08a676 2026-08-23 gccrs: Add method resolution probe support to take a trait to filter
+807935a4fb9 2026-08-23 gccrs: Add indexing ImplTrait Blocks to Trait map for improved filtering
+22d080b2810 2026-08-29 tyty: Fix FN_VARIADIC flag typo
+e302bf03e7b 2026-08-23 gccrs: when binding we need to distingish between generics/const-generics
+d09d62afd90 2026-08-23 gccrs: Add missing unconstrained type parameters walker for const generics
+0d244fd8e44 2026-08-23 gccrs: fix bad projection normalize
+6d75876a0f4 2026-08-19 gccrs: Resolve lang item types
+b709aa449e0 2026-08-14 gccrs: Handle more llvm_asm usages
+867bf5b7c36 2026-08-16 gccrs: Add missing bounds checks on the associated impl
+cb23e7f1a78 2026-08-15 gccrs: Fix missing error diag on const parser and crash in typecheck
+8965fd12996 2026-08-10 gccrs: lang: Add dispatch_from_dyn for Box
+ca2ff45ff6d 2026-08-05 gccrs: lang: Add DST support to box and improve box dispatch
+ac6b8763268 2026-06-28 gccrs: add repr_c_enums_larger_than_int lint
+0e83516f190 2026-07-22 gccrs: backend: Add DST ADT support
+ecc21e255da 2026-07-20 gccrs: typecheck: Add ADT to ADT unsize coercion support
+1243e4abaaf 2026-06-25 gccrs: typecheck: Add array to slice unsize coercion support
+88ff00bf083 2026-07-17 gccrs: lang: Add unsize
+7e7390c1c96 2026-08-05 gccrs: Partially support x@.. in SlicePattern
+5786caddb30 2026-08-01 gccrs: Implement basic support for #[repr(simd)]
+8a308f852b6 2026-07-16 gccrs: typecheck: Add auto-trait field propagation and negative impl checks
+f610d9c8370 2026-07-16 gccrs: lang: Add unsafe_cell
+372615294b6 2026-07-14 gccrs: hir: Remove unnecessary HIR::RangeFromToInclExpr class
+1b839ec55be 2026-07-21 gccrs: Small fixes for #[repr(transparent)]
+fae5d567d1c 2026-07-12 gccrs: Support ZST type checking for `#[repr(transparent)]`
+44ee83bcf7f 2026-07-10 gccrs: intrinsic: Add assert_zero_valid
+f9eb87556d1 2026-06-27 gccrs: add dyn drop lint
+5f8db9c25f0 2026-07-06 gccrs: Add new checks for `#[repr(align)]` attribute
+3a54974005c 2026-06-27 gccrs: Add support for #[repr(transparent)] attribute
+be9834cd7b3 2026-06-27 gccrs: add drop bounds lint

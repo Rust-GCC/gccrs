@@ -1,0 +1,12 @@
+/home/philbert/workspace/gccrs/branch-open-issues/ptr-impl-block-pooling.rs:31:14: error: no method named ‘is_null’ found in the current scope [E0599]
+   31 |         self.is_null()
+      |              ^~~~~~~
+      |              method not found
+
+Analyzing compilation unit
+
+Time variable                                  wall           GGC
+ phase setup                        :   0.01 ( 85%)  2758k ( 99%)
+ TOTAL                              :   0.02         2781k
+Extra diagnostic checks enabled; compiler may run slowly.
+Configure with --enable-checking=release to disable checks.

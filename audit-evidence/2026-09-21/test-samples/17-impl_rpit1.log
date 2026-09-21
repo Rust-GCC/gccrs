@@ -1,0 +1,17 @@
+
+Analyzing compilation unit
+Performing interprocedural optimizations
+ <*free_lang_data> {heap 2724k} <visibility> {heap 2724k} <build_ssa_passes> {heap 2724k} <targetclone> {heap 2724k} <opt_local_passes> {heap 2724k} <remove_symbols> {heap 2724k} <targetclone> {heap 2724k} <free-fnsummary> {heap 2724k}Streaming LTO
+ <whole-program> {heap 2724k} <fnsummary> {heap 2724k} <inline> {heap 2724k} <modref> {heap 2724k} <free-fnsummary> {heap 2724k} <single-use> {heap 2724k} <comdats> {heap 2724k}Assembling functions:
+ <simdclone> {heap 2724k} impl_rpit1::<impl impl_rpit1::Thing as impl_rpit1::Foo>::id impl_rpit1::make_thing impl_rpit1::use_foo<Thing> impl_rpit1::main
+Time variable                                  wall           GGC
+ phase setup                        :   0.02 ( 47%)  2758k ( 92%)
+ phase parsing                      :   0.01 ( 14%)    52k (  2%)
+ phase opt and generate             :   0.01 ( 38%)   199k (  7%)
+ parser (global)                    :   0.01 ( 14%)    52k (  2%)
+ initialize rtl                     :   0.01 ( 19%)    12k (  0%)
+ TOTAL                              :   0.04         3011k
+Extra diagnostic checks enabled; compiler may run slowly.
+Configure with --enable-checking=release to disable checks.
+
+LINK

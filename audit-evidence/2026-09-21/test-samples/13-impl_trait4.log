@@ -1,0 +1,17 @@
+
+Analyzing compilation unit
+Performing interprocedural optimizations
+ <*free_lang_data> {heap 2840k} <visibility> {heap 2840k} <build_ssa_passes> {heap 2840k} <targetclone> {heap 2840k} <opt_local_passes> {heap 2840k} <remove_symbols> {heap 2840k} <targetclone> {heap 2840k} <free-fnsummary> {heap 2840k}Streaming LTO
+ <whole-program> {heap 2840k} <fnsummary> {heap 2840k} <inline> {heap 2840k} <modref> {heap 2840k} <free-fnsummary> {heap 2840k} <single-use> {heap 2840k} <comdats> {heap 2840k}Assembling functions:
+ <simdclone> {heap 2840k} impl_trait4::<impl impl_trait4::A as impl_trait4::Foo>::id impl_trait4::<impl impl_trait4::B as impl_trait4::Foo>::id impl_trait4::takes_tuple<A, B> impl_trait4::main
+Time variable                                  wall           GGC
+ phase setup                        :   0.02 ( 42%)  2758k ( 91%)
+ phase parsing                      :   0.01 ( 16%)    64k (  2%)
+ phase opt and generate             :   0.02 ( 42%)   215k (  7%)
+ parser (global)                    :   0.01 ( 16%)    64k (  2%)
+ initialize rtl                     :   0.01 ( 18%)    12k (  0%)
+ TOTAL                              :   0.04         3038k
+Extra diagnostic checks enabled; compiler may run slowly.
+Configure with --enable-checking=release to disable checks.
+
+LINK

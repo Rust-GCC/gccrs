@@ -1,0 +1,21 @@
+/home/philbert/workspace/gccrs/branch-open-issues/nonzero-fmt-multi-trait-ambiguity.rs:63:20: error: duplicate definitions with name ‘fmt’ [E0592]
+   44 |     fn fmt(&self, f: &mut Formatter) -> Result {}
+      |     ~~              
+......
+   47 |     fn fmt(&self, f: &mut Formatter) -> Result {}
+      |     ~~              
+......
+   50 |     fn fmt(&self, f: &mut Formatter) -> Result {}
+      |     ~~              
+......
+   63 |         self.get().fmt(f)
+      |                    ^~~
+      |                    multiple fmt found
+
+Analyzing compilation unit
+
+Time variable                                  wall           GGC
+ phase setup                        :   0.01 ( 67%)  2758k ( 99%)
+ TOTAL                              :   0.01         2781k
+Extra diagnostic checks enabled; compiler may run slowly.
+Configure with --enable-checking=release to disable checks.

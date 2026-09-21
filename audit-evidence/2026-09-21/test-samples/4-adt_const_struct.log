@@ -1,0 +1,11 @@
+/tmp/gccrs-compat-audit/probes/adt_const_struct.rs:6:54: error: expected algebraic data type got ‘K’
+    6 | impl<const K: Key> Foo<K> { fn val(&self) -> usize { K.n } }
+      |                                                      ^
+
+Analyzing compilation unit
+
+Time variable                                  wall           GGC
+ phase setup                        :   0.02 ( 87%)  2758k ( 99%)
+ TOTAL                              :   0.02         2795k
+Extra diagnostic checks enabled; compiler may run slowly.
+Configure with --enable-checking=release to disable checks.

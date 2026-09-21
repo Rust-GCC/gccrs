@@ -1,0 +1,20 @@
+
+Analyzing compilation unit
+Performing interprocedural optimizations
+ <*free_lang_data> {heap 2492k} <visibility> {heap 2492k} <build_ssa_passes> {heap 2492k} <targetclone> {heap 2684k} <opt_local_passes> {heap 2684k} <remove_symbols> {heap 2684k} <targetclone> {heap 2684k} <free-fnsummary> {heap 2684k}Streaming LTO
+ <whole-program> {heap 2684k} <fnsummary> {heap 2684k} <inline> {heap 2684k} <modref> {heap 2684k} <free-fnsummary> {heap 2684k} <single-use> {heap 2684k} <comdats> {heap 2684k}Assembling functions:
+ <simdclone> {heap 2684k} impl_trait3::<impl impl_trait3::Message as impl_trait3::Speak>::speak impl_trait3::<impl impl_trait3::Console as impl_trait3::Printer>::print<Message> impl_trait3::main
+Time variable                                  wall           GGC
+ phase setup                        :   0.01 ( 39%)  2758k ( 92%)
+ phase parsing                      :   0.01 ( 17%)    73k (  2%)
+ phase opt and generate             :   0.01 ( 44%)   163k (  5%)
+ parser (global)                    :   0.01 ( 17%)    73k (  2%)
+ initialize rtl                     :   0.01 ( 23%)    12k (  0%)
+ TOTAL                              :   0.03         2995k
+Extra diagnostic checks enabled; compiler may run slowly.
+Configure with --enable-checking=release to disable checks.
+
+LINK
+/usr/bin/ld: /tmp/ccx9qux7.o: relocation R_X86_64_32S against `.rodata' can not be used when making a PIE object; recompile with -fPIE
+/usr/bin/ld: failed to set dynamic section sizes: bad value
+collect2: error: ld returned 1 exit status

@@ -1,0 +1,11 @@
+/home/philbert/workspace/gccrs/libcore-repros/slice-first-pattern.rs:18:22: error: expected T=T?, found reference
+   18 |         Option::Some(&b'x') => {}
+      |                      ^
+
+Analyzing compilation unit
+
+Time variable                                  wall           GGC
+ phase setup                        :   0.01 ( 79%)  2758k ( 99%)
+ TOTAL                              :   0.01         2781k
+Extra diagnostic checks enabled; compiler may run slowly.
+Configure with --enable-checking=release to disable checks.

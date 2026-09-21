@@ -1,0 +1,12 @@
+/home/philbert/workspace/gccrs/audit-evidence/2026-09-21/probes/linux_gat_where.rs:5:23: error: expecting ‘;’ but ‘where’ found
+    5 |     type Borrowed<'a> where Self: 'a;
+      |                       ^~~~~
+/home/philbert/workspace/gccrs/audit-evidence/2026-09-21/probes/linux_gat_where.rs:5:23: error: failed to parse trait item in trait
+
+Analyzing compilation unit
+
+Time variable                                  wall           GGC
+ phase setup                        :   0.01 ( 96%)  2758k (100%)
+ TOTAL                              :   0.01         2766k
+Extra diagnostic checks enabled; compiler may run slowly.
+Configure with --enable-checking=release to disable checks.

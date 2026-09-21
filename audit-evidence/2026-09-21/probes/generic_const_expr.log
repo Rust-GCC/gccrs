@@ -1,0 +1,18 @@
+/tmp/gccrs-compat-audit/probes/generic_const_expr.rs:5:35: error: mismatched types, expected ‘[u8; <<< error >>>]’ but got ‘[<integer>; 3]’ [E0308]
+    4 | struct Foo<const N: usize> { data: [u8; N + 1] }
+      |                              ~~~~  
+    5 | fn main() { let _: Foo<2> = Foo { data: [1,2,3] }; }
+      |                                   ^~~~  ~
+/tmp/gccrs-compat-audit/probes/generic_const_expr.rs:5:13: error: mismatched types, expected ‘[u8; <<< error >>>]’ but got ‘[u8; <<< error >>>]’ [E0308]
+    4 | struct Foo<const N: usize> { data: [u8; N + 1] }
+      |                                    ~
+    5 | fn main() { let _: Foo<2> = Foo { data: [1,2,3] }; }
+      |             ^~~
+
+Analyzing compilation unit
+
+Time variable                                  wall           GGC
+ phase setup                        :   0.01 ( 83%)  2758k ( 99%)
+ TOTAL                              :   0.01         2800k
+Extra diagnostic checks enabled; compiler may run slowly.
+Configure with --enable-checking=release to disable checks.

@@ -1,0 +1,11 @@
+1748abcf8fce2a519b7ef183058db4905b91bb9a 2026-09-21T17:15:53+01:00 2026-09-21T17:15:53+01:00 WIP
+e1d8bc0913ee76e8a126f02733f02f96289e12f9 2026-09-20T21:17:46+01:00 2026-09-20T21:17:46+01:00 gccrs: unify unresolved pattern parents before rejecting shape mismatches
+7a181086031fb7444a65f0b021558ff705f2ff14 2026-09-20T20:13:44+01:00 2026-09-20T20:13:44+01:00 gccrs: parse default types for associated types in trait definitions
+a72c58f273d6ebd6d7b9631fdb76608c515f551b 2026-09-20T19:39:42+01:00 2026-09-20T19:39:42+01:00 gccrs: resolve bare use paths against the crate root under 2015 edition
+8095b9242349b847ea90f607665269ea7665a4dc 2026-09-20T12:38:22+01:00 2026-09-20T18:19:39+01:00 gccrs: memoize and guard TypeBoundsProbe::Probe against recursion
+fdfe4e813e0a2e5ea62a8f7d4f7833af2b60cf56 2026-09-18T19:14:07+01:00 2026-09-20T18:16:30+01:00 gccrs: dont care about the coercion result here
+96a5cd78d47bd72ea30c1eb587613b2e62ce0775 2026-09-07T20:06:39+01:00 2026-09-20T18:16:30+01:00 add per item logging
+7a9ef57db8b44498d3c19110290cb9702cf56791 2026-09-20T13:16:45+01:00 2026-09-20T13:16:45+01:00 gccrs: validate impl bound arguments through the impl, not just satisfies_bound
+e4c2817797b1487f14b8bb773c6cc708e89594c6 2026-09-20T12:39:50+01:00 2026-09-20T12:49:11+01:00 gccrs: extend the bound-walk fix to the other duplicated substitution sites
+d9eece4a6e805e2fc5992c56bf1f22d6eeb38d27 2026-09-20T12:39:12+01:00 2026-09-20T12:49:10+01:00 gccrs: substitute a param's own bounds consistently across substitution paths
+d446da1ebaee3485b3d884f428a1e1f29efae1e3 2026-09-20T12:37:30+01:00 2026-09-20T12:37:30+01:00 gccrs: scope trait method where-clause bounds to the method, not the trait

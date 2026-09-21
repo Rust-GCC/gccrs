@@ -1,0 +1,12 @@
+/tmp/gccrs-compat-audit/probes/const_infer_arg.rs:5:24: error: type provided when a constant was expected [E0747]
+    5 | fn main() { let _: Foo<_> = Foo { data: [1,2,3] }; }
+      |                        ^
+      |                        -
+
+Analyzing compilation unit
+
+Time variable                                  wall           GGC
+ phase setup                        :   0.01 ( 90%)  2758k ( 99%)
+ TOTAL                              :   0.02         2792k
+Extra diagnostic checks enabled; compiler may run slowly.
+Configure with --enable-checking=release to disable checks.

@@ -1,0 +1,116 @@
+[
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/link/simple_function_1.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "-L/tmp/gccrs-compat-audit/cross-crate",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/link/simple_function_1.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/cross-crate/simple_function_1.s"
+    ],
+    "exit": 0
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/link/simple_function_0.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "-L/tmp/gccrs-compat-audit/cross-crate",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/link/simple_function_0.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/cross-crate/simple_function_0.s"
+    ],
+    "exit": 0
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/link/generic_function_1.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "-L/tmp/gccrs-compat-audit/cross-crate",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/link/generic_function_1.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/cross-crate/generic_function_1.s"
+    ],
+    "exit": 0
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/link/generic_function_0.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "-L/tmp/gccrs-compat-audit/cross-crate",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/link/generic_function_0.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/cross-crate/generic_function_0.s"
+    ],
+    "exit": 0
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/link/trait_import_1.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "-L/tmp/gccrs-compat-audit/cross-crate",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/link/trait_import_1.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/cross-crate/trait_import_1.s"
+    ],
+    "exit": 0
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/link/trait_import_0.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "-L/tmp/gccrs-compat-audit/cross-crate",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/link/trait_import_0.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/cross-crate/trait_import_0.s"
+    ],
+    "exit": 0
+  },
+  {
+    "source": "/tmp/gccrs-compat-audit/probes/legacy_attribute.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/tmp/gccrs-compat-audit/probes/legacy_attribute.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/probes/legacy_attribute.s"
+    ],
+    "exit": 1
+  },
+  {
+    "source": "/tmp/gccrs-compat-audit/probes/required_const_generic.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/tmp/gccrs-compat-audit/probes/required_const_generic.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/probes/required_const_generic.s"
+    ],
+    "exit": 0
+  },
+  {
+    "source": "/tmp/gccrs-compat-audit/probes/required_const_ordinary.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/tmp/gccrs-compat-audit/probes/required_const_ordinary.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/probes/required_const_ordinary.s"
+    ],
+    "exit": 1
+  }
+]

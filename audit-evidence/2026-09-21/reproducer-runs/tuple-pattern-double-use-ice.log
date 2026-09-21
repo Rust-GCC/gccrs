@@ -1,0 +1,17 @@
+/home/philbert/workspace/gccrs/branch-open-issues/tuple-pattern-double-use-ice.rs:23:22: error: expected T=T?, found tuple
+   23 |         Option::Some((a, b)) => {
+      |                      ^
+/home/philbert/workspace/gccrs/branch-open-issues/tuple-pattern-double-use-ice.rs:24:26: error: cannot find value ‘a’ in this scope [E0425]
+   24 |             let _: u32 = a;
+      |                          ^
+/home/philbert/workspace/gccrs/branch-open-issues/tuple-pattern-double-use-ice.rs:25:26: error: cannot find value ‘b’ in this scope [E0425]
+   25 |             let _: u32 = b;
+      |                          ^
+
+Analyzing compilation unit
+
+Time variable                                  wall           GGC
+ phase setup                        :   0.01 ( 85%)  2758k ( 99%)
+ TOTAL                              :   0.01         2781k
+Extra diagnostic checks enabled; compiler may run slowly.
+Configure with --enable-checking=release to disable checks.

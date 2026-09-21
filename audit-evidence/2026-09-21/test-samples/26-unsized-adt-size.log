@@ -1,0 +1,21 @@
+
+Analyzing compilation unit
+Performing interprocedural optimizations
+ <*free_lang_data> {heap 2984k} <visibility> {heap 2984k} <build_ssa_passes> {heap 2984k} <targetclone> {heap 3176k} <opt_local_passes> {heap 3176k} <remove_symbols> {heap 3176k} <targetclone> {heap 3176k} <free-fnsummary> {heap 3176k}Streaming LTO
+ <whole-program> {heap 3176k} <fnsummary> {heap 3176k} <inline> {heap 3176k} <modref> {heap 3176k} <free-fnsummary> {heap 3176k} <single-use> {heap 3176k} <comdats> {heap 3176k}Assembling functions:
+ <simdclone> {heap 3176k} unsized_adt_size::_coerce unsized_adt_size::<impl XXX as unsized_adt_size::MyTrait>::dummy unsized_adt_size::<impl XXX as unsized_adt_size::MyTrait>::dummy size_of_val<TailStruct<dyn [MyTrait<Self>]>> unsized_adt_size::sovt size_of_val<[i32]> unsized_adt_size::sov1 size_of_val<TailStruct<[i32]>> unsized_adt_size::sov2 size_of_val<TailStruct<TailStruct<[i32]>>> unsized_adt_size::sov3 unsized_adt_size::main
+Time variable                                  wall           GGC
+ phase setup                        :   0.01 ( 21%)  2758k ( 73%)
+ phase parsing                      :   0.02 ( 26%)   361k ( 10%)
+ phase opt and generate             :   0.03 ( 53%)   639k ( 17%)
+ callgraph ipa passes               :   0.01 ( 11%)    37k (  1%)
+ parser (global)                    :   0.02 ( 26%)   361k ( 10%)
+ initialize rtl                     :   0.01 ( 12%)    12k (  0%)
+ TOTAL                              :   0.06         3760k
+Extra diagnostic checks enabled; compiler may run slowly.
+Configure with --enable-checking=release to disable checks.
+
+LINK
+/usr/bin/ld: /tmp/ccyMu0Sr.o: relocation R_X86_64_32S against `.data.__R_vtable_12_2103' can not be used when making a PIE object; recompile with -fPIE
+/usr/bin/ld: failed to set dynamic section sizes: bad value
+collect2: error: ld returned 1 exit status

@@ -1,0 +1,80 @@
+[
+  {
+    "path": "/tmp/gccrs-compat-audit/probes/adt_const_enum.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/tmp/gccrs-compat-audit/probes/adt_const_enum.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/probes/adt_const_enum.s"
+    ],
+    "exit": 0
+  },
+  {
+    "path": "/tmp/gccrs-compat-audit/probes/adt_const_struct.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/tmp/gccrs-compat-audit/probes/adt_const_struct.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/probes/adt_const_struct.s"
+    ],
+    "exit": 1
+  },
+  {
+    "path": "/tmp/gccrs-compat-audit/probes/async_block.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/tmp/gccrs-compat-audit/probes/async_block.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/probes/async_block.s"
+    ],
+    "exit": 1
+  },
+  {
+    "path": "/tmp/gccrs-compat-audit/probes/const_infer_arg.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/tmp/gccrs-compat-audit/probes/const_infer_arg.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/probes/const_infer_arg.s"
+    ],
+    "exit": 1
+  },
+  {
+    "path": "/tmp/gccrs-compat-audit/probes/generic_const_expr.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/tmp/gccrs-compat-audit/probes/generic_const_expr.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/probes/generic_const_expr.s"
+    ],
+    "exit": 1
+  },
+  {
+    "path": "/tmp/gccrs-compat-audit/probes/rpitit.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/tmp/gccrs-compat-audit/probes/rpitit.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/probes/rpitit.s"
+    ],
+    "exit": 1
+  }
+]

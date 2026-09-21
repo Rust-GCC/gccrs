@@ -1,0 +1,12 @@
+/tmp/gccrs-compat-audit/probes/legacy_attribute.rs:5:18: error: this function takes 1 argument but 2 arguments were supplied [E0061]
+    5 | fn main()->i32 { foo(10,3)-13 }
+      |                  ^~~
+/tmp/gccrs-compat-audit/probes/legacy_attribute.rs:5:18: error: cannot apply operator ‘-’ to types <tyty::error> and <integer>
+
+Analyzing compilation unit
+
+Time variable                                  wall           GGC
+ phase setup                        :   0.01 ( 85%)  2758k ( 99%)
+ TOTAL                              :   0.01         2781k
+Extra diagnostic checks enabled; compiler may run slowly.
+Configure with --enable-checking=release to disable checks.

@@ -1,0 +1,12 @@
+/tmp/gccrs-compat-audit/cross-crate/macro_consumer.rs:5:99: error: macro ‘answer’ defined multiple times [E0428]
+/tmp/gccrs-compat-audit/cross-crate/macro_consumer.rs:4:18: error: could not resolve macro invocation ‘answer’ [E0433]
+    4 | fn main()->i32 { answer!() - 42 }
+      |                  ^~~~~~
+
+Analyzing compilation unit
+
+Time variable                                  wall           GGC
+ phase setup                        :   0.01 ( 90%)  2758k (100%)
+ TOTAL                              :   0.01         2766k
+Extra diagnostic checks enabled; compiler may run slowly.
+Configure with --enable-checking=release to disable checks.

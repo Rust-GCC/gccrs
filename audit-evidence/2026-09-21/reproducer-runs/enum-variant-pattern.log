@@ -1,0 +1,14 @@
+/home/philbert/workspace/gccrs/libcore-repros/enum-variant-pattern.rs:12:22: error: expected T=T?, found reference
+   12 |         Option::Some(&v) => {}
+      |                      ^
+/home/philbert/workspace/gccrs/libcore-repros/enum-variant-pattern.rs:18:22: error: expected T=T?, found tuple
+   18 |         Option::Some((a, b)) => {}
+      |                      ^
+
+Analyzing compilation unit
+
+Time variable                                  wall           GGC
+ phase setup                        :   0.01 ( 82%)  2758k ( 99%)
+ TOTAL                              :   0.01         2781k
+Extra diagnostic checks enabled; compiler may run slowly.
+Configure with --enable-checking=release to disable checks.

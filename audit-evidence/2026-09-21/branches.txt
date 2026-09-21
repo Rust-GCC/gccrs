@@ -1,0 +1,83 @@
+* master                                                                                   de2588c2016 [origin/master] gccrs: Handle FUNCTION segments in new_type_param
+  phil/libcore-dev                                                                         383b6cd50b6 gccrs: dont care about the coercion result here
+  phil/libcore-dev-2                                                                       1748abcf8fc WIP
+  phil/method-resolve                                                                      7a9ef57db8b gccrs: validate impl bound arguments through the impl, not just satisfies_bound
+  phil/mismatched                                                                          2f8cf8d608c gccrs: dont care about the coercion result here
+  phil/probe-memoization                                                                   2bfb6f93de4 gccrs: memoize and guard TypeBoundsProbe::Probe against recursion
+  phil/recusion-guard-bounds                                                               77f24483619 x
+  remotes/origin/HEAD                                                                      -> origin/master
+  remotes/origin/allow-cfi-encoding-feature                                                9858b38f9d1 cfi_encoding: Recognize the attribute
+  remotes/origin/allow-tool-attributes                                                     3333f1ebbcc attributes: Check if an attribute is a tool attribute
+  remotes/origin/copy/master                                                               5dc8c4d20d6 gccrs: Add size checking to SlicePattern
+  remotes/origin/core/dev                                                                  0dedd20a64a [wip][drop] nr-ctx: Remove assertion
+  remotes/origin/derive-coerce-pointee                                                     159f32a32dc derive: Gate CoercePointee and add framework for implementing it.
+  remotes/origin/derive-coerce-pointee-base-impl                                           696df5c2b28 derive: Gate CoercePointee and add framework for implementing it.
+  remotes/origin/dkm-master-rebased-update-03-11                                           e1e30784737 gccrs: nr2.0: Set the node id of the root node
+  remotes/origin/dkm/bump-2025-07-30                                                       730d78bab24 Merge remote-tracking branch upstream-gccrs/master into dkm/bump-2025-07-30
+  remotes/origin/dkm/bump-2025-08-05                                                       8a0cd69792f Merge remote-tracking branch upstream-gccrs/master into dkm/bump-2025-08-05
+  remotes/origin/dkm/ci_cleanup                                                            0836d5d262f ci: refactor ccpp workflow
+  remotes/origin/dkm/ci_fix_push_event                                                     97194eda103 ci: stop using pull_request event, use push
+  remotes/origin/dkm/ci_match_full_ref                                                     02fb1d19706 ci: look for "<project>/<repo>#ref" pattern
+  remotes/origin/dkm/ci_send_mails                                                         aa3960f3756 ci: yet another fix for the conditionnal steps
+  remotes/origin/dkm/docs                                                                  699865e5980 WIP doc
+  remotes/origin/dkm/drop-macos-in-ci                                                      59d05ae4b43 ci: drop macos build
+  remotes/origin/dkm/fix_issue_ref_in_mails                                                3a37ced3475 ci: fix the issue reference scrapper when there's no ref
+  remotes/origin/dkm/rebase_and_clean/2026-01-14                                           1a910284309 Merge remote-tracking branch 'upstream-gccrs/master' into dkm/rebase_and_clean/2026-01-14
+  remotes/origin/dkm/upstream-base                                                         b0730e1d39f libstdc++: [_GLIBCXX_DEBUG] Fix coding style on if consteval
+  remotes/origin/extern-type-compile-to-void                                               416c7268d35 codegen: Compile extern types as C void
+  remotes/origin/extern-type-typechecking                                                  a72f627e01e codegen: Compile extern types as C void
+  remotes/origin/fix-line-ending-failures                                                  8ee35afca33 gccrs: Fix output line ending patterns for Windows platforms.
+  remotes/origin/fix-typo-fn-flag-variadic                                                 b68b7b2f79b tyty: Fix FN_VARIADIC flag typo
+  remotes/origin/gcc-patch-dev                                                             ed03af4ef3b tree-optimization/114659 - VN and FP to int punning
+  remotes/origin/gcc-patch-dev-staging                                                     288b3b4f494 gcc-patch-dev: Add CI to patch branch
+  remotes/origin/gcc13-gccrs-enabled                                                       90e0d220604 Revert "rust: Disable --enable-languages=rust and silently exclude it from --enable-languages=all for GCC 13"
+  remotes/origin/gerris/rebase-upstream/2025-11-25                                         04d20fbf551 gccrs: Add test for issue Rust-GCC#3608
+  remotes/origin/gerris/rebase-upstream/2025-12-02                                         bdbf56d4a25 gccrs: reindent rust-lex.cc
+  remotes/origin/gerris/rebase-upstream/2025-12-10                                         8d5f0893182 gccrs: Change parser template implementation file ext
+  remotes/origin/gerris/rebase-upstream/2025-12-22                                         e36471e8b21 gccrs: Adds tests from issue 4245
+  remotes/origin/gerris/rebase-upstream/2026-01-03                                         a76efa30c34 gccrs: remove match arm pattern vector to single pattern
+  remotes/origin/gerris/rebase-upstream/2026-01-10                                         2688e656b1d gccrs: Fix empty struct constructors causing ICE during type checking
+  remotes/origin/gerris/rebase-upstream/2026-02-14                                         6e4eb3dcde2 gccrs : TypeCheck : Enhance missing fields error message
+  remotes/origin/gerris/rebase-upstream/2026-03-18                                         55008a4cd20 gccrs: Move cli inner attribute injection to injection
+  remotes/origin/gerris/rebase-upstream/2026-04-29                                         5fb7b52b603 gccrs: Defer literal suffix validation to parser and preserve source fidelity
+  remotes/origin/gerris/rebase-upstream/2026-05-31                                         cf5db6e7a33 gccrs: Fix ICE when parsing empty path expression
+  remotes/origin/gerris/rebase-upstream/2026-06-24                                         85be3b6c468 gccrs: intrinsic: Enforce intrinsic signatures during the type checking
+  remotes/origin/gerris/rebase-upstream/2026-06-30                                         8a3d4faeabe gccrs: Fix typechecking of block expression and labels
+  remotes/origin/gerris/rebase-upstream/2026-08-04                                         7019f74cf99 gccrs: forever-stack: Add dfs_cache
+  remotes/origin/gerris/rebase-upstream/2026-08-19                                         673dfc50e7f gccrs: Support repr simd to setup a gcc vector type
+  remotes/origin/gerris/rebase-upstream/2026-08-19-for-ci                                  57f7038325f PLACEHOLDER COMMIT
+  remotes/origin/gerris/rebase-upstream/2026-09-14                                         4f3a8c4a977 gccrs: Implement some platform-intrinsic simd function support
+  remotes/origin/gerris/rebase-upstream/2026-09-14-for-ci                                  07b68f9644d PLACEHOLDER COMMIT
+  remotes/origin/gerris/rebase/2025-08-27                                                  450ef2e5308 Merge remote-tracking branch 'upstream-gccrs/master' into gerris/rebase/2025-08-27
+  remotes/origin/gerris/rebase/2025-10-08                                                  b31f7a5fb01 Merge remote-tracking branch 'upstream-gccrs/master' into gerris/rebase/2025-10-08
+  remotes/origin/gerris/rebase/2025-10-27                                                  7572fd71f77 Merge remote-tracking branch 'upstream-gccrs/master' into gerris/rebase/2025-10-27
+  remotes/origin/gerris/rebase/2025-10-29                                                  a1c45585e32 Improve ErrorPropagationExpr handling
+  remotes/origin/gerris/rebase/2025-11-11                                                  e16e371e875 Merge remote-tracking branch 'upstream-gccrs/master' into gerris/rebase/2025-11-11
+  remotes/origin/gerris/rebase/2025-11-12                                                  aa4982dc50f gccrs: Fix segv in errors in type checking an impl item
+  remotes/origin/gerris/rebase/2025-11-17                                                  d19ef8d8e7e Merge remote-tracking branch 'upstream-gccrs/master' into gerris/rebase/2025-11-17
+  remotes/origin/gerris/rebase/2025-11-18                                                  9a4acf176fa Merge remote-tracking branch 'upstream-gccrs/master' into gerris/rebase/2025-11-18
+  remotes/origin/gerris/rebase/2025-11-25                                                  91467fbfe17 gccrs: Add test for issue Rust-GCC#3608
+  remotes/origin/gerris/rebase/2025-12-10                                                  d432809950b Merge remote-tracking branch 'upstream-gccrs/master' into gerris/rebase/2025-12-10
+  remotes/origin/gerris/rebase/2026-01-10                                                  a1ee38afbd0 Merge remote-tracking branch 'upstream-gccrs/master' into gerris/rebase/2026-01-10
+  remotes/origin/gerris/rebase/2026-03-05                                                  3b41dd55a32 Merge remote-tracking branch 'upstream-gccrs/master' into gerris/rebase/2026-03-05
+  remotes/origin/gerris/rebase/2026-05-20                                                  1990db62685 Merge remote-tracking branch 'upstream-gccrs/master' into gerris/rebase/2026-05-20
+  remotes/origin/gerris/rebase/2026-06-22                                                  2098e187bf9 test
+  remotes/origin/gerris/rebase/2026-06-29                                                  e2dfa0a455b Merge remote-tracking branch 'upstream-gccrs/master' into gerris/rebase/2026-06-29
+  remotes/origin/gerris/rebase/2026-06-30                                                  656073dc1b6 Merge remote-tracking branch 'upstream-gccrs/master' into gerris/rebase/2026-06-30
+  remotes/origin/gerris/upstream/2025-09-09                                                a03257a0a08 Import libcore 1.49.0
+  remotes/origin/gh-readonly-queue/master/pr-4294-878be01f1008a0002dca30d8f5cbf7a85451717a df16c6cd6fa gccrs: refactor dead code lint
+  remotes/origin/github/devel/rust/libgrust-v2/to-push                                     3aff47f1afe Regenerate build files
+  remotes/origin/libgrust-v2/to-submit                                                     db7ac65d773 build: Add libgrust as compilation modules
+  remotes/origin/master                                                                    de2588c2016 gccrs: Handle FUNCTION segments in new_type_param
+  remotes/origin/no-defaults-in-derives                                                    b40d08da8a0 derive: Do not add default type parameters on derived impls
+  remotes/origin/phil/mismatched                                                           2f8cf8d608c gccrs: dont care about the coercion result here
+  remotes/origin/phil/sip-hasher                                                           f61c6e3c753 gccrs: 128bit integer support is limited on 32 bit platforms
+  remotes/origin/pr/test                                                                   22b8ec3f36c ci: fix step condition
+  remotes/origin/recognize-used-attr                                                       01c3963e310 backend: Add proper handling for #[used] attribute.
+  remotes/origin/remove-header-implementations                                             269e42d8951 40090115623b
+  remotes/origin/revert-3338-lang-items                                                    2b9a3ff15e9 Revert "gcc/rust/ChangeLog:"
+  remotes/origin/staging                                                                   d1bdafecdae Merge #1821
+  remotes/origin/trunk-libgrust-build                                                      dcf9400365e libgrust: Add dependency to libstdc++
+  remotes/origin/trying                                                                    3dba0f17bd3 Try #1832:
+  remotes/origin/tschwinge/Remove-PR122498-workaround                                      6137694b8d2 Remove PR122498 "rust-enabled bootstrap is broken after r16-4897" workaround [PR122498]
+  remotes/origin/upstream-push/phil/gcc-upstream-merge                                     d816c53691a merge: Update bors' expected warnings

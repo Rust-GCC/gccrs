@@ -1,0 +1,8 @@
+1748abcf8fce2a519b7ef183058db4905b91bb9a phil/libcore-dev-2@{2026-09-21 17:15:53 +0100} commit: WIP
+e1d8bc0913ee76e8a126f02733f02f96289e12f9 phil/libcore-dev-2@{2026-09-20 21:17:46 +0100} commit: gccrs: unify unresolved pattern parents before rejecting shape mismatches
+7a181086031fb7444a65f0b021558ff705f2ff14 phil/libcore-dev-2@{2026-09-20 20:13:44 +0100} commit: gccrs: parse default types for associated types in trait definitions
+a72c58f273d6ebd6d7b9631fdb76608c515f551b phil/libcore-dev-2@{2026-09-20 19:39:42 +0100} commit: gccrs: resolve bare use paths against the crate root under 2015 edition
+8095b9242349b847ea90f607665269ea7665a4dc phil/libcore-dev-2@{2026-09-20 18:19:39 +0100} cherry-pick: gccrs: memoize and guard TypeBoundsProbe::Probe against recursion
+fdfe4e813e0a2e5ea62a8f7d4f7833af2b60cf56 phil/libcore-dev-2@{2026-09-20 18:16:30 +0100} cherry-pick: gccrs: dont care about the coercion result here
+96a5cd78d47bd72ea30c1eb587613b2e62ce0775 phil/libcore-dev-2@{2026-09-20 18:16:30 +0100} cherry-pick: add per item logging
+7a9ef57db8b44498d3c19110290cb9702cf56791 phil/libcore-dev-2@{2026-09-20 18:16:16 +0100} branch: Created from HEAD

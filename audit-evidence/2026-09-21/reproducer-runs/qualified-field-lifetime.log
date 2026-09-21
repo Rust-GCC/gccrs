@@ -1,0 +1,11 @@
+/home/philbert/workspace/gccrs/libcore-repros/qualified-field-lifetime.rs:6:46: error: unresolved lifetime
+    6 | struct Trigger<'a, 'b>(CharSliceSearcher<'a, 'b>);
+      |                                              ^~
+
+Analyzing compilation unit
+
+Time variable                                  wall           GGC
+ phase setup                        :   0.01 ( 66%)  2758k ( 99%)
+ TOTAL                              :   0.01         2781k
+Extra diagnostic checks enabled; compiler may run slowly.
+Configure with --enable-checking=release to disable checks.

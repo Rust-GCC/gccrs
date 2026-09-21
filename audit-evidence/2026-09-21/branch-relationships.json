@@ -1,0 +1,72 @@
+[
+  {
+    "branch": "phil/libcore-dev",
+    "head": "383b6cd50b6a896117b935e82f3639171727a478",
+    "merge_base": "e0a7a91b661fe9361410739c230b7391e104fde0",
+    "master_only_branch_only": "3\t4",
+    "cherry": "+ 9a466fdc9528f2d8366f5ba81d542c7b33e023e0\n+ da21e2e5f19ef4a3cd6faed3e185ef8e6d642ad9\n+ 372b9ca6b517c8e565b4b38d3c1c6cf9f609ecfe\n+ 383b6cd50b6a896117b935e82f3639171727a478"
+  },
+  {
+    "branch": "phil/libcore-dev-2",
+    "head": "1748abcf8fce2a519b7ef183058db4905b91bb9a",
+    "merge_base": "e0a7a91b661fe9361410739c230b7391e104fde0",
+    "master_only_branch_only": "3\t11",
+    "cherry": "+ d446da1ebaee3485b3d884f428a1e1f29efae1e3\n+ d9eece4a6e805e2fc5992c56bf1f22d6eeb38d27\n+ e4c2817797b1487f14b8bb773c6cc708e89594c6\n+ 7a9ef57db8b44498d3c19110290cb9702cf56791\n+ 96a5cd78d47bd72ea30c1eb587613b2e62ce0775\n+ fdfe4e813e0a2e5ea62a8f7d4f7833af2b60cf56\n+ 8095b9242349b847ea90f607665269ea7665a4dc\n+ a72c58f273d6ebd6d7b9631fdb76608c515f551b\n+ 7a181086031fb7444a65f0b021558ff705f2ff14\n+ e1d8bc0913ee76e8a126f02733f02f96289e12f9\n+ 1748abcf8fce2a519b7ef183058db4905b91bb9a"
+  },
+  {
+    "branch": "phil/method-resolve",
+    "head": "7a9ef57db8b44498d3c19110290cb9702cf56791",
+    "merge_base": "e0a7a91b661fe9361410739c230b7391e104fde0",
+    "master_only_branch_only": "3\t4",
+    "cherry": "+ d446da1ebaee3485b3d884f428a1e1f29efae1e3\n+ d9eece4a6e805e2fc5992c56bf1f22d6eeb38d27\n+ e4c2817797b1487f14b8bb773c6cc708e89594c6\n+ 7a9ef57db8b44498d3c19110290cb9702cf56791"
+  },
+  {
+    "branch": "phil/mismatched",
+    "head": "2f8cf8d608cc2ac6095629877866066e3214d784",
+    "merge_base": "5870b08eac1603169553d896c128fd886523f6af",
+    "master_only_branch_only": "7\t1",
+    "cherry": "+ 2f8cf8d608cc2ac6095629877866066e3214d784"
+  },
+  {
+    "branch": "phil/probe-memoization",
+    "head": "2bfb6f93de4252ddb1ab0186db87b8e88033ab8c",
+    "merge_base": "e0a7a91b661fe9361410739c230b7391e104fde0",
+    "master_only_branch_only": "3\t2",
+    "cherry": "+ d446da1ebaee3485b3d884f428a1e1f29efae1e3\n+ 2bfb6f93de4252ddb1ab0186db87b8e88033ab8c"
+  },
+  {
+    "branch": "phil/recusion-guard-bounds",
+    "head": "77f24483619f256bea94e2677b4a81035873b641",
+    "merge_base": "215416773ce7d0dcd27a9593d05563facc5c7e56",
+    "master_only_branch_only": "6\t2",
+    "cherry": "+ d2546b9c804c299d26702afa7bf7408fa59a4304\n+ 77f24483619f256bea94e2677b4a81035873b641"
+  },
+  {
+    "branch": "origin/core/dev",
+    "head": "0dedd20a64ab28ffb5d6f286a567e85fe13d3b55",
+    "merge_base": "456dbb4391b3215099795f999240a13b642077fa",
+    "master_only_branch_only": "13717\t19",
+    "cherry": "- f66520f26fb99681a2f94ceff8fac6c277e67101\n+ 222f423ce11d8a8f1623d805526e97c7403b44f9\n+ deec9e595e3183e8acac32837671a195d1d31c4a\n+ d7bfdfef633146eb1d52fe321cb0feab525d3378\n+ ecf01a0c040e1d3f485bba2e05ffa4f4020bb166\n+ 94ae3acb2548bacd155a84fa41f820c5a7775c0b\n+ a8884ff84c7fc043b88a3427f81c9dc0635d4f34\n+ 7c0b08204f153fa5763b8c8233a75532c6bba124\n+ 41f1b4dd60d64172602d79719b1c2b92cc0aee92\n+ 9202d4fd1b3f036fc0f84fe0c7bd196b9071dab2\n- d9bd55ea64700b7bf0df8c8fb92aa179f444cd2b\n+ 8d18705f8322f39d49ed1285413d864720c23ea7\n+ d992c34fdfa5ebbc2e16a0ef45cdcebe69a3d46d\n+ 2c91bb438ee0c2015e77c6dde5624ac4fbdf9e80\n- d197bcfaecbde1fbef8e0e075357c4bf2bd0deac\n+ 7465a134b5a399c26267bd56799e56b2925dcd6d\n+ 074589203c75473be50d2d428d10f24aeb505f87\n+ 3a8442a0321f385fdd54e54fcc448bb94308b1be\n+ 0dedd20a64ab28ffb5d6f286a567e85fe13d3b55"
+  },
+  {
+    "branch": "origin/derive-coerce-pointee",
+    "head": "159f32a32dc707d17a612e9f229ed6be65fe3284",
+    "merge_base": "2c764560d7c41f9aef6d69eb25777622d583eea1",
+    "master_only_branch_only": "1006\t3",
+    "cherry": "+ 6fed099bd6851f496e52506418cf1c52f12ef180\n+ ff7d3455a626b688e39827e938fcd6cd5955b912\n+ 159f32a32dc707d17a612e9f229ed6be65fe3284"
+  },
+  {
+    "branch": "origin/derive-coerce-pointee-base-impl",
+    "head": "696df5c2b28c838dff7eb2ad234230957051fa08",
+    "merge_base": "ae002f71251b6e04abb542390e0262e86f6772c1",
+    "master_only_branch_only": "10\t2",
+    "cherry": "+ 5af7bb92345fe37e5e1b1b73ff76a1a40b5380e8\n+ 696df5c2b28c838dff7eb2ad234230957051fa08"
+  },
+  {
+    "branch": "origin/recognize-used-attr",
+    "head": "01c3963e3103982fcf7162e6bea79d601a5a0dda",
+    "merge_base": "d955d57e7141bfa58402bd88d5e9c845af245a41",
+    "master_only_branch_only": "15\t2",
+    "cherry": "+ a4e373675aa03ef0f0214963d6e0f4ea2f215177\n+ 01c3963e3103982fcf7162e6bea79d601a5a0dda"
+  }
+]

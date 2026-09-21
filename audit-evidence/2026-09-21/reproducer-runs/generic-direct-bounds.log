@@ -1,0 +1,15 @@
+
+Analyzing compilation unit
+Performing interprocedural optimizations
+ <*free_lang_data> {heap 3012k} <visibility> {heap 3012k} <build_ssa_passes> {heap 3012k} <targetclone> {heap 3396k} <opt_local_passes> {heap 3396k} <remove_symbols> {heap 3396k} <targetclone> {heap 3396k} <free-fnsummary> {heap 3396k}Streaming LTO
+ <whole-program> {heap 3396k} <fnsummary> {heap 3396k} <inline> {heap 3396k} <modref> {heap 3396k} <free-fnsummary> {heap 3396k} <single-use> {heap 3396k} <comdats> {heap 3396k}Assembling functions:
+ <simdclone> {heap 3396k} generic_direct_bounds::main
+Time variable                                  wall           GGC
+ phase setup                        :   0.01 ( 35%)  2758k ( 97%)
+ phase parsing                      :   0.01 ( 26%)    26k (  1%)
+ phase opt and generate             :   0.01 ( 38%)    62k (  2%)
+ parser (global)                    :   0.01 ( 26%)    26k (  1%)
+ initialize rtl                     :   0.01 ( 30%)    12k (  0%)
+ TOTAL                              :   0.02         2847k
+Extra diagnostic checks enabled; compiler may run slowly.
+Configure with --enable-checking=release to disable checks.

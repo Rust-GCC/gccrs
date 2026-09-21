@@ -1,0 +1,100 @@
+383b6cd50b6a896117b935e82f3639171727a478 phil/libcore-dev@{2026-09-19 14:56:48 +0100} cherry-pick: gccrs: dont care about the coercion result here
+372b9ca6b517c8e565b4b38d3c1c6cf9f609ecfe phil/libcore-dev@{2026-09-19 14:56:38 +0100} cherry-pick: wip
+da21e2e5f19ef4a3cd6faed3e185ef8e6d642ad9 phil/libcore-dev@{2026-09-19 12:43:40 +0100} rebase (finish): refs/heads/phil/libcore-dev onto e0a7a91b661fe9361410739c230b7391e104fde0
+86dae9485dd596a830d50a46be8e1d5556140c53 phil/libcore-dev@{2026-09-19 12:43:36 +0100} rebase (finish): refs/heads/phil/libcore-dev onto 215416773ce7d0dcd27a9593d05563facc5c7e56
+a4e3b0a8f535633fbabe75c3b8608b1a07123cd1 phil/libcore-dev@{2026-09-18 20:41:10 +0100} rebase (finish): refs/heads/phil/libcore-dev onto d94bfdf5a8ab61673f5c1e7b4d36e11dd14f143b
+c9b6f3ae22981cac63572091a6f75011b7018799 phil/libcore-dev@{2026-09-18 20:40:48 +0100} rebase (finish): refs/heads/phil/libcore-dev onto 215416773ce7d0dcd27a9593d05563facc5c7e56
+c79374b0c466481badfb7a8dd5d554cf747dcde3 phil/libcore-dev@{2026-09-18 16:20:25 +0100} cherry-pick: gccrs: Fix bad substituion error
+f131d0bef37273159dfc05d39b59eabaf4605ad8 phil/libcore-dev@{2026-09-18 16:20:09 +0100} rebase (finish): refs/heads/phil/libcore-dev onto ae002f71251b6e04abb542390e0262e86f6772c1
+ff548f5a96b6f9c0e0db0688449b666e05c03300 phil/libcore-dev@{2026-09-18 16:20:06 +0100} rebase (finish): refs/heads/phil/libcore-dev onto bd7540d5893bbe8d821dff75de1a06580637c654
+0a0701bd3e290ca93d80b58b973833b4cfaa5186 phil/libcore-dev@{2026-09-18 16:19:11 +0100} commit (amend): type bound recusion
+ac323dfe865f5f8fb02d3c2af2afba58c89d8299 phil/libcore-dev@{2026-09-17 17:07:23 +0100} rebase (finish): refs/heads/phil/libcore-dev onto bd7540d5893bbe8d821dff75de1a06580637c654
+aa680e4a9c923c23f66d9b584a886dd3aeb71b05 phil/libcore-dev@{2026-09-10 22:08:34 +0100} commit: WIP
+35b3791dd0352c8ed75d5ff71ffcc6a84d0a0455 phil/libcore-dev@{2026-09-10 21:43:46 +0100} commit: WIP recusion guard
+f83a3d723fd9647dc0f9a23ebdfe4463a2d660b8 phil/libcore-dev@{2026-09-10 21:26:32 +0100} cherry-pick: gccrs: Fix bad derive of Ord to use Self instead of raw type-name
+b0d978109b7354e3084d46f13980209fdb7f7c33 phil/libcore-dev@{2026-09-10 21:26:19 +0100} cherry-pick: gccrs: Refactor query_type to only fully-const resolve const fns
+7b025d1e8dd272bf5fa75ee6e31152d086e9260c phil/libcore-dev@{2026-09-10 21:26:06 +0100} rebase (finish): refs/heads/phil/libcore-dev onto 1a69267c329f434e3296f48f7b4694a91cb8d7e7
+c91470a64584e53b827725ea473e9359078a6421 phil/libcore-dev@{2026-09-10 20:01:43 +0100} cherry-pick: gccrs: constructors that get borrowed need to be addressable
+33db86574a656efbd1af80ecb028732539b8818e phil/libcore-dev@{2026-09-10 19:58:13 +0100} cherry-pick: gccrs: TODO
+2ea3fce2ea631e04c2de74715eda3c5b135683f2 phil/libcore-dev@{2026-09-10 19:57:55 +0100} rebase (finish): refs/heads/phil/libcore-dev onto 930d05a0ec0e0b566bfabf7e931d7e4cff402158
+8fadfa27d7f2cff69ca645245b38c5606f3fdbff phil/libcore-dev@{2026-09-08 14:59:07 +0100} rebase (finish): refs/heads/phil/libcore-dev onto 112b46e3f8e3b81f28e90a7c8ebd1789592d31cb
+61a38f486bb0249a154600b6fab9e64f5f816182 phil/libcore-dev@{2026-09-07 20:06:57 +0100} cherry-pick: gccrs: use std::move to reduce copy ctor usage on type-bound-predicate
+2a9d31c64fc5ad4e89d82e126ab2637c89478d02 phil/libcore-dev@{2026-09-07 20:06:39 +0100} commit: add per item logging
+cd1567414ace4b8db747b3f44abc5b3e290cf051 phil/libcore-dev@{2026-09-07 20:06:10 +0100} rebase (finish): refs/heads/phil/libcore-dev onto 937d1fdcd3d65156809796de303f0717eb540dab
+225a2380685d1e7f6a4c90bd5f5254b3912d75fe phil/libcore-dev@{2026-09-07 20:05:31 +0100} commit (amend): dont commit this at all
+3e32302a74f884182302a49616faf404b8705e45 phil/libcore-dev@{2026-09-07 20:04:55 +0100} rebase (finish): refs/heads/phil/libcore-dev onto 937d1fdcd3d65156809796de303f0717eb540dab
+4f535be9114b68ea60c13f4d7c80713312a40db8 phil/libcore-dev@{2026-09-07 20:04:29 +0100} rebase (finish): refs/heads/phil/libcore-dev onto 937d1fdcd3d65156809796de303f0717eb540dab
+5d899aa88bd34cadee6ee45b6ef9161dd1c94d2e phil/libcore-dev@{2026-09-06 22:24:19 +0100} commit: fix reachability
+94ee69b5141b7848ca39ff54f50cd16ba803796a phil/libcore-dev@{2026-09-06 22:11:35 +0100} cherry-pick: gccrs: Handle generic args to traits in paths
+68117a3461aec4725210a8030415c19a214f34b0 phil/libcore-dev@{2026-09-06 21:06:34 +0100} cherry-pick: gccrs: Fix handling of constants in paths
+1834ccbbc3e65fa1e10ecff9722f8306d68d5f84 phil/libcore-dev@{2026-09-06 20:09:48 +0100} cherry-pick: gccrs: improve handling of defered operator overload handling
+b3df614b34e5e0d60aaabb1183cbaafa8aa304b8 phil/libcore-dev@{2026-09-06 20:09:29 +0100} merge phil/method-resolution-perf: Merge made by the 'ort' strategy.
+d20a529fb5b32a78c9f99fa4d88b87057f21e21f phil/libcore-dev@{2026-09-06 20:09:12 +0100} cherry-pick: gccrs: Recusive types support
+fff0ec99b10361f919d3d70c500678737ade1a46 phil/libcore-dev@{2026-09-06 20:08:35 +0100} rebase (finish): refs/heads/phil/libcore-dev onto 19935a2586b3d7e00020c0a6567c3261a33f8f28
+7a873d21c4feaa60b74d808354cdb77214c4436e phil/libcore-dev@{2026-09-06 20:07:52 +0100} rebase (finish): refs/heads/phil/libcore-dev onto e0cdd05c1f7ae24f710b4a5c1090d7627375f7ce
+901a4470f5a937eb7f837acbefffa1a692975e11 phil/libcore-dev@{2026-09-06 20:07:03 +0100} rebase (finish): refs/heads/phil/libcore-dev onto 19935a2586b3d7e00020c0a6567c3261a33f8f28
+65ac51f255bde4e5a455b8308b51e4ddbf6d78f9 phil/libcore-dev@{2026-09-03 22:28:46 +0100} commit: x
+252d7b26e0f0b75f771ee4b8a95f876ce4c1be8b phil/libcore-dev@{2026-09-03 22:20:30 +0100} cherry-pick: gccrs: Remove bad unify in operator overload breaking partial eq in core
+358734ac0e36b67ec3e9bdd5eaa7d85c313968f9 phil/libcore-dev@{2026-09-03 22:05:50 +0100} cherry-pick: x
+0ef23e45132268b5f893f0847cfa0c6fa3c56f04 phil/libcore-dev@{2026-09-03 22:05:50 +0100} cherry-pick: x
+0f4cee46e5b087aa40bc4efab0a05b4af70a57c9 phil/libcore-dev@{2026-09-03 22:05:50 +0100} cherry-pick: gccrs: method resolution try predicate items first
+ce1659d87ae69aadae74fab8d8b7ecc8e111fa65 phil/libcore-dev@{2026-09-03 20:52:59 +0100} commit: dont commit this at all
+41ff6f68bb709bbb68b03726b8703683196e69cb phil/libcore-dev@{2026-09-03 20:10:37 +0100} cherry-pick: gccrs: Fix parser handling for Foo<Bar: SomeTrait>
+ae7efcc40c9832701182973f3e0bd3650a5cbd5c phil/libcore-dev@{2026-09-03 20:09:19 +0100} rebase (finish): refs/heads/phil/libcore-dev onto 2c764560d7c41f9aef6d69eb25777622d583eea1
+c2f2266394c1ee6bdb97af16a982999a570b5f3a phil/libcore-dev@{2026-09-03 20:07:40 +0100} rebase (finish): refs/heads/phil/libcore-dev onto eb62f35f76d3070ca32f73c3b7663484b23cd1f8
+9cfdb9642dcb7d5417447d4bae6fd61afecfb8fe phil/libcore-dev@{2026-09-03 11:21:50 +0100} commit (cherry-pick): gccrs: Add new resolution mode CANONICAL/REFERNECE to type-check-type
+c2f2266394c1ee6bdb97af16a982999a570b5f3a phil/libcore-dev@{2026-09-03 10:50:58 +0100} rebase (finish): refs/heads/phil/libcore-dev onto c2f2266394c1ee6bdb97af16a982999a570b5f3a
+a98f7ded80a2f81cef4d76f8d8c73c2d6406a7f7 phil/libcore-dev@{2026-09-03 10:50:17 +0100} rebase (finish): refs/heads/phil/libcore-dev onto eb62f35f76d3070ca32f73c3b7663484b23cd1f8
+46bf73d4f357d00a1a66520971cb569deb0a711c phil/libcore-dev@{2026-08-31 22:33:44 +0100} rebase (finish): refs/heads/phil/libcore-dev onto b31099497e5927d30c29caa82d0ba9ee838d8e2f
+bb8d3dd0d015fc43358e7ab8b074fc8dcf5b3e91 phil/libcore-dev@{2026-08-31 22:33:32 +0100} cherry-pick: gccrs: make fn trait return optional
+638d81999e24eab207b00b3fb2c461f150a5d166 phil/libcore-dev@{2026-08-31 22:33:19 +0100} cherry-pick: gccrs: Add missing handling to variance analysis
+c02f311f21773274ebce2f2dd213c9d8ec94c247 phil/libcore-dev@{2026-08-31 21:57:05 +0100} commit: XXX dont commit
+b31099497e5927d30c29caa82d0ba9ee838d8e2f phil/libcore-dev@{2026-08-31 21:43:24 +0100} commit (amend): gccrs: Add hir lowering to trait item where clauses
+f4f029bbe5b190de37742f92c65883f8d428a8a3 phil/libcore-dev@{2026-08-31 21:43:06 +0100} commit: x
+5f3bec27695619293ceabe18f9b691f8732f4664 phil/libcore-dev@{2026-08-31 20:09:04 +0100} rebase (finish): refs/heads/phil/libcore-dev onto 275b8d8b2aaece282be78e828abb2b0eb4604b98
+d2d9fd2b935c61b5e28a54b1c2f999d6d7e7a77c phil/libcore-dev@{2026-08-31 20:07:14 +0100} commit: gccrs: walk the predicates to look for unconstrained
+c93d84eea8b5edf1054876660639e1672f02cc5c phil/libcore-dev@{2026-08-31 19:48:48 +0100} commit: gccrs: Fix ambigious path resolution
+27f5ab60bfc405b200bca00fe06f50947341a052 phil/libcore-dev@{2026-08-31 13:27:08 +0100} commit: fix self referencial assocated type
+275b8d8b2aaece282be78e828abb2b0eb4604b98 phil/libcore-dev@{2026-08-30 23:34:12 +0100} cherry-pick: opaque extern types wip
+4a0203d00afa264f1742658f162d31438822fc85 phil/libcore-dev@{2026-08-30 22:28:15 +0100} cherry-pick: DONT COMMIT
+9297040941092a34282b8448b5025689e651fd52 phil/libcore-dev@{2026-08-30 22:28:15 +0100} cherry-pick: fixup type hasher
+09cb11284b29c9f00e8af46c40c103ecebaa289c phil/libcore-dev@{2026-08-30 20:36:03 +0100} rebase (finish): refs/heads/phil/libcore-dev onto 81891ef3dd77963a53f17b2078f3958fc3e76f0e
+6d61a671a8a32bf8549dce746806baf8df73e41d phil/libcore-dev@{2026-08-30 20:19:45 +0100} rebase (finish): refs/heads/phil/libcore-dev onto 81891ef3dd77963a53f17b2078f3958fc3e76f0e
+e0612cc5dd6aa54236cbafabae71c19ca8717fef phil/libcore-dev@{2026-08-30 19:57:28 +0100} commit (amend): gccrs: Seperate trait fn signiture resolution from body
+21d4dc111d4b24b93d403bf39c5ed8327eee42c3 phil/libcore-dev@{2026-08-30 19:56:53 +0100} commit (amend): gccrs: Seperate trait fn signiture resolution from body
+391e1f9f728e47f3cd8215208e34974c6b2291ad phil/libcore-dev@{2026-08-30 19:48:25 +0100} rebase (finish): refs/heads/phil/libcore-dev onto 81891ef3dd77963a53f17b2078f3958fc3e76f0e
+b4c28f82a564eb8e6a211d39952e48ad6606c16a phil/libcore-dev@{2026-08-30 19:38:55 +0100} rebase (finish): refs/heads/phil/libcore-dev onto 81891ef3dd77963a53f17b2078f3958fc3e76f0e
+250864697eb5d597b92c1d2296bb0c05a660c40d phil/libcore-dev@{2026-08-28 23:42:09 +0100} commit: x
+765b97874a30b40db1f4f223eec22d3d5ac6c76f phil/libcore-dev@{2026-08-28 23:03:14 +0100} commit (amend): seperate implitem fntype and body resolution
+f895b247d326ef862390f090046ee29f248c903b phil/libcore-dev@{2026-08-28 22:28:14 +0100} commit (amend): x
+eb92a830df62969b4456be4a0cbf44b0dcf24489 phil/libcore-dev@{2026-08-28 22:20:21 +0100} commit: x
+037757c36d91993557dbc954b0ec47460de9230b phil/libcore-dev@{2026-08-28 20:05:32 +0100} rebase (finish): refs/heads/phil/libcore-dev onto d198b238fc377de3d0016f203d9435bd0e0b3dc3
+9219ba4a66aa5c4cf1c9c5399cf16f05df5a23d4 phil/libcore-dev@{2026-08-28 20:03:28 +0100} commit: gccrs: refactor fntype resolution to seperate signiture from block
+fe32e308cf6d92b03deabf4d3d0d6f8405848602 phil/libcore-dev@{2026-08-28 19:54:17 +0100} commit: minor select method improvement
+61625657f14a9f8f6b1e526e35801bc24b2a1330 phil/libcore-dev@{2026-08-28 18:14:12 +0100} commit (amend): WIP
+d1b35fdfaea8e21f47a0ff86a59be80fad0841ff phil/libcore-dev@{2026-08-28 18:07:12 +0100} commit: WIP
+03c47878a98d92e3a6448124f90bad6e9fb7d081 phil/libcore-dev@{2026-08-28 17:52:32 +0100} commit: Refactor PathProbeType into its own file and call it PathProbeExpr
+2364cc3ae32cff22172c3fa66b61a0af4ec82830 phil/libcore-dev@{2026-08-28 17:46:58 +0100} commit (amend): refactor out pathprobeimpltrait into its own class
+a516a56873fb76ba70d46562390f9f158ba51914 phil/libcore-dev@{2026-08-28 17:45:55 +0100} commit: refactor out pathprobeimpltrait into its own class
+0c2df9e6137e641413e9bb3e0d06d071bd0ff0dc phil/libcore-dev@{2026-08-28 17:37:02 +0100} commit (amend): gccrs: add new type path prob mechanism
+66b891a30d4c438f245ec735fdf1ad0c03a6b8ea phil/libcore-dev@{2026-08-28 17:34:53 +0100} commit (amend): wip
+1f28728a5b348b6c7bfd7e536b18f3e46125278a phil/libcore-dev@{2026-08-28 17:17:40 +0100} commit (amend): wip
+f4b6e6d550a85dcd452a5a91bb65d889f3aacef5 phil/libcore-dev@{2026-08-25 23:00:18 +0100} commit (amend): wip
+53b9e9861f26f1ffc3657a62aafe9d69820794f5 phil/libcore-dev@{2026-08-25 22:35:12 +0100} commit (amend): wip
+53d96b692911c7cc899c629e5fbf3588bc239c8f phil/libcore-dev@{2026-08-25 22:34:34 +0100} commit (amend): wip
+60ea7f78639126754c2052f62c6c8e114a0505d6 phil/libcore-dev@{2026-08-25 22:19:58 +0100} commit: wip
+87e666d60849c0978a0217555c331465dcf9ec06 phil/libcore-dev@{2026-08-25 22:17:46 +0100} commit: Register ADT mappings
+937247ea1525fc1e56532140f253ad9f81e7963f phil/libcore-dev@{2026-08-23 22:07:54 +0100} commit: gccrs: add more filtering
+62f64c7d0c8869a115ca72a09e4b23072df60611 phil/libcore-dev@{2026-08-23 22:02:34 +0100} commit: gccrs: add more bound filtering
+950acf9cb94421d855d1aa7aacc691fd52cd1792 phil/libcore-dev@{2026-08-23 21:58:57 +0100} rebase (finish): refs/heads/phil/libcore-dev onto 9f9852390d76c8f5fd43fef455d47e583b93c1e1
+2a7f5406265a7fbce10ebaee74eebb8f50909c6c phil/libcore-dev@{2026-08-23 21:57:02 +0100} commit: gccrs: allow path probe type to filter bounds
+950acf9cb94421d855d1aa7aacc691fd52cd1792 phil/libcore-dev@{2026-08-23 21:45:24 +0100} commit: gccrs: improve type path resolution to do the trait lookup directly
+9f9852390d76c8f5fd43fef455d47e583b93c1e1 phil/libcore-dev@{2026-08-23 21:20:01 +0100} rebase (finish): refs/heads/phil/libcore-dev onto 0fd9c68665c73458385978ac698b7d0b644c7d87
+592201b978005861cf7b90e14a1c4b226af3812d phil/libcore-dev@{2026-08-23 21:19:29 +0100} commit: gccrs: Add another trait filter to bounds probe
+060f7240c40abb9da462c1c26e4421226cd8c6a0 phil/libcore-dev@{2026-08-23 21:15:55 +0100} commit: gccrs: Add explicitly filtering for is bound satisified
+06d85cb9839ad985a9a353e6226b6e193f9d1c8f phil/libcore-dev@{2026-08-23 20:56:08 +0100} rebase (finish): refs/heads/phil/libcore-dev onto 46cdf5156d172f95c81e8acf0b892bd1c9f42c23
+bdf702780b7462fbe203983b52735776d66fa272 phil/libcore-dev@{2026-08-23 20:18:02 +0100} commit: gccrs: Add method resolution probe support to take a trait to filter
+f8c096a30f63a324178ab6316f993614f79a523c phil/libcore-dev@{2026-08-23 20:01:00 +0100} commit: gccrs: Add indexing ImplTrait Blocks to Trait map for improved filtering
+404c48911dff492da4aeaedce908b34e15e455e9 phil/libcore-dev@{2026-08-23 18:10:34 +0100} commit: gccrs: Fix ICE when its an optional return type
+5c985c877f0b561564109ac60b724283a086878a phil/libcore-dev@{2026-08-23 18:02:07 +0100} cherry-pick: gccrs: Wrap rust_debugs into a do-while wrapper
+f95640077451dcc5edd609da2333b73b7c064859 phil/libcore-dev@{2026-08-23 18:02:03 +0100} branch: Created from HEAD

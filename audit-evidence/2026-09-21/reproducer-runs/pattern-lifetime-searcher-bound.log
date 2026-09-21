@@ -1,0 +1,14 @@
+/home/philbert/workspace/gccrs/branch-open-issues/pattern-lifetime-searcher-bound.rs:24:9: error: bounds not satisfied for <Projection=<Self>::TRAIT_POSITION::Self=Self REF: 23> ‘Pattern’ is not satisfied [E0277]
+   20 | trait Pattern<'a>: Sized {
+      | ~~~~~    
+......
+   24 |         self.into_searcher(haystack).haystack()
+      |         ^~~~
+
+Analyzing compilation unit
+
+Time variable                                  wall           GGC
+ phase setup                        :   0.01 ( 76%)  2758k ( 99%)
+ TOTAL                              :   0.01         2781k
+Extra diagnostic checks enabled; compiler may run slowly.
+Configure with --enable-checking=release to disable checks.

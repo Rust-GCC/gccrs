@@ -1,0 +1,20 @@
+[
+  {
+    "test": "simple_function",
+    "link": 0,
+    "run": 0,
+    "stderr": ""
+  },
+  {
+    "test": "generic_function",
+    "link": 0,
+    "run": 0,
+    "stderr": ""
+  },
+  {
+    "test": "trait_import",
+    "link": 0,
+    "run": 0,
+    "stderr": ""
+  }
+]

@@ -1,0 +1,20 @@
+
+Analyzing compilation unit
+Performing interprocedural optimizations
+ <*free_lang_data> {heap 2988k} <visibility> {heap 2988k} <build_ssa_passes> {heap 2988k} <targetclone> {heap 2988k} <opt_local_passes> {heap 2988k} <remove_symbols> {heap 2988k} <targetclone> {heap 2988k} <free-fnsummary> {heap 2988k}Streaming LTO
+ <whole-program> {heap 2988k} <fnsummary> {heap 2988k} <inline> {heap 2988k} <modref> {heap 2988k} <free-fnsummary> {heap 2988k} <single-use> {heap 2988k} <comdats> {heap 2988k}Assembling functions:
+ <simdclone> {heap 2988k} closure3::main::{{closure}} closure3::f<|(i32)| {i32}> closure3::main
+Time variable                                  wall           GGC
+ phase setup                        :   0.01 ( 29%)  2758k ( 92%)
+ phase parsing                      :   0.01 ( 20%)    66k (  2%)
+ phase opt and generate             :   0.01 ( 50%)   172k (  6%)
+ parser (global)                    :   0.01 ( 20%)    66k (  2%)
+ initialize rtl                     :   0.01 ( 24%)    12k (  0%)
+ TOTAL                              :   0.03         2997k
+Extra diagnostic checks enabled; compiler may run slowly.
+Configure with --enable-checking=release to disable checks.
+
+LINK
+/usr/bin/ld: /tmp/ccpF9E9D.o: relocation R_X86_64_32S against `.rodata' can not be used when making a PIE object; recompile with -fPIE
+/usr/bin/ld: failed to set dynamic section sizes: bad value
+collect2: error: ld returned 1 exit status

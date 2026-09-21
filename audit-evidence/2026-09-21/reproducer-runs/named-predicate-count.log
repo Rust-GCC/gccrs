@@ -1,0 +1,17 @@
+/home/philbert/workspace/gccrs/libcore-repros/controls/named-predicate-count.rs:79:26: error: no method named ‘take_while’ found in the current scope [E0599]
+   79 |     let _ = MyIter.rev().take_while(IsZero).count();
+      |                          ^~~~~~~~~~
+      |                          method not found
+/home/philbert/workspace/gccrs/libcore-repros/controls/named-predicate-count.rs:79:13: error: failed to resolve receiver in MethodCallExpr
+   79 |     let _ = MyIter.rev().take_while(IsZero).count();
+      |             ^~~~~~
+
+Analyzing compilation unit
+
+Time variable                                  wall           GGC
+ phase setup                        :   0.01 ( 33%)  2758k ( 99%)
+ phase parsing                      :   0.02 ( 66%)    22k (  1%)
+ parser (global)                    :   0.02 ( 66%)    22k (  1%)
+ TOTAL                              :   0.03         2781k
+Extra diagnostic checks enabled; compiler may run slowly.
+Configure with --enable-checking=release to disable checks.

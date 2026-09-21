@@ -1,0 +1,447 @@
+[
+  {
+    "source": "/tmp/gccrs-compat-audit/probes/adt_const_enum_mismatch.rs",
+    "compile": 1,
+    "link": null,
+    "run": null,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/tmp/gccrs-compat-audit/probes/adt_const_enum_mismatch.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/0-adt_const_enum_mismatch.s"
+    ]
+  },
+  {
+    "source": "/tmp/gccrs-compat-audit/probes/adt_const_struct_selection.rs",
+    "compile": 0,
+    "link": 0,
+    "run": 0,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/tmp/gccrs-compat-audit/probes/adt_const_struct_selection.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/1-adt_const_struct_selection.s"
+    ]
+  },
+  {
+    "source": "/tmp/gccrs-compat-audit/probes/adt_const_struct_control.rs",
+    "compile": 0,
+    "link": 0,
+    "run": 0,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/tmp/gccrs-compat-audit/probes/adt_const_struct_control.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/2-adt_const_struct_control.s"
+    ]
+  },
+  {
+    "source": "/tmp/gccrs-compat-audit/probes/adt_const_enum.rs",
+    "compile": 0,
+    "link": 0,
+    "run": 0,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/tmp/gccrs-compat-audit/probes/adt_const_enum.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/3-adt_const_enum.s"
+    ]
+  },
+  {
+    "source": "/tmp/gccrs-compat-audit/probes/adt_const_struct.rs",
+    "compile": 1,
+    "link": null,
+    "run": null,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/tmp/gccrs-compat-audit/probes/adt_const_struct.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/4-adt_const_struct.s"
+    ]
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/const-generics-5.rs",
+    "compile": 0,
+    "link": 0,
+    "run": 0,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/const-generics-5.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/5-const-generics-5.s"
+    ]
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/const-generics-3.rs",
+    "compile": 0,
+    "link": 0,
+    "run": 0,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/const-generics-3.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/6-const-generics-3.s"
+    ]
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/const-generics-4.rs",
+    "compile": 0,
+    "link": 0,
+    "run": 0,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/const-generics-4.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/7-const-generics-4.s"
+    ]
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/const-generics-6.rs",
+    "compile": 0,
+    "link": 0,
+    "run": 0,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/const-generics-6.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/8-const-generics-6.s"
+    ]
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/const-generics-2.rs",
+    "compile": 0,
+    "link": 0,
+    "run": 0,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/const-generics-2.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/9-const-generics-2.s"
+    ]
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/const-generics-1.rs",
+    "compile": 0,
+    "link": 0,
+    "run": 0,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/const-generics-1.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/10-const-generics-1.s"
+    ]
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/const-generics-7.rs",
+    "compile": 0,
+    "link": 0,
+    "run": 0,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/const-generics-7.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/11-const-generics-7.s"
+    ]
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/impl_trait1.rs",
+    "compile": 0,
+    "link": 0,
+    "run": 0,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/impl_trait1.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/12-impl_trait1.s"
+    ]
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/impl_trait4.rs",
+    "compile": 0,
+    "link": 0,
+    "run": 0,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/impl_trait4.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/13-impl_trait4.s"
+    ]
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/impl_trait3.rs",
+    "compile": 0,
+    "link": 1,
+    "run": 0,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/impl_trait3.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/14-impl_trait3.s"
+    ],
+    "link_retry_no_pie": 0,
+    "stdout": "Hello from Message\n"
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/impl_trait2.rs",
+    "compile": 0,
+    "link": 0,
+    "run": 0,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/impl_trait2.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/15-impl_trait2.s"
+    ]
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/impl_rpit3.rs",
+    "compile": 0,
+    "link": 0,
+    "run": 0,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/impl_rpit3.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/16-impl_rpit3.s"
+    ]
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/impl_rpit1.rs",
+    "compile": 0,
+    "link": 0,
+    "run": 0,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/impl_rpit1.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/17-impl_rpit1.s"
+    ]
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/impl_rpit2.rs",
+    "compile": 0,
+    "link": 0,
+    "run": 0,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/impl_rpit2.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/18-impl_rpit2.s"
+    ]
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/gat1.rs",
+    "compile": 0,
+    "link": 0,
+    "run": 0,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/gat1.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/19-gat1.s"
+    ]
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/min_specialization2.rs",
+    "compile": 0,
+    "link": 0,
+    "run": 0,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/min_specialization2.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/20-min_specialization2.s"
+    ]
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/min_specialization3.rs",
+    "compile": 0,
+    "link": 0,
+    "run": 0,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/min_specialization3.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/21-min_specialization3.s"
+    ]
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/closure3.rs",
+    "compile": 0,
+    "link": 1,
+    "run": 0,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/closure3.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/22-closure3.s"
+    ],
+    "link_retry_no_pie": 0,
+    "stdout": "3\n"
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/closure4.rs",
+    "compile": 0,
+    "link": 0,
+    "run": 0,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/closure4.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/23-closure4.s"
+    ]
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/closure1.rs",
+    "compile": 0,
+    "link": 0,
+    "run": 0,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/closure1.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/24-closure1.s"
+    ]
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/closure2.rs",
+    "compile": 0,
+    "link": 1,
+    "run": 0,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/torture/closure2.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/25-closure2.s"
+    ],
+    "link_retry_no_pie": 0,
+    "stdout": "3\n"
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/unsized-adt-size.rs",
+    "compile": 0,
+    "link": 1,
+    "run": 0,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/unsized-adt-size.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/26-unsized-adt-size.s"
+    ],
+    "link_retry_no_pie": 0,
+    "stdout": ""
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/unsized-adt-nested-coercion.rs",
+    "compile": 0,
+    "link": 0,
+    "run": 0,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/unsized-adt-nested-coercion.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/27-unsized-adt-nested-coercion.s"
+    ]
+  },
+  {
+    "source": "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/box-dispatch-from-dyn.rs",
+    "compile": 0,
+    "link": 1,
+    "run": 0,
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-w",
+      "/home/philbert/workspace/gccrs/gcc/testsuite/rust/execute/box-dispatch-from-dyn.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/test-samples/28-box-dispatch-from-dyn.s"
+    ],
+    "link_retry_no_pie": 0,
+    "stdout": ""
+  }
+]

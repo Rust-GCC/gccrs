@@ -1,0 +1,18 @@
+/home/philbert/workspace/gccrs/branch-open-issues/reference-method-cmp.rs:21:20: error: duplicate definitions with name ‘cmp’ [E0592]
+   10 |     fn cmp(&self, other: &Self) -> u32 {
+      |     ~~              
+......
+   16 |     fn cmp(&self, other: &Self) -> u32 {
+      |     ~~              
+......
+   21 |     let _: u32 = x.cmp(x);
+      |                    ^~~
+      |                    multiple cmp found
+
+Analyzing compilation unit
+
+Time variable                                  wall           GGC
+ phase setup                        :   0.01 ( 76%)  2758k ( 99%)
+ TOTAL                              :   0.01         2781k
+Extra diagnostic checks enabled; compiler may run slowly.
+Configure with --enable-checking=release to disable checks.

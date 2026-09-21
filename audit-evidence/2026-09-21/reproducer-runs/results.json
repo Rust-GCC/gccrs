@@ -1,0 +1,257 @@
+[
+  {
+    "source": "branch-open-issues/ptr-impl-block-pooling.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-fno-rust-overflow-checks",
+      "-w",
+      "/home/philbert/workspace/gccrs/branch-open-issues/ptr-impl-block-pooling.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/reproducer-runs/ptr-impl-block-pooling.s"
+    ],
+    "exit": 1,
+    "first_error": "/home/philbert/workspace/gccrs/branch-open-issues/ptr-impl-block-pooling.rs:31:14: error: no method named \u2018is_null\u2019 found in the current scope [E0599]"
+  },
+  {
+    "source": "branch-open-issues/into-iterator-item-bound.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-fno-rust-overflow-checks",
+      "-w",
+      "/home/philbert/workspace/gccrs/branch-open-issues/into-iterator-item-bound.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/reproducer-runs/into-iterator-item-bound.s"
+    ],
+    "exit": 1,
+    "first_error": "/home/philbert/workspace/gccrs/branch-open-issues/into-iterator-item-bound.rs:24:9: error: expected <Projection=<Self>::TRAIT_POSITION::Self REF: 40>, found reference"
+  },
+  {
+    "source": "branch-open-issues/closure-iterator-count.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-fno-rust-overflow-checks",
+      "-w",
+      "/home/philbert/workspace/gccrs/branch-open-issues/closure-iterator-count.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/reproducer-runs/closure-iterator-count.s"
+    ],
+    "exit": 1,
+    "first_error": "/home/philbert/workspace/gccrs/branch-open-issues/closure-iterator-count.rs:66:26: error: no method named \u2018take_while\u2019 found in the current scope [E0599]"
+  },
+  {
+    "source": "branch-open-issues/generic-operator-branches.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-fno-rust-overflow-checks",
+      "-w",
+      "/home/philbert/workspace/gccrs/branch-open-issues/generic-operator-branches.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/reproducer-runs/generic-operator-branches.s"
+    ],
+    "exit": 1,
+    "first_error": "/home/philbert/workspace/gccrs/branch-open-issues/generic-operator-branches.rs:18:5: error: mismatched types, expected \u2018<Projection=<T, T>::TRAIT_POSITION::T=T REF: 74>\u2019 but got \u2018<Projection=<T, T>::TRAIT_POSITION::T=T REF: 74>\u2019 [E0308]"
+  },
+  {
+    "source": "branch-open-issues/pattern-lifetime-searcher-bound.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-fno-rust-overflow-checks",
+      "-w",
+      "/home/philbert/workspace/gccrs/branch-open-issues/pattern-lifetime-searcher-bound.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/reproducer-runs/pattern-lifetime-searcher-bound.s"
+    ],
+    "exit": 1,
+    "first_error": "/home/philbert/workspace/gccrs/branch-open-issues/pattern-lifetime-searcher-bound.rs:24:9: error: bounds not satisfied for <Projection=<Self>::TRAIT_POSITION::Self=Self REF: 23> \u2018Pattern\u2019 is not satisfied [E0277]"
+  },
+  {
+    "source": "branch-open-issues/reference-method-cmp.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-fno-rust-overflow-checks",
+      "-w",
+      "/home/philbert/workspace/gccrs/branch-open-issues/reference-method-cmp.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/reproducer-runs/reference-method-cmp.s"
+    ],
+    "exit": 1,
+    "first_error": "/home/philbert/workspace/gccrs/branch-open-issues/reference-method-cmp.rs:21:20: error: duplicate definitions with name \u2018cmp\u2019 [E0592]"
+  },
+  {
+    "source": "branch-open-issues/reference-method-clone.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-fno-rust-overflow-checks",
+      "-w",
+      "/home/philbert/workspace/gccrs/branch-open-issues/reference-method-clone.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/reproducer-runs/reference-method-clone.s"
+    ],
+    "exit": 1,
+    "first_error": "/home/philbert/workspace/gccrs/branch-open-issues/reference-method-clone.rs:21:20: error: duplicate definitions with name \u2018clone\u2019 [E0592]"
+  },
+  {
+    "source": "branch-open-issues/nonzero-fmt-multi-trait-ambiguity.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-fno-rust-overflow-checks",
+      "-w",
+      "/home/philbert/workspace/gccrs/branch-open-issues/nonzero-fmt-multi-trait-ambiguity.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/reproducer-runs/nonzero-fmt-multi-trait-ambiguity.s"
+    ],
+    "exit": 1,
+    "first_error": "/home/philbert/workspace/gccrs/branch-open-issues/nonzero-fmt-multi-trait-ambiguity.rs:63:20: error: duplicate definitions with name \u2018fmt\u2019 [E0592]"
+  },
+  {
+    "source": "branch-open-issues/tuple-pattern-double-use-ice.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-fno-rust-overflow-checks",
+      "-w",
+      "/home/philbert/workspace/gccrs/branch-open-issues/tuple-pattern-double-use-ice.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/reproducer-runs/tuple-pattern-double-use-ice.s"
+    ],
+    "exit": 1,
+    "first_error": "/home/philbert/workspace/gccrs/branch-open-issues/tuple-pattern-double-use-ice.rs:23:22: error: expected T=T?, found tuple"
+  },
+  {
+    "source": "branch-open-issues/blanket-into-iterator.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-fno-rust-overflow-checks",
+      "-w",
+      "/home/philbert/workspace/gccrs/branch-open-issues/blanket-into-iterator.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/reproducer-runs/blanket-into-iterator.s"
+    ],
+    "exit": 4,
+    "first_error": "/home/philbert/workspace/gccrs/branch-open-issues/blanket-into-iterator.rs:38:9: error: bounds not satisfied for Pairs \u2018Iterator\u2019 is not satisfied [E0277]"
+  },
+  {
+    "source": "libcore-repros/controls/named-predicate-count.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-fno-rust-overflow-checks",
+      "-w",
+      "/home/philbert/workspace/gccrs/libcore-repros/controls/named-predicate-count.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/reproducer-runs/named-predicate-count.s"
+    ],
+    "exit": 1,
+    "first_error": "/home/philbert/workspace/gccrs/libcore-repros/controls/named-predicate-count.rs:79:26: error: no method named \u2018take_while\u2019 found in the current scope [E0599]"
+  },
+  {
+    "source": "libcore-repros/controls/clone-qualified-call.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-fno-rust-overflow-checks",
+      "-w",
+      "/home/philbert/workspace/gccrs/libcore-repros/controls/clone-qualified-call.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/reproducer-runs/clone-qualified-call.s"
+    ],
+    "exit": 0,
+    "first_error": "\nAnalyzing compilation unit\nPerforming interprocedural optimizations\n <*free_lang_data> {heap 2172k}"
+  },
+  {
+    "source": "libcore-repros/controls/qualified-field-after-definition.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-fno-rust-overflow-checks",
+      "-w",
+      "/home/philbert/workspace/gccrs/libcore-repros/controls/qualified-field-after-definition.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/reproducer-runs/qualified-field-after-definition.s"
+    ],
+    "exit": 0,
+    "first_error": "\nAnalyzing compilation unit\nPerforming interprocedural optimizations\n <*free_lang_data> {heap 2328k}"
+  },
+  {
+    "source": "libcore-repros/controls/generic-direct-bounds.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-fno-rust-overflow-checks",
+      "-w",
+      "/home/philbert/workspace/gccrs/libcore-repros/controls/generic-direct-bounds.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/reproducer-runs/generic-direct-bounds.s"
+    ],
+    "exit": 0,
+    "first_error": "\nAnalyzing compilation unit\nPerforming interprocedural optimizations\n <*free_lang_data> {heap 3012k}"
+  },
+  {
+    "source": "libcore-repros/qualified-field-lifetime.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-fno-rust-overflow-checks",
+      "-w",
+      "/home/philbert/workspace/gccrs/libcore-repros/qualified-field-lifetime.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/reproducer-runs/qualified-field-lifetime.s"
+    ],
+    "exit": 1,
+    "first_error": "/home/philbert/workspace/gccrs/libcore-repros/qualified-field-lifetime.rs:6:46: error: unresolved lifetime"
+  },
+  {
+    "source": "libcore-repros/enum-variant-pattern.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-fno-rust-overflow-checks",
+      "-w",
+      "/home/philbert/workspace/gccrs/libcore-repros/enum-variant-pattern.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/reproducer-runs/enum-variant-pattern.s"
+    ],
+    "exit": 1,
+    "first_error": "/home/philbert/workspace/gccrs/libcore-repros/enum-variant-pattern.rs:12:22: error: expected T=T?, found reference"
+  },
+  {
+    "source": "libcore-repros/slice-first-pattern.rs",
+    "command": [
+      "/home/philbert/workspace/gccrs-build/gcc/crab1",
+      "-frust-edition=2018",
+      "-frust-incomplete-and-experimental-compiler-do-not-use",
+      "-fno-rust-overflow-checks",
+      "-w",
+      "/home/philbert/workspace/gccrs/libcore-repros/slice-first-pattern.rs",
+      "-o",
+      "/tmp/gccrs-compat-audit/reproducer-runs/slice-first-pattern.s"
+    ],
+    "exit": 1,
+    "first_error": "/home/philbert/workspace/gccrs/libcore-repros/slice-first-pattern.rs:18:22: error: expected T=T?, found reference"
+  }
+]

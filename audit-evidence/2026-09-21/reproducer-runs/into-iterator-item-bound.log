@@ -1,0 +1,14 @@
+/home/philbert/workspace/gccrs/branch-open-issues/into-iterator-item-bound.rs:24:9: error: expected <Projection=<Self>::TRAIT_POSITION::Self REF: 40>, found reference
+   24 |     for &c in values {
+      |         ^
+/home/philbert/workspace/gccrs/branch-open-issues/into-iterator-item-bound.rs:25:21: error: cannot find value ‘c’ in this scope [E0425]
+   25 |         let _: u8 = c;
+      |                     ^
+
+Analyzing compilation unit
+
+Time variable                                  wall           GGC
+ phase setup                        :   0.01 ( 78%)  2758k ( 99%)
+ TOTAL                              :   0.01         2781k
+Extra diagnostic checks enabled; compiler may run slowly.
+Configure with --enable-checking=release to disable checks.

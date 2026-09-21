@@ -1,0 +1,11 @@
+/tmp/gccrs-compat-audit/probes/async_block.rs:4:21: error: found unexpected token ‘async’ in null denotation
+    4 | fn main() { let _ = async { 1 }; }
+      |                     ^~~~~
+
+Analyzing compilation unit
+
+Time variable                                  wall           GGC
+ phase setup                        :   0.01 ( 96%)  2758k (100%)
+ TOTAL                              :   0.01         2766k
+Extra diagnostic checks enabled; compiler may run slowly.
+Configure with --enable-checking=release to disable checks.

@@ -1,0 +1,52 @@
+[
+  {
+    "old": "41ff6f68bb7",
+    "new": "4744d62cb47",
+    "stable_patch_id_equal": true
+  },
+  {
+    "old": "9219ba4a66a",
+    "new": "b8164e8feda",
+    "stable_patch_id_equal": true
+  },
+  {
+    "old": "c91470a6458",
+    "new": "157cdd796db",
+    "stable_patch_id_equal": true
+  },
+  {
+    "old": "f83a3d723fd",
+    "new": "6f14298ea1a",
+    "stable_patch_id_equal": true
+  },
+  {
+    "old": "b0d978109b7",
+    "new": "accb66000f9",
+    "stable_patch_id_equal": true
+  },
+  {
+    "old": "9cfdb9642dc",
+    "new": "32995206acf",
+    "stable_patch_id_equal": false
+  },
+  {
+    "old": "d20a529fb5b",
+    "new": "50e9221c4a0",
+    "stable_patch_id_equal": false
+  },
+  {
+    "old": "35b3791dd03",
+    "new": "9bde421dcdf",
+    "stable_patch_id_equal": false
+  },
+  {
+    "old": "9a466fdc952",
+    "new": "96a5cd78d47",
+    "stable_patch_id_equal": true
+  },
+  {
+    "old": "383b6cd50b6",
+    "new": "fdfe4e813e0",
+    "stable_patch_id_equal": true
+  }
+]

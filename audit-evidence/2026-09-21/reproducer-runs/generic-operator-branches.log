@@ -1,0 +1,16 @@
+/home/philbert/workspace/gccrs/branch-open-issues/generic-operator-branches.rs:18:5: error: mismatched types, expected ‘<Projection=<T, T>::TRAIT_POSITION::T=T REF: 74>’ but got ‘<Projection=<T, T>::TRAIT_POSITION::T=T REF: 74>’ [E0308]
+   18 |     if negative {
+      |     ^~          ~
+   19 |         a * b
+   20 |     } else {
+      |            ~
+
+Analyzing compilation unit
+
+Time variable                                  wall           GGC
+ phase setup                        :   0.01 ( 61%)  2758k ( 99%)
+ phase parsing                      :   0.01 ( 38%)    22k (  1%)
+ parser (global)                    :   0.01 ( 38%)    22k (  1%)
+ TOTAL                              :   0.02         2781k
+Extra diagnostic checks enabled; compiler may run slowly.
+Configure with --enable-checking=release to disable checks.
