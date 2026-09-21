@@ -203,8 +203,13 @@ tree negation_expression (NegationOperator op, tree expr, location_t);
 
 // Return an expression for the operation LEFT OP RIGHT.
 // Supported values of OP are enumerated in ArithmeticOrLogicalOperator.
+// When FOLD_P is false the operation is built without folding it, so that a
+// later constant evaluation sees the operation itself rather than an already
+// folded INTEGER_CST. This matters in constant contexts, where overflow has to
+// be diagnosed against the operands and with a usable location.
 tree arithmetic_or_logical_expression (ArithmeticOrLogicalOperator op,
-				       tree left, tree right, location_t loc);
+				       tree left, tree right, location_t loc,
+				       bool fold_p = true);
 
 // Return an expression for the operation LEFT OP RIGHT.
 // Supported values of OP are enumerated in ArithmeticOrLogicalOperator.

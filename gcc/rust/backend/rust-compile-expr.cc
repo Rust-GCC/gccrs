@@ -330,9 +330,13 @@ CompileExpr::visit (HIR::ArithmeticOrLogicalExpr &expr)
     = (ctx->in_fn () && !ctx->const_context_p ()) && flag_overflow_checks;
   if (!can_generate_overflow_checks)
     {
+      /* In a constant context leave the operation unfolded: rust-constexpr.cc
+	 diagnoses overflow while evaluating it, which needs the operands and
+	 the location of the operation itself.  */
       translated
 	= Backend::arithmetic_or_logical_expression (op, lhs, rhs,
-						     expr.get_locus ());
+						     expr.get_locus (),
+						     !ctx->const_context_p ());
       return;
     }
 
