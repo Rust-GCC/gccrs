@@ -248,6 +248,12 @@ class DefaultASTVisitor : public ASTVisitor
 public:
   virtual void visit_function_params (AST::Function &function);
 
+  virtual void visit_generic_params (
+    std::vector<std::unique_ptr<AST::GenericParam>> &params);
+
+  virtual void
+  visit_for_lifetimes (std::vector<AST::LifetimeParam> &for_lifetimes);
+
   virtual void visit (AST::Crate &crate);
 
   virtual void visit (AST::Token &tok) override;
