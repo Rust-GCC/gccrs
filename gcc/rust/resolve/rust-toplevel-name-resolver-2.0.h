@@ -188,6 +188,9 @@ private:
   void visit_extern_crate (AST::ExternCrate &, AST::Crate &, CrateNum) override;
   void visit (AST::TypeParam &type_param) override;
   void visit (AST::ConstGenericParam &const_param) override;
+  void visit (AST::LifetimeParam &lifetime_param) override;
+  void
+  visit_for_lifetimes (std::vector<AST::LifetimeParam> &for_lifetimes) override;
 
   void visit (AST::UseDeclaration &use) override;
 };

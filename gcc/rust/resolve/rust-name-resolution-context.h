@@ -497,6 +497,9 @@ public:
   insert_shadowable (Identifier name, NodeId id, Namespace ns);
 
   tl::expected<NodeId, DuplicateNameError>
+  insert_non_shadowable (Identifier name, NodeId id, Namespace ns);
+
+  tl::expected<NodeId, DuplicateNameError>
   insert_globbed (Identifier name, NodeId id, Namespace ns);
 
   /**
