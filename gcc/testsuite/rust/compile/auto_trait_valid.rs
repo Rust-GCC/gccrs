@@ -3,7 +3,7 @@
 #![no_core]
 
 
-#![feature(optin_builtin_traits)]
+#![feature(auto_traits)]
 
 auto trait MegaSend {}
 pub auto trait MegaSync {}

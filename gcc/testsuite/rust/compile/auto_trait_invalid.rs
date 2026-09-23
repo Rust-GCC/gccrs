@@ -3,7 +3,7 @@
 #![no_core]
 
 
-#![feature(optin_builtin_traits)]
+#![feature(auto_traits)]
 
 auto trait Invalid {
     // { dg-error "auto traits cannot have methods or associated items" "" { target *-*-* } .-1 }
