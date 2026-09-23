@@ -219,8 +219,7 @@ impl str {
     #[rustc_const_stable(feature = "str_as_bytes", since = "1.32.0")]
     #[inline(always)]
     #[allow(unused_attributes)]
-    #[cfg_attr(not(bootstrap), rustc_allow_const_fn_unstable(const_fn_transmute))]
-    #[cfg_attr(bootstrap, allow_internal_unstable(const_fn_transmute))]
+    #[rustc_allow_const_fn_unstable(const_fn_transmute)]
     pub const fn as_bytes(&self) -> &[u8] {
         // SAFETY: const sound because we transmute two types with the same layout
         unsafe { mem::transmute(self) }
@@ -1130,6 +1129,13 @@ impl str {
     ///
     /// let v: Vec<&str> = "lionXtigerXleopard".split(char::is_uppercase).collect();
     /// assert_eq!(v, ["lion", "tiger", "leopard"]);
+    /// ```
+    ///
+    /// If the pattern is a slice of chars, split on each occurrence of any of the characters:
+    ///
+    /// ```
+    /// let v: Vec<&str> = "2020-11-03 23:59".split(&['-', ' ', ':', '@'][..]).collect();
+    /// assert_eq!(v, ["2020", "11", "03", "23", "59"]);
     /// ```
     ///
     /// A more complex pattern, using a closure:
@@ -2253,9 +2259,9 @@ impl str {
     /// but non-ASCII letters are unchanged.
     ///
     /// To return a new uppercased value without modifying the existing one, use
-    /// [`to_ascii_uppercase`].
+    /// [`to_ascii_uppercase()`].
     ///
-    /// [`to_ascii_uppercase`]: #method.to_ascii_uppercase
+    /// [`to_ascii_uppercase()`]: #method.to_ascii_uppercase
     ///
     /// # Examples
     ///
@@ -2280,9 +2286,9 @@ impl str {
     /// but non-ASCII letters are unchanged.
     ///
     /// To return a new lowercased value without modifying the existing one, use
-    /// [`to_ascii_lowercase`].
+    /// [`to_ascii_lowercase()`].
     ///
-    /// [`to_ascii_lowercase`]: #method.to_ascii_lowercase
+    /// [`to_ascii_lowercase()`]: #method.to_ascii_lowercase
     ///
     /// # Examples
     ///

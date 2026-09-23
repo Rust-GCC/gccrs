@@ -1,4 +1,4 @@
-// { dg-additional-options "-frust-compat-version=1.50" }
+// { dg-additional-options "-frust-compat-version=1.51" }
 #![feature(no_core)]
 #![no_core]
 #![feature(rustc_attrs)]

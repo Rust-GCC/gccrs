@@ -88,8 +88,7 @@ impl<T> [T] {
     #[rustc_const_stable(feature = "const_slice_len", since = "1.32.0")]
     #[inline]
     // SAFETY: const sound because we transmute out the length field as a usize (which it must be)
-    #[cfg_attr(not(bootstrap), rustc_allow_const_fn_unstable(const_fn_union))]
-    #[cfg_attr(bootstrap, allow_internal_unstable(const_fn_union))]
+    #[rustc_allow_const_fn_unstable(const_fn_union)]
     pub const fn len(&self) -> usize {
         // SAFETY: this is safe because `&[T]` and `FatPtr<T>` have the same layout.
         // Only `std` can make this guarantee.
@@ -605,8 +604,9 @@ impl<T> [T] {
                 //     many bytes away from the end of `self`.
                 //   - Any initialized memory is valid `usize`.
                 unsafe {
-                    let pa: *mut T = self.get_unchecked_mut(i);
-                    let pb: *mut T = self.get_unchecked_mut(ln - i - chunk);
+                    let ptr = self.as_mut_ptr();
+                    let pa = ptr.add(i);
+                    let pb = ptr.add(ln - i - chunk);
                     let va = ptr::read_unaligned(pa as *mut usize);
                     let vb = ptr::read_unaligned(pb as *mut usize);
                     ptr::write_unaligned(pa as *mut usize, vb.swap_bytes());
@@ -635,8 +635,9 @@ impl<T> [T] {
                 // always respected, ensuring the `pb` pointer can be used
                 // safely.
                 unsafe {
-                    let pa: *mut T = self.get_unchecked_mut(i);
-                    let pb: *mut T = self.get_unchecked_mut(ln - i - chunk);
+                    let ptr = self.as_mut_ptr();
+                    let pa = ptr.add(i);
+                    let pb = ptr.add(ln - i - chunk);
                     let va = ptr::read_unaligned(pa as *mut u32);
                     let vb = ptr::read_unaligned(pb as *mut u32);
                     ptr::write_unaligned(pa as *mut u32, vb.rotate_left(16));
@@ -654,8 +655,9 @@ impl<T> [T] {
             // aligned, and can be read from and written to.
             unsafe {
                 // Unsafe swap to avoid the bounds check in safe swap.
-                let pa: *mut T = self.get_unchecked_mut(i);
-                let pb: *mut T = self.get_unchecked_mut(ln - i - 1);
+                let ptr = self.as_mut_ptr();
+                let pa = ptr.add(i);
+                let pb = ptr.add(ln - i - 1);
                 ptr::swap(pa, pb);
             }
             i += 1;
@@ -1958,10 +1960,10 @@ impl<T> [T] {
     ///          (1, 2), (2, 3), (4, 5), (5, 8), (3, 13),
     ///          (1, 21), (2, 34), (4, 55)];
     ///
-    /// assert_eq!(s.binary_search_by_key(&13, |&(a,b)| b),  Ok(9));
-    /// assert_eq!(s.binary_search_by_key(&4, |&(a,b)| b),   Err(7));
-    /// assert_eq!(s.binary_search_by_key(&100, |&(a,b)| b), Err(13));
-    /// let r = s.binary_search_by_key(&1, |&(a,b)| b);
+    /// assert_eq!(s.binary_search_by_key(&13, |&(a, b)| b),  Ok(9));
+    /// assert_eq!(s.binary_search_by_key(&4, |&(a, b)| b),   Err(7));
+    /// assert_eq!(s.binary_search_by_key(&100, |&(a, b)| b), Err(13));
+    /// let r = s.binary_search_by_key(&1, |&(a, b)| b);
     /// assert!(match r { Ok(1..=4) => true, _ => false, });
     /// ```
     #[stable(feature = "slice_binary_search_by_key", since = "1.10.0")]
@@ -2579,13 +2581,12 @@ impl<T> [T] {
     /// # Examples
     ///
     /// ```
-    /// #![feature(slice_fill)]
-    ///
     /// let mut buf = vec![0; 10];
     /// buf.fill(1);
     /// assert_eq!(buf, vec![1; 10]);
     /// ```
-    #[unstable(feature = "slice_fill", issue = "70758")]
+    #[doc(alias = "memset")]
+    #[stable(feature = "slice_fill", since = "1.50.0")]
     pub fn fill(&mut self, value: T)
     where
         T: Clone,
@@ -2596,6 +2597,34 @@ impl<T> [T] {
             }
 
             *last = value
+        }
+    }
+
+    /// Fills `self` with elements returned by calling a closure repeatedly.
+    ///
+    /// This method uses a closure to create new values. If you'd rather
+    /// [`Clone`] a given value, use [`fill`]. If you want to use the [`Default`]
+    /// trait to generate values, you can pass [`Default::default`] as the
+    /// argument.
+    ///
+    /// [`fill`]: #method.fill
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// #![feature(slice_fill_with)]
+    ///
+    /// let mut buf = vec![1; 10];
+    /// buf.fill_with(Default::default);
+    /// assert_eq!(buf, vec![0; 10]);
+    /// ```
+    #[unstable(feature = "slice_fill_with", issue = "79221")]
+    pub fn fill_with<F>(&mut self, mut f: F)
+    where
+        F: FnMut() -> T,
+    {
+        for el in self {
+            *el = f();
         }
     }
 
@@ -2724,6 +2753,7 @@ impl<T> [T] {
     ///
     /// [`clone_from_slice`]: #method.clone_from_slice
     /// [`split_at_mut`]: #method.split_at_mut
+    #[doc(alias = "memcpy")]
     #[stable(feature = "copy_from_slice", since = "1.9.0")]
     pub fn copy_from_slice(&mut self, src: &[T])
     where

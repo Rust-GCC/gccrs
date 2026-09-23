@@ -34,7 +34,7 @@ FeatureCollector::collect (AST::Crate &crate)
   features.crate_id = crate.get_node_id ();
 
   // TODO: this is a hack, remove when possible
-  if (Session::get_instance ().get_compat_version () < 50)
+  if (Session::get_instance ().get_compat_version () < 51)
     features.valid_lang_features.insert (
       Feature::Name::EXTENDED_KEY_VALUE_ATTRIBUTES);
 

@@ -1,4 +1,4 @@
-#![feature(no_core, lang_items, optin_builtin_traits, negative_impls)]
+#![feature(no_core, lang_items, auto_traits, negative_impls)]
 #![no_core]
 
 #[lang = "sized"]

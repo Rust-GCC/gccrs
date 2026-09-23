@@ -815,6 +815,7 @@ extern "rust-intrinsic" {
     /// This will statically either panic, or do nothing.
     ///
     /// This intrinsic does not have a stable counterpart.
+    #[rustc_const_unstable(feature = "const_assert_type", issue = "none")]
     pub fn assert_inhabited<T>();
 
     /// A guard for unsafe functions that cannot ever be executed if `T` does not permit
@@ -1173,133 +1174,133 @@ extern "rust-intrinsic" {
     /// Returns the square root of an `f32`
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f32::sqrt`](../../std/primitive.f32.html#method.sqrt)
+    /// [`f32::sqrt`](../../std/primitive.f32.html#method.sqrt)
     pub fn sqrtf32(x: f32) -> f32;
     /// Returns the square root of an `f64`
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f64::sqrt`](../../std/primitive.f64.html#method.sqrt)
+    /// [`f64::sqrt`](../../std/primitive.f64.html#method.sqrt)
     pub fn sqrtf64(x: f64) -> f64;
 
     /// Raises an `f32` to an integer power.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f32::powi`](../../std/primitive.f32.html#method.powi)
+    /// [`f32::powi`](../../std/primitive.f32.html#method.powi)
     pub fn powif32(a: f32, x: i32) -> f32;
     /// Raises an `f64` to an integer power.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f64::powi`](../../std/primitive.f64.html#method.powi)
+    /// [`f64::powi`](../../std/primitive.f64.html#method.powi)
     pub fn powif64(a: f64, x: i32) -> f64;
 
     /// Returns the sine of an `f32`.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f32::sin`](../../std/primitive.f32.html#method.sin)
+    /// [`f32::sin`](../../std/primitive.f32.html#method.sin)
     pub fn sinf32(x: f32) -> f32;
     /// Returns the sine of an `f64`.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f64::sin`](../../std/primitive.f64.html#method.sin)
+    /// [`f64::sin`](../../std/primitive.f64.html#method.sin)
     pub fn sinf64(x: f64) -> f64;
 
     /// Returns the cosine of an `f32`.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f32::cos`](../../std/primitive.f32.html#method.cos)
+    /// [`f32::cos`](../../std/primitive.f32.html#method.cos)
     pub fn cosf32(x: f32) -> f32;
     /// Returns the cosine of an `f64`.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f64::cos`](../../std/primitive.f64.html#method.cos)
+    /// [`f64::cos`](../../std/primitive.f64.html#method.cos)
     pub fn cosf64(x: f64) -> f64;
 
     /// Raises an `f32` to an `f32` power.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f32::powf`](../../std/primitive.f32.html#method.powf)
+    /// [`f32::powf`](../../std/primitive.f32.html#method.powf)
     pub fn powf32(a: f32, x: f32) -> f32;
     /// Raises an `f64` to an `f64` power.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f64::powf`](../../std/primitive.f64.html#method.powf)
+    /// [`f64::powf`](../../std/primitive.f64.html#method.powf)
     pub fn powf64(a: f64, x: f64) -> f64;
 
     /// Returns the exponential of an `f32`.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f32::exp`](../../std/primitive.f32.html#method.exp)
+    /// [`f32::exp`](../../std/primitive.f32.html#method.exp)
     pub fn expf32(x: f32) -> f32;
     /// Returns the exponential of an `f64`.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f64::exp`](../../std/primitive.f64.html#method.exp)
+    /// [`f64::exp`](../../std/primitive.f64.html#method.exp)
     pub fn expf64(x: f64) -> f64;
 
     /// Returns 2 raised to the power of an `f32`.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f32::exp2`](../../std/primitive.f32.html#method.exp2)
+    /// [`f32::exp2`](../../std/primitive.f32.html#method.exp2)
     pub fn exp2f32(x: f32) -> f32;
     /// Returns 2 raised to the power of an `f64`.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f64::exp2`](../../std/primitive.f64.html#method.exp2)
+    /// [`f64::exp2`](../../std/primitive.f64.html#method.exp2)
     pub fn exp2f64(x: f64) -> f64;
 
     /// Returns the natural logarithm of an `f32`.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f32::ln`](../../std/primitive.f32.html#method.ln)
+    /// [`f32::ln`](../../std/primitive.f32.html#method.ln)
     pub fn logf32(x: f32) -> f32;
     /// Returns the natural logarithm of an `f64`.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f64::ln`](../../std/primitive.f64.html#method.ln)
+    /// [`f64::ln`](../../std/primitive.f64.html#method.ln)
     pub fn logf64(x: f64) -> f64;
 
     /// Returns the base 10 logarithm of an `f32`.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f32::log10`](../../std/primitive.f32.html#method.log10)
+    /// [`f32::log10`](../../std/primitive.f32.html#method.log10)
     pub fn log10f32(x: f32) -> f32;
     /// Returns the base 10 logarithm of an `f64`.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f64::log10`](../../std/primitive.f64.html#method.log10)
+    /// [`f64::log10`](../../std/primitive.f64.html#method.log10)
     pub fn log10f64(x: f64) -> f64;
 
     /// Returns the base 2 logarithm of an `f32`.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f32::log2`](../../std/primitive.f32.html#method.log2)
+    /// [`f32::log2`](../../std/primitive.f32.html#method.log2)
     pub fn log2f32(x: f32) -> f32;
     /// Returns the base 2 logarithm of an `f64`.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f64::log2`](../../std/primitive.f64.html#method.log2)
+    /// [`f64::log2`](../../std/primitive.f64.html#method.log2)
     pub fn log2f64(x: f64) -> f64;
 
     /// Returns `a * b + c` for `f32` values.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f32::mul_add`](../../std/primitive.f32.html#method.mul_add)
+    /// [`f32::mul_add`](../../std/primitive.f32.html#method.mul_add)
     pub fn fmaf32(a: f32, b: f32, c: f32) -> f32;
     /// Returns `a * b + c` for `f64` values.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f64::mul_add`](../../std/primitive.f64.html#method.mul_add)
+    /// [`f64::mul_add`](../../std/primitive.f64.html#method.mul_add)
     pub fn fmaf64(a: f64, b: f64, c: f64) -> f64;
 
     /// Returns the absolute value of an `f32`.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f32::abs`](../../std/primitive.f32.html#method.abs)
+    /// [`f32::abs`](../../std/primitive.f32.html#method.abs)
     pub fn fabsf32(x: f32) -> f32;
     /// Returns the absolute value of an `f64`.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f64::abs`](../../std/primitive.f64.html#method.abs)
+    /// [`f64::abs`](../../std/primitive.f64.html#method.abs)
     pub fn fabsf64(x: f64) -> f64;
 
     /// Returns the minimum of two `f32` values.
@@ -1326,45 +1327,45 @@ extern "rust-intrinsic" {
     /// Copies the sign from `y` to `x` for `f32` values.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f32::copysign`](../../std/primitive.f32.html#method.copysign)
+    /// [`f32::copysign`](../../std/primitive.f32.html#method.copysign)
     pub fn copysignf32(x: f32, y: f32) -> f32;
     /// Copies the sign from `y` to `x` for `f64` values.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f64::copysign`](../../std/primitive.f64.html#method.copysign)
+    /// [`f64::copysign`](../../std/primitive.f64.html#method.copysign)
     pub fn copysignf64(x: f64, y: f64) -> f64;
 
     /// Returns the largest integer less than or equal to an `f32`.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f32::floor`](../../std/primitive.f32.html#method.floor)
+    /// [`f32::floor`](../../std/primitive.f32.html#method.floor)
     pub fn floorf32(x: f32) -> f32;
     /// Returns the largest integer less than or equal to an `f64`.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f64::floor`](../../std/primitive.f64.html#method.floor)
+    /// [`f64::floor`](../../std/primitive.f64.html#method.floor)
     pub fn floorf64(x: f64) -> f64;
 
     /// Returns the smallest integer greater than or equal to an `f32`.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f32::ceil`](../../std/primitive.f32.html#method.ceil)
+    /// [`f32::ceil`](../../std/primitive.f32.html#method.ceil)
     pub fn ceilf32(x: f32) -> f32;
     /// Returns the smallest integer greater than or equal to an `f64`.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f64::ceil`](../../std/primitive.f64.html#method.ceil)
+    /// [`f64::ceil`](../../std/primitive.f64.html#method.ceil)
     pub fn ceilf64(x: f64) -> f64;
 
     /// Returns the integer part of an `f32`.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f32::trunc`](../../std/primitive.f32.html#method.trunc)
+    /// [`f32::trunc`](../../std/primitive.f32.html#method.trunc)
     pub fn truncf32(x: f32) -> f32;
     /// Returns the integer part of an `f64`.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f64::trunc`](../../std/primitive.f64.html#method.trunc)
+    /// [`f64::trunc`](../../std/primitive.f64.html#method.trunc)
     pub fn truncf64(x: f64) -> f64;
 
     /// Returns the nearest integer to an `f32`. May raise an inexact floating-point exception
@@ -1386,12 +1387,12 @@ extern "rust-intrinsic" {
     /// Returns the nearest integer to an `f32`. Rounds half-way cases away from zero.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f32::round`](../../std/primitive.f32.html#method.round)
+    /// [`f32::round`](../../std/primitive.f32.html#method.round)
     pub fn roundf32(x: f32) -> f32;
     /// Returns the nearest integer to an `f64`. Rounds half-way cases away from zero.
     ///
     /// The stabilized version of this intrinsic is
-    /// [`std::f64::round`](../../std/primitive.f64.html#method.round)
+    /// [`f64::round`](../../std/primitive.f64.html#method.round)
     pub fn roundf64(x: f64) -> f64;
 
     /// Float addition that allows optimizations based on algebraic rules.
@@ -1486,7 +1487,7 @@ extern "rust-intrinsic" {
     /// let num_leading = unsafe { ctlz_nonzero(x) };
     /// assert_eq!(num_leading, 3);
     /// ```
-    #[rustc_const_unstable(feature = "constctlz", issue = "none")]
+    #[rustc_const_stable(feature = "constctlz", since = "1.50.0")]
     pub fn ctlz_nonzero<T: Copy>(x: T) -> T;
 
     /// Returns the number of trailing unset bits (zeroes) in an integer type `T`.
@@ -1732,6 +1733,11 @@ extern "rust-intrinsic" {
     /// See documentation of `<*const T>::guaranteed_ne` for details.
     #[rustc_const_unstable(feature = "const_raw_ptr_comparison", issue = "53020")]
     pub fn ptr_guaranteed_ne<T>(ptr: *const T, other: *const T) -> bool;
+
+    /// Allocate at compile time. Should not be called at runtime.
+    #[rustc_const_unstable(feature = "const_heap", issue = "79597")]
+    #[cfg(not(bootstrap))]
+    pub fn const_allocate(size: usize, align: usize) -> *mut u8;
 }
 
 // Some functions are defined here because they accidentally got made

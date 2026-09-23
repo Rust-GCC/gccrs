@@ -331,6 +331,46 @@ fn verify_all_signatures() {
                 "_cls_u32",
                 "_cls_u64",
                 "_prefetch",
+                "vsli_n_s8",
+                "vsliq_n_s8",
+                "vsli_n_s16",
+                "vsliq_n_s16",
+                "vsli_n_s32",
+                "vsliq_n_s32",
+                "vsli_n_s64",
+                "vsliq_n_s64",
+                "vsli_n_u8",
+                "vsliq_n_u8",
+                "vsli_n_u16",
+                "vsliq_n_u16",
+                "vsli_n_u32",
+                "vsliq_n_u32",
+                "vsli_n_u64",
+                "vsliq_n_u64",
+                "vsli_n_p8",
+                "vsliq_n_p8",
+                "vsli_n_p16",
+                "vsliq_n_p16",
+                "vsri_n_s8",
+                "vsriq_n_s8",
+                "vsri_n_s16",
+                "vsriq_n_s16",
+                "vsri_n_s32",
+                "vsriq_n_s32",
+                "vsri_n_s64",
+                "vsriq_n_s64",
+                "vsri_n_u8",
+                "vsriq_n_u8",
+                "vsri_n_u16",
+                "vsriq_n_u16",
+                "vsri_n_u32",
+                "vsriq_n_u32",
+                "vsri_n_u64",
+                "vsriq_n_u64",
+                "vsri_n_p8",
+                "vsriq_n_p8",
+                "vsri_n_p16",
+                "vsriq_n_p16",
             ];
             if !skip.contains(&rust.name) {
                 println!(
@@ -428,7 +468,7 @@ fn matches(rust: &Function, arm: &Intrinsic) -> Result<(), String> {
             }
             // sometimes arm says `foo` and disassemblers say `vfoo`, or
             // sometimes disassemblers say `vfoo` and arm says `sfoo` or `ffoo`
-            if instr.starts_with("v")
+            if instr.starts_with('v')
                 && (arm.instruction.starts_with(&instr[1..])
                     || arm.instruction[1..].starts_with(&instr[1..]))
             {
@@ -451,10 +491,10 @@ fn matches(rust: &Function, arm: &Intrinsic) -> Result<(), String> {
 fn find_accordion(node: &Rc<Node>) -> Option<Rc<Node>> {
     if let NodeData::Element { attrs, .. } = &node.data {
         for attr in attrs.borrow().iter() {
-            if attr.name.local.eq_str_ignore_ascii_case("class") {
-                if attr.value.to_string() == "intrinsic-accordion" {
-                    return Some(node.clone());
-                }
+            if attr.name.local.eq_str_ignore_ascii_case("class")
+                && attr.value.to_string() == "intrinsic-accordion"
+            {
+                return Some(node.clone());
             }
         }
     }
@@ -482,7 +522,7 @@ fn parse_intrinsics(node: &Rc<Node>) -> HashMap<String, Intrinsic> {
             ret.insert(f.name.clone(), f);
         }
     }
-    return ret;
+    ret
 }
 
 fn parse_intrinsic(node: &Rc<Node>) -> Intrinsic {
@@ -495,10 +535,9 @@ fn parse_intrinsic(node: &Rc<Node>) -> Intrinsic {
     //    ...
 
     let children = node.children.borrow();
-    let mut children = children.iter().filter(|node| match node.data {
-        NodeData::Element { .. } => true,
-        _ => false,
-    });
+    let mut children = children
+        .iter()
+        .filter(|node| matches!(node.data, NodeData::Element { .. }));
     let _input = children.next().expect("no <input>");
     let label = children.next().expect("no <label>");
     let article = children.next().expect("no <article>");
@@ -518,10 +557,9 @@ fn parse_intrinsic(node: &Rc<Node>) -> Intrinsic {
 
     // Find contents of inner `<div>` in `<label>`
     let label_children = label.children.borrow();
-    let mut label_children = label_children.iter().filter(|node| match node.data {
-        NodeData::Element { .. } => true,
-        _ => false,
-    });
+    let mut label_children = label_children
+        .iter()
+        .filter(|node| matches!(node.data, NodeData::Element { .. }));
     let label_div = label_children.next().expect("no <div> in <label>");
     assert!(label_children.next().is_none());
     let text = label_div.children.borrow();
@@ -537,10 +575,9 @@ fn parse_intrinsic(node: &Rc<Node>) -> Intrinsic {
 
     // Find the instruction within the article
     let article_children = article.children.borrow();
-    let mut article_children = article_children.iter().filter(|node| match node.data {
-        NodeData::Element { .. } => true,
-        _ => false,
-    });
+    let mut article_children = article_children
+        .iter()
+        .filter(|node| matches!(node.data, NodeData::Element { .. }));
     let mut instruction = None;
     while let Some(child) = article_children.next() {
         let mut header = String::new();
@@ -569,9 +606,9 @@ fn parse_intrinsic(node: &Rc<Node>) -> Intrinsic {
         },
         instruction,
         arguments: args // "(...)"
-            .trim_start_matches("(") // "...)"
-            .trim_end_matches(")") // "..."
-            .split(",") // " Type name ", ".."
+            .trim_start_matches('(') // "...)"
+            .trim_end_matches(')') // "..."
+            .split(',') // " Type name ", ".."
             .map(|s| s.trim()) // "Type name"
             .map(|s| s.rsplitn(2, ' ').nth(1).unwrap()) // "Type"
             .map(|s| {
@@ -735,7 +772,7 @@ fn parse_ty_base(s: &str) -> &'static Type {
 
 fn collect_text(s: &mut String, node: &Node) {
     if let NodeData::Text { contents } = &node.data {
-        s.push_str(" ");
+        s.push(' ');
         s.push_str(&contents.borrow().to_string());
     }
     for child in node.children.borrow().iter() {

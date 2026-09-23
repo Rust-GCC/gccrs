@@ -116,7 +116,7 @@
 #![feature(never_type)]
 #![feature(nll)]
 // #![feature(nonnull_slice_from_raw_parts)]
-#![feature(optin_builtin_traits)]
+#![feature(auto_traits)]
 #![feature(or_patterns)]
 // #![feature(pattern)]
 // #![feature(ptr_internals)]

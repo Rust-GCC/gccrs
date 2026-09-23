@@ -957,9 +957,15 @@ pub unsafe fn _mm_set_ps(a: f32, b: f32, c: f32, d: f32) -> __m128 {
 /// [Intel's documentation](https://software.intel.com/sites/landingpage/IntrinsicsGuide/#text=_mm_setr_ps)
 #[inline]
 #[target_feature(enable = "sse")]
-#[cfg_attr(all(test, target_arch = "x86_64"), assert_instr(unpcklps))]
-// On a 32-bit architecture it just copies the operands from the stack.
-#[cfg_attr(all(test, target_arch = "x86"), assert_instr(movaps))]
+#[cfg_attr(
+    all(test, any(target_os = "windows", target_arch = "x86_64")),
+    assert_instr(unpcklps)
+)]
+// On a 32-bit architecture on non-Windows it just copies the operands from the stack.
+#[cfg_attr(
+    all(test, all(not(target_os = "windows"), target_arch = "x86")),
+    assert_instr(movaps)
+)]
 #[stable(feature = "simd_x86", since = "1.27.0")]
 pub unsafe fn _mm_setr_ps(a: f32, b: f32, c: f32, d: f32) -> __m128 {
     __m128(a, b, c, d)
@@ -3100,8 +3106,8 @@ mod tests {
         let mut p = vals.as_mut_ptr();
 
         if (p as usize) & 0xf != 0 {
-            ofs = (16 - (p as usize) & 0xf) >> 2;
-            p = p.offset(ofs as isize);
+            ofs = ((16 - (p as usize)) & 0xf) >> 2;
+            p = p.add(ofs);
         }
 
         _mm_store1_ps(p, *black_box(&a));
@@ -3126,8 +3132,8 @@ mod tests {
 
         // Align p to 16-byte boundary
         if (p as usize) & 0xf != 0 {
-            ofs = (16 - (p as usize) & 0xf) >> 2;
-            p = p.offset(ofs as isize);
+            ofs = ((16 - (p as usize)) & 0xf) >> 2;
+            p = p.add(ofs);
         }
 
         _mm_store_ps(p, *black_box(&a));
@@ -3152,8 +3158,8 @@ mod tests {
 
         // Align p to 16-byte boundary
         if (p as usize) & 0xf != 0 {
-            ofs = (16 - (p as usize) & 0xf) >> 2;
-            p = p.offset(ofs as isize);
+            ofs = ((16 - (p as usize)) & 0xf) >> 2;
+            p = p.add(ofs);
         }
 
         _mm_storer_ps(p, *black_box(&a));

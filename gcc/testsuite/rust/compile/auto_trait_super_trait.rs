@@ -1,7 +1,7 @@
 #![feature(no_core)]
 #![no_core]
 
-#![feature(optin_builtin_traits)]
+#![feature(auto_traits)]
 trait Cold {}
 
 auto trait IsCool: Cold {}

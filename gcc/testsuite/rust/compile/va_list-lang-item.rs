@@ -1,5 +1,5 @@
 #![feature(no_core)]
-#![feature(optin_builtin_traits)]
+#![feature(auto_traits)]
 #![feature(negative_impls)]
 #![feature(lang_items)]
 #![feature(rustc_attrs)]

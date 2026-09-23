@@ -1,7 +1,7 @@
 #![feature(no_core)]
 #![no_core]
 
-#![feature(optin_builtin_traits)]
+#![feature(auto_traits)]
 
 unsafe auto trait Send {}
 unsafe auto trait Sync {}

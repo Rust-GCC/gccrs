@@ -178,7 +178,7 @@ pub unsafe fn _mm_extract_ps(a: __m128, imm8: i32) -> i32 {
 /// Extracts an 8-bit integer from `a`, selected with `imm8`. Returns a 32-bit
 /// integer containing the zero-extended integer data.
 ///
-/// See [LLVM commit D20468][https://reviews.llvm.org/D20468].
+/// See [LLVM commit D20468](https://reviews.llvm.org/D20468).
 ///
 /// [Intel's documentation](https://software.intel.com/sites/landingpage/IntrinsicsGuide/#text=_mm_extract_epi8)
 #[inline]
@@ -919,7 +919,7 @@ pub unsafe fn _mm_round_ss(a: __m128, b: __m128, rounding: i32) -> __m128 {
 /// index
 /// in its second position; all other elements are set to zero.
 ///
-/// This intrinsic corresponds to the <c> VPHMINPOSUW / PHMINPOSUW </c>
+/// This intrinsic corresponds to the `VPHMINPOSUW` / `PHMINPOSUW`
 /// instruction.
 ///
 /// Arguments:

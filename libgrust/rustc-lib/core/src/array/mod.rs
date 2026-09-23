@@ -12,6 +12,7 @@ use crate::convert::{Infallible, TryFrom};
 use crate::fmt;
 use crate::hash::{self, Hash};
 use crate::marker::Unsize;
+use crate::ops::{Index, IndexMut};
 use crate::slice::{Iter, IterMut};
 
 mod iter;
@@ -208,6 +209,30 @@ impl<'a, T, const N: usize> IntoIterator for &'a mut [T; N] {
     }
 }
 
+#[stable(feature = "index_trait_on_arrays", since = "1.50.0")]
+impl<T, I, const N: usize> Index<I> for [T; N]
+where
+    [T]: Index<I>,
+{
+    type Output = <[T] as Index<I>>::Output;
+
+    #[inline]
+    fn index(&self, index: I) -> &Self::Output {
+        Index::index(self as &[T], index)
+    }
+}
+
+#[stable(feature = "index_trait_on_arrays", since = "1.50.0")]
+impl<T, I, const N: usize> IndexMut<I> for [T; N]
+where
+    [T]: IndexMut<I>,
+{
+    #[inline]
+    fn index_mut(&mut self, index: I) -> &mut Self::Output {
+        IndexMut::index_mut(self as &mut [T], index)
+    }
+}
+
 #[stable(feature = "rust1", since = "1.0.0")]
 impl<A, B, const N: usize> PartialEq<[B; N]> for [A; N]
 where
@@ -254,22 +279,22 @@ where
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<'b, A, B, const N: usize> PartialEq<&'b [B]> for [A; N]
+impl<A, B, const N: usize> PartialEq<&[B]> for [A; N]
 where
     A: PartialEq<B>,
 {
     #[inline]
-    fn eq(&self, other: &&'b [B]) -> bool {
+    fn eq(&self, other: &&[B]) -> bool {
         self[..] == other[..]
     }
     #[inline]
-    fn ne(&self, other: &&'b [B]) -> bool {
+    fn ne(&self, other: &&[B]) -> bool {
         self[..] != other[..]
     }
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<'b, A, B, const N: usize> PartialEq<[A; N]> for &'b [B]
+impl<A, B, const N: usize> PartialEq<[A; N]> for &[B]
 where
     B: PartialEq<A>,
 {
@@ -284,22 +309,22 @@ where
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<'b, A, B, const N: usize> PartialEq<&'b mut [B]> for [A; N]
+impl<A, B, const N: usize> PartialEq<&mut [B]> for [A; N]
 where
     A: PartialEq<B>,
 {
     #[inline]
-    fn eq(&self, other: &&'b mut [B]) -> bool {
+    fn eq(&self, other: &&mut [B]) -> bool {
         self[..] == other[..]
     }
     #[inline]
-    fn ne(&self, other: &&'b mut [B]) -> bool {
+    fn ne(&self, other: &&mut [B]) -> bool {
         self[..] != other[..]
     }
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<'b, A, B, const N: usize> PartialEq<[A; N]> for &'b mut [B]
+impl<A, B, const N: usize> PartialEq<[A; N]> for &mut [B]
 where
     B: PartialEq<A>,
 {
@@ -436,6 +461,37 @@ impl<T, const N: usize> [T; N] {
         // SAFETY: At this point we've properly initialized the whole array
         // and we just need to cast it to the correct type.
         unsafe { crate::mem::transmute_copy::<_, [U; N]>(&dst) }
+    }
+
+    /// 'Zips up' two arrays into a single array of pairs.
+    ///
+    /// `zip()` returns a new array where every element is a tuple where the
+    /// first element comes from the first array, and the second element comes
+    /// from the second array. In other words, it zips two arrays together,
+    /// into a single one.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// #![feature(array_zip)]
+    /// let x = [1, 2, 3];
+    /// let y = [4, 5, 6];
+    /// let z = x.zip(y);
+    /// assert_eq!(z, [(1, 4), (2, 5), (3, 6)]);
+    /// ```
+    #[unstable(feature = "array_zip", issue = "80094")]
+    pub fn zip<U>(self, rhs: [U; N]) -> [(T, U); N] {
+        use crate::mem::MaybeUninit;
+
+        let mut dst = MaybeUninit::uninit_array::<N>();
+        for (i, (lhs, rhs)) in IntoIter::new(self).zip(IntoIter::new(rhs)).enumerate() {
+            dst[i].write((lhs, rhs));
+        }
+        // FIXME: Convert to crate::mem::transmute once it works with generics.
+        // unsafe { crate::mem::transmute::<[MaybeUninit<U>; N], [U; N]>(dst) }
+        // SAFETY: At this point we've properly initialized the whole array
+        // and we just need to cast it to the correct type.
+        unsafe { crate::mem::transmute_copy::<_, [(T, U); N]>(&dst) }
     }
 
     /// Returns a slice containing the entire array. Equivalent to `&s[..]`.

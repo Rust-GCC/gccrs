@@ -298,6 +298,14 @@ types! {
     pub struct __m512d(f64, f64, f64, f64, f64, f64, f64, f64);
 }
 
+/// The `__mmask64` type used in AVX-512 intrinsics, a 64-bit integer
+#[allow(non_camel_case_types)]
+pub type __mmask64 = u64;
+
+/// The `__mmask32` type used in AVX-512 intrinsics, a 32-bit integer
+#[allow(non_camel_case_types)]
+pub type __mmask32 = u32;
+
 /// The `__mmask16` type used in AVX-512 intrinsics, a 16-bit integer
 #[allow(non_camel_case_types)]
 pub type __mmask16 = u16;
@@ -434,7 +442,7 @@ impl m256iExt for __m256i {
 }
 
 #[allow(non_camel_case_types)]
-#[unstable(feature = "stdimd_internal", issue = "none")]
+#[unstable(feature = "stdsimd_internal", issue = "none")]
 pub(crate) trait m128Ext: Sized {
     fn as_m128(self) -> __m128;
 
@@ -447,6 +455,24 @@ pub(crate) trait m128Ext: Sized {
 impl m128Ext for __m128 {
     #[inline]
     fn as_m128(self) -> Self {
+        self
+    }
+}
+
+#[allow(non_camel_case_types)]
+#[unstable(feature = "stdsimd_internal", issue = "none")]
+pub(crate) trait m128dExt: Sized {
+    fn as_m128d(self) -> __m128d;
+
+    #[inline]
+    fn as_f64x2(self) -> crate::core_arch::simd::f64x2 {
+        unsafe { transmute(self.as_m128d()) }
+    }
+}
+
+impl m128dExt for __m128d {
+    #[inline]
+    fn as_m128d(self) -> Self {
         self
     }
 }
@@ -473,6 +499,26 @@ impl m256Ext for __m256 {
 #[unstable(feature = "stdsimd_internal", issue = "none")]
 pub(crate) trait m512iExt: Sized {
     fn as_m512i(self) -> __m512i;
+
+    #[inline]
+    fn as_u8x64(self) -> crate::core_arch::simd::u8x64 {
+        unsafe { transmute(self.as_m512i()) }
+    }
+
+    #[inline]
+    fn as_i8x64(self) -> crate::core_arch::simd::i8x64 {
+        unsafe { transmute(self.as_m512i()) }
+    }
+
+    #[inline]
+    fn as_u16x32(self) -> crate::core_arch::simd::u16x32 {
+        unsafe { transmute(self.as_m512i()) }
+    }
+
+    #[inline]
+    fn as_i16x32(self) -> crate::core_arch::simd::i16x32 {
+        unsafe { transmute(self.as_m512i()) }
+    }
 
     #[inline]
     fn as_u32x16(self) -> crate::core_arch::simd::u32x16 {
@@ -620,8 +666,37 @@ pub unsafe fn ud2() -> ! {
 mod avx512f;
 pub use self::avx512f::*;
 
+mod avx512bw;
+pub use self::avx512bw::*;
+
+mod avx512cd;
+pub use self::avx512cd::*;
+
 mod avx512ifma;
 pub use self::avx512ifma::*;
+
+#[cfg(not(bootstrap))]
+mod avx512bitalg;
+#[cfg(not(bootstrap))]
+pub use self::avx512bitalg::*;
+
+#[cfg(not(bootstrap))]
+mod avx512gfni;
+#[cfg(not(bootstrap))]
+pub use self::avx512gfni::*;
+
+mod avx512vpopcntdq;
+pub use self::avx512vpopcntdq::*;
+
+#[cfg(not(bootstrap))]
+mod avx512vaes;
+#[cfg(not(bootstrap))]
+pub use self::avx512vaes::*;
+
+#[cfg(not(bootstrap))]
+mod avx512vpclmulqdq;
+#[cfg(not(bootstrap))]
+pub use self::avx512vpclmulqdq::*;
 
 mod bt;
 pub use self::bt::*;
