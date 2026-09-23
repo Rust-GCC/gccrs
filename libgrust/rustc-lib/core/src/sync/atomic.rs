@@ -47,9 +47,16 @@
 //!
 //! * PowerPC and MIPS platforms with 32-bit pointers do not have `AtomicU64` or
 //!   `AtomicI64` types.
-//! * ARM platforms like `armv5te` that aren't for Linux do not have any atomics
-//!   at all.
-//! * ARM targets with `thumbv6m` do not have atomic operations at all.
+//! * ARM platforms like `armv5te` that aren't for Linux only provide `load`
+//!   and `store` operations, and do not support Compare and Swap (CAS)
+//!   operations, such as `swap`, `fetch_add`, etc. Additionally on Linux,
+//!   these CAS operations are implemented via [operating system support], which
+//!   may come with a performance penalty.
+//! * ARM targets with `thumbv6m` only provide `load` and `store` operations,
+//!   and do not support Compare and Swap (CAS) operations, such as `swap`,
+//!   `fetch_add`, etc.
+//!
+//! [operating system support]: https://www.kernel.org/doc/Documentation/arm/kernel_user_helpers.txt
 //!
 //! Note that future platforms may be added that also do not have support for
 //! some atomic operations. Maximally portable code will want to be careful
@@ -457,6 +464,23 @@ impl AtomicBool {
     /// **Note:** This method is only available on platforms that support atomic
     /// operations on `u8`.
     ///
+    /// # Migrating to `compare_exchange` and `compare_exchange_weak`
+    ///
+    /// `compare_and_swap` is equivalent to `compare_exchange` with the following mapping for
+    /// memory orderings:
+    ///
+    /// Original | Success | Failure
+    /// -------- | ------- | -------
+    /// Relaxed  | Relaxed | Relaxed
+    /// Acquire  | Acquire | Acquire
+    /// Release  | Release | Relaxed
+    /// AcqRel   | AcqRel  | Acquire
+    /// SeqCst   | SeqCst  | SeqCst
+    ///
+    /// `compare_exchange_weak` is allowed to fail spuriously even when the comparison succeeds,
+    /// which allows the compiler to generate better assembly code when the compare and swap
+    /// is used in a loop.
+    ///
     /// # Examples
     ///
     /// ```
@@ -472,6 +496,10 @@ impl AtomicBool {
     /// ```
     #[inline]
     #[stable(feature = "rust1", since = "1.0.0")]
+    #[rustc_deprecated(
+        since = "1.50.0",
+        reason = "Use `compare_exchange` or `compare_exchange_weak` instead"
+    )]
     #[cfg(target_has_atomic = "8")]
     pub fn compare_and_swap(&self, current: bool, new: bool, order: Ordering) -> bool {
         match self.compare_exchange(current, new, order, strongest_failure_ordering(order)) {
@@ -486,9 +514,10 @@ impl AtomicBool {
     /// the previous value. On success this value is guaranteed to be equal to `current`.
     ///
     /// `compare_exchange` takes two [`Ordering`] arguments to describe the memory
-    /// ordering of this operation. The first describes the required ordering if the
-    /// operation succeeds while the second describes the required ordering when the
-    /// operation fails. Using [`Acquire`] as success ordering makes the store part
+    /// ordering of this operation. `success` describes the required ordering for the
+    /// read-modify-write operation that takes place if the comparison with `current` succeeds.
+    /// `failure` describes the required ordering for the load operation that takes place when
+    /// the comparison fails. Using [`Acquire`] as success ordering makes the store part
     /// of this operation [`Relaxed`], and using [`Release`] makes the successful load
     /// [`Relaxed`]. The failure ordering can only be [`SeqCst`], [`Acquire`] or [`Relaxed`]
     /// and must be equivalent to or weaker than the success ordering.
@@ -518,6 +547,7 @@ impl AtomicBool {
     /// ```
     #[inline]
     #[stable(feature = "extended_compare_and_swap", since = "1.10.0")]
+    #[doc(alias = "compare_and_swap")]
     #[cfg(target_has_atomic = "8")]
     pub fn compare_exchange(
         &self,
@@ -543,9 +573,10 @@ impl AtomicBool {
     /// previous value.
     ///
     /// `compare_exchange_weak` takes two [`Ordering`] arguments to describe the memory
-    /// ordering of this operation. The first describes the required ordering if the
-    /// operation succeeds while the second describes the required ordering when the
-    /// operation fails. Using [`Acquire`] as success ordering makes the store part
+    /// ordering of this operation. `success` describes the required ordering for the
+    /// read-modify-write operation that takes place if the comparison with `current` succeeds.
+    /// `failure` describes the required ordering for the load operation that takes place when
+    /// the comparison fails. Using [`Acquire`] as success ordering makes the store part
     /// of this operation [`Relaxed`], and using [`Release`] makes the successful load
     /// [`Relaxed`]. The failure ordering can only be [`SeqCst`], [`Acquire`] or [`Relaxed`]
     /// and must be equivalent to or weaker than the success ordering.
@@ -571,6 +602,7 @@ impl AtomicBool {
     /// ```
     #[inline]
     #[stable(feature = "extended_compare_and_swap", since = "1.10.0")]
+    #[doc(alias = "compare_and_swap")]
     #[cfg(target_has_atomic = "8")]
     pub fn compare_exchange_weak(
         &self,
@@ -959,8 +991,16 @@ impl<T> AtomicPtr<T> {
     #[inline]
     #[stable(feature = "rust1", since = "1.0.0")]
     pub fn load(&self, order: Ordering) -> *mut T {
+        #[cfg(not(bootstrap))]
         // SAFETY: data races are prevented by atomic intrinsics.
-        unsafe { atomic_load(self.p.get() as *mut usize, order) as *mut T }
+        unsafe {
+            atomic_load(self.p.get(), order)
+        }
+        #[cfg(bootstrap)]
+        // SAFETY: data races are prevented by atomic intrinsics.
+        unsafe {
+            atomic_load(self.p.get() as *mut usize, order) as *mut T
+        }
     }
 
     /// Stores a value into the pointer.
@@ -987,6 +1027,12 @@ impl<T> AtomicPtr<T> {
     #[inline]
     #[stable(feature = "rust1", since = "1.0.0")]
     pub fn store(&self, ptr: *mut T, order: Ordering) {
+        #[cfg(not(bootstrap))]
+        // SAFETY: data races are prevented by atomic intrinsics.
+        unsafe {
+            atomic_store(self.p.get(), ptr, order);
+        }
+        #[cfg(bootstrap)]
         // SAFETY: data races are prevented by atomic intrinsics.
         unsafe {
             atomic_store(self.p.get() as *mut usize, ptr as usize, order);
@@ -1019,8 +1065,16 @@ impl<T> AtomicPtr<T> {
     #[stable(feature = "rust1", since = "1.0.0")]
     #[cfg(target_has_atomic = "ptr")]
     pub fn swap(&self, ptr: *mut T, order: Ordering) -> *mut T {
+        #[cfg(bootstrap)]
         // SAFETY: data races are prevented by atomic intrinsics.
-        unsafe { atomic_swap(self.p.get() as *mut usize, ptr as usize, order) as *mut T }
+        unsafe {
+            atomic_swap(self.p.get() as *mut usize, ptr as usize, order) as *mut T
+        }
+        #[cfg(not(bootstrap))]
+        // SAFETY: data races are prevented by atomic intrinsics.
+        unsafe {
+            atomic_swap(self.p.get(), ptr, order)
+        }
     }
 
     /// Stores a value into the pointer if the current value is the same as the `current` value.
@@ -1037,6 +1091,23 @@ impl<T> AtomicPtr<T> {
     /// **Note:** This method is only available on platforms that support atomic
     /// operations on pointers.
     ///
+    /// # Migrating to `compare_exchange` and `compare_exchange_weak`
+    ///
+    /// `compare_and_swap` is equivalent to `compare_exchange` with the following mapping for
+    /// memory orderings:
+    ///
+    /// Original | Success | Failure
+    /// -------- | ------- | -------
+    /// Relaxed  | Relaxed | Relaxed
+    /// Acquire  | Acquire | Acquire
+    /// Release  | Release | Relaxed
+    /// AcqRel   | AcqRel  | Acquire
+    /// SeqCst   | SeqCst  | SeqCst
+    ///
+    /// `compare_exchange_weak` is allowed to fail spuriously even when the comparison succeeds,
+    /// which allows the compiler to generate better assembly code when the compare and swap
+    /// is used in a loop.
+    ///
     /// # Examples
     ///
     /// ```
@@ -1051,6 +1122,10 @@ impl<T> AtomicPtr<T> {
     /// ```
     #[inline]
     #[stable(feature = "rust1", since = "1.0.0")]
+    #[rustc_deprecated(
+        since = "1.50.0",
+        reason = "Use `compare_exchange` or `compare_exchange_weak` instead"
+    )]
     #[cfg(target_has_atomic = "ptr")]
     pub fn compare_and_swap(&self, current: *mut T, new: *mut T, order: Ordering) -> *mut T {
         match self.compare_exchange(current, new, order, strongest_failure_ordering(order)) {
@@ -1065,9 +1140,10 @@ impl<T> AtomicPtr<T> {
     /// the previous value. On success this value is guaranteed to be equal to `current`.
     ///
     /// `compare_exchange` takes two [`Ordering`] arguments to describe the memory
-    /// ordering of this operation. The first describes the required ordering if the
-    /// operation succeeds while the second describes the required ordering when the
-    /// operation fails. Using [`Acquire`] as success ordering makes the store part
+    /// ordering of this operation. `success` describes the required ordering for the
+    /// read-modify-write operation that takes place if the comparison with `current` succeeds.
+    /// `failure` describes the required ordering for the load operation that takes place when
+    /// the comparison fails. Using [`Acquire`] as success ordering makes the store part
     /// of this operation [`Relaxed`], and using [`Release`] makes the successful load
     /// [`Relaxed`]. The failure ordering can only be [`SeqCst`], [`Acquire`] or [`Relaxed`]
     /// and must be equivalent to or weaker than the success ordering.
@@ -1098,6 +1174,7 @@ impl<T> AtomicPtr<T> {
         success: Ordering,
         failure: Ordering,
     ) -> Result<*mut T, *mut T> {
+        #[cfg(bootstrap)]
         // SAFETY: data races are prevented by atomic intrinsics.
         unsafe {
             let res = atomic_compare_exchange(
@@ -1112,6 +1189,11 @@ impl<T> AtomicPtr<T> {
                 Err(x) => Err(x as *mut T),
             }
         }
+        #[cfg(not(bootstrap))]
+        // SAFETY: data races are prevented by atomic intrinsics.
+        unsafe {
+            atomic_compare_exchange(self.p.get(), current, new, success, failure)
+        }
     }
 
     /// Stores a value into the pointer if the current value is the same as the `current` value.
@@ -1122,9 +1204,10 @@ impl<T> AtomicPtr<T> {
     /// previous value.
     ///
     /// `compare_exchange_weak` takes two [`Ordering`] arguments to describe the memory
-    /// ordering of this operation. The first describes the required ordering if the
-    /// operation succeeds while the second describes the required ordering when the
-    /// operation fails. Using [`Acquire`] as success ordering makes the store part
+    /// ordering of this operation. `success` describes the required ordering for the
+    /// read-modify-write operation that takes place if the comparison with `current` succeeds.
+    /// `failure` describes the required ordering for the load operation that takes place when
+    /// the comparison fails. Using [`Acquire`] as success ordering makes the store part
     /// of this operation [`Relaxed`], and using [`Release`] makes the successful load
     /// [`Relaxed`]. The failure ordering can only be [`SeqCst`], [`Acquire`] or [`Relaxed`]
     /// and must be equivalent to or weaker than the success ordering.
@@ -1158,6 +1241,7 @@ impl<T> AtomicPtr<T> {
         success: Ordering,
         failure: Ordering,
     ) -> Result<*mut T, *mut T> {
+        #[cfg(bootstrap)]
         // SAFETY: data races are prevented by atomic intrinsics.
         unsafe {
             let res = atomic_compare_exchange_weak(
@@ -1171,6 +1255,14 @@ impl<T> AtomicPtr<T> {
                 Ok(x) => Ok(x as *mut T),
                 Err(x) => Err(x as *mut T),
             }
+        }
+        #[cfg(not(bootstrap))]
+        // SAFETY: This intrinsic is unsafe because it operates on a raw pointer
+        // but we know for sure that the pointer is valid (we just got it from
+        // an `UnsafeCell` that we have by reference) and the atomic operation
+        // itself allows us to safely mutate the `UnsafeCell` contents.
+        unsafe {
+            atomic_compare_exchange_weak(self.p.get(), current, new, success, failure)
         }
     }
 
@@ -1560,6 +1652,23 @@ happens, and using [`Release`] makes the load part [`Relaxed`].
 **Note**: This method is only available on platforms that support atomic
 operations on [`", $s_int_type, "`](", $int_ref, ").
 
+# Migrating to `compare_exchange` and `compare_exchange_weak`
+
+`compare_and_swap` is equivalent to `compare_exchange` with the following mapping for
+memory orderings:
+
+Original | Success | Failure
+-------- | ------- | -------
+Relaxed  | Relaxed | Relaxed
+Acquire  | Acquire | Acquire
+Release  | Release | Relaxed
+AcqRel   | AcqRel  | Acquire
+SeqCst   | SeqCst  | SeqCst
+
+`compare_exchange_weak` is allowed to fail spuriously even when the comparison succeeds,
+which allows the compiler to generate better assembly code when the compare and swap
+is used in a loop.
+
 # Examples
 
 ```
@@ -1575,6 +1684,10 @@ assert_eq!(some_var.load(Ordering::Relaxed), 10);
 ```"),
                 #[inline]
                 #[$stable]
+                #[rustc_deprecated(
+                    since = "1.50.0",
+                    reason = "Use `compare_exchange` or `compare_exchange_weak` instead")
+                ]
                 #[$cfg_cas]
                 pub fn compare_and_swap(&self,
                                         current: $int_type,
@@ -1599,9 +1712,10 @@ containing the previous value. On success this value is guaranteed to be equal t
 `current`.
 
 `compare_exchange` takes two [`Ordering`] arguments to describe the memory
-ordering of this operation. The first describes the required ordering if the
-operation succeeds while the second describes the required ordering when the
-operation fails. Using [`Acquire`] as success ordering makes the store part
+ordering of this operation. `success` describes the required ordering for the
+read-modify-write operation that takes place if the comparison with `current` succeeds.
+`failure` describes the required ordering for the load operation that takes place when
+the comparison fails. Using [`Acquire`] as success ordering makes the store part
 of this operation [`Relaxed`], and using [`Release`] makes the successful load
 [`Relaxed`]. The failure ordering can only be [`SeqCst`], [`Acquire`] or [`Relaxed`]
 and must be equivalent to or weaker than the success ordering.
@@ -1651,9 +1765,10 @@ platforms. The return value is a result indicating whether the new value was
 written and containing the previous value.
 
 `compare_exchange_weak` takes two [`Ordering`] arguments to describe the memory
-ordering of this operation. The first describes the required ordering if the
-operation succeeds while the second describes the required ordering when the
-operation fails. Using [`Acquire`] as success ordering makes the store part
+ordering of this operation. `success` describes the required ordering for the
+read-modify-write operation that takes place if the comparison with `current` succeeds.
+`failure` describes the required ordering for the load operation that takes place when
+the comparison fails. Using [`Acquire`] as success ordering makes the store part
 of this operation [`Relaxed`], and using [`Release`] makes the successful load
 [`Relaxed`]. The failure ordering can only be [`SeqCst`], [`Acquire`] or [`Relaxed`]
 and must be equivalent to or weaker than the success ordering.

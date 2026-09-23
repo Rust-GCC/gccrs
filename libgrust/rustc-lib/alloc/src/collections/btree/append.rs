@@ -34,7 +34,7 @@ impl<K, V> Root<K, V> {
     where
         I: Iterator<Item = (K, V)>,
     {
-        let mut cur_node = self.node_as_mut().last_leaf_edge().into_node();
+        let mut cur_node = self.borrow_mut().last_leaf_edge().into_node();
         // Iterate through all key-value pairs, pushing them into nodes at the right level.
         for (key, value) in iter {
             // Try to push key-value pair into the current leaf node.
@@ -67,7 +67,7 @@ impl<K, V> Root<K, V> {
 
                 // Push key-value pair and new right subtree.
                 let tree_height = open_node.height() - 1;
-                let mut right_tree = Root::new_leaf();
+                let mut right_tree = Root::new();
                 for _ in 0..tree_height {
                     right_tree.push_internal_level();
                 }
@@ -86,23 +86,18 @@ impl<K, V> Root<K, V> {
 
     fn fix_right_edge(&mut self) {
         // Handle underfull nodes, start from the top.
-        let mut cur_node = self.node_as_mut();
+        let mut cur_node = self.borrow_mut();
         while let Internal(internal) = cur_node.force() {
             // Check if right-most child is underfull.
-            let mut last_edge = internal.last_edge();
-            let right_child_len = last_edge.reborrow().descend().len();
+            let mut last_kv = internal.last_kv().consider_for_balancing();
+            let right_child_len = last_kv.right_child_len();
             if right_child_len < MIN_LEN {
                 // We need to steal.
-                let mut last_kv = match last_edge.left_kv() {
-                    Ok(left) => left,
-                    Err(_) => unreachable!(),
-                };
                 last_kv.bulk_steal_left(MIN_LEN - right_child_len);
-                last_edge = last_kv.right_edge();
             }
 
             // Go further down.
-            cur_node = last_edge.descend();
+            cur_node = last_kv.into_right_child();
         }
     }
 }
