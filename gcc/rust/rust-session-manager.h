@@ -242,7 +242,7 @@ struct CompileOptions
   bool debug_assertions = false;
   std::string metadata_output_path;
 
-  int compat_version = 49;
+  int compat_version = 50;
 
   /** Structure containing additional attributes to be injected within the
    * compiled crate from the command line instead of the source code.
