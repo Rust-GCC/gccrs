@@ -278,7 +278,7 @@ void
 FeatureGate::visit (AST::Trait &trait)
 {
   if (trait.is_auto ())
-    gate (Feature::Name::OPTIN_BUILTIN_TRAITS, trait.get_locus (),
+    gate (Feature::Name::AUTO_TRAITS, trait.get_locus (),
 	  "auto traits are experimental and possibly buggy");
   check_lang_item_attribute (trait.get_outer_attrs ());
   AST::DefaultASTVisitor::visit (trait);
