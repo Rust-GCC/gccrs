@@ -22,7 +22,7 @@ set -e
 
 SCRIPT_DIR="$(dirname "$0")"
 
-VENDOR_VERSION=1.49.0
+VENDOR_VERSION=1.50.0
 VENDOR_LIBS="core alloc stdarch"
 
 # double check, rm -rf needs to be safe

@@ -18,7 +18,7 @@
 # along with GCC; see the file COPYING3.  If not see
 # <http://www.gnu.org/licenses/>.
 
-RUST_VERSION="1.49.0"
+RUST_VERSION="1.50.0"
 
 [ $# = 1 ] || exit 1
 
