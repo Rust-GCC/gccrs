@@ -1089,7 +1089,7 @@ negation_expression (NegationOperator op, tree expr_tree, location_t location)
 
 tree
 arithmetic_or_logical_expression (ArithmeticOrLogicalOperator op, tree left,
-				  tree right, location_t location)
+				  tree right, location_t location, bool fold_p)
 {
   /* Check if either expression is an error, in which case we return an error
      expression. */
@@ -1127,7 +1127,14 @@ arithmetic_or_logical_expression (ArithmeticOrLogicalOperator op, tree left,
 	}
     }
 
-  ret = fold_build2_loc (location, tree_code, tree_type, left, right);
+  /* Folding here would collapse a constant operation into an INTEGER_CST,
+     which carries no location and, for unsigned types, no overflow flag
+     either.  Leave it unfolded when the caller is going to constant evaluate
+     it, so the folder can diagnose overflow against the operands.  */
+  if (fold_p)
+    ret = fold_build2_loc (location, tree_code, tree_type, left, right);
+  else
+    ret = build2_loc (location, tree_code, tree_type, left, right);
   TREE_CONSTANT (ret) = TREE_CONSTANT (left) & TREE_CONSTANT (right);
 
   // TODO: How do we handle floating point?
