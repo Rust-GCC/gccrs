@@ -3042,7 +3042,12 @@ CompileExpr::visit (HIR::ClosureExpr &expr)
   tree compiled_closure_tyty = TyTyResolveCompile::compile (ctx, closure_tyty);
 
   // generate closure function
-  generate_closure_function (expr, *closure_tyty, compiled_closure_tyty);
+  if (generate_closure_function (expr, *closure_tyty, compiled_closure_tyty)
+      == error_mark_node)
+    {
+      translated = error_mark_node;
+      return;
+    }
 
   // lets ignore state capture for now we need to instantiate the struct anyway
   // then generate the function
@@ -3252,45 +3257,10 @@ CompileExpr::generate_closure_fntype (HIR::ClosureExpr &expr,
 				      tree compiled_closure_tyty,
 				      TyTy::FnType **fn_tyty)
 {
-  // grab the specified_bound
-  rust_assert (closure_tyty.num_specified_bounds () == 1);
-  const TyTy::TypeBoundPredicate &predicate
-    = *closure_tyty.get_specified_bounds ().begin ();
-
-  // FnOnce::Output is normalized on demand by normalize_projection's closure
-  // special-case
-
-  // the function signature is based on the trait bound that the closure
-  // implements which is determined at the type resolution time
-  //
-  // https://github.com/rust-lang/rust/blob/7807a694c2f079fd3f395821bcc357eee8650071/library/core/src/ops/function.rs#L54-L71
-
-  TyTy::TypeBoundPredicateItem item = TyTy::TypeBoundPredicateItem::error ();
-  if (predicate.get_name ().compare ("FnOnce") == 0)
-    {
-      item = predicate.lookup_associated_item ("call_once").value ();
-    }
-  else if (predicate.get_name ().compare ("FnMut") == 0)
-    {
-      item = predicate.lookup_associated_item ("call_mut").value ();
-    }
-  else if (predicate.get_name ().compare ("Fn") == 0)
-    {
-      item = predicate.lookup_associated_item ("call").value ();
-    }
-  else
-    {
-      // FIXME error message?
-      rust_unreachable ();
-      return error_mark_node;
-    }
-
-  rust_assert (!item.is_error ());
-
-  TyTy::BaseType *item_tyty = item.get_tyty_for_receiver (&closure_tyty);
-  rust_assert (item_tyty->get_kind () == TyTy::TypeKind::FNDEF);
-  *fn_tyty = static_cast<TyTy::FnType *> (item_tyty);
-  return TyTyResolveCompile::compile (ctx, item_tyty);
+  // FIXME: obtain the closure's call-trait signature from dedicated metadata.
+  rust_error_at (expr.get_locus (),
+		 "closure call-trait metadata is not implemented");
+  return error_mark_node;
 }
 
 bool

@@ -506,9 +506,7 @@ TypeCoercionRules::coerce_unsized_array_to_slice (TyTy::BaseType *a,
 tl::expected<TyTy::BaseType *, TypeCoercionRules::CoerceUnsizedError>
 TypeCoercionRules::coerce_unsized_dyn (TyTy::BaseType *a, TyTy::BaseType *b)
 {
-  bool bounds_compatible = b->bounds_compatible (*a, locus, false);
-  if (!bounds_compatible)
-    return tl::unexpected<CoerceUnsizedError> (CoerceUnsizedError::Unsafe);
+  // FIXME: validate the target trait-object predicates against the source.
 
   // return the unsize coercion
   TyTy::BaseType *result = b->clone ();

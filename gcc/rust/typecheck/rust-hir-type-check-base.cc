@@ -171,14 +171,7 @@ walk_type_to_constrain (std::set<HirId> &constrained_symbols, TyTy::BaseType &r)
     walk_types_to_constrain (constrained_symbols,
 			     r.get_subst_argument_mappings ());
 
-  for (const auto &bound : r.get_specified_bounds ())
-    {
-      const auto &args = bound.get_substitution_arguments ();
-      for (const auto &binding : args.get_binding_args ())
-	walk_type_to_constrain (constrained_symbols, *binding.second);
-      for (const auto &constraint : args.get_constraint_args ())
-	walk_type_to_constrain (constrained_symbols, *constraint.second);
-    }
+  // FIXME: constrain types mentioned by the owning item's predicates.
 }
 
 bool
@@ -210,18 +203,7 @@ TypeCheckBase::check_for_unconstrained (
   walk_types_to_constrain (constrained_symbols, constraint_b);
   walk_type_to_constrain (constrained_symbols, *reference);
 
-  for (const auto &param : params_to_constrain)
-    {
-      auto *ty = param.get_param_ty ();
-      for (const auto &bound : ty->get_specified_bounds ())
-	{
-	  const auto &args = bound.get_substitution_arguments ();
-	  for (const auto &binding : args.get_binding_args ())
-	    walk_type_to_constrain (constrained_symbols, *binding.second);
-	  for (const auto &constraint : args.get_constraint_args ())
-	    walk_type_to_constrain (constrained_symbols, *constraint.second);
-	}
-    }
+  // FIXME: include associated bindings and constraints from item predicates.
 
   // check for unconstrained
   bool unconstrained = false;
@@ -795,17 +777,7 @@ TypeCheckBase::resolve_generic_params (
 
       TypeResolveGenericParam::ApplyAnyTraitBounds (type_param, pty);
 
-      // The drop_bounds lint: a `T: Drop` bound is most likely a mistake, as
-      // `Drop` bounds do not constrain a generic parameter in a useful way.
-      if (flag_unused_check_2_0)
-	if (auto drop = mappings.lookup_lang_item (LangItem::Kind::DROP))
-	  for (auto &bound : pty->get_specified_bounds ())
-	    if (bound.get_id () == drop.value ())
-	      rust_warning_at (
-		type_param.get_locus (), OPT_Wunused_variable,
-		"bounds on %<Drop%> are most likely incorrect, "
-		"use %<core::mem::needs_drop%> to detect whether "
-		"a type has a destructor");
+      // FIXME: check the Drop-bound lint against the item predicates.
     }
 }
 

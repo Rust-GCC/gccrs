@@ -45,12 +45,7 @@ bool
 TypeBoundsProbe::is_bound_satisfied_for_type (TyTy::BaseType *receiver,
 					      TraitReference *ref)
 {
-  for (auto &bound : receiver->get_specified_bounds ())
-    {
-      const TraitReference *b = bound.get ();
-      if (b->is_equal (*ref))
-	return true;
-    }
+  // FIXME: consult item predicates before probing impls.
 
   std::vector<std::pair<TraitReference *, HIR::ImplBlock *>> bounds
     = Probe (receiver, ref->get_hir_trait_ref ());
@@ -965,88 +960,6 @@ location_t
 TypeBoundPredicateItem::get_locus () const
 {
   return get_raw_item ()->get_locus ();
-}
-
-// TypeBoundsMappings
-
-TypeBoundsMappings::TypeBoundsMappings (
-  std::vector<TypeBoundPredicate> specified_bounds)
-  : specified_bounds (std::move (specified_bounds))
-{}
-
-std::vector<TypeBoundPredicate> &
-TypeBoundsMappings::get_specified_bounds ()
-{
-  return specified_bounds;
-}
-
-const std::vector<TypeBoundPredicate> &
-TypeBoundsMappings::get_specified_bounds () const
-{
-  return specified_bounds;
-}
-
-TypeBoundPredicate
-TypeBoundsMappings::lookup_predicate (DefId id)
-{
-  for (auto &b : specified_bounds)
-    {
-      if (b.get_id () == id)
-	return b;
-    }
-  return TypeBoundPredicate::error ();
-}
-
-size_t
-TypeBoundsMappings::num_specified_bounds () const
-{
-  return specified_bounds.size ();
-}
-
-std::string
-TypeBoundsMappings::raw_bounds_as_string () const
-{
-  std::string buf;
-  for (size_t i = 0; i < specified_bounds.size (); i++)
-    {
-      const TypeBoundPredicate &b = specified_bounds.at (i);
-      bool has_next = (i + 1) < specified_bounds.size ();
-      buf += b.as_string () + (has_next ? " + " : "");
-    }
-  return buf;
-}
-
-std::string
-TypeBoundsMappings::bounds_as_string () const
-{
-  return "bounds:[" + raw_bounds_as_string () + "]";
-}
-
-std::string
-TypeBoundsMappings::raw_bounds_as_name () const
-{
-  std::string buf;
-  for (size_t i = 0; i < specified_bounds.size (); i++)
-    {
-      const TypeBoundPredicate &b = specified_bounds.at (i);
-      bool has_next = (i + 1) < specified_bounds.size ();
-      buf += b.as_name () + (has_next ? " + " : "");
-    }
-
-  return buf;
-}
-
-void
-TypeBoundsMappings::add_bound (const TypeBoundPredicate &predicate)
-{
-  for (auto &bound : specified_bounds)
-    {
-      bool same_trait_ref_p = bound.get_id () == predicate.get_id ();
-      if (same_trait_ref_p)
-	return;
-    }
-
-  specified_bounds.push_back (predicate);
 }
 
 } // namespace TyTy

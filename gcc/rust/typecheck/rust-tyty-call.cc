@@ -62,35 +62,7 @@ validate_call_argument_associated_impl_bounds (BaseType *param_ty,
 					       BaseType *argument_ty,
 					       location_t locus)
 {
-  auto *context = Resolver::TypeCheckContext::get ();
-
-  // impl bodies are checked generically
-  if (context->have_function_context ()
-      && context->peek_context ().get_type ()
-	   == Resolver::TypeCheckContextItem::IMPL_ITEM)
-    return true;
-
-  auto *resolved_argument_ty = argument_ty->destructure ();
-  if (resolved_argument_ty->get_kind () == TypeKind::PARAM
-      || resolved_argument_ty->get_kind () == TypeKind::INFER
-      || resolved_argument_ty->get_kind () == TypeKind::PROJECTION)
-    return true;
-
-  for (const auto &bound : param_ty->get_specified_bounds ())
-    {
-      bool ambigious = false;
-      auto associated
-	= Resolver::lookup_associated_impl_block (bound, argument_ty,
-						  &ambigious);
-      if (associated == nullptr)
-	continue;
-
-      auto mapping = associated->bind_impl_for_bound (argument_ty, bound, locus,
-						      true /*emit_error*/);
-      if (mapping.is_error ())
-	return false;
-    }
-
+  // FIXME: validate associated impl bounds using the called item's predicates.
   return true;
 }
 

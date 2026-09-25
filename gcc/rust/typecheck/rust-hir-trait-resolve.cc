@@ -34,80 +34,7 @@ validate_impl_substitution_bounds (
   const std::vector<TyTy::SubstitutionArg> &resolved_args, location_t locus,
   bool emit_error)
 {
-  auto &mctx = Analysis::Mappings::get ();
-
-  std::vector<TyTy::SubstitutionArg> args;
-  for (const auto &arg : resolved_args)
-    args.push_back (arg);
-
-  TyTy::SubstitutionArgumentMappings mappings (std::move (args),
-					       {} /*binding_args*/,
-					       TyTy::RegionParamList (0),
-					       locus);
-
-  for (const auto &arg : resolved_args)
-    {
-      TyTy::BaseGeneric *param
-	= const_cast<TyTy::BaseGeneric *> (arg.get_param_ty ());
-      if (param == nullptr)
-	continue;
-
-      TyTy::BaseType *resolved_arg = arg.get_tyty ();
-      if (resolved_arg->get_kind () == TyTy::TypeKind::PARAM)
-	resolved_arg
-	  = static_cast<TyTy::ParamType *> (resolved_arg)->resolve ();
-
-      if (resolved_arg->get_kind () == TyTy::TypeKind::PARAM
-	  || resolved_arg->get_kind () == TyTy::TypeKind::INFER)
-	continue;
-
-      auto arg_type_locus
-	= mctx.lookup_location (arg.get_tyty ()->get_ty_ref ());
-      for (auto bound : param->get_specified_bounds ())
-	{
-	  auto bound_locus = bound.get_locus ();
-	  auto trait_locus = bound.get ()->get_locus ();
-	  bound.apply_argument_mappings (mappings, false /*is_super_trait*/);
-
-	  if (!resolved_arg->satisfies_bound (bound, false /*emit_error*/))
-	    {
-	      if (emit_error)
-		{
-		  rich_location r (line_table, locus);
-
-		  std::string arg_label_text = "the trait " + bound.get_name ()
-					       + " is not implemented for "
-					       + resolved_arg->get_name ();
-
-		  text_range_label arg_label (arg_label_text.c_str ());
-		  r.add_range (arg_type_locus, SHOW_RANGE_WITHOUT_CARET,
-			       &arg_label);
-
-		  bool ambiguous = false;
-		  auto *trait_impl
-		    = lookup_associated_impl_block (bound, resolved_arg,
-						    &ambiguous);
-		  text_range_label trait_label (
-		    "this trait has no implementations, consider adding one");
-		  if (trait_impl == nullptr)
-		    r.add_range (trait_locus, SHOW_RANGE_WITHOUT_CARET,
-				 &trait_label);
-
-		  text_range_label bound_label (
-		    "unsatisfied trait bound introduced here");
-		  r.add_range (bound_locus, SHOW_RANGE_WITHOUT_CARET,
-			       &bound_label);
-
-		  rust_error_at (r, ErrorCode::E0277,
-				 "the trait bound %<%s: %s%> is not satisfied",
-				 resolved_arg->get_name ().c_str (),
-				 bound.get_name ().c_str ());
-		}
-	      return false;
-	    }
-	}
-    }
-
+  // FIXME: substitute and validate the impl item's predicates.
   return true;
 }
 
@@ -336,8 +263,7 @@ TraitResolver::resolve_trait (HIR::Trait *trait_reference)
     }
   rust_assert (self != nullptr);
 
-  // Check if there is a super-trait, and apply this bound to the Self
-  // TypeParam
+  // Resolve Self and supertrait predicates. Item ownership is not wired up yet.
   std::vector<TyTy::TypeBoundPredicate> specified_bounds;
 
   // copy the substitition mappings
@@ -347,8 +273,7 @@ TraitResolver::resolve_trait (HIR::Trait *trait_reference)
   for (auto &sub : substitutions)
     self_subst_copy.push_back (sub.clone ());
 
-  // They also inherit themselves as a bound this enables a trait item to
-  // reference other Self::trait_items
+  // Resolve the trait's own predicate, needed for Self::trait_items.
   specified_bounds.emplace_back (trait_reference->get_mappings ().get_defid (),
 				 std::move (self_subst_copy),
 				 BoundPolarity::RegularBound,
@@ -378,7 +303,7 @@ TraitResolver::resolve_trait (HIR::Trait *trait_reference)
 	    }
 	}
     }
-  self->inherit_bounds (specified_bounds);
+  // FIXME: retain Self and supertrait assumptions in item predicates.
 
   context->block_context ().enter (TypeCheckBlockContextItem (trait_reference));
   std::vector<TraitItemReference> item_refs;
@@ -514,11 +439,11 @@ TraitItemReference::resolve_item (const TraitReference *tref,
 
   context->insert_type (type.get_mappings (), projection);
 
-  // Attach the bounds declared on the associated type itself:
+  // Resolve the bounds declared on the associated type itself:
   //
   //     type IntoIter: Iterator<Item = Self::Item>
   //
-  // so satisfies_bound finds them in specified_bounds
+  // FIXME: retain these in item predicates for satisfies_bound.
   if (type.has_type_param_bounds ())
     {
       std::vector<TyTy::TypeBoundPredicate> trait_item_bounds;
@@ -535,8 +460,7 @@ TraitItemReference::resolve_item (const TraitReference *tref,
 	  if (!predicate.is_error ())
 	    trait_item_bounds.push_back (std::move (predicate));
 	}
-      if (!trait_item_bounds.empty ())
-	projection->inherit_bounds (trait_item_bounds);
+      // Type objects no longer own these predicates.
     }
 }
 

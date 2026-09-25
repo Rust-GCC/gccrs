@@ -229,9 +229,6 @@ TypeCheckType::visit (HIR::QualifiedPathInType &path)
   if (specified_bound.is_error ())
     return;
 
-  // inherit the bound
-  root->inherit_bound (specified_bound);
-
   // lookup the associated item from the specified bound
   HIR::TypePathSegment &item_seg = path.get_associated_segment ();
   HIR::PathIdentSegment item_seg_identifier = item_seg.get_ident_segment ();
@@ -684,9 +681,9 @@ TypeCheckType::visit (HIR::TraitObjectType &type)
 			   "no effect");
 
   RustIdent ident{CanonicalPath::create_empty (), type.get_locus ()};
+  // FIXME: retain the resolved predicates as structural trait-object metadata.
   translated
-    = new TyTy::DynamicObjectType (type.get_mappings ().get_hirid (), ident,
-				   std::move (specified_bounds));
+    = new TyTy::DynamicObjectType (type.get_mappings ().get_hirid (), ident);
 }
 
 void
@@ -837,9 +834,9 @@ TypeCheckType::visit (HIR::ImplTraitType &type)
 	specified_bounds.push_back (std::move (predicate));
     }
 
+  // FIXME: retain the resolved predicates on the opaque type's owning item.
   translated = new TyTy::OpaqueType (type.get_locus (),
-				     type.get_mappings ().get_hirid (),
-				     specified_bounds);
+				     type.get_mappings ().get_hirid ());
 }
 
 TyTy::ParamType *
@@ -893,7 +890,7 @@ TypeResolveGenericParam::visit (HIR::TypeParam &param)
   resolved = new TyTy::ParamType (param.get_type_representation ().as_string (),
 				  param.get_locus (),
 				  param.get_mappings ().get_hirid (),
-				  param.get_mappings ().get_hirid (), {});
+				  param.get_mappings ().get_hirid ());
 
   if (resolve_trait_bounds)
     apply_trait_bounds (param, resolved);
@@ -906,15 +903,13 @@ TypeResolveGenericParam::apply_trait_bounds (HIR::TypeParam &param,
   std::unique_ptr<HIR::Type> implicit_self_bound = nullptr;
   if (param.has_type_param_bounds ())
     {
-      // We need two possible parameter types. One with no Bounds and one with
-      // the bounds. the Self type for the bounds cannot itself contain the
-      // bounds otherwise it will be a trait cycle
+      // Preserve the synthetic Self parameter used during bound resolution.
+      // It shares the declaration identity with the source parameter.
       HirId implicit_id = mappings.get_next_hir_id ();
       TyTy::ParamType *p
 	= new TyTy::ParamType (param.get_type_representation ().as_string (),
 			       param.get_locus (), implicit_id,
-			       pty->get_decl_id (),
-			       {} /*empty specified bounds*/);
+			       pty->get_decl_id ());
       context->insert_implicit_type (implicit_id, p);
 
       // generate an implicit HIR Type we can apply to the predicate
@@ -1001,18 +996,7 @@ TypeResolveGenericParam::apply_trait_bounds (HIR::TypeParam &param,
 	}
     }
 
-  // now to flat map the specified_bounds into the raw specified predicates
-  std::vector<TyTy::TypeBoundPredicate> specified_bounds;
-  for (auto it = predicates.begin (); it != predicates.end (); it++)
-    {
-      for (const auto &predicate : it->second)
-	{
-	  specified_bounds.push_back (predicate);
-	}
-    }
-
-  // inherit them
-  pty->inherit_bounds (specified_bounds);
+  // FIXME: lower the resolved bounds, including Sized, into item predicates.
 }
 
 void
@@ -1176,26 +1160,8 @@ ResolveWhereClauseItem::visit (HIR::TypeBoundWhereClauseItem &item)
 	}
     }
 
-  for (const auto &predicate : specified_bounds)
-    {
-      bool replaced = false;
-      if (complete_bindings)
-	{
-	  for (auto &bound : binding->get_specified_bounds ())
-	    {
-	      if (bound.get_id () == predicate.get_id ()
-		  && bound.get_locus () == predicate.get_locus ())
-		{
-		  bound = predicate;
-		  replaced = true;
-		  break;
-		}
-	    }
-	}
-
-      if (!replaced)
-	binding->inherit_bound (predicate);
-    }
+  // FIXME: retain where-clause predicates on the owning item. Completing
+  // associated bindings must update those predicates, not the binding type.
 }
 
 } // namespace Resolver

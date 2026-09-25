@@ -297,13 +297,7 @@ TypeCheckItem::ResolveImplBlockSelfWithInference (
 
   TyTy::BaseType *infer = SubstMapperInternal::Resolve (self, *infer_arguments);
 
-  // we only need to apply to the bounds manually on types which dont bind
-  // generics
-  if (!infer->has_substitutions_defined ())
-    {
-      for (auto &bound : infer->get_specified_bounds ())
-	bound.handle_substitions (*infer_arguments);
-    }
+  // FIXME: substitute item predicates alongside these arguments.
 
   return infer;
 }
@@ -1111,10 +1105,8 @@ TypeCheckItem::resolve_trait (HIR::Trait &trait, bool resolve_bodies)
     trait_ref->resolve_default_function_bodies ();
 
   RustIdent ident{CanonicalPath::create_empty (), trait.get_locus ()};
-  return new TyTy::DynamicObjectType (
-    trait.get_mappings ().get_hirid (), ident,
-    {TyTy::TypeBoundPredicate (*trait_ref, BoundPolarity::RegularBound,
-			       trait.get_locus ())});
+  // FIXME: retain the trait predicate as structural trait-object metadata.
+  return new TyTy::DynamicObjectType (trait.get_mappings ().get_hirid (), ident);
 }
 
 void
@@ -1183,10 +1175,6 @@ TypeCheckItem::resolve_impl_block_substitutions (HIR::ImplBlock &impl_block,
       // fail and will work later on anyway
       return {substitutions, region_constraints};
     }
-
-  // inherit the bounds
-  if (!specified_bound.is_error ())
-    self->inherit_bound (specified_bound);
 
   // check for any unconstrained type-params
   const TyTy::SubstitutionArgumentMappings trait_constraints

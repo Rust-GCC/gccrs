@@ -185,11 +185,6 @@ SubstitutionParamMapping::fill_param_ty (
   Resolver::ScopedPush<std::pair<HirId, HirId>> guard (active_substs, subst_key,
 						       !is_recursive_subst);
 
-  if (type.get_kind () == TyTy::TypeKind::INFER)
-    {
-      type.inherit_bounds (*param);
-    }
-
   if (type.get_kind () == TypeKind::PARAM)
     {
       param = static_cast<BaseGeneric *> (type.clone ());
@@ -205,23 +200,7 @@ SubstitutionParamMapping::fill_param_ty (
     }
   else if (param->get_kind () == TypeKind::PARAM)
     {
-      auto &p = *static_cast<TyTy::ParamType *> (param);
-
-      // check the substitution is compatible with bounds
-      rust_debug_loc (locus,
-		      "fill_param_ty bounds_compatible: param %s type %s",
-		      param->get_name ().c_str (), type.get_name ().c_str ());
-      if (!skip_recursive_bounds && needs_bounds_check
-	  && !p.is_implicit_self_trait ())
-	{
-	  if (!param->bounds_compatible (type, locus, true))
-	    return false;
-	}
-
-      // recursively pass this down to all HRTB's
-      if (!skip_recursive_bounds)
-	for (auto &bound : param->get_specified_bounds ())
-	  bound.handle_substitions (subst_mappings);
+      // FIXME: substitute and check item predicates for this parameter.
 
       param->set_ty_ref (type.get_ref ());
     }
@@ -1130,40 +1109,8 @@ SubstitutionRef::solve_mappings_from_receiver_for_self (
 bool
 SubstitutionRef::monomorphize ()
 {
-  for (const auto &subst : get_substs ())
-    {
-      const auto pty = subst.get_param_ty ();
-      if (!pty->can_resolve ())
-	continue;
-
-      TyTy::BaseType *binding = pty->resolve ();
-      if (binding->get_kind () == TyTy::TypeKind::PARAM)
-	continue;
-
-      // For each where-clause bound on this fn-substitution param, find the
-      // impl block that satisfies the bound for binding and unify
-      // its signature against binding + bound. This pins inference
-      // variables that should be constrained
-      //
-      //   fn into_iter<I: Iterator> with binding = Range<{integer}>
-      //
-      // the only matching
-      //
-      //   <A: Step> Iterator for Range<A>
-      //
-      // Step for usize impl together force {integer} = usize instead of
-      // letting it default.
-      for (const auto &bound : pty->get_specified_bounds ())
-	{
-	  bool ambigious = false;
-	  auto associated
-	    = Resolver::lookup_associated_impl_block (bound, binding,
-						      &ambigious);
-	  if (associated != nullptr)
-	    associated->bind_impl_for_bound (binding, bound, UNKNOWN_LOCATION);
-	}
-    }
-
+  // FIXME: bind matching impls for substituted item predicates to constrain
+  // inference variables (for example, Iterator and Step bounds).
   return true;
 }
 

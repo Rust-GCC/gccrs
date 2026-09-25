@@ -647,8 +647,8 @@ TypeCheckContext::lookup_predicate (HirId id, TyTy::TypeBoundPredicate *result)
 std::vector<TyTy::TypeBoundPredicate>
 TypeCheckContext::predicates_for_type (const TyTy::BaseType *receiver) const
 {
-  std::vector<TyTy::TypeBoundPredicate> result
-    = receiver->get_specified_bounds ();
+  // FIXME: start with the current item's predicates for this receiver.
+  std::vector<TyTy::TypeBoundPredicate> result;
 
   for (const auto &entry : predicates)
     {

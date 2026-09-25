@@ -221,37 +221,7 @@ UnifyRules::go ()
   rust_debug ("unify::go ltype={%s} rtype={%s}", ltype->debug_str ().c_str (),
 	      rtype->debug_str ().c_str ());
 
-  if (check_bounds_flag)
-    {
-      bool ltype_is_placeholder
-	= ltype->get_kind () == TyTy::TypeKind::PLACEHOLDER;
-      bool rtype_is_placeholder
-	= rtype->get_kind () == TyTy::TypeKind::PLACEHOLDER;
-      bool types_equal = ltype->is_equal (*rtype);
-      bool should_check_bounds
-	= !types_equal && !(ltype_is_placeholder || rtype_is_placeholder);
-      if (should_check_bounds)
-	{
-	  if (ltype->num_specified_bounds () > 0)
-	    {
-	      if (!ltype->bounds_compatible (*rtype, locus, emit_error))
-		{
-		  // already emitted an error
-		  emit_error = false;
-		  return unify_error_type_node ();
-		}
-	    }
-	  else if (rtype->num_specified_bounds () > 0)
-	    {
-	      if (!rtype->bounds_compatible (*ltype, locus, emit_error))
-		{
-		  // already emitted an error
-		  emit_error = false;
-		  return unify_error_type_node ();
-		}
-	    }
-	}
-    }
+  // FIXME: when check_bounds_flag is set, check the relevant item predicates.
   if (infer_flag)
     {
       // an impl parameter can infer to Split<T, P> without requiring T and P to
@@ -2063,17 +2033,7 @@ UnifyRules::expect_dyn (TyTy::DynamicObjectType *ltype, TyTy::BaseType *rtype)
 
     case TyTy::DYNAMIC:
       {
-	TyTy::DynamicObjectType &type
-	  = *static_cast<TyTy::DynamicObjectType *> (rtype);
-	if (ltype->num_specified_bounds () != type.num_specified_bounds ())
-	  {
-	    return unify_error_type_node ();
-	  }
-
-	if (!ltype->bounds_compatible (type, locus, true))
-	  {
-	    return unify_error_type_node ();
-	  }
+	// FIXME: check structural trait-object predicates for compatibility.
 
 	return ltype;
       }

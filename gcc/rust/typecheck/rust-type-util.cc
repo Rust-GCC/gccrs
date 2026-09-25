@@ -663,14 +663,8 @@ normalize_projection (TyTy::ProjectionType *proj, location_t locus,
   if (!ctx->find_matching_impl_trait_frame (*proj->get_trait_ref (),
 					    *proj->get_self (), &frame))
     {
-      // No concrete impl frame check WHERE clause bindings on the self type
-      //
-      //   fn foo<T: Trait<AssocType = X>>()
-      //
-      // normalizes
-      //
-      //    <T as Trait>::AssocType -> X.
-
+      // FIXME: normalize associated bindings and constraints from item
+      // predicates, including bindings declared through supertraits.
       TyTy::BaseType *self = proj->get_self ()->destructure ();
       const DefId item_defid = proj->get_item_defid ();
 
@@ -682,50 +676,6 @@ normalize_projection (TyTy::ProjectionType *proj, location_t locus,
 	    {
 	      assoc_name = ti.get_identifier ();
 	      break;
-	    }
-	}
-
-      if (!assoc_name.empty ())
-	{
-	  for (auto &bound : self->get_specified_bounds ())
-	    {
-	      // The associated type can be declared on a supertrait of
-	      // a bound: see issue-4884
-	      //
-	      //    I: SplitIter<Item = T> binds Iterator2::Item,
-
-	      auto item = bound.lookup_associated_item (assoc_name);
-	      if (!item.has_value ())
-		continue;
-
-	      auto &item_val = item.value ();
-	      const auto raw_item = item_val.get_raw_item ();
-	      if (raw_item->get_mappings ().get_defid () != item_defid)
-		continue;
-
-	      const auto parent = item_val.get_parent ();
-	      const auto &arguments = parent->get_substitution_arguments ();
-	      const auto &binding = arguments.get_binding_args ();
-	      auto it = binding.find (assoc_name);
-	      if (it != binding.end ())
-		return it->second;
-
-	      const auto &constraints = arguments.get_constraint_args ();
-	      auto constraint = constraints.find (assoc_name);
-	      if (constraint != constraints.end ())
-		{
-		  TyTy::BaseType *constrained = proj->clone ();
-		  constrained->inherit_bounds (*constraint->second);
-
-		  // Keep the constrained projection distinct from the canonical
-		  // associated-type declaration.
-		  auto &mappings = Analysis::Mappings::get ();
-		  HirId fresh = mappings.get_next_hir_id ();
-		  constrained->set_ref (fresh);
-		  constrained->set_ty_ref (fresh);
-		  ctx->insert_implicit_type (fresh, constrained);
-		  return constrained;
-		}
 	    }
 	}
 

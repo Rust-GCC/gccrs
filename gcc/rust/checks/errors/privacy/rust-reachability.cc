@@ -43,25 +43,7 @@ ReachabilityVisitor::visit_generic_predicates (
   const std::vector<std::unique_ptr<HIR::GenericParam>> &generics,
   ReachLevel item_reach)
 {
-  if (item_reach == ReachLevel::Unreachable)
-    return;
-
-  for (const auto &generic : generics)
-    {
-      if (generic->get_kind () == HIR::GenericParam::GenericKind::TYPE)
-	{
-	  TyTy::BaseType *ty = nullptr;
-	  auto ok
-	    = ty_ctx.lookup_type (generic->get_mappings ().get_hirid (), &ty);
-	  rust_assert (ok);
-
-	  for (const auto &bound : ty->get_specified_bounds ())
-	    {
-	      const auto trait = bound.get ()->get_hir_trait_ref ();
-	      ctx.update_reachability (trait->get_mappings (), item_reach);
-	    }
-	}
-    }
+  // FIXME: mark traits referenced by the owning item's predicates reachable.
 }
 
 void

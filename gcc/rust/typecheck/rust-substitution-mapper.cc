@@ -63,13 +63,8 @@ SubstMapper::valid_type (TyTy::BaseType *base)
   bool is_placeholder = base->is<TyTy::PlaceholderType> ();
   bool is_projection = base->is<TyTy::ProjectionType> ();
 
-  // see gcc/testsuite/rust/compile/issue-4853.rs
-  if (auto *dyn = base->try_as<TyTy::DynamicObjectType> ())
-    {
-      auto &bounds = dyn->get_specified_bounds ();
-      if (bounds.size () == 1)
-	return bounds.at (0).requires_generic_args ();
-    }
+  // FIXME: recognize generic arguments in structural trait-object predicates
+  // (see gcc/testsuite/rust/compile/issue-4853.rs).
 
   return is_fn || is_adt || is_placeholder || is_projection;
 }
@@ -131,17 +126,9 @@ SubstMapper::visit (TyTy::ADTType &type)
 void
 SubstMapper::visit (TyTy::DynamicObjectType &type)
 {
-  rust_assert (have_generic_args ());
-  rust_assert (type.get_specified_bounds ().size () == 1);
-  rust_assert (type.get_specified_bounds ().at (0).requires_generic_args ());
-
-  TyTy::TypeBoundPredicate predicate = type.get_specified_bounds ().at (0);
-  predicate.apply_generic_arguments (generics, false, false);
-  if (predicate.is_error ())
-    return;
-
-  resolved = new TyTy::DynamicObjectType (type.get_ref (), type.get_ident (),
-					  {predicate});
+  // FIXME: substitute structural trait-object predicates.
+  rust_error_at (locus, "trait-object predicate substitution is not implemented");
+  resolved = new TyTy::ErrorType (type.get_ref ());
 }
 
 void

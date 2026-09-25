@@ -148,17 +148,8 @@ is_primitive_type_kind (TypeKind kind)
 
 BaseType::BaseType (HirId ref, HirId ty_ref, TypeKind kind, RustIdent ident,
 		    std::set<HirId> refs)
-  : TypeBoundsMappings ({}), kind (kind), ref (ref), ty_ref (ty_ref),
-    orig_ref (ref), combined (refs), ident (ident),
-    mappings (Analysis::Mappings::get ())
-{}
-
-BaseType::BaseType (HirId ref, HirId ty_ref, TypeKind kind, RustIdent ident,
-		    std::vector<TypeBoundPredicate> specified_bounds,
-		    std::set<HirId> refs)
-  : TypeBoundsMappings (std::move (specified_bounds)), kind (kind), ref (ref),
-    ty_ref (ty_ref), orig_ref (ref), combined (refs), ident (ident),
-    mappings (Analysis::Mappings::get ())
+  : kind (kind), ref (ref), ty_ref (ty_ref), orig_ref (ref), combined (refs),
+    ident (ident), mappings (Analysis::Mappings::get ())
 {}
 
 BaseType::~BaseType () {}
@@ -294,33 +285,8 @@ BaseType::unsize_to (const BaseType *target) const
   if (this->get_kind () == TyTy::TypeKind::DYNAMIC
       && target->get_kind () == TyTy::TypeKind::DYNAMIC)
     {
-      const auto *source_dyn = this->as<const TyTy::DynamicObjectType> ();
-      const auto *target_dyn = target->as<const TyTy::DynamicObjectType> ();
-
-      const auto &source_bounds = source_dyn->get_specified_bounds ();
-      const auto &target_bounds = target_dyn->get_specified_bounds ();
-
-      if (source_bounds.empty () || target_bounds.empty ())
-	return false;
-
-      if (source_bounds.at (0).get_id () != target_bounds.at (0).get_id ())
-	return false;
-
-      for (const auto &t_bound : target_dyn->get_specified_bounds ())
-	{
-	  bool found = false;
-	  for (const auto &s_bound : source_dyn->get_specified_bounds ())
-	    {
-	      if (s_bound.get_id () == t_bound.get_id ())
-		{
-		  found = true;
-		  break;
-		}
-	    }
-	  if (!found)
-	    return false;
-	}
-      return true;
+      // FIXME: compare structural trait-object predicates for unsizing.
+      return false;
     }
 
   // `T` -> `Trait`
@@ -384,12 +350,7 @@ BaseType::satisfies_bound (const TypeBoundPredicate &predicate, bool emit_error)
     }
 
   const Resolver::TraitReference *query = predicate.get ();
-  for (const auto &bound : specified_bounds)
-    {
-      const Resolver::TraitReference *item = bound.get ();
-      if (item->satisfies_bound (*query))
-	return true;
-    }
+  // FIXME: consult item predicates before probing impls.
 
   if (destructure ()->is<InferType> ())
     return true;
@@ -486,67 +447,6 @@ BaseType::satisfies_bound (const TypeBoundPredicate &predicate, bool emit_error)
     }
 
   return false;
-}
-
-bool
-BaseType::bounds_compatible (BaseType &other, location_t locus, bool emit_error)
-{
-  std::vector<std::reference_wrapper<const TypeBoundPredicate>>
-    unsatisfied_bounds;
-  for (auto &bound : get_specified_bounds ())
-    {
-      if (!other.satisfies_bound (bound, emit_error))
-	unsatisfied_bounds.push_back (bound);
-    }
-
-  // lets emit a single error for this
-  if (unsatisfied_bounds.size () > 0)
-    {
-      rich_location r (line_table, locus);
-      std::string missing_preds;
-      for (size_t i = 0; i < unsatisfied_bounds.size (); i++)
-	{
-	  const TypeBoundPredicate &pred = unsatisfied_bounds.at (i);
-	  r.add_range (pred.get_locus ());
-	  missing_preds += pred.get_name ();
-
-	  bool have_next = (i + 1) < unsatisfied_bounds.size ();
-	  if (have_next)
-	    missing_preds += ", ";
-	}
-
-      if (emit_error)
-	{
-	  rust_error_at (r, ErrorCode::E0277,
-			 "bounds not satisfied for %s %qs is not satisfied",
-			 other.get_name ().c_str (), missing_preds.c_str ());
-	  // rust_assert (!emit_error);
-	}
-    }
-
-  return unsatisfied_bounds.size () == 0;
-}
-
-void
-BaseType::inherit_bounds (const BaseType &other)
-{
-  inherit_bounds (other.get_specified_bounds ());
-}
-
-void
-BaseType::inherit_bound (const TypeBoundPredicate &bound)
-{
-  add_bound (bound);
-}
-
-void
-BaseType::inherit_bounds (
-  const std::vector<TyTy::TypeBoundPredicate> &specified_bounds)
-{
-  for (auto &bound : specified_bounds)
-    {
-      add_bound (bound);
-    }
 }
 
 BaseType *
@@ -814,7 +714,7 @@ std::string
 BaseType::debug_str () const
 {
   // return TypeKindFormat::to_string (get_kind ()) + ":" + as_string () + ":"
-  //        + mappings_str () + ":" + bounds_as_string ();
+  //        + mappings_str ();
   return get_name ();
 }
 
@@ -2752,8 +2652,7 @@ ClosureType::clone () const
 {
   return new ClosureType (get_ref (), get_ty_ref (), ident, id,
 			  (TyTy::TupleType *) parameters->clone (), result_type,
-			  clone_substs (), captures, get_combined_refs (),
-			  specified_bounds);
+			  clone_substs (), captures, get_combined_refs ());
 }
 
 ClosureType *
@@ -3742,24 +3641,21 @@ PointerType::handle_substitions (SubstitutionArgumentMappings &mappings)
 // PARAM Type
 
 ParamType::ParamType (std::string symbol, location_t locus, HirId ref,
-		      HirId decl_id,
-		      std::vector<TypeBoundPredicate> specified_bounds,
-		      std::set<HirId> refs)
+		      HirId decl_id, std::set<HirId> refs)
   : BaseGeneric (ref, ref, KIND,
 		 {Resolver::CanonicalPath::new_seg (UNKNOWN_NODEID, symbol),
 		  locus},
-		 std::move (specified_bounds), refs),
+		 refs),
     decl_id (decl_id), is_trait_self (false), symbol (symbol)
 {}
 
 ParamType::ParamType (bool is_trait_self, std::string symbol, location_t locus,
 		      HirId ref, HirId ty_ref, HirId decl_id,
-		      std::vector<TypeBoundPredicate> specified_bounds,
 		      std::set<HirId> refs)
   : BaseGeneric (ref, ty_ref, KIND,
 		 {Resolver::CanonicalPath::new_seg (UNKNOWN_NODEID, symbol),
 		  locus},
-		 std::move (specified_bounds), refs),
+		 refs),
     decl_id (decl_id), is_trait_self (is_trait_self), symbol (symbol)
 {}
 
@@ -3815,12 +3711,12 @@ ParamType::clone () const
   bool cycle = Resolver::ScopedPush<HirId>::contains (active, get_ty_ref ());
   if (cycle)
     return new ParamType (is_trait_self, get_symbol (), ident.locus, get_ref (),
-			  get_ty_ref (), get_decl_id (), {},
+			  get_ty_ref (), get_decl_id (),
 			  get_combined_refs ());
 
   Resolver::ScopedPush<HirId> guard (active, get_ty_ref ());
   return new ParamType (is_trait_self, get_symbol (), ident.locus, get_ref (),
-			get_ty_ref (), get_decl_id (), get_specified_bounds (),
+			get_ty_ref (), get_decl_id (),
 			get_combined_refs ());
 }
 
@@ -3939,7 +3835,7 @@ ConstParamType::ConstParamType (std::string symbol, location_t locus,
     BaseGeneric (ref, ty_ref, KIND,
 		 {Resolver::CanonicalPath::new_seg (UNKNOWN_NODEID, symbol),
 		  locus},
-		 {}, refs),
+		 refs),
     symbol (symbol)
 {}
 
@@ -4304,21 +4200,19 @@ ConstErrorType::is_equal (const BaseType &other) const
 // OpaqueType
 
 OpaqueType::OpaqueType (location_t locus, HirId ref,
-			std::vector<TypeBoundPredicate> specified_bounds,
 			std::set<HirId> refs)
   : BaseType (ref, ref, KIND,
 	      {Resolver::CanonicalPath::new_seg (UNKNOWN_NODEID, "impl"),
 	       locus},
-	      specified_bounds, refs)
+	      refs)
 {}
 
 OpaqueType::OpaqueType (location_t locus, HirId ref, HirId ty_ref,
-			std::vector<TypeBoundPredicate> specified_bounds,
 			std::set<HirId> refs)
   : BaseType (ref, ty_ref, KIND,
 	      {Resolver::CanonicalPath::new_seg (UNKNOWN_NODEID, "impl"),
 	       locus},
-	      specified_bounds, refs)
+	      refs)
 {}
 
 bool
@@ -4348,14 +4242,15 @@ OpaqueType::as_string () const
 std::string
 OpaqueType::get_name () const
 {
-  return "impl " + raw_bounds_as_name ();
+  // FIXME: format the declared opaque-type predicates.
+  return "impl";
 }
 
 BaseType *
 OpaqueType::clone () const
 {
   return new OpaqueType (ident.locus, get_ref (), get_ty_ref (),
-			 get_specified_bounds (), get_combined_refs ());
+			 get_combined_refs ());
 }
 
 BaseType *
@@ -4372,22 +4267,7 @@ OpaqueType::is_equal (const BaseType &other) const
   if (can_resolve () != other2.can_resolve ())
     return false;
 
-  if (num_specified_bounds () != other.num_specified_bounds ())
-    return false;
-
-  for (const auto &pred : specified_bounds)
-    {
-      bool found = false;
-      for (const auto &opred : other.get_specified_bounds ())
-	{
-	  found = pred.is_equal (opred);
-	  if (found)
-	    break;
-	}
-
-      if (!found)
-	return false;
-    }
+  // FIXME: compare the declared opaque-type predicates.
 
   return true;
 }
@@ -4704,7 +4584,6 @@ ProjectionType::clone () const
 			  item, clone_substs (), self->clone (), used_arguments,
 			  region_constraints, get_combined_refs (),
 			  num_trait_substitutions);
-  cloned->inherit_bounds (get_specified_bounds ());
   return cloned;
 }
 
@@ -4818,16 +4697,14 @@ ProjectionType::handle_substitions (
 
 // DynObjectType
 
-DynamicObjectType::DynamicObjectType (
-  HirId ref, RustIdent ident, std::vector<TypeBoundPredicate> specified_bounds,
-  std::set<HirId> refs)
-  : BaseType (ref, ref, KIND, ident, specified_bounds, refs)
+DynamicObjectType::DynamicObjectType (HirId ref, RustIdent ident,
+				    std::set<HirId> refs)
+  : BaseType (ref, ref, KIND, ident, refs)
 {}
 
-DynamicObjectType::DynamicObjectType (
-  HirId ref, HirId ty_ref, RustIdent ident,
-  std::vector<TypeBoundPredicate> specified_bounds, std::set<HirId> refs)
-  : BaseType (ref, ty_ref, KIND, ident, specified_bounds, refs)
+DynamicObjectType::DynamicObjectType (HirId ref, HirId ty_ref, RustIdent ident,
+				    std::set<HirId> refs)
+  : BaseType (ref, ty_ref, KIND, ident, refs)
 {}
 
 void
@@ -4845,20 +4722,21 @@ DynamicObjectType::accept_vis (TyConstVisitor &vis) const
 std::string
 DynamicObjectType::as_string () const
 {
-  return "dyn [" + raw_bounds_as_string () + "]";
+  return get_name ();
 }
 
 BaseType *
 DynamicObjectType::clone () const
 {
   return new DynamicObjectType (get_ref (), get_ty_ref (), ident,
-				specified_bounds, get_combined_refs ());
+				get_combined_refs ());
 }
 
 std::string
 DynamicObjectType::get_name () const
 {
-  return "dyn [" + raw_bounds_as_name () + "]";
+  // FIXME: format structural trait-object predicates.
+  return "dyn";
 }
 
 bool
@@ -4867,22 +4745,7 @@ DynamicObjectType::is_equal (const BaseType &other) const
   if (get_kind () != other.get_kind ())
     return false;
 
-  if (num_specified_bounds () != other.num_specified_bounds ())
-    return false;
-
-  for (const auto &pred : specified_bounds)
-    {
-      bool found = false;
-      for (const auto &opred : other.get_specified_bounds ())
-	{
-	  found = pred.is_equal (opred);
-	  if (found)
-	    break;
-	}
-
-      if (!found)
-	return false;
-    }
+  // FIXME: compare structural trait-object predicates.
 
   return true;
 }
@@ -4891,24 +4754,8 @@ const std::vector<
   std::pair<const Resolver::TraitItemReference *, const TypeBoundPredicate *>>
 DynamicObjectType::get_object_items () const
 {
-  std::vector<
-    std::pair<const Resolver::TraitItemReference *, const TypeBoundPredicate *>>
-    items;
-  for (const TypeBoundPredicate &bound : get_specified_bounds ())
-    {
-      const Resolver::TraitReference *trait = bound.get ();
-      std::vector<const Resolver::TraitItemReference *> trait_items;
-      trait->get_trait_items_and_supers (trait_items);
-
-      for (auto &item : trait_items)
-	{
-	  if (item->get_trait_item_type ()
-		== Resolver::TraitItemReference::TraitItemType::FN
-	      && item->is_object_safe ())
-	    items.emplace_back (item, &bound);
-	}
-    }
-  return items;
+  // FIXME: enumerate object-safe items from structural trait-object predicates.
+  return {};
 }
 
 WARN_UNUSED_RESULT tl::optional<BaseType *>

@@ -186,33 +186,7 @@ private:
   std::vector<TyTy::TypeBoundPredicate> super_traits;
 };
 
-class TypeBoundsMappings
-{
-protected:
-  TypeBoundsMappings (std::vector<TypeBoundPredicate> specified_bounds);
-
-public:
-  std::vector<TypeBoundPredicate> &get_specified_bounds ();
-
-  const std::vector<TypeBoundPredicate> &get_specified_bounds () const;
-
-  TypeBoundPredicate lookup_predicate (DefId id);
-
-  size_t num_specified_bounds () const;
-
-  std::string raw_bounds_as_string () const;
-
-  std::string bounds_as_string () const;
-
-  std::string raw_bounds_as_name () const;
-
-protected:
-  void add_bound (const TypeBoundPredicate &predicate);
-
-  std::vector<TypeBoundPredicate> specified_bounds;
-};
-
-class BaseType : public TypeBoundsMappings
+class BaseType
 {
 public:
   virtual ~BaseType ();
@@ -240,15 +214,6 @@ public:
   bool unsize_to (const BaseType *target) const;
 
   bool satisfies_bound (const TypeBoundPredicate &predicate, bool emit_error);
-
-  bool bounds_compatible (BaseType &other, location_t locus, bool emit_error);
-
-  void inherit_bounds (const BaseType &other);
-
-  void inherit_bound (const TypeBoundPredicate &bound);
-
-  void inherit_bounds (
-    const std::vector<TyTy::TypeBoundPredicate> &specified_bounds);
 
   // contains_infer checks if there is an inference variable inside the type
   const TyTy::BaseType *contains_infer () const;
@@ -299,7 +264,7 @@ public:
   std::string mangle_string () const
   {
     return TypeKindFormat::to_string (get_kind ()) + ":" + as_string () + ":"
-	   + mappings_str () + ":" + bounds_as_string ();
+	   + mappings_str ();
   }
 
   /* Returns a pointer to a clone of this. The caller is responsible for
@@ -373,10 +338,6 @@ protected:
   bool is_concrete (std::set<const TyTy::BaseType *> &visited) const;
 
   BaseType (HirId ref, HirId ty_ref, TypeKind kind, RustIdent ident,
-	    std::set<HirId> refs = std::set<HirId> ());
-
-  BaseType (HirId ref, HirId ty_ref, TypeKind kind, RustIdent ident,
-	    std::vector<TypeBoundPredicate> specified_bounds,
 	    std::set<HirId> refs = std::set<HirId> ());
 
   TypeKind kind;
@@ -504,9 +465,8 @@ public:
 
 protected:
   BaseGeneric (HirId ref, HirId ty_ref, TypeKind kind, RustIdent ident,
-	       std::vector<TypeBoundPredicate> specified_bounds,
 	       std::set<HirId> refs = std::set<HirId> ())
-    : BaseType (ref, ty_ref, kind, ident, std::move (specified_bounds), refs)
+    : BaseType (ref, ty_ref, kind, ident, refs)
   {}
 };
 
@@ -516,12 +476,10 @@ public:
   static constexpr auto KIND = TypeKind::PARAM;
 
   ParamType (std::string symbol, location_t locus, HirId ref, HirId decl_id,
-	     std::vector<TypeBoundPredicate> specified_bounds,
 	     std::set<HirId> refs = std::set<HirId> ());
 
   ParamType (bool is_trait_self, std::string symbol, location_t locus,
 	     HirId ref, HirId ty_ref, HirId decl_id,
-	     std::vector<TypeBoundPredicate> specified_bounds,
 	     std::set<HirId> refs = std::set<HirId> ());
 
   void accept_vis (TyVisitor &vis) override;
@@ -725,11 +683,9 @@ public:
   static constexpr auto KIND = TypeKind::OPAQUE;
 
   OpaqueType (location_t locus, HirId ref,
-	      std::vector<TypeBoundPredicate> specified_bounds,
 	      std::set<HirId> refs = std::set<HirId> ());
 
   OpaqueType (location_t locus, HirId ref, HirId ty_ref,
-	      std::vector<TypeBoundPredicate> specified_bounds,
 	      std::set<HirId> refs = std::set<HirId> ());
 
   void accept_vis (TyVisitor &vis) override;
@@ -1306,9 +1262,7 @@ public:
 	       TyVar result_type,
 	       std::vector<SubstitutionParamMapping> subst_refs,
 	       std::set<NodeId> captures,
-	       std::set<HirId> refs = std::set<HirId> (),
-	       std::vector<TypeBoundPredicate> specified_bounds
-	       = std::vector<TypeBoundPredicate> ())
+	       std::set<HirId> refs = std::set<HirId> ())
     : CallableTypeInterface (ref, ref, TypeKind::CLOSURE, ident, refs),
       SubstitutionRef (std::move (subst_refs),
 		       SubstitutionArgumentMappings::error (),
@@ -1318,16 +1272,13 @@ public:
   {
     LocalDefId local_def_id = id.localDefId;
     rust_assert (local_def_id != UNKNOWN_LOCAL_DEFID);
-    inherit_bounds (specified_bounds);
   }
 
   ClosureType (HirId ref, HirId ty_ref, RustIdent ident, DefId id,
 	       TupleType *parameters, TyVar result_type,
 	       std::vector<SubstitutionParamMapping> subst_refs,
 	       std::set<NodeId> captures,
-	       std::set<HirId> refs = std::set<HirId> (),
-	       std::vector<TypeBoundPredicate> specified_bounds
-	       = std::vector<TypeBoundPredicate> ())
+	       std::set<HirId> refs = std::set<HirId> ())
     : CallableTypeInterface (ref, ty_ref, TypeKind::CLOSURE, ident, refs),
       SubstitutionRef (std::move (subst_refs),
 		       SubstitutionArgumentMappings::error (), {}), // TODO
@@ -1336,7 +1287,6 @@ public:
   {
     LocalDefId local_def_id = id.localDefId;
     rust_assert (local_def_id != UNKNOWN_LOCAL_DEFID);
-    inherit_bounds (specified_bounds);
   }
 
   void accept_vis (TyVisitor &vis) override;
@@ -1672,11 +1622,9 @@ public:
   static constexpr auto KIND = TypeKind::DYNAMIC;
 
   DynamicObjectType (HirId ref, RustIdent ident,
-		     std::vector<TypeBoundPredicate> specified_bounds,
 		     std::set<HirId> refs = std::set<HirId> ());
 
   DynamicObjectType (HirId ref, HirId ty_ref, RustIdent ident,
-		     std::vector<TypeBoundPredicate> specified_bounds,
 		     std::set<HirId> refs = std::set<HirId> ());
 
   void accept_vis (TyVisitor &vis) override;

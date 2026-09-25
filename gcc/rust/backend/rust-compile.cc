@@ -319,23 +319,10 @@ HIRCompileBase::compute_address_for_trait_item (
       if (!receiver_matches)
 	continue;
 
-      // Look through the relevant bounds on our type, and find which one our
-      // impl block satisfies
-      TyTy::TypeBoundPredicate *self_bound = nullptr;
-      for (auto &bound : self->get_specified_bounds ())
-	{
-	  const Resolver::TraitReference *bound_ref = bound.get ();
-	  const Resolver::TraitReference *specified_ref = predicate->get ();
-	  // If this impl is for one of our types or supertypes
-	  if (specified_ref->satisfies_bound (*bound_ref))
-	    {
-	      self_bound = &bound;
-	      break;
-	    }
-	}
-
-      // This impl block doesn't help us
-      if (self_bound == nullptr)
+      // FIXME: match the impl's trait predicate against the required trait,
+      // including supertraits, without reading assumptions from its Self type.
+      bool impl_satisfies_predicate = false;
+      if (!impl_satisfies_predicate)
 	continue;
 
       // Find the specific function in the impl block that matches "ref".
