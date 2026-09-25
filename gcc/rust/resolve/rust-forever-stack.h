@@ -653,6 +653,24 @@ public:
 							      NodeId id);
 
   /**
+   * Insert a new non-shadowable definition in the innermost `Rib` in this
+   * stack. This is only useful for namespaces whose `insert` is shadowable,
+   * such as `Labels`: lifetime parameters live there but, unlike loop labels,
+   * may not be redefined within the same binder.
+   *
+   * @param name The name of the definition
+   * @param id Its NodeId
+   *
+   * @return `DuplicateNameError` if a definition of that name was already
+   * present in the Rib, the node's `NodeId` otherwise.
+   *
+   * @aborts if there are no `Rib`s inserted in the current map, this function
+   *         aborts the program.
+   */
+  tl::expected<NodeId, DuplicateNameError>
+  insert_non_shadowable (Identifier name, NodeId id);
+
+  /**
    * Insert a new glob-originated definition in the innermost `Rib` in this
    * stack
    *
