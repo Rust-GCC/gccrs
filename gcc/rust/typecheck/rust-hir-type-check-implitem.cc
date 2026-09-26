@@ -73,7 +73,8 @@ TypeCheckTopLevelExternItem::visit (HIR::ExternalFunctionItem &function)
   std::vector<TyTy::SubstitutionParamMapping> substitutions;
   if (function.has_generics ())
     {
-      resolve_generic_params (HIR::Item::ItemKind::Function,
+      resolve_generic_params (function.get_mappings ().get_defid (),
+			      HIR::Item::ItemKind::Function,
 			      function.get_locus (),
 			      function.get_generic_params (), substitutions,
 			      true /*is_foreign*/, parent.get_abi ());
@@ -243,7 +244,8 @@ TyTy::FnType *
 TypeCheckImplItem::resolve_function_signature (HIR::Function &function)
 {
   if (function.has_generics ())
-    resolve_generic_params (HIR::Item::ItemKind::Function,
+    resolve_generic_params (function.get_mappings ().get_defid (),
+			    HIR::Item::ItemKind::Function,
 			    function.get_locus (),
 			    function.get_generic_params (), substitutions);
 
@@ -492,7 +494,8 @@ TypeCheckImplItem::visit (HIR::TypeAlias &alias)
   auto binder_pin = context->push_lifetime_binder ();
 
   if (alias.has_generics ())
-    resolve_generic_params (HIR::Item::ItemKind::TypeAlias, alias.get_locus (),
+    resolve_generic_params (alias.get_mappings ().get_defid (),
+			    HIR::Item::ItemKind::TypeAlias, alias.get_locus (),
 			    alias.get_generic_params (), substitutions);
 
   TyTy::BaseType *actual_type
@@ -586,7 +589,8 @@ TypeCheckImplItemWithTrait::visit (HIR::TypeAlias &type)
   auto binder_pin = context->push_lifetime_binder ();
 
   if (type.has_generics ())
-    resolve_generic_params (HIR::Item::ItemKind::TypeAlias, type.get_locus (),
+    resolve_generic_params (type.get_mappings ().get_defid (),
+			    HIR::Item::ItemKind::TypeAlias, type.get_locus (),
 			    type.get_generic_params (), substitutions);
 
   // normal resolution of the item

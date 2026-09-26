@@ -208,6 +208,7 @@ TraitResolver::resolve_trait (HIR::Trait *trait_reference)
 
   TraitQueryGuard guard (trait_id);
   TyTy::BaseType *self = nullptr;
+  TyTy::PredicateSet item_predicates;
   std::vector<TyTy::SubstitutionParamMapping> substitutions;
 
   auto lifetime_pin = context->push_clean_lifetime_resolver ();
@@ -243,7 +244,8 @@ TraitResolver::resolve_trait (HIR::Trait *trait_reference)
 	    // The one exception is the implicit Self type of a trait
 	    bool apply_sized = !is_self;
 	    auto param_type
-	      = TypeResolveGenericParam::Resolve (*generic_param, true,
+	      = TypeResolveGenericParam::Resolve (*generic_param,
+						  item_predicates, true,
 						  apply_sized);
 
 	    context->insert_type (generic_param->get_mappings (), param_type);
@@ -262,6 +264,7 @@ TraitResolver::resolve_trait (HIR::Trait *trait_reference)
 	}
     }
   rust_assert (self != nullptr);
+  context->get_item_predicate_slot (trait_id) = std::move (item_predicates);
 
   // Resolve Self and supertrait predicates. Item ownership is not wired up yet.
   std::vector<TyTy::TypeBoundPredicate> specified_bounds;
@@ -423,7 +426,8 @@ TraitItemReference::resolve_item (const TraitReference *tref,
     {
       binder_pin.emplace (*context,
 			  TypeCheckContext::LifetimeResolverGuard::BINDER);
-      TypeCheckBase::ResolveGenericParams (HIR::Item::ItemKind::TypeAlias,
+      TypeCheckBase::ResolveGenericParams (type.get_mappings ().get_defid (),
+					   HIR::Item::ItemKind::TypeAlias,
 					   type.get_locus (),
 					   type.get_generic_params (),
 					   substitutions, false, ABI::RUST);

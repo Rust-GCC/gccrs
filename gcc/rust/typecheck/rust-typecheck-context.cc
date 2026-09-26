@@ -632,6 +632,24 @@ TypeCheckContext::insert_resolved_predicate (
   predicates.emplace (id, predicate);
 }
 
+TyTy::PredicateSet &
+TypeCheckContext::get_item_predicate_slot (DefId owner)
+{
+  rust_assert (owner.crateNum != UNKNOWN_CRATENUM);
+  rust_assert (owner.localDefId != UNKNOWN_LOCAL_DEFID);
+  return item_predicates[owner];
+}
+
+tl::optional<const TyTy::PredicateSet *>
+TypeCheckContext::lookup_item_predicates (DefId owner) const
+{
+  auto it = item_predicates.find (owner);
+  if (it == item_predicates.end ())
+    return tl::nullopt;
+
+  return &it->second;
+}
+
 bool
 TypeCheckContext::lookup_predicate (HirId id, TyTy::TypeBoundPredicate *result)
 {

@@ -314,6 +314,11 @@ public:
   std::vector<TyTy::TypeBoundPredicate>
   predicates_for_type (const TyTy::BaseType *receiver) const;
 
+  TyTy::PredicateSet &get_item_predicate_slot (DefId owner);
+
+  tl::optional<const TyTy::PredicateSet *>
+  lookup_item_predicates (DefId owner) const;
+
   void insert_query (HirId id);
   void query_completed (HirId id);
   bool query_in_progress (HirId id) const;
@@ -386,8 +391,11 @@ private:
   // unconstrained type-params check
   std::map<HirId, bool> unconstrained;
 
-  // predicates
+  // Resolved trait-path cache.
   std::map<HirId, TyTy::TypeBoundPredicate> predicates;
+
+  // Item assumptions.
+  std::map<DefId, TyTy::PredicateSet> item_predicates;
 
   // query context lookups
   std::set<HirId> querys_in_progress;

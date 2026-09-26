@@ -841,9 +841,11 @@ TypeCheckType::visit (HIR::ImplTraitType &type)
 
 TyTy::ParamType *
 TypeResolveGenericParam::Resolve (HIR::GenericParam &param,
+				  TyTy::PredicateSet &item_predicates,
 				  bool resolve_trait_bounds, bool apply_sized)
 {
-  TypeResolveGenericParam resolver (apply_sized, resolve_trait_bounds);
+  TypeResolveGenericParam resolver (item_predicates, apply_sized,
+				    resolve_trait_bounds);
   switch (param.get_kind ())
     {
     case HIR::GenericParam::GenericKind::TYPE:
@@ -862,10 +864,11 @@ TypeResolveGenericParam::Resolve (HIR::GenericParam &param,
 }
 
 void
-TypeResolveGenericParam::ApplyAnyTraitBounds (HIR::TypeParam &param,
-					      TyTy::ParamType *pty)
+TypeResolveGenericParam::ApplyAnyTraitBounds (
+  HIR::TypeParam &param, TyTy::ParamType *pty,
+  TyTy::PredicateSet &item_predicates)
 {
-  TypeResolveGenericParam resolver (true, true);
+  TypeResolveGenericParam resolver (item_predicates, true, true);
   resolver.apply_trait_bounds (param, pty);
 }
 
@@ -996,7 +999,9 @@ TypeResolveGenericParam::apply_trait_bounds (HIR::TypeParam &param,
 	}
     }
 
-  // FIXME: lower the resolved bounds, including Sized, into item predicates.
+  for (const auto &entry : predicates)
+    for (const auto &bound : entry.second)
+      item_predicates.add (pty, bound);
 }
 
 void

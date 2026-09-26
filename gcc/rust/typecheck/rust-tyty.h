@@ -186,6 +186,34 @@ private:
   std::vector<TyTy::TypeBoundPredicate> super_traits;
 };
 
+struct TraitPredicate
+{
+  TraitPredicate (BaseType *self, const TypeBoundPredicate &bound)
+    : self (self), bound (bound)
+  {
+    rust_assert (self != nullptr);
+  }
+
+  BaseType *self; // Non-owning.
+  TypeBoundPredicate bound;
+};
+
+class PredicateSet
+{
+public:
+  void add (BaseType *self, const TypeBoundPredicate &bound);
+
+  std::vector<TypeBoundPredicate *> specified_bounds_for (const BaseType *self);
+
+  const std::vector<TraitPredicate> &get_trait_predicates () const
+  {
+    return predicates;
+  }
+
+private:
+  std::vector<TraitPredicate> predicates;
+};
+
 class BaseType
 {
 public:

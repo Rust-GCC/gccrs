@@ -397,6 +397,40 @@ TypeCheckBase::get_predicate_from_bound (
 
 namespace TyTy {
 
+void
+PredicateSet::add (BaseType *self, const TypeBoundPredicate &bound)
+{
+  predicates.emplace_back (self, bound);
+}
+
+std::vector<TypeBoundPredicate *>
+PredicateSet::specified_bounds_for (const BaseType *self)
+{
+  // Subjects can be any type:
+  //   T: Clone           -> subject T
+  //   Wrapper<T>: Clone  -> subject Wrapper<T>
+  //   I::Item: Display   -> subject I::Item
+  // FIXME: Match equivalent ADT/projection subjects across copies too.
+  // Compatibility allows inference, and is_equal can compare parameters by
+  // name; neither preserves the subject identity required for assumptions.
+  std::vector<TypeBoundPredicate *> result;
+  const auto *param = self->try_as<const ParamType> ();
+  for (auto &predicate : predicates)
+    {
+      bool same_subject = predicate.self == self;
+      if (!same_subject && param != nullptr)
+	{
+	  const auto *subject_param = predicate.self->try_as<const ParamType> ();
+	  same_subject = subject_param != nullptr
+			 && param->get_decl_id () != UNKNOWN_HIRID
+			 && param->get_decl_id () == subject_param->get_decl_id ();
+	}
+      if (same_subject)
+	result.push_back (&predicate.bound);
+    }
+  return result;
+}
+
 TypeBoundPredicate::TypeBoundPredicate (
   const Resolver::TraitReference &trait_reference, BoundPolarity polarity,
   location_t locus)

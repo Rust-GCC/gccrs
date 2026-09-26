@@ -36,13 +36,13 @@ TypeCheckBase::TypeCheckBase ()
 
 void
 TypeCheckBase::ResolveGenericParams (
-  const HIR::Item::ItemKind item_kind, location_t item_locus,
+  DefId owner, const HIR::Item::ItemKind item_kind, location_t item_locus,
   const std::vector<std::unique_ptr<HIR::GenericParam>> &generic_params,
   std::vector<TyTy::SubstitutionParamMapping> &substitutions, bool is_foreign,
   ABI abi)
 {
   TypeCheckBase ctx;
-  ctx.resolve_generic_params (item_kind, item_locus, generic_params,
+  ctx.resolve_generic_params (owner, item_kind, item_locus, generic_params,
 			      substitutions, is_foreign, abi);
 }
 
@@ -645,11 +645,13 @@ TypeCheckBase::parse_repr_options (const AST::AttrVec &attrs, location_t locus)
 
 void
 TypeCheckBase::resolve_generic_params (
-  const HIR::Item::ItemKind item_kind, location_t item_locus,
+  DefId owner, const HIR::Item::ItemKind item_kind, location_t item_locus,
   const std::vector<std::unique_ptr<HIR::GenericParam>> &generic_params,
   std::vector<TyTy::SubstitutionParamMapping> &substitutions, bool is_foreign,
   ABI abi)
 {
+  TyTy::PredicateSet item_predicates;
+  size_t inherited_count = substitutions.size ();
   for (auto &generic_param : generic_params)
     {
       switch (generic_param->get_kind ())
@@ -753,7 +755,7 @@ TypeCheckBase::resolve_generic_params (
 	      }
 
 	    auto param_type = TypeResolveGenericParam::Resolve (
-	      *generic_param, false /*resolve_trait_bounds*/);
+	      *generic_param, item_predicates, false /*resolve_trait_bounds*/);
 	    context->insert_type (generic_param->get_mappings (), param_type);
 
 	    TyTy::SubstitutionParamMapping p (*generic_param, param_type);
@@ -763,9 +765,10 @@ TypeCheckBase::resolve_generic_params (
 	}
     }
 
-  // now walk them to setup any specified type param bounds
-  for (auto &subst : substitutions)
+  // Inherited predicates are collected separately from this item's bounds.
+  for (size_t i = inherited_count; i < substitutions.size (); ++i)
     {
+      auto &subst = substitutions[i];
       auto &generic = subst.get_generic_param ();
       if (generic.get_kind () != HIR::GenericParam::GenericKind::TYPE)
 	continue;
@@ -775,10 +778,13 @@ TypeCheckBase::resolve_generic_params (
       rust_assert (bpty->get_kind () == TyTy::TypeKind::PARAM);
       auto pty = static_cast<TyTy::ParamType *> (bpty);
 
-      TypeResolveGenericParam::ApplyAnyTraitBounds (type_param, pty);
+      TypeResolveGenericParam::ApplyAnyTraitBounds (type_param, pty,
+						    item_predicates);
 
       // FIXME: check the Drop-bound lint against the item predicates.
     }
+
+  context->get_item_predicate_slot (owner) = std::move (item_predicates);
 }
 
 TyTy::TypeBoundPredicate
