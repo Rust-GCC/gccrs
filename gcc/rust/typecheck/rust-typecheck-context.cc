@@ -640,6 +640,16 @@ TypeCheckContext::get_item_predicate_slot (DefId owner)
   return item_predicates[owner];
 }
 
+tl::optional<TyTy::PredicateSet *>
+TypeCheckContext::lookup_item_predicates (DefId owner)
+{
+  auto it = item_predicates.find (owner);
+  if (it == item_predicates.end ())
+    return tl::nullopt;
+
+  return &it->second;
+}
+
 tl::optional<const TyTy::PredicateSet *>
 TypeCheckContext::lookup_item_predicates (DefId owner) const
 {
@@ -648,6 +658,26 @@ TypeCheckContext::lookup_item_predicates (DefId owner) const
     return tl::nullopt;
 
   return &it->second;
+}
+
+tl::optional<TyTy::PredicateSet *>
+TypeCheckContext::get_current_predicates ()
+{
+  if (item_predicate_stack.empty ())
+    return tl::nullopt;
+
+  return lookup_item_predicates (item_predicate_stack.back ());
+}
+
+ItemPredicateGuard::ItemPredicateGuard (DefId owner)
+  : ctx (*TypeCheckContext::get ())
+{
+  ctx.item_predicate_stack.push_back (owner);
+}
+
+ItemPredicateGuard::~ItemPredicateGuard ()
+{
+  ctx.item_predicate_stack.pop_back ();
 }
 
 bool

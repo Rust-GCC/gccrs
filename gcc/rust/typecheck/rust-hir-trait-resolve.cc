@@ -207,6 +207,7 @@ TraitResolver::resolve_trait (HIR::Trait *trait_reference)
     }
 
   TraitQueryGuard guard (trait_id);
+  ItemPredicateGuard predicate_guard (trait_id);
   TyTy::BaseType *self = nullptr;
   TyTy::PredicateSet item_predicates;
   std::vector<TyTy::SubstitutionParamMapping> substitutions;
@@ -364,6 +365,7 @@ TraitResolver::lookup_path (HIR::TypePath &path)
 void
 TraitItemReference::on_resolved (const TraitReference *tref)
 {
+  ItemPredicateGuard predicate_guard (get_mappings ().get_defid ());
   switch (type)
     {
     case CONST:
@@ -394,6 +396,7 @@ TraitItemReference::resolve_default_function_body (const TraitReference *tref)
   if (type != FN || !is_optional ())
     return;
 
+  ItemPredicateGuard predicate_guard (get_mappings ().get_defid ());
   auto &func = static_cast<HIR::TraitItemFunc &> (*hir_trait_item);
   TyTy::BaseType *item_tyty = get_tyty ();
   if (item_tyty->get_kind () != TyTy::TypeKind::FNDEF)

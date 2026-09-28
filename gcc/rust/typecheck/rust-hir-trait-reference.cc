@@ -80,6 +80,7 @@ TraitItemReference::get_tyty () const
       && context->lookup_type (get_mappings ().get_hirid (), &resolved))
     return resolved;
 
+  ItemPredicateGuard predicate_guard (get_mappings ().get_defid ());
   switch (type)
     {
     case CONST:

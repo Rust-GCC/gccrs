@@ -51,6 +51,7 @@ TypeCheckTopLevelExternItem::Resolve (HIR::ExternalItem &item,
   if (already_resolved)
     return resolved;
 
+  ItemPredicateGuard predicate_guard (item.get_mappings ().get_defid ());
   TypeCheckTopLevelExternItem resolver (parent);
   item.accept_vis (resolver);
   return resolver.resolved;
@@ -217,6 +218,7 @@ TypeCheckImplItem::Resolve (
     }
 
   // resolve
+  ItemPredicateGuard predicate_guard (item.get_impl_mappings ().get_defid ());
   TypeCheckImplItem resolver (parent, self, substitutions);
   resolver.context->block_context ().enter (
     TypeCheckBlockContextItem (&parent));
@@ -231,6 +233,7 @@ TypeCheckImplItem::ResolveFunctionSignature (
   HIR::ImplBlock &parent, HIR::Function &function, TyTy::BaseType *self,
   std::vector<TyTy::SubstitutionParamMapping> substitutions)
 {
+  ItemPredicateGuard predicate_guard (function.get_mappings ().get_defid ());
   TypeCheckImplItem resolver (parent, self, std::move (substitutions));
   auto binder_pin = resolver.context->push_lifetime_binder ();
   resolver.context->block_context ().enter (
@@ -539,6 +542,7 @@ TypeCheckImplItemWithTrait::Resolve (
   TyTy::TypeBoundPredicate &trait_reference,
   std::vector<TyTy::SubstitutionParamMapping> substitutions)
 {
+  ItemPredicateGuard predicate_guard (item.get_impl_mappings ().get_defid ());
   TypeCheckImplItemWithTrait resolver (parent, self, trait_reference,
 				       substitutions);
   item.accept_vis (resolver);

@@ -186,6 +186,7 @@ TypeCheckItem::Resolve (HIR::Item &item)
   rust_assert (item.get_hir_kind () == HIR::Node::BaseKind::VIS_ITEM);
   HIR::VisItem &vis_item = static_cast<HIR::VisItem &> (item);
 
+  ItemPredicateGuard predicate_guard (item.get_mappings ().get_defid ());
   TypeCheckItem resolver;
   vis_item.accept_vis (resolver);
   return resolver.infered;
@@ -194,6 +195,7 @@ TypeCheckItem::Resolve (HIR::Item &item)
 TyTy::FnType *
 TypeCheckItem::ResolveFunctionSignature (HIR::Function &function)
 {
+  ItemPredicateGuard predicate_guard (function.get_mappings ().get_defid ());
   TypeCheckItem resolver;
   auto lifetime_pin = resolver.context->push_clean_lifetime_resolver ();
   TyTy::FnType *result = resolver.resolve_function_signature (function);
@@ -205,6 +207,7 @@ TypeCheckItem::ResolveFunctionSignature (HIR::Function &function)
 TyTy::BaseType *
 TypeCheckItem::ResolveTraitSignature (HIR::Trait &trait)
 {
+  ItemPredicateGuard predicate_guard (trait.get_mappings ().get_defid ());
   TypeCheckItem resolver;
   return resolver.resolve_trait (trait, false);
 }
@@ -1162,6 +1165,7 @@ std::pair<std::vector<TyTy::SubstitutionParamMapping>, TyTy::RegionConstraints>
 TypeCheckItem::resolve_impl_block_substitutions (HIR::ImplBlock &impl_block,
 						 bool &failure_flag)
 {
+  ItemPredicateGuard predicate_guard (impl_block.get_mappings ().get_defid ());
   std::vector<TyTy::SubstitutionParamMapping> substitutions;
   TyTy::PredicateSet item_predicates;
   if (impl_block.has_generics ())
@@ -1216,6 +1220,7 @@ TypeCheckItem::resolve_impl_block_substitutions (HIR::ImplBlock &impl_block,
 TyTy::BaseType *
 TypeCheckItem::resolve_impl_block_self (HIR::ImplBlock &impl_block)
 {
+  ItemPredicateGuard predicate_guard (impl_block.get_mappings ().get_defid ());
   return TypeCheckType::Resolve (impl_block.get_type ());
 }
 

@@ -316,8 +316,12 @@ public:
 
   TyTy::PredicateSet &get_item_predicate_slot (DefId owner);
 
+  tl::optional<TyTy::PredicateSet *> lookup_item_predicates (DefId owner);
+
   tl::optional<const TyTy::PredicateSet *>
   lookup_item_predicates (DefId owner) const;
+
+  tl::optional<TyTy::PredicateSet *> get_current_predicates ();
 
   void insert_query (HirId id);
   void query_completed (HirId id);
@@ -352,6 +356,8 @@ public:
   bool const_context_p (void) { return (const_context > 0); }
 
 private:
+  friend class ItemPredicateGuard;
+
   TypeCheckContext ();
 
   bool compute_infer_var (HirId id, TyTy::BaseType *ty, bool emit_error);
@@ -396,6 +402,7 @@ private:
 
   // Item assumptions.
   std::map<DefId, TyTy::PredicateSet> item_predicates;
+  std::vector<DefId> item_predicate_stack;
 
   // query context lookups
   std::set<HirId> querys_in_progress;
@@ -635,6 +642,19 @@ public:
 private:
   std::vector<T> &stack;
   bool enabled;
+};
+
+class ItemPredicateGuard
+{
+public:
+  explicit ItemPredicateGuard (DefId owner);
+  ~ItemPredicateGuard ();
+
+  ItemPredicateGuard (const ItemPredicateGuard &) = delete;
+  ItemPredicateGuard &operator= (const ItemPredicateGuard &) = delete;
+
+private:
+  TypeCheckContext &ctx;
 };
 
 class ImplTraitFrameGuard
