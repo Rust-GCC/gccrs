@@ -410,25 +410,212 @@ PredicateSet::specified_bounds_for (const BaseType *self)
   //   T: Clone           -> subject T
   //   Wrapper<T>: Clone  -> subject Wrapper<T>
   //   I::Item: Display   -> subject I::Item
-  // FIXME: Match equivalent ADT/projection subjects across copies too.
-  // Compatibility allows inference, and is_equal can compare parameters by
-  // name; neither preserves the subject identity required for assumptions.
   std::vector<TypeBoundPredicate *> result;
-  const auto *param = self->try_as<const ParamType> ();
   for (auto &predicate : predicates)
     {
-      bool same_subject = predicate.self == self;
-      if (!same_subject && param != nullptr)
-	{
-	  const auto *subject_param = predicate.self->try_as<const ParamType> ();
-	  same_subject = subject_param != nullptr
-			 && param->get_decl_id () != UNKNOWN_HIRID
-			 && param->get_decl_id () == subject_param->get_decl_id ();
-	}
-      if (same_subject)
+      if (same_subject (predicate.self, self))
 	result.push_back (&predicate.bound);
     }
   return result;
+}
+
+// A generic argument is recorded by binding its declared param slot to the
+// argument (or, for a param argument, replacing the slot with that param).
+// Follow only that binding: a rigid param resolves to itself, and placeholder
+// or opaque resolutions are never followed.
+static const BaseType *
+follow_substituted_slot (const BaseType *ty)
+{
+  if (const auto *param = ty->try_as<const ParamType> ())
+    return param->can_resolve () ? param->resolve () : ty;
+
+  if (ty->get_kind () == TypeKind::CONST)
+    {
+      const auto *const_type = ty->as_const_type ();
+      bool is_const_param
+	= const_type->const_kind () == BaseConstType::ConstKind::Decl;
+      if (is_const_param)
+	{
+	  const auto *decl = static_cast<const ConstParamType *> (const_type);
+	  return decl->can_resolve () ? decl->resolve () : ty;
+	}
+    }
+
+  return ty;
+}
+
+// ADTs and projections both record their effective generic arguments in
+// their substitution slots, positionally. Lifetimes live outside the slots
+// and are ignored.
+static bool
+same_generic_args (const SubstitutionRef &a, const SubstitutionRef &b)
+{
+  const auto &a_substs = a.get_substs ();
+  const auto &b_substs = b.get_substs ();
+  if (a_substs.size () != b_substs.size ())
+    return false;
+
+  for (size_t i = 0; i < a_substs.size (); i++)
+    {
+      if (!same_subject (a_substs.at (i).get_param_ty (),
+			 b_substs.at (i).get_param_ty ()))
+	return false;
+    }
+  return true;
+}
+
+static bool
+same_const (const BaseType *a, const BaseType *b)
+{
+  const auto *ca = a->as_const_type ();
+  const auto *cb = b->as_const_type ();
+  if (ca->const_kind () != cb->const_kind ())
+    return false;
+
+  switch (ca->const_kind ())
+    {
+    case BaseConstType::ConstKind::Decl:
+      {
+	HirId decl = static_cast<const ConstParamType *> (ca)->get_decl_id ();
+	bool known_decl = decl != UNKNOWN_HIRID;
+	return known_decl
+	       && decl
+		    == static_cast<const ConstParamType *> (cb)->get_decl_id ();
+      }
+
+    case BaseConstType::ConstKind::Value:
+      return a->is_equal (*b);
+
+    case BaseConstType::ConstKind::Infer:
+      return a->get_ref () == b->get_ref ();
+
+    case BaseConstType::ConstKind::Error:
+      return false;
+    }
+  return false;
+}
+
+bool
+same_subject (const BaseType *a, const BaseType *b)
+{
+  a = follow_substituted_slot (a);
+  b = follow_substituted_slot (b);
+
+  bool either_error = a->get_kind () == TypeKind::ERROR
+		      || b->get_kind () == TypeKind::ERROR;
+  if (either_error)
+    return false;
+
+  if (a == b)
+    return true;
+
+  if (a->get_kind () != b->get_kind ())
+    return false;
+
+  switch (a->get_kind ())
+    {
+    case TypeKind::INFER:
+      // Only the same inference variable; never guess what it will become.
+      return a->get_ref () == b->get_ref ();
+
+    case TypeKind::PARAM:
+      {
+	HirId decl = a->as<const ParamType> ()->get_decl_id ();
+	bool known_decl = decl != UNKNOWN_HIRID;
+	return known_decl && decl == b->as<const ParamType> ()->get_decl_id ();
+      }
+
+    case TypeKind::CONST:
+      return same_const (a, b);
+
+    case TypeKind::ADT:
+      {
+	const auto *aa = a->as<const ADTType> ();
+	const auto *ab = b->as<const ADTType> ();
+	return aa->get_id () == ab->get_id () && same_generic_args (*aa, *ab);
+      }
+
+    case TypeKind::PROJECTION:
+      {
+	const auto *pa = a->as<const ProjectionType> ();
+	const auto *pb = b->as<const ProjectionType> ();
+
+	const auto *trait_a = pa->get_trait_ref ();
+	const auto *trait_b = pb->get_trait_ref ();
+	bool same_trait
+	  = trait_a != nullptr && trait_b != nullptr
+	    && trait_a->get_mappings ().get_defid ()
+		 == trait_b->get_mappings ().get_defid ();
+	bool same_item = pa->get_item_defid () == pb->get_item_defid ();
+	bool same_position = pa->is_trait_position () == pb->is_trait_position ();
+	bool has_selves = pa->get_self () != nullptr && pb->get_self () != nullptr;
+
+	return same_trait && same_item && same_position && has_selves
+	       && same_subject (pa->get_self (), pb->get_self ())
+	       && same_generic_args (*pa, *pb);
+      }
+
+    case TypeKind::REF:
+      {
+	const auto *ra = a->as<const ReferenceType> ();
+	const auto *rb = b->as<const ReferenceType> ();
+	return ra->mutability () == rb->mutability ()
+	       && same_subject (ra->get_base (), rb->get_base ());
+      }
+
+    case TypeKind::POINTER:
+      {
+	const auto *pa = a->as<const PointerType> ();
+	const auto *pb = b->as<const PointerType> ();
+	return pa->mutability () == pb->mutability ()
+	       && same_subject (pa->get_base (), pb->get_base ());
+      }
+
+    case TypeKind::SLICE:
+      return same_subject (a->as<const SliceType> ()->get_element_type (),
+			   b->as<const SliceType> ()->get_element_type ());
+
+    case TypeKind::ARRAY:
+      {
+	const auto *aa = a->as<const ArrayType> ();
+	const auto *ab = b->as<const ArrayType> ();
+	return same_subject (aa->get_element_type (), ab->get_element_type ())
+	       && same_subject (aa->get_capacity (), ab->get_capacity ());
+      }
+
+    case TypeKind::TUPLE:
+      {
+	const auto *ta = a->as<const TupleType> ();
+	const auto *tb = b->as<const TupleType> ();
+	if (ta->num_fields () != tb->num_fields ())
+	  return false;
+
+	for (size_t i = 0; i < ta->num_fields (); i++)
+	  {
+	    if (!same_subject (ta->get_field (i), tb->get_field (i)))
+	      return false;
+	  }
+	return true;
+      }
+
+    // Leaf kinds: is_equal is an exact comparison for these.
+    case TypeKind::BOOL:
+    case TypeKind::CHAR:
+    case TypeKind::INT:
+    case TypeKind::UINT:
+    case TypeKind::FLOAT:
+    case TypeKind::USIZE:
+    case TypeKind::ISIZE:
+    case TypeKind::STR:
+    case TypeKind::NEVER:
+      return a->is_equal (*b);
+
+    // Not supported yet: only the identical object matches (handled above).
+    // Structural matching of these needs its own rules (dyn/opaque bounds,
+    // closure identity, fn signatures, placeholders).
+    default:
+      return false;
+    }
 }
 
 TypeBoundPredicate::TypeBoundPredicate (

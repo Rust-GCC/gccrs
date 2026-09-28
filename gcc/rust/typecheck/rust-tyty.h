@@ -214,6 +214,10 @@ private:
   std::vector<TraitPredicate> predicates;
 };
 
+// Match predicate subjects without inference or projection normalization.
+// Parameters match by declaration identity; lifetimes are ignored.
+bool same_subject (const BaseType *a, const BaseType *b);
+
 class BaseType
 {
 public:
