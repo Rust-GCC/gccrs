@@ -170,9 +170,10 @@ TraitItemReference::get_type_from_fn (/*const*/ HIR::TraitItemFunc &fn) const
     = inherited_substitutions;
 
   HIR::TraitFunctionDecl &function = fn.get_decl ();
+  TyTy::PredicateSet item_predicates;
   if (function.has_generics ())
     {
-      TypeCheckBase::ResolveGenericParams (fn.get_mappings ().get_defid (),
+      TypeCheckBase::ResolveGenericParams (item_predicates,
 					   HIR::Item::ItemKind::Function,
 					   fn.get_locus (),
 					   function.get_generic_params (),
@@ -182,7 +183,9 @@ TraitItemReference::get_type_from_fn (/*const*/ HIR::TraitItemFunc &fn) const
 
   TyTy::RegionConstraints region_constraints;
   ResolveWhereClauseItem::Resolve (function.get_where_clause (),
-				   region_constraints);
+				   region_constraints, item_predicates);
+  context->get_item_predicate_slot (fn.get_mappings ().get_defid ())
+    = std::move (item_predicates);
 
   TyTy::BaseType *ret_type = nullptr;
   if (!function.has_return_type ())

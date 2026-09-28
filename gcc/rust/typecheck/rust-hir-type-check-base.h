@@ -33,7 +33,8 @@ public:
   virtual ~TypeCheckBase () {}
 
   static void ResolveGenericParams (
-    DefId owner, const HIR::Item::ItemKind item_kind, location_t item_locus,
+    TyTy::PredicateSet &item_predicates, const HIR::Item::ItemKind item_kind,
+    location_t item_locus,
     const std::vector<std::unique_ptr<HIR::GenericParam>> &generic_params,
     std::vector<TyTy::SubstitutionParamMapping> &substitutions, bool is_foreign,
     ABI abi);
@@ -69,7 +70,8 @@ protected:
 						 location_t locus);
 
   void resolve_generic_params (
-    DefId owner, const HIR::Item::ItemKind item_kind, location_t item_locus,
+    TyTy::PredicateSet &item_predicates, const HIR::Item::ItemKind item_kind,
+    location_t item_locus,
     const std::vector<std::unique_ptr<HIR::GenericParam>> &generic_params,
     std::vector<TyTy::SubstitutionParamMapping> &substitutions,
     bool is_foreign = false, ABI abi = ABI::RUST);

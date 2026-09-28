@@ -422,16 +422,20 @@ TraitItemReference::resolve_item (const TraitReference *tref,
 
   auto substitutions = inherited_substitutions;
   tl::optional<TypeCheckContext::LifetimeResolverGuard> binder_pin;
+  TyTy::PredicateSet item_predicates;
   if (type.has_generics ())
     {
       binder_pin.emplace (*context,
 			  TypeCheckContext::LifetimeResolverGuard::BINDER);
-      TypeCheckBase::ResolveGenericParams (type.get_mappings ().get_defid (),
+      TypeCheckBase::ResolveGenericParams (item_predicates,
 					   HIR::Item::ItemKind::TypeAlias,
 					   type.get_locus (),
 					   type.get_generic_params (),
 					   substitutions, false, ABI::RUST);
     }
+
+  context->get_item_predicate_slot (type.get_mappings ().get_defid ())
+    = std::move (item_predicates);
 
   size_t inherited_count = inherited_substitutions.size ();
   auto projection

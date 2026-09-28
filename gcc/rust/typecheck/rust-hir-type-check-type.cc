@@ -1006,9 +1006,10 @@ TypeResolveGenericParam::apply_trait_bounds (HIR::TypeParam &param,
 
 void
 ResolveWhereClauseItem::Resolve (HIR::WhereClauseItem &item,
-				 TyTy::RegionConstraints &region_constraints)
+				 TyTy::RegionConstraints &region_constraints,
+				 TyTy::PredicateSet &item_predicates)
 {
-  ResolveWhereClauseItem resolver (region_constraints);
+  ResolveWhereClauseItem resolver (region_constraints, item_predicates);
 
   auto binder_pin = resolver.context->push_lifetime_binder ();
 
@@ -1026,9 +1027,10 @@ ResolveWhereClauseItem::Resolve (HIR::WhereClauseItem &item,
 
 void
 ResolveWhereClauseItem::Resolve (HIR::WhereClause &clause,
-				 TyTy::RegionConstraints &region_constraints)
+				 TyTy::RegionConstraints &region_constraints,
+				 TyTy::PredicateSet &item_predicates)
 {
-  ResolveWhereClauseItem resolver (region_constraints);
+  ResolveWhereClauseItem resolver (region_constraints, item_predicates);
 
   class PlainTypePath : public HIR::HIRTypeVisitor
   {
@@ -1072,13 +1074,12 @@ ResolveWhereClauseItem::Resolve (HIR::WhereClause &clause,
       }
 
   resolver.defer_bindings = false;
-  resolver.complete_bindings = true;
   for (auto &item : clause.get_items ())
     {
       if (item->get_item_type () == HIR::WhereClauseItem::TYPE_BOUND)
 	resolver.visit (static_cast<HIR::TypeBoundWhereClauseItem &> (*item));
       else
-	Resolve (*item, region_constraints);
+	Resolve (*item, region_constraints, item_predicates);
     }
 }
 
@@ -1165,8 +1166,12 @@ ResolveWhereClauseItem::visit (HIR::TypeBoundWhereClauseItem &item)
 	}
     }
 
-  // FIXME: retain where-clause predicates on the owning item. Completing
-  // associated bindings must update those predicates, not the binding type.
+  // Only retain the completed pass, including its associated bindings.
+  if (!defer_bindings)
+    {
+      for (const auto &bound : specified_bounds)
+	item_predicates.add (binding, bound);
+    }
 }
 
 } // namespace Resolver

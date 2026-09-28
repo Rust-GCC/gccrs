@@ -135,10 +135,12 @@ class ResolveWhereClauseItem : public TypeCheckBase
 {
   // pair(a, b) => a: b
   TyTy::RegionConstraints &region_constraints;
+  TyTy::PredicateSet &item_predicates;
 
 public:
   static void Resolve (HIR::WhereClause &clause,
-		       TyTy::RegionConstraints &region_constraints);
+		       TyTy::RegionConstraints &region_constraints,
+		       TyTy::PredicateSet &item_predicates);
 
 protected:
   void visit (HIR::LifetimeWhereClauseItem &item);
@@ -146,13 +148,14 @@ protected:
 
 private:
   static void Resolve (HIR::WhereClauseItem &item,
-		       TyTy::RegionConstraints &region_constraints);
+		       TyTy::RegionConstraints &region_constraints,
+		       TyTy::PredicateSet &item_predicates);
 
   bool defer_bindings = false;
-  bool complete_bindings = false;
 
-  ResolveWhereClauseItem (TyTy::RegionConstraints &region_constraints)
-    : region_constraints (region_constraints)
+  ResolveWhereClauseItem (TyTy::RegionConstraints &region_constraints,
+			  TyTy::PredicateSet &item_predicates)
+    : region_constraints (region_constraints), item_predicates (item_predicates)
   {}
 };
 

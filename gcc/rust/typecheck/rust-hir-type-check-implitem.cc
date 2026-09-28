@@ -71,10 +71,10 @@ TypeCheckTopLevelExternItem::visit (HIR::ExternalFunctionItem &function)
   auto binder_pin = context->push_clean_lifetime_resolver ();
 
   std::vector<TyTy::SubstitutionParamMapping> substitutions;
+  TyTy::PredicateSet item_predicates;
   if (function.has_generics ())
     {
-      resolve_generic_params (function.get_mappings ().get_defid (),
-			      HIR::Item::ItemKind::Function,
+      resolve_generic_params (item_predicates, HIR::Item::ItemKind::Function,
 			      function.get_locus (),
 			      function.get_generic_params (), substitutions,
 			      true /*is_foreign*/, parent.get_abi ());
@@ -82,7 +82,9 @@ TypeCheckTopLevelExternItem::visit (HIR::ExternalFunctionItem &function)
 
   TyTy::RegionConstraints region_constraints;
   ResolveWhereClauseItem::Resolve (function.get_where_clause (),
-				   region_constraints);
+				   region_constraints, item_predicates);
+  context->get_item_predicate_slot (function.get_mappings ().get_defid ())
+    = std::move (item_predicates);
 
   TyTy::BaseType *ret_type = nullptr;
   if (!function.has_return_type ())
@@ -243,15 +245,24 @@ TypeCheckImplItem::ResolveFunctionSignature (
 TyTy::FnType *
 TypeCheckImplItem::resolve_function_signature (HIR::Function &function)
 {
+  TyTy::PredicateSet item_predicates;
+  auto impl_predicates
+    = context->lookup_item_predicates (parent.get_mappings ().get_defid ());
+  if (impl_predicates.has_value ())
+    {
+      item_predicates = *impl_predicates.value ();
+    }
+
   if (function.has_generics ())
-    resolve_generic_params (function.get_mappings ().get_defid (),
-			    HIR::Item::ItemKind::Function,
+    resolve_generic_params (item_predicates, HIR::Item::ItemKind::Function,
 			    function.get_locus (),
 			    function.get_generic_params (), substitutions);
 
   TyTy::RegionConstraints region_constraints;
   ResolveWhereClauseItem::Resolve (function.get_where_clause (),
-				   region_constraints);
+				   region_constraints, item_predicates);
+  context->get_item_predicate_slot (function.get_mappings ().get_defid ())
+    = std::move (item_predicates);
 
   TyTy::BaseType *ret_type = nullptr;
   if (!function.has_function_return_type ())
@@ -493,10 +504,11 @@ TypeCheckImplItem::visit (HIR::TypeAlias &alias)
 {
   auto binder_pin = context->push_lifetime_binder ();
 
+  TyTy::PredicateSet item_predicates;
   if (alias.has_generics ())
-    resolve_generic_params (alias.get_mappings ().get_defid (),
-			    HIR::Item::ItemKind::TypeAlias, alias.get_locus (),
-			    alias.get_generic_params (), substitutions);
+    resolve_generic_params (item_predicates, HIR::Item::ItemKind::TypeAlias,
+			    alias.get_locus (), alias.get_generic_params (),
+			    substitutions);
 
   TyTy::BaseType *actual_type
     = TypeCheckType::Resolve (alias.get_type_aliased ());
@@ -505,7 +517,9 @@ TypeCheckImplItem::visit (HIR::TypeAlias &alias)
   result = actual_type;
   TyTy::RegionConstraints region_constraints;
   ResolveWhereClauseItem::Resolve (alias.get_where_clause (),
-				   region_constraints);
+				   region_constraints, item_predicates);
+  context->get_item_predicate_slot (alias.get_mappings ().get_defid ())
+    = std::move (item_predicates);
 }
 
 TypeCheckImplItemWithTrait::TypeCheckImplItemWithTrait (
@@ -588,10 +602,11 @@ TypeCheckImplItemWithTrait::visit (HIR::TypeAlias &type)
 {
   auto binder_pin = context->push_lifetime_binder ();
 
+  TyTy::PredicateSet item_predicates;
   if (type.has_generics ())
-    resolve_generic_params (type.get_mappings ().get_defid (),
-			    HIR::Item::ItemKind::TypeAlias, type.get_locus (),
-			    type.get_generic_params (), substitutions);
+    resolve_generic_params (item_predicates, HIR::Item::ItemKind::TypeAlias,
+			    type.get_locus (), type.get_generic_params (),
+			    substitutions);
 
   // normal resolution of the item
   TyTy::BaseType *lookup

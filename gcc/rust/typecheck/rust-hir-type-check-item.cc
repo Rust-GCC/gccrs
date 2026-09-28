@@ -375,10 +375,11 @@ TypeCheckItem::visit (HIR::TypeAlias &alias)
   auto lifetime_pin = context->push_clean_lifetime_resolver ();
 
   std::vector<TyTy::SubstitutionParamMapping> substitutions;
+  TyTy::PredicateSet item_predicates;
   if (alias.has_generics ())
-    resolve_generic_params (alias.get_mappings ().get_defid (),
-			    HIR::Item::ItemKind::TypeAlias, alias.get_locus (),
-			    alias.get_generic_params (), substitutions);
+    resolve_generic_params (item_predicates, HIR::Item::ItemKind::TypeAlias,
+			    alias.get_locus (), alias.get_generic_params (),
+			    substitutions);
 
   TyTy::BaseType *actual_type
     = TypeCheckType::Resolve (alias.get_type_aliased ());
@@ -387,7 +388,9 @@ TypeCheckItem::visit (HIR::TypeAlias &alias)
 
   TyTy::RegionConstraints region_constraints;
   ResolveWhereClauseItem::Resolve (alias.get_where_clause (),
-				   region_constraints);
+				   region_constraints, item_predicates);
+  context->get_item_predicate_slot (alias.get_mappings ().get_defid ())
+    = std::move (item_predicates);
   infered = actual_type;
 }
 
@@ -397,15 +400,17 @@ TypeCheckItem::visit (HIR::TupleStruct &struct_decl)
   auto lifetime_pin = context->push_clean_lifetime_resolver ();
 
   std::vector<TyTy::SubstitutionParamMapping> substitutions;
+  TyTy::PredicateSet item_predicates;
   if (struct_decl.has_generics ())
-    resolve_generic_params (struct_decl.get_mappings ().get_defid (),
-			    HIR::Item::ItemKind::Struct,
+    resolve_generic_params (item_predicates, HIR::Item::ItemKind::Struct,
 			    struct_decl.get_locus (),
 			    struct_decl.get_generic_params (), substitutions);
 
   TyTy::RegionConstraints region_constraints;
   ResolveWhereClauseItem::Resolve (struct_decl.get_where_clause (),
-				   region_constraints);
+				   region_constraints, item_predicates);
+  context->get_item_predicate_slot (struct_decl.get_mappings ().get_defid ())
+    = std::move (item_predicates);
 
   // Process #[repr(X)] attribute, if any
   const AST::AttrVec &attrs = struct_decl.get_outer_attrs ();
@@ -485,15 +490,17 @@ TypeCheckItem::visit (HIR::StructStruct &struct_decl)
   RustIdent ident{path, struct_decl.get_locus ()};
 
   std::vector<TyTy::SubstitutionParamMapping> substitutions;
+  TyTy::PredicateSet item_predicates;
   if (struct_decl.has_generics ())
-    resolve_generic_params (struct_decl.get_mappings ().get_defid (),
-			    HIR::Item::ItemKind::Struct,
+    resolve_generic_params (item_predicates, HIR::Item::ItemKind::Struct,
 			    struct_decl.get_locus (),
 			    struct_decl.get_generic_params (), substitutions);
 
   TyTy::RegionConstraints region_constraints;
   ResolveWhereClauseItem::Resolve (struct_decl.get_where_clause (),
-				   region_constraints);
+				   region_constraints, item_predicates);
+  context->get_item_predicate_slot (struct_decl.get_mappings ().get_defid ())
+    = std::move (item_predicates);
 
   // Process #[repr(X)] attribute, if any
   const AST::AttrVec &attrs = struct_decl.get_outer_attrs ();
@@ -587,14 +594,17 @@ TypeCheckItem::visit (HIR::Enum &enum_decl)
 {
   auto lifetime_pin = context->push_clean_lifetime_resolver ();
   std::vector<TyTy::SubstitutionParamMapping> substitutions;
+  TyTy::PredicateSet item_predicates;
   if (enum_decl.has_generics ())
-    resolve_generic_params (enum_decl.get_mappings ().get_defid (),
-			    HIR::Item::ItemKind::Enum, enum_decl.get_locus (),
+    resolve_generic_params (item_predicates, HIR::Item::ItemKind::Enum,
+			    enum_decl.get_locus (),
 			    enum_decl.get_generic_params (), substitutions);
 
   TyTy::RegionConstraints region_constraints;
   ResolveWhereClauseItem::Resolve (enum_decl.get_where_clause (),
-				   region_constraints);
+				   region_constraints, item_predicates);
+  context->get_item_predicate_slot (enum_decl.get_mappings ().get_defid ())
+    = std::move (item_predicates);
 
   auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
   CanonicalPath canonical_path
@@ -664,14 +674,17 @@ TypeCheckItem::visit (HIR::Union &union_decl)
 {
   auto lifetime_pin = context->push_clean_lifetime_resolver ();
   std::vector<TyTy::SubstitutionParamMapping> substitutions;
+  TyTy::PredicateSet item_predicates;
   if (union_decl.has_generics ())
-    resolve_generic_params (union_decl.get_mappings ().get_defid (),
-			    HIR::Item::ItemKind::Union, union_decl.get_locus (),
+    resolve_generic_params (item_predicates, HIR::Item::ItemKind::Union,
+			    union_decl.get_locus (),
 			    union_decl.get_generic_params (), substitutions);
 
   TyTy::RegionConstraints region_constraints;
   ResolveWhereClauseItem::Resolve (union_decl.get_where_clause (),
-				   region_constraints);
+				   region_constraints, item_predicates);
+  context->get_item_predicate_slot (union_decl.get_mappings ().get_defid ())
+    = std::move (item_predicates);
 
   auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
   CanonicalPath canonical_path
@@ -930,15 +943,17 @@ TyTy::FnType *
 TypeCheckItem::resolve_function_signature (HIR::Function &function)
 {
   std::vector<TyTy::SubstitutionParamMapping> substitutions;
+  TyTy::PredicateSet item_predicates;
   if (function.has_generics ())
-    resolve_generic_params (function.get_mappings ().get_defid (),
-			    HIR::Item::ItemKind::Function,
+    resolve_generic_params (item_predicates, HIR::Item::ItemKind::Function,
 			    function.get_locus (),
 			    function.get_generic_params (), substitutions);
 
   TyTy::RegionConstraints region_constraints;
   ResolveWhereClauseItem::Resolve (function.get_where_clause (),
-				   region_constraints);
+				   region_constraints, item_predicates);
+  context->get_item_predicate_slot (function.get_mappings ().get_defid ())
+    = std::move (item_predicates);
 
   TyTy::BaseType *ret_type = nullptr;
   if (!function.has_function_return_type ())
@@ -1148,14 +1163,17 @@ TypeCheckItem::resolve_impl_block_substitutions (HIR::ImplBlock &impl_block,
 						 bool &failure_flag)
 {
   std::vector<TyTy::SubstitutionParamMapping> substitutions;
+  TyTy::PredicateSet item_predicates;
   if (impl_block.has_generics ())
-    resolve_generic_params (impl_block.get_mappings ().get_defid (),
-			    HIR::Item::ItemKind::Impl, impl_block.get_locus (),
+    resolve_generic_params (item_predicates, HIR::Item::ItemKind::Impl,
+			    impl_block.get_locus (),
 			    impl_block.get_generic_params (), substitutions);
 
   TyTy::RegionConstraints region_constraints;
   ResolveWhereClauseItem::Resolve (impl_block.get_where_clause (),
-				   region_constraints);
+				   region_constraints, item_predicates);
+  context->get_item_predicate_slot (impl_block.get_mappings ().get_defid ())
+    = std::move (item_predicates);
 
   auto specified_bound = TyTy::TypeBoundPredicate::error ();
   TraitReference *trait_reference = &TraitReference::error_node ();

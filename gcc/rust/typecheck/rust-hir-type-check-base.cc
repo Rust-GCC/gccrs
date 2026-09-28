@@ -36,14 +36,15 @@ TypeCheckBase::TypeCheckBase ()
 
 void
 TypeCheckBase::ResolveGenericParams (
-  DefId owner, const HIR::Item::ItemKind item_kind, location_t item_locus,
+  TyTy::PredicateSet &item_predicates, const HIR::Item::ItemKind item_kind,
+  location_t item_locus,
   const std::vector<std::unique_ptr<HIR::GenericParam>> &generic_params,
   std::vector<TyTy::SubstitutionParamMapping> &substitutions, bool is_foreign,
   ABI abi)
 {
   TypeCheckBase ctx;
-  ctx.resolve_generic_params (owner, item_kind, item_locus, generic_params,
-			      substitutions, is_foreign, abi);
+  ctx.resolve_generic_params (item_predicates, item_kind, item_locus,
+			      generic_params, substitutions, is_foreign, abi);
 }
 
 TyTy::TypeBoundPredicate
@@ -645,12 +646,12 @@ TypeCheckBase::parse_repr_options (const AST::AttrVec &attrs, location_t locus)
 
 void
 TypeCheckBase::resolve_generic_params (
-  DefId owner, const HIR::Item::ItemKind item_kind, location_t item_locus,
+  TyTy::PredicateSet &item_predicates, const HIR::Item::ItemKind item_kind,
+  location_t item_locus,
   const std::vector<std::unique_ptr<HIR::GenericParam>> &generic_params,
   std::vector<TyTy::SubstitutionParamMapping> &substitutions, bool is_foreign,
   ABI abi)
 {
-  TyTy::PredicateSet item_predicates;
   size_t inherited_count = substitutions.size ();
   for (auto &generic_param : generic_params)
     {
@@ -783,8 +784,6 @@ TypeCheckBase::resolve_generic_params (
 
       // FIXME: check the Drop-bound lint against the item predicates.
     }
-
-  context->get_item_predicate_slot (owner) = std::move (item_predicates);
 }
 
 TyTy::TypeBoundPredicate
