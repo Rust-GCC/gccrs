@@ -649,7 +649,8 @@ TypeCheckImplItemWithTrait::visit (HIR::TypeAlias &type)
   // The impl alias is itself a projection so the substitution machinery has a
   // handle to bind the impl's generic arguments to the alias body.
   auto projection
-    = new TyTy::ProjectionType (type.get_mappings ().get_hirid (), lookup, tref,
+    = new TyTy::ProjectionType (type.get_mappings ().get_defid (),
+				type.get_mappings ().get_hirid (), lookup, tref,
 				raw_trait_item->get_mappings ().get_defid (),
 				substitutions, self);
 

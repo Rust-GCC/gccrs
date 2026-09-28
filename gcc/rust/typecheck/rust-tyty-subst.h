@@ -253,9 +253,12 @@ class TypeBoundPredicateItem;
 class SubstitutionRef
 {
 public:
-  SubstitutionRef (std::vector<SubstitutionParamMapping> substitutions,
+  SubstitutionRef (DefId predicate_owner,
+		   std::vector<SubstitutionParamMapping> substitutions,
 		   SubstitutionArgumentMappings arguments,
 		   RegionConstraints region_constraints);
+
+  DefId get_predicate_owner () const { return predicate_owner; }
 
   bool has_substitutions () const;
 
@@ -418,6 +421,7 @@ public:
   const RegionConstraints &get_region_constraints () const;
 
 protected:
+  DefId predicate_owner;
   std::vector<SubstitutionParamMapping> substitutions;
   SubstitutionArgumentMappings used_arguments;
   RegionConstraints region_constraints;

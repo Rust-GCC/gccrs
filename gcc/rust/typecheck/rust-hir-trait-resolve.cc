@@ -439,7 +439,8 @@ TraitItemReference::resolve_item (const TraitReference *tref,
 
   size_t inherited_count = inherited_substitutions.size ();
   auto projection
-    = new TyTy::ProjectionType (type.get_mappings ().get_hirid (), nullptr,
+    = new TyTy::ProjectionType (type.get_mappings ().get_defid (),
+				type.get_mappings ().get_hirid (), nullptr,
 				tref, type.get_mappings ().get_defid (),
 				substitutions, self,
 				TyTy::SubstitutionArgumentMappings::error (),

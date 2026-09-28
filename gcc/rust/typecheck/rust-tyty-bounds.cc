@@ -434,7 +434,8 @@ PredicateSet::specified_bounds_for (const BaseType *self)
 TypeBoundPredicate::TypeBoundPredicate (
   const Resolver::TraitReference &trait_reference, BoundPolarity polarity,
   location_t locus)
-  : SubstitutionRef ({}, SubstitutionArgumentMappings::empty (), {}),
+  : SubstitutionRef (trait_reference.get_mappings ().get_defid (), {},
+		     SubstitutionArgumentMappings::empty (), {}),
     reference (trait_reference.get_mappings ().get_defid ()), locus (locus),
     error_flag (false), polarity (polarity),
     super_traits (trait_reference.get_super_traits ())
@@ -453,7 +454,7 @@ TypeBoundPredicate::TypeBoundPredicate (
 TypeBoundPredicate::TypeBoundPredicate (
   DefId reference, std::vector<SubstitutionParamMapping> subst,
   BoundPolarity polarity, location_t locus)
-  : SubstitutionRef ({}, SubstitutionArgumentMappings::empty (), {}),
+  : SubstitutionRef (reference, {}, SubstitutionArgumentMappings::empty (), {}),
     reference (reference), locus (locus), error_flag (false),
     polarity (polarity)
 {
@@ -469,13 +470,15 @@ TypeBoundPredicate::TypeBoundPredicate (
 }
 
 TypeBoundPredicate::TypeBoundPredicate (mark_is_error)
-  : SubstitutionRef ({}, SubstitutionArgumentMappings::empty (), {}),
+  : SubstitutionRef (UNKNOWN_DEFID, {}, SubstitutionArgumentMappings::empty (),
+		     {}),
     reference (UNKNOWN_DEFID), locus (UNDEF_LOCATION), error_flag (true),
     polarity (BoundPolarity::RegularBound)
 {}
 
 TypeBoundPredicate::TypeBoundPredicate (const TypeBoundPredicate &other)
-  : SubstitutionRef ({}, SubstitutionArgumentMappings::empty (), {}),
+  : SubstitutionRef (other.get_predicate_owner (), {},
+		     SubstitutionArgumentMappings::empty (), {}),
     reference (other.reference), locus (other.locus),
     error_flag (other.error_flag), polarity (other.polarity),
     super_traits (other.super_traits)
@@ -504,6 +507,7 @@ TypeBoundPredicate::TypeBoundPredicate (const TypeBoundPredicate &other)
 TypeBoundPredicate &
 TypeBoundPredicate::operator= (const TypeBoundPredicate &other)
 {
+  predicate_owner = other.get_predicate_owner ();
   reference = other.reference;
   locus = other.locus;
   error_flag = other.error_flag;

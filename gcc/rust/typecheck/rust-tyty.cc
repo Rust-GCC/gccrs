@@ -1869,7 +1869,7 @@ ADTType::ADTType (DefId id, HirId ref, std::string identifier, RustIdent ident,
 		  SubstitutionArgumentMappings generic_arguments,
 		  RegionConstraints region_constraints, std::set<HirId> refs)
   : BaseType (ref, ref, TypeKind::ADT, ident, refs),
-    SubstitutionRef (std::move (subst_refs), std::move (generic_arguments),
+    SubstitutionRef (id, std::move (subst_refs), std::move (generic_arguments),
 		     region_constraints),
     id (id), identifier (identifier), variants (variants), adt_kind (adt_kind)
 {}
@@ -1881,7 +1881,7 @@ ADTType::ADTType (DefId id, HirId ref, HirId ty_ref, std::string identifier,
 		  SubstitutionArgumentMappings generic_arguments,
 		  RegionConstraints region_constraints, std::set<HirId> refs)
   : BaseType (ref, ty_ref, TypeKind::ADT, ident, refs),
-    SubstitutionRef (std::move (subst_refs), std::move (generic_arguments),
+    SubstitutionRef (id, std::move (subst_refs), std::move (generic_arguments),
 		     region_constraints),
     id (id), identifier (identifier), variants (variants), adt_kind (adt_kind)
 {}
@@ -1894,7 +1894,7 @@ ADTType::ADTType (DefId id, HirId ref, HirId ty_ref, std::string identifier,
 		  SubstitutionArgumentMappings generic_arguments,
 		  RegionConstraints region_constraints, std::set<HirId> refs)
   : BaseType (ref, ty_ref, TypeKind::ADT, ident, refs),
-    SubstitutionRef (std::move (subst_refs), std::move (generic_arguments),
+    SubstitutionRef (id, std::move (subst_refs), std::move (generic_arguments),
 		     region_constraints),
     id (id), identifier (identifier), variants (variants), adt_kind (adt_kind),
     repr (repr)
@@ -4475,7 +4475,8 @@ PlaceholderType::get_def_id () const
 // Projection type
 
 ProjectionType::ProjectionType (
-  HirId ref, BaseType *base, const Resolver::TraitReference *trait, DefId item,
+  DefId predicate_owner, HirId ref, BaseType *base,
+  const Resolver::TraitReference *trait, DefId item,
   std::vector<SubstitutionParamMapping> subst_refs, TyTy::BaseType *self,
   SubstitutionArgumentMappings generic_arguments,
   RegionConstraints region_constraints, std::set<HirId> refs,
@@ -4483,14 +4484,15 @@ ProjectionType::ProjectionType (
   : BaseType (ref, ref, KIND,
 	      {Resolver::CanonicalPath::create_empty (), BUILTINS_LOCATION},
 	      std::move (refs)),
-    SubstitutionRef (std::move (subst_refs), std::move (generic_arguments),
+    SubstitutionRef (predicate_owner, std::move (subst_refs),
+		     std::move (generic_arguments),
 		     std::move (region_constraints)),
     base (base), trait (trait), item (item), self (self),
     num_trait_substitutions (num_trait_substitutions)
 {}
 
 ProjectionType::ProjectionType (
-  HirId ref, HirId ty_ref, BaseType *base,
+  DefId predicate_owner, HirId ref, HirId ty_ref, BaseType *base,
   const Resolver::TraitReference *trait, DefId item,
   std::vector<SubstitutionParamMapping> subst_refs, TyTy::BaseType *self,
   SubstitutionArgumentMappings generic_arguments,
@@ -4499,7 +4501,8 @@ ProjectionType::ProjectionType (
   : BaseType (ref, ty_ref, KIND,
 	      {Resolver::CanonicalPath::create_empty (), BUILTINS_LOCATION},
 	      refs),
-    SubstitutionRef (std::move (subst_refs), std::move (generic_arguments),
+    SubstitutionRef (predicate_owner, std::move (subst_refs),
+		     std::move (generic_arguments),
 		     std::move (region_constraints)),
     base (base), trait (trait), item (item), self (self),
     num_trait_substitutions (num_trait_substitutions)
@@ -4579,7 +4582,7 @@ BaseType *
 ProjectionType::clone () const
 {
   auto *cloned
-    = new ProjectionType (get_ref (), get_ty_ref (),
+    = new ProjectionType (get_predicate_owner (), get_ref (), get_ty_ref (),
 			  base != nullptr ? base->clone () : nullptr, trait,
 			  item, clone_substs (), self->clone (), used_arguments,
 			  region_constraints, get_combined_refs (),

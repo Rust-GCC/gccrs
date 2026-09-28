@@ -1104,7 +1104,7 @@ public:
 	  RegionConstraints region_constraints,
 	  std::set<HirId> refs = std::set<HirId> ())
     : CallableTypeInterface (ref, ref, TypeKind::FNDEF, ident, refs),
-      SubstitutionRef (std::move (subst_refs), substitution_argument_mappings,
+      SubstitutionRef (id, std::move (subst_refs), substitution_argument_mappings,
 		       region_constraints),
       params (std::move (params)), type (type), flags (flags),
       identifier (identifier), id (id), abi (abi)
@@ -1120,7 +1120,7 @@ public:
 	  RegionConstraints region_constraints,
 	  std::set<HirId> refs = std::set<HirId> ())
     : CallableTypeInterface (ref, ty_ref, TypeKind::FNDEF, ident, refs),
-      SubstitutionRef (std::move (subst_refs), substitution_argument_mappings,
+      SubstitutionRef (id, std::move (subst_refs), substitution_argument_mappings,
 		       region_constraints),
       params (std::move (params)), type (type), flags (flags),
       identifier (identifier), id (id), abi (abi)
@@ -1292,7 +1292,7 @@ public:
 	       std::set<NodeId> captures,
 	       std::set<HirId> refs = std::set<HirId> ())
     : CallableTypeInterface (ref, ref, TypeKind::CLOSURE, ident, refs),
-      SubstitutionRef (std::move (subst_refs),
+      SubstitutionRef (id, std::move (subst_refs),
 		       SubstitutionArgumentMappings::error (),
 		       {}), // TODO: check region constraints
       parameters (parameters), result_type (std::move (result_type)), id (id),
@@ -1308,7 +1308,7 @@ public:
 	       std::set<NodeId> captures,
 	       std::set<HirId> refs = std::set<HirId> ())
     : CallableTypeInterface (ref, ty_ref, TypeKind::CLOSURE, ident, refs),
-      SubstitutionRef (std::move (subst_refs),
+      SubstitutionRef (id, std::move (subst_refs),
 		       SubstitutionArgumentMappings::error (), {}), // TODO
       parameters (parameters), result_type (std::move (result_type)), id (id),
       captures (captures)
@@ -1832,7 +1832,7 @@ class ProjectionType : public BaseType, public SubstitutionRef
 public:
   static constexpr auto KIND = TypeKind::PROJECTION;
 
-  ProjectionType (HirId ref, BaseType *base,
+  ProjectionType (DefId predicate_owner, HirId ref, BaseType *base,
 		  const Resolver::TraitReference *trait, DefId item,
 		  std::vector<SubstitutionParamMapping> subst_refs,
 		  TyTy::BaseType *self,
@@ -1842,7 +1842,7 @@ public:
 		  std::set<HirId> refs = std::set<HirId> (),
 		  size_t num_trait_substitutions = 0);
 
-  ProjectionType (HirId ref, HirId ty_ref, BaseType *base,
+  ProjectionType (DefId predicate_owner, HirId ref, HirId ty_ref, BaseType *base,
 		  const Resolver::TraitReference *trait, DefId item,
 		  std::vector<SubstitutionParamMapping> subst_refs,
 		  TyTy::BaseType *self,

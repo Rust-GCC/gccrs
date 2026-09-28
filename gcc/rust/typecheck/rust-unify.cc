@@ -1955,7 +1955,8 @@ UnifyRules::expect_projection (TyTy::ProjectionType *ltype,
 	  base_res = nullptr;
 
 	auto result
-	  = new TyTy::ProjectionType (ltype->get_ref (), ltype->get_ty_ref (),
+	  = new TyTy::ProjectionType (ltype->get_predicate_owner (),
+				      ltype->get_ref (), ltype->get_ty_ref (),
 				      base_res, ltype_tref, ltype_item,
 				      ltype->get_substs (), res);
 	return result;

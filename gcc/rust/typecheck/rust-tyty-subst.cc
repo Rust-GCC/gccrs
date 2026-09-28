@@ -480,10 +480,10 @@ SubstitutionArgumentMappings::trait_item_mode () const
 // SubstitutionRef
 
 SubstitutionRef::SubstitutionRef (
-  std::vector<SubstitutionParamMapping> substitutions,
+  DefId predicate_owner, std::vector<SubstitutionParamMapping> substitutions,
   SubstitutionArgumentMappings arguments, RegionConstraints region_constraints)
-  : substitutions (substitutions), used_arguments (arguments),
-    region_constraints (region_constraints)
+  : predicate_owner (predicate_owner), substitutions (substitutions),
+    used_arguments (arguments), region_constraints (region_constraints)
 {}
 
 bool
