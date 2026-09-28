@@ -192,10 +192,14 @@ PathProbeExpr::probe_bounds ()
 	}
     }
 
-  for (const TyTy::TypeBoundPredicate &predicate :
-       context->predicates_for_type (receiver))
+  auto current_predicates = context->get_current_predicates ();
+  if (!current_predicates.has_value ())
+    return;
+
+  for (TyTy::TypeBoundPredicate *predicate :
+       current_predicates.value ()->specified_bounds_for (receiver))
     {
-      process_predicate_for_candidates (predicate);
+      process_predicate_for_candidates (*predicate);
     }
 }
 

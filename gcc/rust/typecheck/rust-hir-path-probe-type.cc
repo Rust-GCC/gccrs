@@ -59,10 +59,15 @@ TypePathProbe::probe ()
 void
 TypePathProbe::probe_generic ()
 {
-  for (const TyTy::TypeBoundPredicate &predicate :
-       TypeCheckContext::get ()->predicates_for_type (receiver))
+  auto current_predicates
+    = TypeCheckContext::get ()->get_current_predicates ();
+  if (!current_predicates.has_value ())
+    return;
+
+  for (TyTy::TypeBoundPredicate *predicate :
+       current_predicates.value ()->specified_bounds_for (receiver))
     {
-      auto candidate = process_predicate_for_candidates (predicate);
+      auto candidate = process_predicate_for_candidates (*predicate);
       insert_candidate (std::move (candidate));
     }
 }
