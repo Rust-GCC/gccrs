@@ -574,7 +574,7 @@ class ConstParamType : public BaseConstType, public BaseGeneric
 {
 public:
   ConstParamType (std::string symbol, location_t locus, BaseType *type,
-		  HirId ref, HirId ty_ref,
+		  HirId ref, HirId ty_ref, HirId decl_id,
 		  std::set<HirId> refs = std::set<HirId> ());
 
   ConstKind const_kind () const override final;
@@ -606,7 +606,10 @@ public:
   BaseConstType *as_const_type () override { return this; }
   const BaseConstType *as_const_type () const override { return this; }
 
+  HirId get_decl_id () const { return decl_id; }
+
 private:
+  const HirId decl_id;
   std::string symbol;
 };
 

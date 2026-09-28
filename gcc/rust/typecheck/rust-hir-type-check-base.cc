@@ -738,7 +738,7 @@ TypeCheckBase::resolve_generic_params (
 					  specified_type,
 					  param.get_mappings ().get_hirid (),
 					  param.get_mappings ().get_hirid (),
-					  {});
+					  param.get_mappings ().get_hirid (), {});
 
 	    context->insert_type (generic_param->get_mappings (), const_decl);
 	    TyTy::SubstitutionParamMapping p (*generic_param, const_decl);

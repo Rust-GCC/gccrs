@@ -3830,13 +3830,13 @@ generate_tree_str (tree value)
 
 ConstParamType::ConstParamType (std::string symbol, location_t locus,
 				BaseType *type, HirId ref, HirId ty_ref,
-				std::set<HirId> refs)
+				HirId decl_id, std::set<HirId> refs)
   : BaseConstType (type),
     BaseGeneric (ref, ty_ref, KIND,
 		 {Resolver::CanonicalPath::new_seg (UNKNOWN_NODEID, symbol),
 		  locus},
 		 refs),
-    symbol (symbol)
+    decl_id (decl_id), symbol (symbol)
 {}
 
 BaseConstType::ConstKind
@@ -3919,7 +3919,8 @@ BaseType *
 ConstParamType::clone () const
 {
   return new ConstParamType (get_symbol (), ident.locus, specified_type,
-			     get_ref (), get_ty_ref (), get_combined_refs ());
+			     get_ref (), get_ty_ref (), get_decl_id (),
+			     get_combined_refs ());
 }
 
 std::string
