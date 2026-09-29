@@ -88,6 +88,35 @@ SubstitutionParamMapping::needs_substitution () const
   return !(get_param_ty ()->is_concrete ());
 }
 
+bool
+SubstitutionParamMapping::lacks_argument () const
+{
+  // A non-param argument binds the slot; a param argument replaces the slot
+  // with that param. Only the slot's own declared param means no argument.
+  const BaseGeneric *slot = get_param_ty ();
+  if (slot->can_resolve ())
+    return false;
+
+  HirId slot_decl = UNKNOWN_HIRID;
+  if (const auto *param = slot->try_as<const ParamType> ())
+    slot_decl = param->get_decl_id ();
+  else if (slot->get_kind () == TypeKind::CONST)
+    {
+      const auto *const_type = slot->as_const_type ();
+      bool is_const_param
+	= const_type->const_kind () == BaseConstType::ConstKind::Decl;
+      if (is_const_param)
+	slot_decl
+	  = static_cast<const ConstParamType *> (const_type)->get_decl_id ();
+    }
+
+  bool unknown_decl = slot_decl == UNKNOWN_HIRID;
+  if (unknown_decl)
+    return needs_substitution ();
+
+  return slot_decl == get_generic_param ().get_mappings ().get_hirid ();
+}
+
 Identifier
 SubstitutionParamMapping::get_type_representation () const
 {
@@ -940,7 +969,7 @@ SubstitutionRef::infer_substitions (location_t locus)
   std::map<std::string, BaseType *> argument_mappings;
   for (auto &p : get_substs ())
     {
-      if (p.needs_substitution ())
+      if (p.lacks_argument ())
 	{
 	  const HIR::GenericParam &generic = p.get_generic_param ();
 	  const std::string &symbol = p.get_param_ty ()->get_symbol ();

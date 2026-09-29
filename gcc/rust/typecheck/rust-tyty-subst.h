@@ -70,6 +70,9 @@ public:
 
   bool needs_substitution () const;
 
+  // True while the slot still holds its own declared, unbound param.
+  bool lacks_argument () const;
+
   location_t get_param_locus () const;
 
   bool param_has_default_ty () const;
