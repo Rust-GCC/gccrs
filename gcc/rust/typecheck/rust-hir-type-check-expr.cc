@@ -419,12 +419,12 @@ TypeCheckExpr::visit (HIR::CompoundAssignmentExpr &expr)
   auto lhs = TypeCheckExpr::Resolve (expr.get_lhs ());
   auto rhs = TypeCheckExpr::Resolve (expr.get_rhs ());
 
-  // we dont care about the result of the unify from a compound assignment
-  // since this is a unit-type expr
-  coercion_site (expr.get_mappings ().get_hirid (),
-		 TyTy::TyWithLocation (lhs, expr.get_lhs ().get_locus ()),
-		 TyTy::TyWithLocation (rhs, expr.get_rhs ().get_locus ()),
-		 expr.get_locus ());
+  // we dont actually care about the result here the resolve_operator_overload
+  // will handle the coerce errors with libcore
+  try_coercion (expr.get_mappings ().get_hirid (),
+		TyTy::TyWithLocation (lhs, expr.get_lhs ().get_locus ()),
+		TyTy::TyWithLocation (rhs, expr.get_rhs ().get_locus ()),
+		expr.get_locus ());
 
   auto lang_item_type
     = LangItem::CompoundAssignmentOperatorToLangItem (expr.get_expr_type ());
