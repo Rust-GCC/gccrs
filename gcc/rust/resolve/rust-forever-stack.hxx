@@ -204,11 +204,23 @@ ForeverStack<Namespace::Values>::insert_variant (Identifier name, NodeId node)
 }
 
 template <Namespace N>
+void
+ForeverStack<N>::insert_crate_in_prelude (Identifier crate_name, NodeId id)
+{
+  auto &extern_prelude_rib = extern_prelude.rib (N);
+  auto inner = insert_inner (extern_prelude_rib, crate_name,
+			     Rib::Definition::NonShadowable (id));
+
+  if (inner)
+    map_usage (Usage (inner.value ()), Definition (id));
+}
+
+template <Namespace N>
 inline void
-ForeverStack<N>::insert_lang_prelude (Identifier name, NodeId id)
+ForeverStack<N>::insert_lang_prelude (Identifier name, NodeId crate_id)
 {
   insert_inner (lang_prelude.rib (N), name.as_string (),
-		Rib::Definition::NonShadowable (id, false));
+		Rib::Definition::NonShadowable (crate_id, false));
 }
 
 template <Namespace N>
@@ -717,7 +729,11 @@ ForeverStack<N>::stream_node (std::stringstream &stream, unsigned indentation,
   auto next = std::string (indentation + 4, ' ');
   auto next_next = std::string (indentation + 8, ' ');
 
-  stream << indent << "Node {\n"
+  std::string cursor_text = "";
+  if (node.id == cursor ().id)
+    cursor_text = "(C)";
+
+  stream << indent << "Node " << cursor_text << "{\n"
 	 << next << "is_root: " << (node.is_root () ? "true" : "false") << ",\n"
 	 << next << "is_leaf: " << (node.is_leaf () ? "true" : "false")
 	 << ",\n";
@@ -748,6 +764,10 @@ ForeverStack<N>::as_debug_string () const
   std::stringstream stream;
 
   stream_node (stream, 0, root);
+  stream << "Extern prelude \n";
+  stream_node (stream, 0, extern_prelude);
+  stream << "Lang prelude \n";
+  stream_node (stream, 0, lang_prelude);
 
   return stream.str ();
 }
