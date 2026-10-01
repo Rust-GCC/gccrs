@@ -124,17 +124,19 @@ enum class Prefetch
 namespace handlers {
 
 namespace inner {
-tree wrapping_op (Context *ctx, TyTy::FnType *fntype, tree_code op);
+void wrapping_op (IntrinsicCtx &ctx, tree_code op);
 
-tree atomic_store (Context *ctx, TyTy::FnType *fntype, int ordering);
-tree atomic_load (Context *ctx, TyTy::FnType *fntype, int ordering);
-inline tree copy (Context *ctx, TyTy::FnType *fntype, bool overlaps);
-inline tree expect (Context *ctx, TyTy::FnType *fntype, bool likely);
-tree try_handler (Context *ctx, TyTy::FnType *fntype, bool is_new_api);
+void atomic_store (IntrinsicCtx &ctx, int ordering);
+void atomic_load (IntrinsicCtx &ctx, int ordering);
+void atomic_binary_op (IntrinsicCtx &ctx, const std::string &op_name,
+		       int ordering);
+inline void copy (IntrinsicCtx &ctx, bool overlaps);
+inline void expect (IntrinsicCtx &ctx, bool likely);
+void try_handler (IntrinsicCtx &ctx, bool is_new_api);
 
-tree op_with_overflow (Context *ctx, TyTy::FnType *fntype, tree_code op);
+void op_with_overflow (IntrinsicCtx &ctx, tree_code op);
 
-inline tree unchecked_op (Context *ctx, TyTy::FnType *fntype, tree_code op);
+inline void unchecked_op (IntrinsicCtx &ctx, tree_code op);
 
 } // namespace inner
 
@@ -181,6 +183,13 @@ Intrinsic::CompileFn wrapping_op (tree_code op);
 
 Intrinsic::CompileFn atomic_store (int ordering);
 Intrinsic::CompileFn atomic_load (int ordering);
+
+Intrinsic::CompileFn atomic_xadd (int ordering);
+Intrinsic::CompileFn atomic_xsub (int ordering);
+Intrinsic::CompileFn atomic_and (int ordering);
+Intrinsic::CompileFn atomic_nand (int ordering);
+Intrinsic::CompileFn atomic_or (int ordering);
+Intrinsic::CompileFn atomic_xor (int ordering);
 
 Intrinsic::CompileFn unchecked_op (tree_code op);
 
