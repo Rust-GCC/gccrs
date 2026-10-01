@@ -326,6 +326,51 @@ TopLevel::visit (AST::ConstGenericParam &const_param)
 }
 
 void
+TopLevel::visit (AST::LifetimeParam &lifetime_param)
+{
+  auto &lifetime = lifetime_param.get_lifetime ();
+  auto node_id = lifetime_param.get_node_id ();
+  auto locus = lifetime_param.get_locus ();
+  auto identifier = Identifier (lifetime.as_string (), lifetime.get_locus ());
+
+  /* Lifetime parameters are definitions in the label namespace, but unlike
+     loop labels they may not shadow one another inside the same binder, so
+     they are inserted non-shadowably.  */
+  auto result
+    = ctx.insert_non_shadowable (identifier, node_id, Namespace::Labels);
+
+  if (result)
+    node_locations.emplace (node_id, locus);
+  else if (result.error ().existing != node_id)
+    {
+      rich_location rich_loc (line_table, locus);
+      rich_loc.add_range (node_locations[result.error ().existing]);
+
+      rust_error_at (rich_loc, ErrorCode::E0403,
+		     "the name %qs is already used for a generic parameter of "
+		     "this item",
+		     lifetime.as_string ().c_str ());
+    }
+
+  DefaultResolver::visit (lifetime_param);
+}
+
+void
+TopLevel::visit_for_lifetimes (std::vector<AST::LifetimeParam> &for_lifetimes)
+{
+  if (for_lifetimes.empty ())
+    return;
+
+  /* A `for<...>` binder introduces a scope of its own.  Reusing a lifetime
+     name from an enclosing binder is shadowing (E0496), not a duplicate
+     parameter, so the names it binds must not collide with the outer ones.  */
+  ctx.scoped (Rib::Kind::Generics, Namespace::Labels,
+	      for_lifetimes.front ().get_node_id (), [this, &for_lifetimes] () {
+		DefaultResolver::visit_for_lifetimes (for_lifetimes);
+	      });
+}
+
+void
 TopLevel::visit (AST::TupleStruct &tuple_struct)
 {
   insert_or_error_out (tuple_struct.get_struct_name (), tuple_struct,
