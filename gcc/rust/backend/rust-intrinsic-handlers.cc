@@ -639,11 +639,13 @@ copy (Context *ctx, TyTy::FnType *fntype, bool overlaps)
   return fndecl;
 }
 
+// Compiles atomic_store which has the signature (*mut T, T) -> ()
 tree
 atomic_store (Context *ctx, TyTy::FnType *fntype, int ordering)
 {
   rust_assert (fntype->get_params ().size () == 2);
   rust_assert (fntype->get_num_substitutions () == 1);
+  rust_assert (fntype->get_return_type ()->is_unit ());
 
   tree lookup = NULL_TREE;
   if (check_for_cached_intrinsic (ctx, fntype, &lookup))
@@ -700,11 +702,13 @@ atomic_store (Context *ctx, TyTy::FnType *fntype, int ordering)
   return fndecl;
 }
 
+// Compiles atomic_load that has the signature (*const T) -> T
 tree
 atomic_load (Context *ctx, TyTy::FnType *fntype, int ordering)
 {
   rust_assert (fntype->get_params ().size () == 1);
   rust_assert (fntype->get_num_substitutions () == 1);
+  rust_assert (!fntype->get_return_type ()->is_unit ());
 
   tree lookup = NULL_TREE;
   if (check_for_cached_intrinsic (ctx, fntype, &lookup))
@@ -757,6 +761,74 @@ atomic_load (Context *ctx, TyTy::FnType *fntype, int ordering)
 
   ctx->add_statement (return_statement);
 
+  finalize_intrinsic_block (ctx, fndecl);
+
+  return fndecl;
+}
+
+// Compiles for atomic builtins that has the signature (*mut T, T) -> T
+tree
+atomic_binary_op (Context *ctx, TyTy::FnType *fntype,
+		  const std::string &op_name, int ordering)
+{
+  rust_assert (fntype->get_params ().size () == 2);
+  rust_assert (fntype->get_num_substitutions () == 1);
+  rust_assert (!fntype->get_return_type ()->is_unit ());
+
+  tree lookup = NULL_TREE;
+  if (check_for_cached_intrinsic (ctx, fntype, &lookup))
+    return lookup;
+
+  auto fndecl = compile_intrinsic_function (ctx, fntype);
+
+  // Most intrinsic functions are pure but not the atomic ones
+  TREE_READONLY (fndecl) = 0;
+  TREE_SIDE_EFFECTS (fndecl) = 1;
+
+  // setup the params
+  std::vector<Bvariable *> param_vars;
+  std::vector<tree> types;
+  compile_fn_params (ctx, fntype, fndecl, &param_vars, &types);
+
+  auto ok = Backend::function_set_parameters (fndecl, param_vars);
+  rust_assert (ok);
+
+  enter_intrinsic_block (ctx, fndecl);
+
+  auto dst = Backend::var_expression (param_vars[0], UNDEF_LOCATION);
+  TREE_READONLY (dst) = 0;
+
+  auto value = Backend::var_expression (param_vars[1], UNDEF_LOCATION);
+  auto memorder = make_unsigned_long_tree (ordering);
+
+  auto monomorphized_type
+    = fntype->get_substs ()[0].get_param_ty ()->resolve ();
+
+  auto call_locus = ctx->get_mappings ().lookup_location (fntype->get_ref ());
+  auto builtin_name
+    = build_atomic_builtin_name ("atomic_" + op_name + "_", call_locus,
+				 monomorphized_type);
+
+  if (builtin_name.empty ())
+    return error_mark_node;
+
+  tree atomic_binary_op_raw = nullptr;
+  BuiltinsContext::get ().lookup_simple_builtin (builtin_name,
+						 &atomic_binary_op_raw);
+  rust_assert (atomic_binary_op_raw);
+
+  auto atomic_binary_op
+    = build_fold_addr_expr_loc (UNKNOWN_LOCATION, atomic_binary_op_raw);
+
+  auto binary_op_call
+    = Backend::call_expression (atomic_binary_op, {dst, value, memorder},
+				nullptr, UNDEF_LOCATION);
+  TREE_READONLY (binary_op_call) = 0;
+  TREE_SIDE_EFFECTS (binary_op_call) = 1;
+
+  auto return_statement
+    = Backend::return_statement (fndecl, binary_op_call, UNDEF_LOCATION);
+  ctx->add_statement (return_statement);
   finalize_intrinsic_block (ctx, fndecl);
 
   return fndecl;
@@ -1080,6 +1152,49 @@ atomic_load (int ordering)
 {
   return [ordering] (Context *ctx, TyTy::FnType *fntype, location_t) {
     return inner::atomic_load (ctx, fntype, ordering);
+  };
+}
+
+HandlerBuilder
+atomic_xadd (int ordering)
+{
+  return [ordering] (Context *ctx, TyTy::FnType *fntype, location_t) {
+    return inner::atomic_binary_op (ctx, fntype, "fetch_add", ordering);
+  };
+}
+HandlerBuilder
+atomic_xsub (int ordering)
+{
+  return [ordering] (Context *ctx, TyTy::FnType *fntype, location_t) {
+    return inner::atomic_binary_op (ctx, fntype, "fetch_sub", ordering);
+  };
+}
+HandlerBuilder
+atomic_and (int ordering)
+{
+  return [ordering] (Context *ctx, TyTy::FnType *fntype, location_t) {
+    return inner::atomic_binary_op (ctx, fntype, "fetch_and", ordering);
+  };
+}
+HandlerBuilder
+atomic_nand (int ordering)
+{
+  return [ordering] (Context *ctx, TyTy::FnType *fntype, location_t) {
+    return inner::atomic_binary_op (ctx, fntype, "fetch_nand", ordering);
+  };
+}
+HandlerBuilder
+atomic_or (int ordering)
+{
+  return [ordering] (Context *ctx, TyTy::FnType *fntype, location_t) {
+    return inner::atomic_binary_op (ctx, fntype, "fetch_or", ordering);
+  };
+}
+HandlerBuilder
+atomic_xor (int ordering)
+{
+  return [ordering] (Context *ctx, TyTy::FnType *fntype, location_t) {
+    return inner::atomic_binary_op (ctx, fntype, "fetch_xor", ordering);
   };
 }
 
