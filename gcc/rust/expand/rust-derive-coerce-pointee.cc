@@ -101,5 +101,26 @@ bool DeriveCoercePointee::validate_repr_transparent(
                 "repr(transparent) layout");
   return false;
 }
+
+// Structs or Tuples with CoercePointee must have minimum of one field else
+// compile time error
+bool DeriveCoercePointee::validate_number_of_fields(
+    const Rust::AST::Item &item) {
+  size_t field_count = 0;
+
+  if (item.get_item_kind() == Item::Kind::Struct) {
+    auto *struct_item = static_cast<const StructStruct *>(&item);
+    field_count = struct_item->get_fields().size();
+  } else
+    rust_unreachable();
+
+  if (field_count == 0) {
+    rust_error_at(item.get_locus(), ErrorCode::E0802,
+                  "%<CoercePointee%> can only be derived on a struct "
+                  "with at least one field");
+    return false;
+  }
+  return true;
+}
 } // namespace AST
 } // namespace Rust

@@ -32,6 +32,7 @@ public:
   std::unique_ptr<Item> go (Item &item);
 
   bool validate_repr_transparent(const Rust::AST::Item &item);
+  bool validate_number_of_fields(const Rust::AST::Item &item);
 
 private:
   virtual void visit_struct (StructStruct &item) override {}
