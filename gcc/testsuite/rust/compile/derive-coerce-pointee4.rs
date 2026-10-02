@@ -1,6 +1,6 @@
 // { dg-additional-options "-frust-compat-version=1.84" }
 
-// this time everything is enabled - check we fake name resolve properly and we have access to the derive
+// check for repr transparent for structs with derive CoercePointee
 
 #![feature(no_core)]
 #![feature(lang_items)]
@@ -10,6 +10,8 @@
 #[lang = "sized"]
 trait Sized {}
 
-#[repr(transparent)]
 #[derive(CoercePointee)] // { dg-warning "no effect" }
-pub struct Floop<T>(*const T);
+                         // { dg-error "only applicable to struct/tuple with repr.transparent. layout" "" { target *-*-* } .+1 }
+struct Bad<T: ?Sized> {
+    a: *const T,
+}
