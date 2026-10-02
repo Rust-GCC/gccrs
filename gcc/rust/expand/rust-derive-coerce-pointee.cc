@@ -17,9 +17,10 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-derive-coerce-pointee.h"
-#include "rust-session-manager.h"
-#include "rust-feature.h"
+#include "rust-diagnostics.h"
 #include "rust-feature-store.h"
+#include "rust-feature.h"
+#include "rust-session-manager.h"
 
 namespace Rust {
 namespace AST {
@@ -72,5 +73,33 @@ DeriveCoercePointee::go (Item &item)
   return {};
 }
 
+// CoercePointee requires the Struct or Tuple to have transparent representation
+bool DeriveCoercePointee::validate_repr_transparent(
+    const Rust::AST::Item &item) {
+  const auto attrs = item.get_outer_attrs();
+  for (const auto &attr : attrs) {
+    if (attr.get_path().as_string() != "repr")
+      continue;
+    if (attr.empty_input())
+      continue;
+
+    const auto &attr_input = attr.get_attr_input();
+    if (attr_input.get_attr_input_type() !=
+        AST::AttrInput::AttrInputType::TOKEN_TREE)
+      continue;
+
+    std::unique_ptr<AST::AttrInputMetaItemContainer> meta_item(
+        static_cast<const AST::DelimTokenTree &>(attr_input)
+            .parse_to_meta_item());
+
+    for (const auto &item : meta_item->get_items())
+      if (item->as_string() == "transparent")
+        return true;
+  }
+  rust_error_at(item.get_locus(), ErrorCode::E0802,
+                "%<CoercePointee%> is only applicable to struct/tuple with "
+                "repr(transparent) layout");
+  return false;
+}
 } // namespace AST
 } // namespace Rust
