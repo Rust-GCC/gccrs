@@ -18,7 +18,6 @@
 
 #include "rust-attribute-values.h"
 #include "rust-derive-coerce-pointee.h"
-#include "rust-diagnostics.h"
 #include "rust-feature-store.h"
 #include "rust-feature.h"
 #include "rust-session-manager.h"
@@ -36,6 +35,7 @@ DeriveCoercePointee::go (Item &item)
 {
   validate_repr_transparent (item);
   validate_number_of_fields (item);
+  validate_non_generic_pointee (item);
   Features::EarlyFeatureGateStore::get ().add (
     Feature::Name::DERIVE_COERCE_POINTEE,
     Error (loc, "use of unstable library feature %<derive_coerce_pointee%>"));
@@ -133,6 +133,59 @@ DeriveCoercePointee::validate_number_of_fields (const Item &item)
 		     "with at least one field");
       return false;
     }
+  return true;
+}
+
+// The `pointee` must be of non-generic type. If there are more than 2 traits
+// defined, then one of them must be specifically marked as pointee else compile
+// error
+bool
+DeriveCoercePointee::validate_non_generic_pointee (const Rust::AST::Item &item)
+{
+  const std::vector<std::unique_ptr<GenericParam>> *generic_params = nullptr;
+
+  if (item.get_item_kind () == Item::Kind::Struct)
+    {
+      const StructStruct *struct_item
+	= static_cast<const StructStruct *> (&item);
+      generic_params = &struct_item->get_generic_params ();
+    }
+  else
+    {
+      rust_error_at (item.get_locus (), ErrorCode::E0802,
+		     "%<CoercePointee%> can only be derived on structs with "
+		     "#[repr(transparent)]");
+      return false;
+    }
+
+  // Implicitly it becomes the pointee
+  if (generic_params->size () == 1)
+    return true;
+  size_t pointee_count = 0;
+
+  for (size_t i = 0; i < generic_params->size (); ++i)
+    {
+      auto *type_param = static_cast<TypeParam *> ((*generic_params)[i].get ());
+      if (!type_param)
+	continue;
+
+      for (const auto &attr : type_param->get_outer_attrs ())
+	{
+	  if (attr.get_path ().as_string () == Values::Attributes::POINTEE)
+	    {
+	      pointee_count += 1;
+	    }
+	}
+    }
+
+  if (pointee_count == 0 || pointee_count > 1)
+    {
+      rust_error_at (item.get_locus (), ErrorCode::E0802,
+		     "exactly one generic type parameter must be marked "
+		     "as %<#[pointee]%> to derive %<CoercePointee%> traits");
+      return false;
+    }
+
   return true;
 }
 } // namespace AST

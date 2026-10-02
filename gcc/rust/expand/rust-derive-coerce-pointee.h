@@ -33,6 +33,8 @@ public:
 
   bool validate_repr_transparent (const Item &item);
   bool validate_number_of_fields (const Item &item);
+  bool validate_non_generic_pointee (const Item &item);
+
 private:
   virtual void visit_struct (StructStruct &item) override {}
   virtual void visit_tuple (TupleStruct &item) override {}
