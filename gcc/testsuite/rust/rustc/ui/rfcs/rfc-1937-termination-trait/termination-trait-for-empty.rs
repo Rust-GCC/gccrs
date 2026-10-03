@@ -1,0 +1,3 @@
+// run-pass
+fn main() {}
+
