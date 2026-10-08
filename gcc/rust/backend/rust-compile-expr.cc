@@ -2306,6 +2306,44 @@ CompileExpr::compile_transparent_field_access (TyTy::VariantDef *variant,
   return fold_build1_loc (locus, VIEW_CONVERT_EXPR, field_type, source_expr);
 }
 
+// A float to int cast saturates: NaN becomes 0 and out of range values become
+// the integer type's MIN or MAX. A bare FIX_TRUNC_EXPR is undefined for those,
+// so only use it once the value is known to be in range. The bounds -2^(N-1)
+// and 2^N are powers of two, exact in every float type (or +inf when 2^N is
+// out of its range), unlike MAX itself which may round up.
+static tree
+saturating_float_to_int (tree int_type, tree expr, location_t locus)
+{
+  tree float_type = TREE_TYPE (expr);
+  int prec = TYPE_PRECISION (int_type);
+  bool uns = TYPE_UNSIGNED (int_type);
+  expr = save_expr (expr);
+
+  REAL_VALUE_TYPE lo = dconst0, hi;
+  if (!uns)
+    {
+      real_2expN (&lo, prec - 1, TYPE_MODE (float_type));
+      lo = real_value_negate (&lo);
+    }
+  real_2expN (&hi, uns ? prec : prec - 1, TYPE_MODE (float_type));
+  hi = real_value_truncate (TYPE_MODE (float_type), hi);
+
+  tree is_nan
+    = build2_loc (locus, UNORDERED_EXPR, boolean_type_node, expr, expr);
+  tree below = build2_loc (locus, LT_EXPR, boolean_type_node, expr,
+			   build_real (float_type, lo));
+  tree above = build2_loc (locus, GE_EXPR, boolean_type_node, expr,
+			   build_real (float_type, hi));
+  tree trunc = build1_loc (locus, FIX_TRUNC_EXPR, int_type, expr);
+
+  tree result = fold_build3_loc (locus, COND_EXPR, int_type, above,
+				 TYPE_MAX_VALUE (int_type), trunc);
+  result = fold_build3_loc (locus, COND_EXPR, int_type, below,
+			    TYPE_MIN_VALUE (int_type), result);
+  return fold_build3_loc (locus, COND_EXPR, int_type, is_nan,
+			  build_zero_cst (int_type), result);
+}
+
 tree
 CompileExpr::type_cast_expression (tree type_to_cast_to, tree expr_tree,
 				   location_t location)
@@ -2322,6 +2360,9 @@ CompileExpr::type_cast_expression (tree type_to_cast_to, tree expr_tree,
     }
   else if (TREE_CODE (type_to_cast_to) == INTEGER_TYPE)
     {
+      if (SCALAR_FLOAT_TYPE_P (TREE_TYPE (expr_tree)))
+	return saturating_float_to_int (type_to_cast_to, expr_tree, location);
+
       tree cast = convert_to_integer (type_to_cast_to, expr_tree);
       // FIXME check for TREE_OVERFLOW?
       return cast;
