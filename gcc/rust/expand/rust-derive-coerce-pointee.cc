@@ -16,10 +16,11 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
+#include "rust-attribute-values.h"
 #include "rust-derive-coerce-pointee.h"
-#include "rust-session-manager.h"
-#include "rust-feature.h"
 #include "rust-feature-store.h"
+#include "rust-feature.h"
+#include "rust-session-manager.h"
 
 namespace Rust {
 namespace AST {
@@ -32,6 +33,7 @@ DeriveCoercePointee::DeriveCoercePointee (location_t loc,
 std::unique_ptr<AST::Item>
 DeriveCoercePointee::go (Item &item)
 {
+  item.accept_vis (*this);
   Features::EarlyFeatureGateStore::get ().add (
     Feature::Name::DERIVE_COERCE_POINTEE,
     Error (loc, "use of unstable library feature %<derive_coerce_pointee%>"));
@@ -72,5 +74,149 @@ DeriveCoercePointee::go (Item &item)
   return {};
 }
 
+// CoercePointee requires the Struct or Tuple to have transparent representation
+bool
+DeriveCoercePointee::validate_repr_transparent (const Item &item)
+{
+  const auto &attrs = item.get_outer_attrs ();
+  for (const auto &attr : attrs)
+    {
+      if (attr.get_path ().as_string () != Values::Attributes::REPR)
+	continue;
+      if (attr.empty_input ())
+	continue;
+
+      const auto &attr_input = attr.get_attr_input ();
+      if (attr_input.get_attr_input_type ()
+	  != AST::AttrInput::AttrInputType::TOKEN_TREE)
+	continue;
+
+      auto meta_item = static_cast<const AST::DelimTokenTree &> (attr_input)
+			 .parse_to_meta_item ();
+
+      for (const auto &item : meta_item->get_items ())
+	if (item->as_string () == "transparent")
+	  return true;
+    }
+  rust_error_at (item.get_locus (), ErrorCode::E0802,
+		 "%<CoercePointee%> is only applicable to struct/tuple with "
+		 "repr(transparent) layout");
+  return false;
+}
+
+// Structs or Tuples with CoercePointee must have minimum of one field else
+// compile time error
+bool
+DeriveCoercePointee::validate_number_of_fields (const Item &item)
+{
+  size_t field_count = 0;
+
+  if (item.get_item_kind () == Item::Kind::Struct)
+    {
+      auto *struct_item = static_cast<const StructStruct *> (&item);
+      field_count = struct_item->get_fields ().size ();
+    }
+  else
+    {
+      rust_error_at (item.get_locus (), ErrorCode::E0802,
+		     "%<CoercePointee%> can only be derived on structs with "
+		     "%<#[repr(transparent)]%>");
+      return false;
+    }
+
+  if (field_count == 0)
+    {
+      rust_error_at (item.get_locus (), ErrorCode::E0802,
+		     "%<CoercePointee%> can only be derived on a struct "
+		     "with at least one field");
+      return false;
+    }
+  return true;
+}
+
+// The `pointee` must be of non-generic type. If there are more than 2 traits
+// defined, then one of them must be specifically marked as pointee else compile
+// error
+bool
+DeriveCoercePointee::validate_non_generic_pointee (const Rust::AST::Item &item)
+{
+  const std::vector<std::unique_ptr<GenericParam>> *generic_params = nullptr;
+
+  if (item.get_item_kind () == Item::Kind::Struct)
+    {
+      const StructStruct *struct_item
+	= static_cast<const StructStruct *> (&item);
+      generic_params = &struct_item->get_generic_params ();
+    }
+  else
+    {
+      rust_error_at (item.get_locus (), ErrorCode::E0802,
+		     "%<CoercePointee%> can only be derived on structs with "
+		     "%<#[repr(transparent)]%>");
+      return false;
+    }
+
+  // Implicitly it becomes the pointee
+  if (generic_params->size () == 1)
+    return true;
+  size_t pointee_count = 0;
+
+  for (size_t i = 0; i < generic_params->size (); ++i)
+    {
+      auto *type_param = static_cast<TypeParam *> ((*generic_params)[i].get ());
+      if (!type_param)
+	continue;
+
+      for (const auto &attr : type_param->get_outer_attrs ())
+	{
+	  if (attr.get_path ().as_string () == Values::Attributes::POINTEE)
+	    {
+	      pointee_count += 1;
+	    }
+	}
+    }
+
+  if (pointee_count == 0 || pointee_count > 1)
+    {
+      rust_error_at (item.get_locus (), ErrorCode::E0802,
+		     "exactly one generic type parameter must be marked "
+		     "as %<#[pointee]%> to derive %<CoercePointee%> traits");
+      return false;
+    }
+
+  return true;
+}
+
+void
+DeriveCoercePointee::visit_struct (StructStruct &item)
+{
+  validate_repr_transparent (item);
+  validate_number_of_fields (item);
+  validate_non_generic_pointee (item);
+}
+
+void
+DeriveCoercePointee::visit_tuple (TupleStruct &item)
+{
+  validate_repr_transparent (item);
+  validate_number_of_fields (item);
+  validate_non_generic_pointee (item);
+}
+
+void
+DeriveCoercePointee::visit_enum (Enum &item)
+{
+  rust_error_at (item.get_locus (), ErrorCode::E0802,
+		 "%<CoercePointee%> can only be derived on structs with "
+		 "%<#[repr(transparent)]%>");
+}
+
+void
+DeriveCoercePointee::visit_union (Union &item)
+{
+  rust_error_at (item.get_locus (), ErrorCode::E0802,
+		 "%<CoercePointee%> can only be derived on structs with "
+		 "%<#[repr(transparent)]%>");
+}
 } // namespace AST
 } // namespace Rust
