@@ -33,9 +33,7 @@ DeriveCoercePointee::DeriveCoercePointee (location_t loc,
 std::unique_ptr<AST::Item>
 DeriveCoercePointee::go (Item &item)
 {
-  validate_repr_transparent (item);
-  validate_number_of_fields (item);
-  validate_non_generic_pointee (item);
+  item.accept_vis (*this);
   Features::EarlyFeatureGateStore::get ().add (
     Feature::Name::DERIVE_COERCE_POINTEE,
     Error (loc, "use of unstable library feature %<derive_coerce_pointee%>"));
@@ -122,7 +120,7 @@ DeriveCoercePointee::validate_number_of_fields (const Item &item)
     {
       rust_error_at (item.get_locus (), ErrorCode::E0802,
 		     "%<CoercePointee%> can only be derived on structs with "
-		     "#[repr(transparent)]");
+		     "%<#[repr(transparent)]%>");
       return false;
     }
 
@@ -154,7 +152,7 @@ DeriveCoercePointee::validate_non_generic_pointee (const Rust::AST::Item &item)
     {
       rust_error_at (item.get_locus (), ErrorCode::E0802,
 		     "%<CoercePointee%> can only be derived on structs with "
-		     "#[repr(transparent)]");
+		     "%<#[repr(transparent)]%>");
       return false;
     }
 
@@ -187,6 +185,38 @@ DeriveCoercePointee::validate_non_generic_pointee (const Rust::AST::Item &item)
     }
 
   return true;
+}
+
+void
+DeriveCoercePointee::visit_struct (StructStruct &item)
+{
+  validate_repr_transparent (item);
+  validate_number_of_fields (item);
+  validate_non_generic_pointee (item);
+}
+
+void
+DeriveCoercePointee::visit_tuple (TupleStruct &item)
+{
+  validate_repr_transparent (item);
+  validate_number_of_fields (item);
+  validate_non_generic_pointee (item);
+}
+
+void
+DeriveCoercePointee::visit_enum (Enum &item)
+{
+  rust_error_at (item.get_locus (), ErrorCode::E0802,
+		 "%<CoercePointee%> can only be derived on structs with "
+		 "%<#[repr(transparent)]%>");
+}
+
+void
+DeriveCoercePointee::visit_union (Union &item)
+{
+  rust_error_at (item.get_locus (), ErrorCode::E0802,
+		 "%<CoercePointee%> can only be derived on structs with "
+		 "%<#[repr(transparent)]%>");
 }
 } // namespace AST
 } // namespace Rust

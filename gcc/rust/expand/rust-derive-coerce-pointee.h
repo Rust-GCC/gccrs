@@ -36,10 +36,10 @@ public:
   bool validate_non_generic_pointee (const Item &item);
 
 private:
-  virtual void visit_struct (StructStruct &item) override {}
-  virtual void visit_tuple (TupleStruct &item) override {}
-  virtual void visit_enum (Enum &item) override {}
-  virtual void visit_union (Union &item) override {}
+  virtual void visit_struct (StructStruct &item) override;
+  virtual void visit_tuple (TupleStruct &item) override;
+  virtual void visit_enum (Enum &item) override;
+  virtual void visit_union (Union &item) override;
 };
 
 } // namespace AST
