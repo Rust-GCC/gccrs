@@ -37,6 +37,8 @@ tree wrapping_op (Context *ctx, TyTy::FnType *fntype, tree_code op);
 
 tree atomic_store (Context *ctx, TyTy::FnType *fntype, int ordering);
 tree atomic_load (Context *ctx, TyTy::FnType *fntype, int ordering);
+tree atomic_binary_op (Context *ctx, TyTy::FnType *fntype,
+		       const std::string &op_name, int ordering);
 inline tree copy (Context *ctx, TyTy::FnType *fntype, bool overlaps);
 inline tree expect (Context *ctx, TyTy::FnType *fntype, bool likely);
 tree try_handler (Context *ctx, TyTy::FnType *fntype, bool is_new_api);
@@ -83,8 +85,14 @@ tree cttz_nonzero_handler (Context *ctx, TyTy::FnType *fntype,
 tree prefetch_data (Context *ctx, TyTy::FnType *fntype, Prefetch kind);
 
 HandlerBuilder atomic_store (int ordering);
-
 HandlerBuilder atomic_load (int ordering);
+
+HandlerBuilder atomic_xadd (int ordering);
+HandlerBuilder atomic_xsub (int ordering);
+HandlerBuilder atomic_and (int ordering);
+HandlerBuilder atomic_nand (int ordering);
+HandlerBuilder atomic_or (int ordering);
+HandlerBuilder atomic_xor (int ordering);
 
 const HandlerBuilder unchecked_op (tree_code op);
 
