@@ -217,10 +217,10 @@ ForeverStack<N>::insert_crate_in_prelude (Identifier crate_name, NodeId id)
 
 template <Namespace N>
 inline void
-ForeverStack<N>::insert_lang_prelude (Identifier name, NodeId crate_id)
+ForeverStack<N>::insert_lang_prelude (Identifier name, NodeId id)
 {
   insert_inner (lang_prelude.rib (N), name.as_string (),
-		Rib::Definition::NonShadowable (crate_id, false));
+		Rib::Definition::NonShadowable (id, false));
 }
 
 template <Namespace N>
