@@ -396,7 +396,11 @@ PatternChecker::visit (MatchExpr &expr)
   expr.get_scrutinee_expr ().accept_vis (*this);
 
   for (auto &match_arm : expr.get_match_cases ())
-    match_arm.get_expr ().accept_vis (*this);
+    {
+      if (match_arm.get_arm ().has_match_arm_guard ())
+	match_arm.get_arm ().get_guard_expr ().accept_vis (*this);
+      match_arm.get_expr ().accept_vis (*this);
+    }
 
   // match expressions are only an entrypoint
   TyTy::BaseType *scrutinee_ty;
@@ -923,8 +927,9 @@ PatStack::pop_head_constructor (const Constructor &other_ctor,
 		other_ctor.to_string ().c_str (), s.c_str ());
   }
   pop_head ();
-  for (auto &pat : v)
-    pats.push_back (pat);
+  // The sub-patterns replace the head, in order, in front of the remaining
+  // columns, matching the order Matrix::specialize gives their types.
+  pats.insert (pats.begin (), v.begin (), v.end ());
 }
 
 std::string

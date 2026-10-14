@@ -26,6 +26,7 @@
 #include "rust-constexpr.h"
 #include "rust-session-manager.h"
 #include "rust-tree.h"
+#include "rust-tyty.h"
 #include "tree-core.h"
 #include "rust-gcc.h"
 #include "fold-const.h"
@@ -303,11 +304,11 @@ expect (Context *ctx, TyTy::FnType *fntype, bool likely)
   std::vector<Bvariable *> param_vars;
   compile_fn_params (ctx, fntype, fndecl, &param_vars);
   tree expr = Backend::var_expression (param_vars[0], UNDEF_LOCATION);
-  tree expect_fn_raw = nullptr;
-  BuiltinsContext::get ().lookup_simple_builtin ("__builtin_expect",
-						 &expect_fn_raw);
+  auto expect_fn_raw
+    = BuiltinsContext::get ().lookup_simple_builtin ("__builtin_expect");
   rust_assert (expect_fn_raw);
-  auto expect_fn = build_fold_addr_expr_loc (BUILTINS_LOCATION, expect_fn_raw);
+
+  auto expect_fn = build_fold_addr_expr_loc (BUILTINS_LOCATION, *expect_fn_raw);
 
   // we need to convert the expression return type to long to match the expected
   // parameter type of __builtin_expect
@@ -521,35 +522,37 @@ op_with_overflow (Context *ctx, TyTy::FnType *fntype, tree_code op)
   auto x = Backend::var_expression (x_param, UNDEF_LOCATION);
   auto y = Backend::var_expression (y_param, UNDEF_LOCATION);
 
-  tree overflow_builtin = error_mark_node;
+  tl::optional<tree> overflow_builtin = tl::nullopt;
+  auto &builtins = BuiltinsContext::get ();
+
   switch (op)
     {
     case PLUS_EXPR:
-      BuiltinsContext::get ().lookup_simple_builtin ("__builtin_add_overflow",
-						     &overflow_builtin);
+      overflow_builtin
+	= builtins.lookup_simple_builtin ("__builtin_add_overflow");
       break;
 
     case MINUS_EXPR:
-      BuiltinsContext::get ().lookup_simple_builtin ("__builtin_sub_overflow",
-						     &overflow_builtin);
+      overflow_builtin
+	= builtins.lookup_simple_builtin ("__builtin_sub_overflow");
       break;
 
     case MULT_EXPR:
-      BuiltinsContext::get ().lookup_simple_builtin ("__builtin_mul_overflow",
-						     &overflow_builtin);
+      overflow_builtin
+	= builtins.lookup_simple_builtin ("__builtin_mul_overflow");
       break;
 
     default:
       rust_unreachable ();
       break;
     }
-  rust_assert (overflow_builtin != error_mark_node);
+  rust_assert (overflow_builtin);
 
   tree bool_decl = bool_variable->get_tree (BUILTINS_LOCATION);
   tree result_decl = result_variable->get_tree (BUILTINS_LOCATION);
   tree result_ref = build_fold_addr_expr_loc (BUILTINS_LOCATION, result_decl);
 
-  tree builtin_call = build_call_expr_loc (BUILTINS_LOCATION, overflow_builtin,
+  tree builtin_call = build_call_expr_loc (BUILTINS_LOCATION, *overflow_builtin,
 					   3, x, y, result_ref);
 
   tree overflow_assignment
@@ -620,12 +623,11 @@ copy (Context *ctx, TyTy::FnType *fntype, bool overlaps)
   tree size_expr
     = build2 (MULT_EXPR, size_type_node, TYPE_SIZE_UNIT (param_type), count);
 
-  tree memcpy_raw = nullptr;
-  BuiltinsContext::get ().lookup_simple_builtin (overlaps ? "__builtin_memmove"
-							  : "__builtin_memcpy",
-						 &memcpy_raw);
+  auto memcpy_raw = BuiltinsContext::get ().lookup_simple_builtin (
+    overlaps ? "__builtin_memmove" : "__builtin_memcpy");
   rust_assert (memcpy_raw);
-  auto memcpy = build_fold_addr_expr_loc (UNKNOWN_LOCATION, memcpy_raw);
+
+  auto memcpy = build_fold_addr_expr_loc (UNKNOWN_LOCATION, *memcpy_raw);
 
   auto copy_call = Backend::call_expression (memcpy, {dst, src, size_expr},
 					     nullptr, UNDEF_LOCATION);
@@ -680,13 +682,12 @@ atomic_store (Context *ctx, TyTy::FnType *fntype, int ordering)
   if (builtin_name.empty ())
     return error_mark_node;
 
-  tree atomic_store_raw = nullptr;
-  BuiltinsContext::get ().lookup_simple_builtin (builtin_name,
-						 &atomic_store_raw);
+  auto atomic_store_raw
+    = BuiltinsContext::get ().lookup_simple_builtin (builtin_name);
   rust_assert (atomic_store_raw);
 
   auto atomic_store
-    = build_fold_addr_expr_loc (UNKNOWN_LOCATION, atomic_store_raw);
+    = build_fold_addr_expr_loc (UNKNOWN_LOCATION, *atomic_store_raw);
 
   auto store_call
     = Backend::call_expression (atomic_store, {dst, value, memorder}, nullptr,
@@ -739,13 +740,12 @@ atomic_load (Context *ctx, TyTy::FnType *fntype, int ordering)
   if (builtin_name.empty ())
     return error_mark_node;
 
-  tree atomic_load_raw = nullptr;
-  BuiltinsContext::get ().lookup_simple_builtin (builtin_name,
-						 &atomic_load_raw);
+  auto atomic_load_raw
+    = BuiltinsContext::get ().lookup_simple_builtin (builtin_name);
   rust_assert (atomic_load_raw);
 
   auto atomic_load
-    = build_fold_addr_expr_loc (UNKNOWN_LOCATION, atomic_load_raw);
+    = build_fold_addr_expr_loc (UNKNOWN_LOCATION, *atomic_load_raw);
 
   auto load_call = Backend::call_expression (atomic_load, {src, memorder},
 					     nullptr, UNDEF_LOCATION);
@@ -863,11 +863,11 @@ ctlz_handler (Context *ctx, TyTy::FnType *fntype, bool nonzero)
   // matches the builtin's operand width, so the subtraction is skipped.
   tree call_arg = fold_convert (cast_type, unsigned_arg);
 
-  tree builtin_decl = error_mark_node;
-  BuiltinsContext::get ().lookup_simple_builtin (builtin_name, &builtin_decl);
+  auto builtin_decl
+    = BuiltinsContext::get ().lookup_simple_builtin (builtin_name);
   rust_assert (builtin_decl != error_mark_node);
 
-  tree builtin_fn = build_fold_addr_expr_loc (locus, builtin_decl);
+  tree builtin_fn = build_fold_addr_expr_loc (locus, *builtin_decl);
   tree clz_expr
     = Backend::call_expression (builtin_fn, {call_arg}, nullptr, locus);
 
@@ -1000,11 +1000,11 @@ cttz_handler (Context *ctx, TyTy::FnType *fntype, bool nonzero)
 
   tree call_arg = fold_convert (cast_type, unsigned_arg);
 
-  tree builtin_decl = error_mark_node;
-  BuiltinsContext::get ().lookup_simple_builtin (builtin_name, &builtin_decl);
-  rust_assert (builtin_decl != error_mark_node);
+  auto builtin_decl
+    = BuiltinsContext::get ().lookup_simple_builtin (builtin_name);
+  rust_assert (builtin_decl);
 
-  tree builtin_fn = build_fold_addr_expr_loc (locus, builtin_decl);
+  tree builtin_fn = build_fold_addr_expr_loc (locus, *builtin_decl);
   tree ctz_expr
     = Backend::call_expression (builtin_fn, {call_arg}, nullptr, locus);
 
@@ -1037,6 +1037,53 @@ cttz_handler (Context *ctx, TyTy::FnType *fntype, bool nonzero)
   return fndecl;
 }
 
+static tree
+fop_fast (Context *ctx, TyTy::FnType *fntype, location_t locus,
+	  ArithmeticOrLogicalOperator op)
+{
+  // fast float ops intrinsics have two parameters
+  rust_assert (fntype->get_params ().size () == 2);
+
+  // and one generic parameter
+  rust_assert (fntype->get_num_substitutions () == 1);
+
+  tree lookup = NULL_TREE;
+  if (check_for_cached_intrinsic (ctx, fntype, &lookup))
+    return lookup;
+
+  auto fndecl = compile_intrinsic_function (ctx, fntype);
+
+  // setup the params
+  std::vector<Bvariable *> param_vars;
+  compile_fn_params (ctx, fntype, fndecl, &param_vars);
+
+  auto &lhs_param = param_vars.at (0);
+  auto &rhs_param = param_vars.at (1);
+  rust_assert (param_vars.size () == 2);
+
+  if (!Backend::function_set_parameters (fndecl, param_vars))
+    return error_mark_node;
+
+  enter_intrinsic_block (ctx, fndecl);
+
+  // BUILTIN rotate FN BODY BEGIN
+  tree lhs = Backend::var_expression (lhs_param, UNDEF_LOCATION);
+  tree rhs = Backend::var_expression (rhs_param, UNDEF_LOCATION);
+
+  tree result_expr
+    = Backend::arithmetic_or_logical_expression (op, lhs, rhs, locus);
+
+  auto return_statement
+    = Backend::return_statement (fndecl, result_expr, UNDEF_LOCATION);
+
+  ctx->add_statement (return_statement);
+  // BUILTIN rotate FN BODY END
+
+  finalize_intrinsic_block (ctx, fndecl);
+
+  return fndecl;
+}
+
 } // namespace inner
 
 const HandlerBuilder
@@ -1044,6 +1091,14 @@ op_with_overflow (tree_code op)
 {
   return [op] (Context *ctx, TyTy::FnType *fntype, location_t) {
     return inner::op_with_overflow (ctx, fntype, op);
+  };
+}
+
+HandlerBuilder
+fop_fast (ArithmeticOrLogicalOperator op)
+{
+  return [op] (Context *ctx, TyTy::FnType *fntype, location_t locus) {
+    return inner::fop_fast (ctx, fntype, locus, op);
   };
 }
 
@@ -1318,13 +1373,12 @@ move_val_init (Context *ctx, TyTy::FnType *fntype, location_t)
   tree src = Backend::var_expression (param_vars[1], UNDEF_LOCATION);
   tree size = TYPE_SIZE_UNIT (template_parameter_type);
 
-  tree memcpy_builtin = error_mark_node;
-  BuiltinsContext::get ().lookup_simple_builtin ("__builtin_memcpy",
-						 &memcpy_builtin);
-  rust_assert (memcpy_builtin != error_mark_node);
+  auto memcpy_builtin
+    = BuiltinsContext::get ().lookup_simple_builtin ("__builtin_memcpy");
+  rust_assert (memcpy_builtin);
 
   src = build_fold_addr_expr_loc (BUILTINS_LOCATION, src);
-  tree memset_call = build_call_expr_loc (BUILTINS_LOCATION, memcpy_builtin, 3,
+  tree memset_call = build_call_expr_loc (BUILTINS_LOCATION, *memcpy_builtin, 3,
 					  dst, src, size);
 
   ctx->add_statement (memset_call);
@@ -1374,10 +1428,9 @@ uninit (Context *ctx, TyTy::FnType *fntype, location_t)
 
   // BUILTIN size_of FN BODY BEGIN
 
-  tree memset_builtin = error_mark_node;
-  BuiltinsContext::get ().lookup_simple_builtin ("__builtin_memset",
-						 &memset_builtin);
-  rust_assert (memset_builtin != error_mark_node);
+  auto memset_builtin
+    = BuiltinsContext::get ().lookup_simple_builtin ("__builtin_memset");
+  rust_assert (memset_builtin);
 
   // call memset with 0x01 and size of the thing see
   // https://github.com/Rust-GCC/gccrs/issues/1899
@@ -1387,7 +1440,7 @@ uninit (Context *ctx, TyTy::FnType *fntype, location_t)
   tree constant_byte = build_int_cst (integer_type_node, 0x01);
   tree size_expr = TYPE_SIZE_UNIT (template_parameter_type);
 
-  tree memset_call = build_call_expr_loc (BUILTINS_LOCATION, memset_builtin, 3,
+  tree memset_call = build_call_expr_loc (BUILTINS_LOCATION, *memset_builtin, 3,
 					  dst_addr, constant_byte, size_expr);
   ctx->add_statement (memset_call);
 
@@ -1453,11 +1506,11 @@ prefetch_data (Context *ctx, TyTy::FnType *fntype, Prefetch kind)
 
   auto rw_flag = make_unsigned_long_tree (kind == Prefetch::Write ? 1 : 0);
 
-  auto prefetch_raw = NULL_TREE;
-  auto ok = BuiltinsContext::get ().lookup_simple_builtin ("__builtin_prefetch",
-							   &prefetch_raw);
-  rust_assert (ok);
-  auto prefetch = build_fold_addr_expr_loc (UNKNOWN_LOCATION, prefetch_raw);
+  auto prefetch_raw
+    = BuiltinsContext::get ().lookup_simple_builtin ("__builtin_prefetch");
+  rust_assert (prefetch_raw);
+
+  auto prefetch = build_fold_addr_expr_loc (UNKNOWN_LOCATION, *prefetch_raw);
 
   auto prefetch_call = Backend::call_expression (prefetch,
 						 {addr, rw_flag,
@@ -1994,13 +2047,12 @@ bswap_handler (Context *ctx, TyTy::FnType *fntype, location_t)
 	  return error_mark_node;
 	}
 
-      tree bswap_raw = nullptr;
-      auto ok = BuiltinsContext::get ().lookup_simple_builtin (builtin_name,
-							       &bswap_raw);
+      auto bswap_raw
+	= BuiltinsContext::get ().lookup_simple_builtin (builtin_name);
 
-      if (ok)
+      if (bswap_raw)
 	{
-	  tree bswap_fn = build_fold_addr_expr_loc (locus, bswap_raw);
+	  tree bswap_fn = build_fold_addr_expr_loc (locus, *bswap_raw);
 
 	  auto bswap_x = build1 (CONVERT_EXPR, target_type, expr_x);
 
@@ -2011,11 +2063,11 @@ bswap_handler (Context *ctx, TyTy::FnType *fntype, location_t)
 	}
       else
 	{
-	  auto ok2 = BuiltinsContext::get ().lookup_simple_builtin (
-	    "__builtin_bswap64", &bswap_raw);
-	  rust_assert (ok2);
+	  bswap_raw = BuiltinsContext::get ().lookup_simple_builtin (
+	    "__builtin_bswap64");
+	  rust_assert (bswap_raw);
 
-	  tree bswap_fn = build_fold_addr_expr_loc (locus, bswap_raw);
+	  tree bswap_fn = build_fold_addr_expr_loc (locus, *bswap_raw);
 
 	  tree tmp_in_stmt = error_mark_node;
 	  Bvariable *in_var
@@ -2152,13 +2204,12 @@ write_bytes_handler (Context *ctx, TyTy::FnType *fntype, location_t)
 		       fold_convert_loc (locus, size_type_node, expr_count),
 		       fold_convert_loc (locus, size_type_node, dst_size_expr));
 
-  tree write_bytes_raw = nullptr;
   // void* memset( void* dest, int ch, size_t count );
-  bool ok = BuiltinsContext::get ().lookup_simple_builtin ("__builtin_memset",
-							   &write_bytes_raw);
-  rust_assert (ok);
+  auto write_bytes_raw
+    = BuiltinsContext::get ().lookup_simple_builtin ("__builtin_memset");
+  rust_assert (write_bytes_raw);
 
-  tree write_bytes_fn = build_fold_addr_expr_loc (locus, write_bytes_raw);
+  tree write_bytes_fn = build_fold_addr_expr_loc (locus, *write_bytes_raw);
   tree write_bytes_call
     = Backend::call_expression (write_bytes_fn,
 				{expr_dst, expr_val, expr_count_final},
@@ -2259,6 +2310,50 @@ assert_zero_valid_handler (Context *ctx, TyTy::FnType *fntype, location_t)
   ctx->add_statement (return_statement);
 
   // BUILTIN assert_zero_valid FN BODY END
+
+  finalize_intrinsic_block (ctx, fndecl);
+
+  return fndecl;
+}
+
+tree
+float_to_int_unchecked (Context *ctx, TyTy::FnType *fntype, location_t loc)
+{
+  rust_assert (fntype->get_params ().size () == 1);
+  rust_assert (fntype->get_num_substitutions () == 2);
+
+  tree lookup = NULL_TREE;
+  if (check_for_cached_intrinsic (ctx, fntype, &lookup))
+    return lookup;
+
+  auto fndecl = compile_intrinsic_function (ctx, fntype);
+
+  auto &dst_param = fntype->get_substs ().at (1);
+  const auto dst_ty = dst_param.get_param_ty ();
+  auto int_ty_resolved = dst_ty->resolve ();
+
+  auto int_ty = TyTyResolveCompile::compile (ctx, int_ty_resolved);
+
+  // setup the params
+  std::vector<Bvariable *> param_vars;
+  compile_fn_params (ctx, fntype, fndecl, &param_vars);
+
+  rust_assert (param_vars.size () == 1);
+
+  auto &float_param = param_vars.at (0);
+
+  if (!Backend::function_set_parameters (fndecl, param_vars))
+    return error_mark_node;
+
+  enter_intrinsic_block (ctx, fndecl);
+
+  tree float_value = Backend::var_expression (float_param, UNDEF_LOCATION);
+
+  auto convert_expr = Backend::convert_expression (int_ty, float_value, loc);
+
+  auto return_statement = Backend::return_statement (fndecl, convert_expr, loc);
+
+  ctx->add_statement (return_statement);
 
   finalize_intrinsic_block (ctx, fndecl);
 

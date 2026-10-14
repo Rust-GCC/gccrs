@@ -1,0 +1,57 @@
+name: GCC Rust build and test
+
+on:
+  pull_request:
+    branches: [dkm/upstream-base]
+  merge_group:
+
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+  # Force locale, in particular for reproducible results re '.github/log_expected_warnings' (see below).
+  LC_ALL: C.UTF-8
+
+jobs:
+  build-and-check-ubuntu-64bit:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: build-and-test
+        uses: ./.github/actions/build-gcc
+        with:
+          extra-configure-env: ''
+          run-test-flags: '--target_board=unix\{-m32,-m64}'
+          enable-multilib: true
+          bootstrap: true
+
+  build-and-check-ubuntu-64bit-glibcxx:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: build-and-test
+        uses: ./.github/actions/build-gcc
+        with:
+          extra-configure-env: ''
+          run-test-flags: '--target_board=unix\{-m32,-m64}'
+          glibc-assertion: true
+          enable-multilib: true
+          bootstrap: true
+
+  build-and-check-gcc-5:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: build-and-test
+        uses: ./.github/actions/build-gcc
+        with:
+          extra-configure-env: ''
+          run-test-flags: '--target_board=unix\{-m32,-m64}'
+          glibc-assertion: false
+          use-old-gcc: '5.4.0'
+          enable-multilib: true
+          bootstrap: true

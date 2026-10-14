@@ -30,6 +30,7 @@
 #include "fold-const.h"
 #include "stringpool.h"
 #include "stor-layout.h"
+#include "util/optional.h"
 #include "varasm.h"
 #include "tree-iterator.h"
 #include "tm.h"
@@ -1087,6 +1088,55 @@ negation_expression (NegationOperator op, tree expr_tree, location_t location)
   return new_tree;
 }
 
+static tree
+builtin_remainder_float_call (tree lhs, tree rhs, location_t loc)
+{
+  auto builtin_ctx = Rust::Compile::BuiltinsContext::get ();
+  tl::optional<tree> remainder = tl::nullopt;
+
+  if (TYPE_PRECISION (TREE_TYPE (lhs)) == TYPE_PRECISION (float_type_node))
+    remainder = builtin_ctx.lookup_simple_builtin ("__builtin_remainderf");
+  else if (TYPE_PRECISION (TREE_TYPE (lhs))
+	   == TYPE_PRECISION (double_type_node))
+    remainder = builtin_ctx.lookup_simple_builtin ("__builtin_remainder");
+  // For f128, we will need to do the following - but gccrs doesn't handle f128
+  // at the moment AFAIK
+  else if (TYPE_PRECISION (TREE_TYPE (lhs))
+	   == TYPE_PRECISION (long_double_type_node))
+    remainder = builtin_ctx.lookup_simple_builtin ("__builtin_remainderl");
+  else
+    rust_unreachable ();
+
+  rust_assert (remainder);
+
+  return build_call_expr_loc (loc, *remainder, 2, lhs, rhs);
+}
+
+/**
+ * For floating point operations we may need to extend the precision of the
+ * type. For example, a 64-bit machine may not support operations on f32s.
+ *
+ * Returns NULL_TREE if there was no need to extend the type and the extended
+ * type otherwise.
+ */
+static tree
+maybe_extend_precision (bool floating_point, tree &lhs, tree &rhs, tree &ty)
+{
+  auto extended_type = NULL_TREE;
+  if (floating_point)
+    {
+      extended_type = excess_precision_type (ty);
+      if (extended_type != NULL_TREE)
+	{
+	  lhs = convert (extended_type, lhs);
+	  rhs = convert (extended_type, rhs);
+	  ty = extended_type;
+	}
+    }
+
+  return extended_type;
+}
+
 tree
 arithmetic_or_logical_expression (ArithmeticOrLogicalOperator op, tree left,
 				  tree right, location_t location)
@@ -1111,23 +1161,20 @@ arithmetic_or_logical_expression (ArithmeticOrLogicalOperator op, tree left,
      as the lhs operand. */
   auto tree_type = TREE_TYPE (left);
   auto original_type = tree_type;
+  auto extended_type
+    = maybe_extend_precision (floating_point, left, right, tree_type);
+
   auto tree_code = operator_to_tree_code (op, floating_point);
 
-  /* For floating point operations we may need to extend the precision of type.
-     For example, a 64-bit machine may not support operations on float32. */
-  auto extended_type = NULL_TREE;
-  if (floating_point)
-    {
-      extended_type = excess_precision_type (tree_type);
-      if (extended_type != NULL_TREE)
-	{
-	  left = convert (extended_type, left);
-	  right = convert (extended_type, right);
-	  tree_type = extended_type;
-	}
-    }
+  /* In the case of a floating point remainder operation, we have to perform a
+   * call to a builtin function instead as the mod operation is not supported on
+   * floating point values. But for all other operations, this is simply a
+   * build2 */
+  if (floating_point && op == ArithmeticOrLogicalOperator::MODULUS)
+    ret = builtin_remainder_float_call (left, right, location);
+  else
+    ret = build2_loc (location, tree_code, tree_type, left, right);
 
-  ret = build2_loc (location, tree_code, tree_type, left, right);
   TREE_CONSTANT (ret) = TREE_CONSTANT (left) & TREE_CONSTANT (right);
 
   // TODO: How do we handle floating point?
@@ -1168,31 +1215,30 @@ fetch_overflow_builtins (ArithmeticOrLogicalOperator op)
 {
   auto builtin_ctx = Rust::Compile::BuiltinsContext::get ();
 
-  auto builtin = NULL_TREE;
-  auto abort = NULL_TREE;
+  tl::optional<tree> builtin = NULL_TREE;
 
   switch (op)
     {
     case ArithmeticOrLogicalOperator::ADD:
-      builtin_ctx.lookup_simple_builtin ("__builtin_add_overflow", &builtin);
+      builtin = builtin_ctx.lookup_simple_builtin ("__builtin_add_overflow");
       break;
     case ArithmeticOrLogicalOperator::SUBTRACT:
-      builtin_ctx.lookup_simple_builtin ("__builtin_sub_overflow", &builtin);
+      builtin = builtin_ctx.lookup_simple_builtin ("__builtin_sub_overflow");
       break;
     case ArithmeticOrLogicalOperator::MULTIPLY:
-      builtin_ctx.lookup_simple_builtin ("__builtin_mul_overflow", &builtin);
+      builtin = builtin_ctx.lookup_simple_builtin ("__builtin_mul_overflow");
       break;
     default:
       rust_unreachable ();
       break;
     };
 
-  builtin_ctx.lookup_simple_builtin ("__builtin_abort", &abort);
+  auto abort = builtin_ctx.lookup_simple_builtin ("__builtin_abort");
 
   rust_assert (abort);
   rust_assert (builtin);
 
-  return {abort, builtin};
+  return {*abort, *builtin};
 }
 
 // Return an expression for the arithmetic or logical operation LEFT OP RIGHT
@@ -1590,6 +1636,44 @@ slice_index_expression (tree slice_tree, tree index_tree, location_t location)
   return build1_loc (location, INDIRECT_REF, element_type, data_offset_expr);
 }
 
+// Rust evaluates the callee and then the arguments of a call from left to
+// right, but gimplify_call_expr evaluates the arguments in the order the
+// target pushes them, which is right to left on x86. When anything in the
+// call has side effects, wrap the callee and every argument but the last in
+// a SAVE_EXPR, and return those in order so that the caller can evaluate
+// them before the call. The call then only evaluates its last argument.
+
+static std::vector<tree>
+save_call_operands (tree &fn, tree *args, size_t nargs)
+{
+  std::vector<tree> saved;
+
+  bool has_side_effects = TREE_SIDE_EFFECTS (fn);
+  for (size_t i = 0; i < nargs && !has_side_effects; ++i)
+    has_side_effects = TREE_SIDE_EFFECTS (args[i]);
+
+  if (!has_side_effects || nargs == 0)
+    return saved;
+
+  if (TREE_SIDE_EFFECTS (fn))
+    {
+      fn = save_expr (fn);
+      saved.push_back (fn);
+    }
+
+  for (size_t i = 0; i + 1 < nargs; ++i)
+    {
+      if (VOID_TYPE_P (TREE_TYPE (args[i])) || really_constant_p (args[i]))
+	continue;
+
+      args[i] = save_expr (args[i]);
+      if (TREE_CODE (args[i]) == SAVE_EXPR)
+	saved.push_back (args[i]);
+    }
+
+  return saved;
+}
+
 // Create an expression for a call to FN_EXPR with FN_ARGS.
 tree
 call_expression (tree fn, const std::vector<tree> &fn_args, tree chain_expr,
@@ -1642,6 +1726,8 @@ call_expression (tree fn, const std::vector<tree> &fn_args, tree chain_expr,
 	}
     }
 
+  std::vector<tree> saved = save_call_operands (fn, args, nargs);
+
   tree ret
     = build_call_array_loc (location,
 			    excess_type != NULL_TREE ? excess_type : rettype,
@@ -1664,6 +1750,10 @@ call_expression (tree fn, const std::vector<tree> &fn_args, tree chain_expr,
       // That may or may not be a bug in convert_to_real.
       ret = build1_loc (location, NOP_EXPR, rettype, ret);
     }
+
+  // evaluate the saved operands in order before the call
+  for (auto it = saved.rbegin (); it != saved.rend (); ++it)
+    ret = build2_loc (location, COMPOUND_EXPR, TREE_TYPE (ret), *it, ret);
 
   delete[] args;
   return ret;

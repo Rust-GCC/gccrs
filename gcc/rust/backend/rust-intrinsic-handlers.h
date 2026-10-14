@@ -107,6 +107,14 @@ tree arith_offset_handler (Context *ctx, TyTy::FnType *fntype,
 tree assert_zero_valid_handler (Context *ctx, TyTy::FnType *fntype,
 				location_t expr_locus);
 
+/**
+ * For fadd_fast, fsub_fast, fmul_fast, fdiv_fast and frem_fast
+ */
+HandlerBuilder fop_fast (ArithmeticOrLogicalOperator op);
+
+tree float_to_int_unchecked (Context *ctx, TyTy::FnType *fntype,
+			     location_t loc);
+
 } // namespace handlers
 
 } // namespace Compile
