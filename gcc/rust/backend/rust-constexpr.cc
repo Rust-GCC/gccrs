@@ -504,6 +504,8 @@ static tree decl_really_constant_value (tree decl, bool unshare_p /*= true*/);
 tree decl_constant_value (tree decl, bool unshare_p);
 
 static void non_const_var_error (location_t loc, tree r);
+static bool is_outer_local (const constexpr_ctx *ctx, tree decl);
+static void non_const_local_error (const constexpr_ctx *ctx);
 
 static tree eval_constant_expression (const constexpr_ctx *ctx, tree, bool,
 				      bool *, bool *, tree *jump_target);
@@ -2032,7 +2034,9 @@ eval_constant_expression (const constexpr_ctx *ctx, tree t, bool lval,
 	r = TARGET_EXPR_INITIAL (r);
       if (DECL_P (r) && !(VAR_P (t) && TYPE_REF_P (TREE_TYPE (t))))
 	{
-	  if (!ctx->quiet)
+	  if (!ctx->quiet && is_outer_local (ctx, r))
+	    non_const_local_error (ctx);
+	  else if (!ctx->quiet)
 	    non_const_var_error (loc, r);
 	  *non_constant_p = true;
 	}
@@ -2054,7 +2058,9 @@ eval_constant_expression (const constexpr_ctx *ctx, tree t, bool lval,
 	}
       else
 	{
-	  if (!ctx->quiet)
+	  if (!ctx->quiet && is_outer_local (ctx, t))
+	    non_const_local_error (ctx);
+	  else if (!ctx->quiet)
 	    error ("%qE is not a constant expression", t);
 	  *non_constant_p = true;
 	}
@@ -4288,6 +4294,34 @@ decl_constant_value (tree decl, bool unshare_p)
   return constant_value_1 (decl, /*strict_p=*/false,
 			   /*return_aggregate_cst_ok_p=*/true,
 			   /*unshare_p=*/unshare_p);
+}
+
+// a variable or parameter of a function other than the one being evaluated,
+// like a let in the function a const block sits in
+static bool
+is_outer_local (const constexpr_ctx *ctx, tree decl)
+{
+  if (TREE_CODE (decl) != PARM_DECL
+      && (!VAR_P (decl) || TREE_STATIC (decl) || DECL_EXTERNAL (decl)))
+    return false;
+
+  tree context = DECL_CONTEXT (decl);
+  if (context == NULL_TREE || TREE_CODE (context) != FUNCTION_DECL)
+    return false;
+
+  return ctx->call == nullptr || ctx->call->fundef == nullptr
+	 || context != ctx->call->fundef->decl;
+}
+
+// the decl has no location of its use so point at the constant being evaluated
+static void
+non_const_local_error (const constexpr_ctx *ctx)
+{
+  location_t loc = UNKNOWN_LOCATION;
+  if (ctx->call != nullptr && ctx->call->fundef != nullptr)
+    loc = DECL_SOURCE_LOCATION (ctx->call->fundef->decl);
+  rust_error_at (loc, ErrorCode::E0435,
+		 "attempt to use a non-constant value in a constant");
 }
 
 static void

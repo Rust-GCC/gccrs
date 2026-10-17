@@ -179,10 +179,9 @@ CompileItem::visit (HIR::ConstantItem &constant)
   ctx->pop_const_context ();
 
   if (const_expr != error_mark_node)
-    {
-      ctx->push_const (const_expr);
-      ctx->insert_const_decl (mappings.get_hirid (), const_expr);
-    }
+    ctx->push_const (const_expr);
+  // remember a failed one too, or every use would evaluate and report it again
+  ctx->insert_const_decl (mappings.get_hirid (), const_expr);
   reference = const_expr;
 }
 
