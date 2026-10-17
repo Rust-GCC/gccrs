@@ -355,6 +355,20 @@ Late::visit (AST::ContinueExpr &expr)
   DefaultResolver::visit (expr);
 }
 
+// A local from outside of a constant can't be used inside of it (E0435)
+static bool
+check_non_constant_value (NameResolutionContext &ctx,
+			  const Rib::Definition &definition,
+			  const std::string &name, location_t locus)
+{
+  bool is_error = !definition.ids_shadowable.empty ()
+		  && ctx.values.defined_outside_constant (name);
+  if (is_error)
+    rust_error_at (locus, ErrorCode::E0435,
+		   "attempt to use a non-constant value in a constant");
+  return !is_error;
+}
+
 void
 Late::visit (AST::IdentifierExpr &expr)
 {
@@ -404,6 +418,10 @@ Late::visit (AST::IdentifierExpr &expr)
 		     expr.as_string ().c_str ());
       return;
     }
+
+  if (!check_non_constant_value (ctx, *resolved, expr.get_ident ().as_string (),
+				 expr.get_locus ()))
+    return;
 
   ctx.map_usage (Usage (expr.get_node_id ()),
 		 Definition (resolved->get_node_id ()), ns.value ());
@@ -478,6 +496,12 @@ Late::visit (AST::PathInExpression &expr)
 		     expr.as_string ().c_str ());
       return;
     }
+
+  // only locals can be non-constant values, and they are single segments
+  auto &segment = expr.get_segments ().front ().get_ident_segment ();
+  if (!check_non_constant_value (ctx, resolved->definition,
+				 segment.as_string (), expr.get_locus ()))
+    return;
 
   ctx.map_usage (Usage (expr.get_node_id ()),
 		 Definition (resolved->definition.get_node_id ()),
