@@ -347,6 +347,31 @@ ForeverStack<N>::get (const Identifier &name)
 }
 
 template <Namespace N>
+bool
+ForeverStack<N>::defined_outside_constant (const std::string &name)
+{
+  // like rustc, the outermost constant or function boundary decides
+  bool found = false;
+  bool outside_constant = false;
+
+  reverse_iter ([&] (Node &current) {
+    auto &rib = current.rib (N);
+    auto candidate = rib.get (name);
+    if (rib.kind != Rib::Kind::TraitOrImpl && candidate
+	&& !candidate->is_variant ())
+      found = true;
+    else if (rib.kind == Rib::Kind::ConstantItem
+	     || rib.kind == Rib::Kind::Function)
+      outside_constant = rib.kind == Rib::Kind::ConstantItem;
+
+    return found || rib.kind == Rib::Kind::Module ? KeepGoing::No
+						  : KeepGoing::Yes;
+  });
+
+  return found && outside_constant;
+}
+
+template <Namespace N>
 tl::optional<Rib::Definition>
 ForeverStack<N>::get_lang_prelude (const Identifier &name)
 {
