@@ -708,6 +708,8 @@ public:
    * the current map, an empty one otherwise.
    */
   tl::optional<Rib::Definition> get (const Identifier &name);
+  /* Is the closest definition of `name` outside of the constant we are in? */
+  bool defined_outside_constant (const std::string &name);
   tl::optional<Rib::Definition> get_lang_prelude (const Identifier &name);
   tl::optional<Rib::Definition> get_lang_prelude (const std::string &name);
   tl::optional<Rib::Definition> get_from_prelude (NodeId prelude,

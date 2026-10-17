@@ -63,6 +63,13 @@ DefaultResolver::visit (AST::BlockExpr &expr)
 }
 
 void
+DefaultResolver::visit (AST::ConstBlock &expr)
+{
+  auto inner_fn = [this, &expr] () { AST::DefaultASTVisitor::visit (expr); };
+  ctx.scoped (Rib::Kind::ConstantItem, expr.get_node_id (), inner_fn);
+}
+
+void
 DefaultResolver::visit (AST::Module &module)
 {
   auto item_fn_1 = [this, &module] () {
