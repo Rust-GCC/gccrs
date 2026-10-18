@@ -123,6 +123,14 @@ enum class Prefetch
 
 namespace handlers {
 
+enum class AtomicMinMaxKind
+{
+  SignedMax,
+  SignedMin,
+  UnsignedMax,
+  UnsignedMin,
+};
+
 namespace inner {
 void wrapping_op (IntrinsicCtx &ctx, tree_code op);
 
@@ -132,6 +140,7 @@ void atomic_binary_op (IntrinsicCtx &ctx, const std::string &op_name,
 		       int ordering);
 void atomic_compare_exchange (IntrinsicCtx &ctx, bool weak,
 			      int success_ordering, int failure_ordering);
+void atomic_minmax (IntrinsicCtx &ctx, AtomicMinMaxKind kind, int ordering);
 inline void copy (IntrinsicCtx &ctx, bool overlaps);
 inline void expect (IntrinsicCtx &ctx, bool likely);
 void try_handler (IntrinsicCtx &ctx, bool is_new_api);
@@ -194,6 +203,8 @@ Intrinsic::CompileFn atomic_or (int ordering);
 Intrinsic::CompileFn atomic_xor (int ordering);
 Intrinsic::CompileFn atomic_compare_exchange (bool weak, int success_ordering,
 					      int failure_ordering);
+Intrinsic::CompileFn atomic_minmax (handlers::AtomicMinMaxKind kind,
+				    int ordering);
 
 Intrinsic::CompileFn unchecked_op (tree_code op);
 
