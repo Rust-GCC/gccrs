@@ -109,6 +109,8 @@ protected:
 			      HIR::Expr &const_value_expr, location_t locus,
 			      location_t expr_locus);
 
+  tree compile_enum_discriminant (TyTy::VariantDef *variant);
+
   tree compile_function (bool is_root_item, const std::string &fn_name,
 			 tl::optional<HIR::SelfParam> &self_param,
 			 std::vector<HIR::FunctionParam> &function_params,
