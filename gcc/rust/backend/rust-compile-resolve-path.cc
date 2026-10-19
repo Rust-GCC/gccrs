@@ -112,12 +112,7 @@ ResolvePathRef::attempt_constructor_expression_lookup (
   tree compiled_adt_type = TyTyResolveCompile::compile (ctx, adt);
 
   // make the ctor for the union
-  HIR::Expr &discrim_expr = variant->get_discriminant ();
-  ctx->push_const_context ();
-  tree discrim_expr_node = CompileExpr::Compile (discrim_expr, ctx);
-  ctx->pop_const_context ();
-  tree folded_discrim_expr = fold_expr (discrim_expr_node);
-  tree qualifier = folded_discrim_expr;
+  tree qualifier = compile_enum_discriminant (variant);
 
   // false for is enum but this is an enum but we have a new layout
   return Backend::constructor_expression (compiled_adt_type, false, {qualifier},
