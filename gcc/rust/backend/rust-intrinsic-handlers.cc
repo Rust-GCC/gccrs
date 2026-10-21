@@ -20,6 +20,7 @@
 #include "optional.h"
 #include "rust-backend.h"
 #include "rust-compile-context.h"
+#include "rust-compile-item.h"
 #include "rust-compile-type.h"
 #include "rust-compile-fnparam.h"
 #include "rust-builtins.h"
@@ -33,6 +34,8 @@
 #include "rust-gcc.h"
 #include "fold-const.h"
 #include "rust-constexpr.h"
+#include "rust-hir-item.h"
+#include "tree.h"
 
 // declaration taken from "stringpool.h"
 // the get_identifier macro causes compilation issues
@@ -40,6 +43,26 @@ extern tree get_identifier (const char *);
 
 namespace Rust {
 namespace Compile {
+
+static tree
+lang_item_call (IntrinsicCtx &ctx, LangItem::Kind lang_item,
+		const std::vector<tree> &args)
+{
+  auto defid = ctx.get_mappings ().lookup_lang_item (lang_item);
+  rust_assert (defid);
+
+  auto lang_item_def = ctx.get_mappings ().lookup_defid (*defid);
+  rust_assert (lang_item_def);
+
+  // Let's make sure we're not calling a lang item that's a type...
+  rust_assert (lang_item_def.value ()->get_item_kind ()
+	       == HIR::Item::ItemKind::Function);
+
+  // Compile the lang item function
+  auto fn = CompileItem::compile (*lang_item_def, &ctx.ctx);
+
+  return Backend::call_expression (fn, args, nullptr, ctx.loc);
+}
 
 tree
 Intrinsic::compile (Context *ctx, TyTy::FnType *fntype, location_t loc)
@@ -866,6 +889,132 @@ fop_fast (IntrinsicCtx &ctx, ArithmeticOrLogicalOperator op)
   ctx.add_statement (return_statement);
 }
 
+static tree
+build_rust_string (IntrinsicCtx &ctx, const std::string &content)
+{
+  TyTy::BaseType *str = nullptr;
+  TyTy::BaseType *usize = nullptr;
+  rust_assert (ctx.get_tyctx ()->lookup_builtin ("str", &str));
+  rust_assert (ctx.get_tyctx ()->lookup_builtin ("usize", &usize));
+
+  tree meta_pointer = TyTyResolveCompile::compile (ctx.inner (), str);
+  tree usize_ty = TyTyResolveCompile::compile (ctx.inner (), usize);
+
+  auto base = Backend::string_constant_expression (content);
+  tree data = build_fold_addr_expr (base);
+
+  tree size = build_int_cstu (usize_ty, content.size ());
+
+  return Backend::constructor_expression (meta_pointer, false, {data, size}, -1,
+					  ctx.loc);
+}
+
+/**
+ * Check if a type is uninhabited - either the Never type or a variant-less enum
+ */
+static bool
+is_uninhabited (TyTy::BaseType *t)
+{
+  rust_assert (t);
+
+  if (auto adt = t->try_as<TyTy::ADTType> ())
+    if (adt->is_enum () && adt->number_of_variants () == 0)
+      return true;
+
+  if (t->is<TyTy::NeverType> ())
+    return true;
+
+  return false;
+}
+
+static void
+type_assert (IntrinsicCtx &ctx, TyAssert assert)
+{
+  /**
+   * These functions check whether a type respects a predicate *statically* - if
+   * the given generic is invalid, then panic at runtime, otherwise do nothing.
+   */
+
+  /**
+   * TODO: Since gccrs currently lacks comprehensive layout engine support for
+   * validity ranges (such as `rustc_layout_scalar_valid_range_start`), we
+   * cannot accurately determine if a type is safely zeroable or can be left
+   * uninitialized. Therefore, this is implemented as a temporary no-op stub
+   * except for uninhabited types. We emit a warning regarding this limitation.
+   */
+
+  auto t_param = ctx.fntype.get_substs ().at (0);
+  auto t_ty = t_param.get_param_ty ();
+  auto t = t_ty->resolve ();
+  auto t_name = t->get_name ();
+  auto valid = true;
+
+  // In all cases, invalid types are... invalid. So single out never and
+  // variant-less enums and return early
+  if (is_uninhabited (t))
+    valid = false;
+
+  /**
+   * TODO: Since gccrs currently lacks comprehensive layout engine support for
+   * validity ranges (such as `rustc_layout_scalar_valid_range_start`), we
+   * cannot accurately determine if a type is safely zeroable or can be left
+   * uninitialized. Therefore, this is implemented as a temporary no-op stub
+   * except for uninhabited types
+   */
+  auto always_warn = false;
+  auto fn_name = "";
+
+  // FIXME: Once we have proper verification for the layout of the given type,
+  // we need to separate our panic strings based on the operation we're doing -
+  // asserting that a type is inhabited, zero valid, or uninit valid
+  std::string panic_str;
+
+  switch (assert)
+    {
+    case TyAssert::Inhabited:
+      panic_str = "attempted to instantiate uninhabited type `" + t_name + "`";
+      break;
+    case TyAssert::ZeroValid:
+      panic_str = "attempted to zero-initialize type `" + t_name
+		  + "`, which is invalid";
+
+      // FIXME: Remove eventually
+      always_warn = true;
+      fn_name = "assert_zero_valid<T>";
+      break;
+    case TyAssert::UninitValid:
+      panic_str = "attempted to leave type `" + t_name
+		  + "` uninitialized, which is invalid";
+
+      // FIXME: Remove eventually
+      always_warn = true;
+      fn_name = "assert_uninit_valid<T>";
+      break;
+    }
+
+  if (always_warn)
+    {
+      rust_warning_at (ctx.loc, 0,
+		       "%qs was emitted as a no-op and "
+		       "will not trigger - this may be invalid",
+		       fn_name);
+    }
+
+  if (!valid)
+    {
+      auto arg = build_rust_string (ctx, panic_str);
+
+      auto panic_call = lang_item_call (ctx, LangItem::Kind::PANIC, {arg});
+
+      ctx.add_statement (panic_call);
+
+      // buh :(
+      TREE_READONLY (ctx.fn) = 0;
+      TREE_USED (ctx.fn) = 1;
+      TREE_SIDE_EFFECTS (ctx.fn) = 1;
+    }
+}
+
 } // namespace inner
 
 Intrinsic::CompileFn
@@ -878,6 +1027,13 @@ Intrinsic::CompileFn
 fop_fast (ArithmeticOrLogicalOperator op)
 {
   return [op] (IntrinsicCtx &ctx) { return inner::fop_fast (ctx, op); };
+}
+
+Intrinsic::CompileFn
+type_assert (TyAssert assert)
+{
+  return
+    [assert] (IntrinsicCtx &ctx) { return inner::type_assert (ctx, assert); };
 }
 
 void
@@ -1699,36 +1855,21 @@ arith_offset_handler (IntrinsicCtx &ctx)
   ctx.add_statement (return_statement);
 }
 
-/**
- * pub fn assert_zero_valid<T>();
- *
- * TODO: Since gccrs currently lacks comprehensive layout engine support for
- * validity ranges (such as `rustc_layout_scalar_valid_range_start`), we cannot
- * accurately determine if a type is safely zeroable. Therefore, this is
- * implemented as a temporary no-op stub that always returns void (unit) and
- * succeeds for all types.
- */
 void
-assert_zero_valid_handler (IntrinsicCtx &ctx)
+exact_div_handler (IntrinsicCtx &ctx)
 {
-  auto &param_mapping = ctx.fntype.get_substs ().at (0);
-  const auto param_tyty = param_mapping.get_param_ty ();
-  auto resolved_tyty = param_tyty->resolve ();
+  auto lhs_param = ctx.param_vars.at (0);
+  auto rhs_param = ctx.param_vars.at (1);
 
-  // Safely resolve the template parameter type to ensure monomorphization
-  // works.
-  // Suppress unused-variable warning since layout verification is a FIXME.
-  [[gnu::unused]] tree template_parameter_type
-    = TyTyResolveCompile::compile (ctx.inner (), resolved_tyty);
+  auto lhs = Backend::var_expression (lhs_param, ctx.loc);
+  auto rhs = Backend::var_expression (rhs_param, ctx.loc);
 
-  // TODO: Implement layout verification via template_parameter_type once
-  // niche-filling and valid scalar ranges are supported in the layout engine.
-  // If invalid, this should emit a panic.
+  auto div_expr
+    = build2_loc (ctx.loc, EXACT_DIV_EXPR, TREE_TYPE (lhs), lhs, rhs);
 
-  // we always return unit for now.
-  auto return_statement
-    = Backend::return_statement (ctx.fn, void_node, UNDEF_LOCATION);
-  ctx.add_statement (return_statement);
+  auto return_stmt = Backend::return_statement (ctx.fn, div_expr, ctx.loc);
+
+  ctx.add_statement (return_stmt);
 }
 
 void
@@ -1753,6 +1894,26 @@ float_to_int_unchecked (IntrinsicCtx &ctx)
     = Backend::return_statement (ctx.fn, convert_expr, ctx.loc);
 
   ctx.add_statement (return_statement);
+}
+
+void
+breakpoint (IntrinsicCtx &ctx)
+{
+  // For now, we don't have access to an equivalent of LLVM's debugtrap inst. We
+  // work around the problem by emitting a regular trap and we hope that the
+  // user's debugger can catch it :) Ideally, this would emit an `int3` on x86
+  // rather than a `ud2`
+
+  auto trap = BuiltinsContext::get ().lookup_simple_builtin ("__builtin_trap");
+  rust_assert (trap);
+
+  tree trap_call = build_call_expr_loc (ctx.loc, *trap, 0);
+
+  ctx.add_statement (trap_call);
+
+  TREE_READONLY (ctx.fn) = 0;
+  TREE_USED (ctx.fn) = 1;
+  TREE_SIDE_EFFECTS (ctx.fn) = 1;
 }
 
 } // namespace handlers

@@ -174,7 +174,14 @@ public:
   static constexpr auto &BLACK_BOX = "black_box";
   static constexpr auto &ARITH_OFFSET = "arith_offset";
   static constexpr auto &WRITE_BYTES = "write_bytes";
+
+  static constexpr auto &BREAKPOINT = "breakpoint";
+
+  static constexpr auto &PREF_ALIGN_OF = "pref_align_of";
+
   static constexpr auto &ASSERT_ZERO_VALID = "assert_zero_valid";
+  static constexpr auto &ASSERT_INHABITED = "assert_inhabited";
+  static constexpr auto &ASSERT_UNINIT_VALID = "assert_uninit_valid";
 
   static constexpr auto &FADD_FAST = "fadd_fast";
   static constexpr auto &FSUB_FAST = "fsub_fast";
@@ -183,6 +190,8 @@ public:
   static constexpr auto &FREM_FAST = "frem_fast";
 
   static constexpr auto &FLOAT_TO_INT_UNCHECKED = "float_to_int_unchecked";
+
+  static constexpr auto &EXACT_DIV = "exact_div";
 };
 } // namespace Values
 } // namespace Rust

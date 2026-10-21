@@ -121,6 +121,13 @@ enum class Prefetch
   Write
 };
 
+enum class TyAssert
+{
+  ZeroValid,
+  Inhabited,
+  UninitValid,
+};
+
 namespace handlers {
 
 namespace inner {
@@ -175,6 +182,8 @@ void write_bytes_handler (IntrinsicCtx &ctx);
 void arith_offset_handler (IntrinsicCtx &ctx);
 void assert_zero_valid_handler (IntrinsicCtx &ctx);
 
+void exact_div_handler (IntrinsicCtx &ctx);
+
 Intrinsic::CompileFn op_with_overflow (tree_code op);
 
 Intrinsic::CompileFn wrapping_op (tree_code op);
@@ -192,6 +201,14 @@ Intrinsic::CompileFn try_handler (bool is_new_api);
  * For fadd_fast, fsub_fast, fmul_fast, fdiv_fast and frem_fast
  */
 Intrinsic::CompileFn fop_fast (ArithmeticOrLogicalOperator op);
+
+/**
+ * For assert_zero_valid, assert_inhabited and assert_maybe_uninit.
+ * This is how rustc does it as well since a lot of the code is reused.
+ */
+Intrinsic::CompileFn type_assert (TyAssert assert);
+
+void breakpoint (IntrinsicCtx &ctx);
 
 } // namespace handlers
 

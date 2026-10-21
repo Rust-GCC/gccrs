@@ -311,8 +311,19 @@ const std::unordered_map<std::string, IntrinsicRules>
     // fn write_bytes<T>(dst: *mut T, val: u8, count: usize)
     {IValue::WRITE_BYTES,
      {1, {IRT::MutPtrFirstGeneric, IRT::U8, IRT::Usize}, IRT::Unit}},
+
+    // fn breakpoint()
+    {IValue::BREAKPOINT, {0, {}, IRT::Unit}},
+
+    // fn pref_align_of<T>()
+    {IValue::PREF_ALIGN_OF, {1, {}, IRT::Unit}},
+
     // pub fn assert_zero_valid<T>();
     {IValue::ASSERT_ZERO_VALID, {1, {}, IRT::Unit}},
+    // fn assert_inhabited<T>();
+    {IValue::ASSERT_INHABITED, {1, {}, IRT::Unit}},
+    // fn assert_maybe_uninit<T>();
+    {IValue::ASSERT_UNINIT_VALID, {1, {}, IRT::Unit}},
 
     // pub fn fadd_fast<T>(a: T, b: T) -> T
     // same for fsub_fast, fmul_fast, fdiv_fast and frem_fast
@@ -332,6 +343,9 @@ const std::unordered_map<std::string, IntrinsicRules>
     {IValue::FLOAT_TO_INT_UNCHECKED,
      {2, {IRT::FirstGeneric}, IRT::SecondGeneric}},
 
+    // fn exact_div<T>(lhs: T, rhs: T) -> T
+    {IValue::EXACT_DIV,
+     {1, {IRT::FirstGeneric, IRT::FirstGeneric}, IRT::FirstGeneric}},
 };
 
 IntrinsicCheckResult
