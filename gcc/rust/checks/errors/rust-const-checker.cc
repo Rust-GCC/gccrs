@@ -125,8 +125,47 @@ ConstChecker::visit (LifetimeParam &)
 {}
 
 void
-ConstChecker::visit (PathInExpression &)
-{}
+ConstChecker::visit (PathInExpression &path)
+{
+  if (!const_context.is_in_context ())
+    return;
+
+  auto def = resolver.lookup (path.get_mappings ().get_nodeid (),
+			      Resolver2_0::Namespace::Values);
+  if (!def)
+    return;
+  auto def_id = mappings.lookup_node_to_hir (*def);
+  if (!def_id)
+    return;
+
+  auto item = mappings.hir.items.lookup (*def_id);
+  auto extern_item = mappings.lookup_hir_extern_item (*def_id);
+  bool is_static = (item && (*item)->get_item_kind () == Item::ItemKind::Static)
+		   || (extern_item
+		       && extern_item->first->get_extern_kind ()
+			    == ExternalItem::ExternKind::Static);
+  if (!is_static)
+    return;
+
+  // statics can read other statics, every other const context can't
+  HirId ctx_id = const_context.peek ();
+  auto ctx_item = mappings.hir.items.lookup (ctx_id);
+  if (ctx_item && (*ctx_item)->get_item_kind () == Item::ItemKind::Static)
+    return;
+
+  auto ctx_impl_item = mappings.lookup_hir_implitem (ctx_id);
+  bool in_fn
+    = (ctx_item && (*ctx_item)->get_item_kind () == Item::ItemKind::Function)
+      || (ctx_impl_item
+	  && ctx_impl_item->first->get_impl_item_type ()
+	       == ImplItem::ImplItemType::FUNCTION);
+  if (in_fn)
+    rust_error_at (path.get_locus (), ErrorCode::E0013,
+		   "constant functions cannot refer to statics");
+  else
+    rust_error_at (path.get_locus (), ErrorCode::E0013,
+		   "constants cannot refer to statics");
+}
 
 void
 ConstChecker::visit (TypePathSegment &)
