@@ -1,0 +1,93 @@
+#![feature(never_type)]
+#![deny(unreachable_patterns)]
+enum Foo {}
+
+struct NonEmptyStruct(bool); // { dg-error "" "" { target *-*-* } }
+union NonEmptyUnion1 { // { dg-error "" "" { target *-*-* } }
+    foo: (),
+}
+union NonEmptyUnion2 { // { dg-error "" "" { target *-*-* } }
+    foo: (),
+    bar: (),
+}
+enum NonEmptyEnum1 { // { dg-error "" "" { target *-*-* } }
+    Foo(bool),
+// { dg-error "" "" { target *-*-* } .-1 }
+// { dg-error "" "" { target *-*-* } .-2 }
+}
+enum NonEmptyEnum2 { // { dg-error "" "" { target *-*-* } }
+    Foo(bool),
+// { dg-error "" "" { target *-*-* } .-1 }
+// { dg-error "" "" { target *-*-* } .-2 }
+    Bar,
+// { dg-error "" "" { target *-*-* } .-1 }
+// { dg-error "" "" { target *-*-* } .-2 }
+}
+enum NonEmptyEnum5 { // { dg-error "" "" { target *-*-* } }
+    V1, V2, V3, V4, V5,
+}
+
+macro_rules! match_empty {
+    ($e:expr) => {
+        match $e {}
+    };
+}
+macro_rules! match_false {
+    ($e:expr) => {
+        match $e {
+            _ if false => {}
+        }
+    };
+}
+
+fn foo(x: Foo) {
+    match_empty!(x); // ok
+    match_false!(x); // Not detected as unreachable nor exhaustive.
+// { dg-error ".E0004." "" { target *-*-* } .-1 }
+    match x {
+        _ => {}, // Not detected as unreachable, see #55123.
+    }
+}
+
+fn main() {
+    // `exhaustive_patterns` is not on, so uninhabited branches are not detected as unreachable.
+    match None::<!> {
+        None => {}
+        Some(_) => {}
+    }
+    match None::<Foo> {
+        None => {}
+        Some(_) => {}
+    }
+
+    match_empty!(0u8);
+// { dg-error ".E0004." "" { target *-*-* } .-1 }
+    match_empty!(NonEmptyStruct(true));
+// { dg-error ".E0004." "" { target *-*-* } .-1 }
+    match_empty!((NonEmptyUnion1 { foo: () }));
+// { dg-error ".E0004." "" { target *-*-* } .-1 }
+    match_empty!((NonEmptyUnion2 { foo: () }));
+// { dg-error ".E0004." "" { target *-*-* } .-1 }
+    match_empty!(NonEmptyEnum1::Foo(true));
+// { dg-error ".E0004." "" { target *-*-* } .-1 }
+    match_empty!(NonEmptyEnum2::Foo(true));
+// { dg-error ".E0004." "" { target *-*-* } .-1 }
+    match_empty!(NonEmptyEnum5::V1);
+// { dg-error ".E0004." "" { target *-*-* } .-1 }
+
+    match_false!(0u8);
+// { dg-error ".E0004." "" { target *-*-* } .-1 }
+    match_false!(NonEmptyStruct(true));
+// { dg-error ".E0004." "" { target *-*-* } .-1 }
+    match_false!((NonEmptyUnion1 { foo: () }));
+// { dg-error ".E0004." "" { target *-*-* } .-1 }
+    match_false!((NonEmptyUnion2 { foo: () }));
+// { dg-error ".E0004." "" { target *-*-* } .-1 }
+    match_false!(NonEmptyEnum1::Foo(true));
+// { dg-error ".E0004." "" { target *-*-* } .-1 }
+    match_false!(NonEmptyEnum2::Foo(true));
+// { dg-error ".E0004." "" { target *-*-* } .-1 }
+    match_false!(NonEmptyEnum5::V1);
+// { dg-error ".E0004." "" { target *-*-* } .-1 }
+}
+
