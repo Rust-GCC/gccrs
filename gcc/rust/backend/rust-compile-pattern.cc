@@ -1418,9 +1418,10 @@ CompilePatternLet::visit (HIR::WildcardPattern &pattern)
   tree init_stmt = NULL;
   tree stmt_type = TyTyResolveCompile::compile (ctx, ty);
 
-  Backend::temporary_variable (ctx->peek_fn ().fndecl, NULL_TREE, stmt_type,
+  Backend::temporary_variable (ctx->peek_fn ().fndecl,
+			       ctx->peek_enclosing_scope (), stmt_type,
 			       init_expr, false, pattern.get_locus (),
-			       &init_stmt);
+			       &init_stmt, true);
 
   ctx->add_statement (init_stmt);
 }
@@ -1476,9 +1477,10 @@ CompilePatternLet::visit (HIR::TuplePattern &pattern)
   tree rhs_tuple_type = TYPE_MAIN_VARIANT (TREE_TYPE (init_expr));
   tree init_stmt;
   Bvariable *tmp_var
-    = Backend::temporary_variable (ctx->peek_fn ().fndecl, NULL_TREE,
-				   rhs_tuple_type, init_expr, has_by_ref,
-				   pattern.get_locus (), &init_stmt);
+    = Backend::temporary_variable (ctx->peek_fn ().fndecl,
+				   ctx->peek_enclosing_scope (), rhs_tuple_type,
+				   init_expr, has_by_ref, pattern.get_locus (),
+				   &init_stmt, true);
   tree access_expr = Backend::var_expression (tmp_var, pattern.get_locus ());
   ctx->add_statement (init_stmt);
 
@@ -1609,9 +1611,10 @@ CompilePatternLet::visit (HIR::StructPattern &pattern)
   tree rhs_type = TYPE_MAIN_VARIANT (TREE_TYPE (init_expr));
   tree init_stmt;
   Bvariable *tmp_var
-    = Backend::temporary_variable (ctx->peek_fn ().fndecl, NULL_TREE, rhs_type,
+    = Backend::temporary_variable (ctx->peek_fn ().fndecl,
+				   ctx->peek_enclosing_scope (), rhs_type,
 				   init_expr, has_by_ref, pattern.get_locus (),
-				   &init_stmt);
+				   &init_stmt, true);
   ctx->add_statement (init_stmt);
   tree access_expr = Backend::var_expression (tmp_var, pattern.get_locus ());
 
