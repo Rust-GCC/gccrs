@@ -23,7 +23,7 @@
 namespace Rust {
 namespace Compile {
 
-extern tree fold_expr (tree);
+extern tree fold_expr (tree, bool *non_constant_p = nullptr);
 extern void maybe_save_constexpr_fundef (tree fun);
 
 } // namespace Compile
