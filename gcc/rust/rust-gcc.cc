@@ -1525,9 +1525,10 @@ array_initializer (tree fndecl, tree block, tree array_type, tree length,
 {
   std::vector<tree> stmts;
 
-  // Temporary array we initialize with the desired value.
+  // Temporary array we initialize with the desired value.  It is read
+  // after the block ends, so it cannot live in the block.
   tree t = NULL_TREE;
-  Bvariable *tmp_array = temporary_variable (fndecl, block, array_type,
+  Bvariable *tmp_array = temporary_variable (fndecl, NULL_TREE, array_type,
 					     NULL_TREE, true, locus, &t);
   tree arr = tmp_array->get_tree (locus);
   stmts.push_back (t);
@@ -2243,9 +2244,11 @@ temporary_variable (tree fndecl, tree bind_tree, tree type_tree, tree init_tree,
     }
 
   tree var;
-  // We can only use create_tmp_var if the type is not addressable.
-  if (!TREE_ADDRESSABLE (type_tree))
+  // Without a scope to live in the temporary is function-wide, which
+  // create_tmp_var can only do for a type that is not addressable.
+  if (bind_tree == NULL_TREE)
     {
+      gcc_assert (!TREE_ADDRESSABLE (type_tree));
       if (DECL_STRUCT_FUNCTION (fndecl) == NULL)
 	push_struct_function (fndecl);
       else
@@ -2256,7 +2259,6 @@ temporary_variable (tree fndecl, tree bind_tree, tree type_tree, tree init_tree,
     }
   else
     {
-      gcc_assert (bind_tree != NULL_TREE);
       var = build_decl (location, VAR_DECL, create_tmp_var_name ("RUSTTMP"),
 			type_tree);
       DECL_ARTIFICIAL (var) = 1;

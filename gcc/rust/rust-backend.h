@@ -372,7 +372,9 @@ LocalVariable static_chain_variable (tree function, GGC::Ident name, tree type,
 // the statement or expression which requires creating the temporary
 // variable, and may not be very useful.  This function should
 // return a variable which can be referenced later and should set
-// *PSTATEMENT to a statement which initializes the variable.
+// *PSTATEMENT to a statement which initializes the variable.  With a
+// BIND_TREE the variable is declared in it like a named local, without
+// one it is a function-wide temporary.
 LocalVariable temporary_variable (tree fndecl, tree bind_tree, tree type,
 				  tree init, bool address_is_taken,
 				  location_t location, tree *pstatement);
