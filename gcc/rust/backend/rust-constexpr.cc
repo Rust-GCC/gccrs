@@ -5118,6 +5118,18 @@ switches (tree *jump_target)
   return *jump_target && TREE_CODE (*jump_target) == INTEGER_CST;
 }
 
+/* walk_tree callback: is DATA the label of the LABEL_EXPR *TP?  */
+
+static tree
+find_label_expr_r (tree *tp, int *walk_subtrees, void *data)
+{
+  if (TREE_CODE (*tp) == LABEL_EXPR && LABEL_EXPR_LABEL (*tp) == (tree) data)
+    return *tp;
+  if (TYPE_P (*tp))
+    *walk_subtrees = 0;
+  return NULL_TREE;
+}
+
 // forked from gcc/cp/constexpr.cc cxx_eval_loop_expr
 
 /* Evaluate a LOOP_EXPR for side-effects.  Handles break and return
@@ -5175,6 +5187,14 @@ eval_loop_expr (const constexpr_ctx *ctx, tree t, bool *non_constant_p,
 	      *jump_target = NULL_TREE;
 	      break;
 	    }
+
+	  /* A jump to a label outside of the loop leaves it, e.g. a labeled
+	     break or continue of an enclosing loop.  */
+	  if (*jump_target && TREE_CODE (*jump_target) == LABEL_DECL
+	      && !continues (jump_target)
+	      && !walk_tree_without_duplicates (&body, find_label_expr_r,
+						*jump_target))
+	    break;
 
 	  if (TREE_CODE (t) != LOOP_EXPR && continues (jump_target))
 	    *jump_target = NULL_TREE;
