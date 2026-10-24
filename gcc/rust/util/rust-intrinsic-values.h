@@ -120,6 +120,94 @@ public:
   static constexpr auto &ATOMIC_LOAD_RELAXED = "atomic_load_relaxed";
   static constexpr auto &ATOMIC_LOAD_UNORDERED = "atomic_load_unordered";
 
+  static constexpr auto &ATOMIC_XADD = "atomic_xadd";
+  static constexpr auto &ATOMIC_XADD_ACQ = "atomic_xadd_acq";
+  static constexpr auto &ATOMIC_XADD_REL = "atomic_xadd_rel";
+  static constexpr auto &ATOMIC_XADD_ACQREL = "atomic_xadd_acqrel";
+  static constexpr auto &ATOMIC_XADD_RELAXED = "atomic_xadd_relaxed";
+  static constexpr auto &ATOMIC_XSUB = "atomic_xsub";
+  static constexpr auto &ATOMIC_XSUB_ACQ = "atomic_xsub_acq";
+  static constexpr auto &ATOMIC_XSUB_REL = "atomic_xsub_rel";
+  static constexpr auto &ATOMIC_XSUB_ACQREL = "atomic_xsub_acqrel";
+  static constexpr auto &ATOMIC_XSUB_RELAXED = "atomic_xsub_relaxed";
+  static constexpr auto &ATOMIC_AND = "atomic_and";
+  static constexpr auto &ATOMIC_AND_ACQ = "atomic_and_acq";
+  static constexpr auto &ATOMIC_AND_REL = "atomic_and_rel";
+  static constexpr auto &ATOMIC_AND_ACQREL = "atomic_and_acqrel";
+  static constexpr auto &ATOMIC_AND_RELAXED = "atomic_and_relaxed";
+  static constexpr auto &ATOMIC_NAND = "atomic_nand";
+  static constexpr auto &ATOMIC_NAND_ACQ = "atomic_nand_acq";
+  static constexpr auto &ATOMIC_NAND_REL = "atomic_nand_rel";
+  static constexpr auto &ATOMIC_NAND_ACQREL = "atomic_nand_acqrel";
+  static constexpr auto &ATOMIC_NAND_RELAXED = "atomic_nand_relaxed";
+  static constexpr auto &ATOMIC_OR = "atomic_or";
+  static constexpr auto &ATOMIC_OR_ACQ = "atomic_or_acq";
+  static constexpr auto &ATOMIC_OR_REL = "atomic_or_rel";
+  static constexpr auto &ATOMIC_OR_ACQREL = "atomic_or_acqrel";
+  static constexpr auto &ATOMIC_OR_RELAXED = "atomic_or_relaxed";
+  static constexpr auto &ATOMIC_XOR = "atomic_xor";
+  static constexpr auto &ATOMIC_XOR_ACQ = "atomic_xor_acq";
+  static constexpr auto &ATOMIC_XOR_REL = "atomic_xor_rel";
+  static constexpr auto &ATOMIC_XOR_ACQREL = "atomic_xor_acqrel";
+  static constexpr auto &ATOMIC_XOR_RELAXED = "atomic_xor_relaxed";
+
+  static constexpr auto &ATOMIC_MIN = "atomic_min";
+  static constexpr auto &ATOMIC_MIN_ACQ = "atomic_min_acq";
+  static constexpr auto &ATOMIC_MIN_REL = "atomic_min_rel";
+  static constexpr auto &ATOMIC_MIN_ACQREL = "atomic_min_acqrel";
+  static constexpr auto &ATOMIC_MIN_RELAXED = "atomic_min_relaxed";
+  static constexpr auto &ATOMIC_MAX = "atomic_max";
+  static constexpr auto &ATOMIC_MAX_ACQ = "atomic_max_acq";
+  static constexpr auto &ATOMIC_MAX_REL = "atomic_max_rel";
+  static constexpr auto &ATOMIC_MAX_ACQREL = "atomic_max_acqrel";
+  static constexpr auto &ATOMIC_MAX_RELAXED = "atomic_max_relaxed";
+  static constexpr auto &ATOMIC_UMIN = "atomic_umin";
+  static constexpr auto &ATOMIC_UMIN_ACQ = "atomic_umin_acq";
+  static constexpr auto &ATOMIC_UMIN_REL = "atomic_umin_rel";
+  static constexpr auto &ATOMIC_UMIN_ACQREL = "atomic_umin_acqrel";
+  static constexpr auto &ATOMIC_UMIN_RELAXED = "atomic_umin_relaxed";
+  static constexpr auto &ATOMIC_UMAX = "atomic_umax";
+  static constexpr auto &ATOMIC_UMAX_ACQ = "atomic_umax_acq";
+  static constexpr auto &ATOMIC_UMAX_REL = "atomic_umax_rel";
+  static constexpr auto &ATOMIC_UMAX_ACQREL = "atomic_umax_acqrel";
+  static constexpr auto &ATOMIC_UMAX_RELAXED = "atomic_umax_relaxed";
+
+  static constexpr auto &ATOMIC_CXCHG = "atomic_cxchg";
+  static constexpr auto &ATOMIC_CXCHG_ACQ = "atomic_cxchg_acq";
+  static constexpr auto &ATOMIC_CXCHG_REL = "atomic_cxchg_rel";
+  static constexpr auto &ATOMIC_CXCHG_ACQREL = "atomic_cxchg_acqrel";
+  static constexpr auto &ATOMIC_CXCHG_RELAXED = "atomic_cxchg_relaxed";
+  static constexpr auto &ATOMIC_CXCHG_FAILRELAXED = "atomic_cxchg_failrelaxed";
+  static constexpr auto &ATOMIC_CXCHG_FAILACQ = "atomic_cxchg_failacq";
+  static constexpr auto &ATOMIC_CXCHG_ACQ_FAILRELAXED
+    = "atomic_cxchg_acq_failrelaxed";
+  static constexpr auto &ATOMIC_CXCHG_ACQREL_FAILRELAXED
+    = "atomic_cxchg_acqrel_failrelaxed";
+  static constexpr auto &ATOMIC_CXCHGWEAK = "atomic_cxchgweak";
+  static constexpr auto &ATOMIC_CXCHGWEAK_ACQ = "atomic_cxchgweak_acq";
+  static constexpr auto &ATOMIC_CXCHGWEAK_REL = "atomic_cxchgweak_rel";
+  static constexpr auto &ATOMIC_CXCHGWEAK_ACQREL = "atomic_cxchgweak_acqrel";
+  static constexpr auto &ATOMIC_CXCHGWEAK_RELAXED = "atomic_cxchgweak_relaxed";
+  static constexpr auto &ATOMIC_CXCHGWEAK_FAILRELAXED
+    = "atomic_cxchgweak_failrelaxed";
+  static constexpr auto &ATOMIC_CXCHGWEAK_FAILACQ = "atomic_cxchgweak_failacq";
+  static constexpr auto &ATOMIC_CXCHGWEAK_ACQ_FAILRELAXED
+    = "atomic_cxchgweak_acq_failrelaxed";
+  static constexpr auto &ATOMIC_CXCHGWEAK_ACQREL_FAILRELAXED
+    = "atomic_cxchgweak_acqrel_failrelaxed";
+
+  static constexpr auto &ATOMIC_FENCE = "atomic_fence";
+  static constexpr auto &ATOMIC_FENCE_ACQ = "atomic_fence_acq";
+  static constexpr auto &ATOMIC_FENCE_REL = "atomic_fence_rel";
+  static constexpr auto &ATOMIC_FENCE_ACQREL = "atomic_fence_acqrel";
+  static constexpr auto &ATOMIC_SINGLETHREADFENCE = "atomic_singlethreadfence";
+  static constexpr auto &ATOMIC_SINGLETHREADFENCE_ACQ
+    = "atomic_singlethreadfence_acq";
+  static constexpr auto &ATOMIC_SINGLETHREADFENCE_REL
+    = "atomic_singlethreadfence_rel";
+  static constexpr auto &ATOMIC_SINGLETHREADFENCE_ACQREL
+    = "atomic_singlethreadfence_acqrel";
+
   static constexpr auto &UNCHECKED_ADD = "unchecked_add";
   static constexpr auto &UNCHECKED_SUB = "unchecked_sub";
   static constexpr auto &UNCHECKED_MUL = "unchecked_mul";

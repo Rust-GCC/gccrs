@@ -223,44 +223,35 @@ get_inner_dst (TyTy::BaseType *type)
 namespace handlers {
 namespace inner {
 
-static std::string
-build_atomic_builtin_name (const std::string &prefix, location_t locus,
-			   TyTy::BaseType *operand_type)
+static tree
+resolve_atomic_builtin (IntrinsicCtx &ctx, const std::string &prefix)
 {
-  static const std::map<std::string, std::string> allowed_types = {
-    {"i8", "1"},    {"i16", "2"},   {"i32", "4"},   {"i64", "8"},
-    {"i128", "16"}, {"isize", "8"}, {"u8", "1"},    {"u16", "2"},
-    {"u32", "4"},   {"u64", "8"},   {"u128", "16"}, {"usize", "8"},
-  };
-
-  // TODO: Can we maybe get the generic version (atomic_store_n) to work... This
-  // would be so much better
-
-  std::string result = "__" + prefix; //  + "n";
-
-  auto type_name = operand_type->get_name ();
-  if (type_name == "usize" || type_name == "isize")
-    {
-      rust_sorry_at (
-	locus, "atomics are not yet available for size types (usize, isize)");
-      return "";
-    }
-
-  if (type_name.at (0) == 'i')
-    {
-      rust_sorry_at (locus, "atomics are not yet supported for signed "
-			    "integer types (i8, i16, i32, i64, i128)");
-      return "";
-    }
-
-  auto type_size_str = allowed_types.find (type_name);
+  auto locus = ctx.get_mappings ().lookup_location (ctx.fntype.get_ref ());
+  auto operand_type = ctx.fntype.get_substs ()[0].get_param_ty ()->resolve ();
 
   if (!check_for_basic_integer_type ("atomic operation", locus, operand_type))
-    return "";
+    return error_mark_node;
 
-  result += type_size_str->second;
+  tree operand_type_tree
+    = TyTyResolveCompile::compile (ctx.inner (), operand_type);
+  if (operand_type_tree == error_mark_node)
+    return error_mark_node;
 
-  return result;
+  operand_type_tree = TYPE_MAIN_VARIANT (operand_type_tree);
+  if (TREE_CODE (operand_type_tree) != INTEGER_TYPE)
+    {
+      rust_error_at (locus, "atomic operation requires an integer type");
+      return error_mark_node;
+    }
+
+  HOST_WIDE_INT bytes = int_size_in_bytes (operand_type_tree);
+
+  std::string builtin_name = "__" + prefix + "_" + std::to_string (bytes);
+
+  auto decl = BuiltinsContext::get ().lookup_simple_builtin (builtin_name);
+  rust_assert (decl);
+
+  return decl.value ();
 }
 
 inline void
@@ -531,6 +522,7 @@ copy (IntrinsicCtx &ctx, bool overlaps)
   ctx.add_statement (copy_call);
 }
 
+// Compiles atomic_store that has the signature (*mut T, T) -> ()
 void
 atomic_store (IntrinsicCtx &ctx, int ordering)
 {
@@ -546,23 +538,11 @@ atomic_store (IntrinsicCtx &ctx, int ordering)
   auto value = Backend::var_expression (ctx.param_vars[1], UNDEF_LOCATION);
   auto memorder = make_unsigned_long_tree (ordering);
 
-  auto monomorphized_type
-    = ctx.fntype.get_substs ()[0].get_param_ty ()->resolve ();
-
-  auto call_locus = ctx.get_mappings ().lookup_location (ctx.fntype.get_ref ());
-  auto builtin_name = build_atomic_builtin_name ("atomic_store_", call_locus,
-						 monomorphized_type);
-
-  if (builtin_name.empty ())
+  auto builtin_decl = resolve_atomic_builtin (ctx, "atomic_store");
+  if (!builtin_decl || builtin_decl == error_mark_node)
     return;
 
-  auto atomic_store_raw
-    = BuiltinsContext::get ().lookup_simple_builtin (builtin_name);
-
-  rust_assert (atomic_store_raw);
-
-  auto atomic_store
-    = build_fold_addr_expr_loc (UNKNOWN_LOCATION, *atomic_store_raw);
+  auto atomic_store = build_fold_addr_expr_loc (UNKNOWN_LOCATION, builtin_decl);
 
   auto store_call
     = Backend::call_expression (atomic_store, {dst, value, memorder}, nullptr,
@@ -573,6 +553,7 @@ atomic_store (IntrinsicCtx &ctx, int ordering)
   ctx.add_statement (store_call);
 }
 
+// Compiles atomic_load that has the signature (*const T) -> T
 void
 atomic_load (IntrinsicCtx &ctx, int ordering)
 {
@@ -586,22 +567,11 @@ atomic_load (IntrinsicCtx &ctx, int ordering)
   auto src = Backend::var_expression (ctx.param_vars[0], UNDEF_LOCATION);
   auto memorder = make_unsigned_long_tree (ordering);
 
-  auto monomorphized_type
-    = ctx.fntype.get_substs ()[0].get_param_ty ()->resolve ();
-
-  auto builtin_name
-    = build_atomic_builtin_name ("atomic_load_", ctx.fntype.get_locus (),
-				 monomorphized_type);
-
-  if (builtin_name.empty ())
+  auto builtin_decl = resolve_atomic_builtin (ctx, "atomic_load");
+  if (!builtin_decl || builtin_decl == error_mark_node)
     return;
 
-  auto atomic_load_raw
-    = BuiltinsContext::get ().lookup_simple_builtin (builtin_name);
-  rust_assert (atomic_load_raw);
-
-  auto atomic_load
-    = build_fold_addr_expr_loc (UNKNOWN_LOCATION, *atomic_load_raw);
+  auto atomic_load = build_fold_addr_expr_loc (UNKNOWN_LOCATION, builtin_decl);
 
   auto load_call = Backend::call_expression (atomic_load, {src, memorder},
 					     nullptr, UNDEF_LOCATION);
@@ -612,6 +582,214 @@ atomic_load (IntrinsicCtx &ctx, int ordering)
   TREE_SIDE_EFFECTS (load_call) = 1;
 
   ctx.add_statement (return_statement);
+}
+
+// Compiles for atomic builtins that have the signature (*mut T, T) -> T
+void
+atomic_binary_op (IntrinsicCtx &ctx, const std::string &op_name, int ordering)
+{
+  // Most intrinsic functions are pure but not the atomic ones
+  TREE_READONLY (ctx.fn) = 0;
+  TREE_SIDE_EFFECTS (ctx.fn) = 1;
+
+  auto dst = Backend::var_expression (ctx.param_vars[0], UNDEF_LOCATION);
+  TREE_READONLY (dst) = 0;
+
+  auto value = Backend::var_expression (ctx.param_vars[1], UNDEF_LOCATION);
+  auto memorder = make_unsigned_long_tree (ordering);
+
+  auto builtin_decl = resolve_atomic_builtin (ctx, "atomic_" + op_name);
+
+  if (!builtin_decl || builtin_decl == error_mark_node)
+    return;
+
+  auto atomic_binary_op
+    = build_fold_addr_expr_loc (UNKNOWN_LOCATION, builtin_decl);
+
+  auto binary_op_call
+    = Backend::call_expression (atomic_binary_op, {dst, value, memorder},
+				nullptr, UNDEF_LOCATION);
+
+  TREE_READONLY (binary_op_call) = 0;
+  TREE_SIDE_EFFECTS (binary_op_call) = 1;
+
+  auto return_statement
+    = Backend::return_statement (ctx.fn, binary_op_call, UNDEF_LOCATION);
+  ctx.add_statement (return_statement);
+}
+
+// Compiles atomic compare exchange with signature (*mut T, T, T) -> (T, bool).
+void
+atomic_compare_exchange (IntrinsicCtx &ctx, bool weak, int success_ordering,
+			 int failure_ordering)
+{
+  // Most intrinsic functions are pure but not the atomic ones
+  TREE_READONLY (ctx.fn) = 0;
+  TREE_SIDE_EFFECTS (ctx.fn) = 1;
+
+  // The intrinsic block is already open, so emit the temporary declarations
+  // directly into it.
+  tree tmp_stmt = NULL_TREE;
+  Bvariable *expected_var
+    = Backend::temporary_variable (ctx.fn, NULL_TREE, ctx.param_types[1],
+				   NULL_TREE, true, UNDEF_LOCATION, &tmp_stmt);
+  ctx.add_statement (tmp_stmt);
+  Bvariable *success_var
+    = Backend::temporary_variable (ctx.fn, NULL_TREE, boolean_type_node,
+				   NULL_TREE, false, UNDEF_LOCATION, &tmp_stmt);
+  ctx.add_statement (tmp_stmt);
+
+  auto dst = Backend::var_expression (ctx.param_vars[0], UNDEF_LOCATION);
+  TREE_READONLY (dst) = 0;
+
+  auto expected = expected_var->get_tree (UNDEF_LOCATION);
+  auto success = success_var->get_tree (UNDEF_LOCATION);
+
+  auto old_value = Backend::var_expression (ctx.param_vars[1], UNDEF_LOCATION);
+  auto new_value = Backend::var_expression (ctx.param_vars[2], UNDEF_LOCATION);
+
+  auto builtin_decl = resolve_atomic_builtin (ctx, "atomic_compare_exchange");
+
+  if (!builtin_decl || builtin_decl == error_mark_node)
+    return;
+
+  ctx.add_statement (
+    Backend::assignment_statement (expected, old_value, UNDEF_LOCATION));
+
+  auto expected_addr = build_fold_addr_expr_loc (UNDEF_LOCATION, expected);
+  auto builtin_addr = build_fold_addr_expr_loc (UNDEF_LOCATION, builtin_decl);
+  auto weak_flag = build_int_cst (boolean_type_node, weak);
+  auto success_memorder = make_unsigned_long_tree (success_ordering);
+  auto failure_memorder = make_unsigned_long_tree (failure_ordering);
+
+  auto exchange_call
+    = Backend::call_expression (builtin_addr,
+				{dst, expected_addr, new_value, weak_flag,
+				 success_memorder, failure_memorder},
+				nullptr, UNDEF_LOCATION);
+  TREE_READONLY (exchange_call) = 0;
+  TREE_SIDE_EFFECTS (exchange_call) = 1;
+
+  auto assignment_statement
+    = Backend::assignment_statement (success, exchange_call, UNDEF_LOCATION);
+  ctx.add_statement (assignment_statement);
+
+  auto tuple_type = TREE_TYPE (DECL_RESULT (ctx.fn));
+  auto result
+    = Backend::constructor_expression (tuple_type, false, {expected, success},
+				       -1, UNDEF_LOCATION);
+  auto return_statement
+    = Backend::return_statement (ctx.fn, result, UNDEF_LOCATION);
+  ctx.add_statement (return_statement);
+}
+
+// Compiles atomic min/max with signature (*mut T, T) -> T
+//
+// no gcc backend built-in equivalent, so we just do a compare-and-swap loop
+// similar to rustc_codegen_gcc & libstdc++.
+//
+// This is equivalent to the following code:
+//
+// T old_val = __atomic_load_N (dst, failure_order);
+// do
+//   {
+//     T desired = min_or_max (old_val, value);
+//     if (__atomic_compare_exchange_N (dst, &old_val, desired, true,
+//					order, failure_order))
+//	  break;
+//   } while (true);
+// return old_val;
+void
+atomic_minmax (IntrinsicCtx &ctx, AtomicMinMaxKind kind, int ordering)
+{
+  // Most intrinsic functions are pure but not the atomic ones
+  TREE_READONLY (ctx.fn) = 0;
+  TREE_SIDE_EFFECTS (ctx.fn) = 1;
+
+  auto load_decl = resolve_atomic_builtin (ctx, "atomic_load");
+  if (!load_decl || load_decl == error_mark_node)
+    return;
+  auto exchange_decl = resolve_atomic_builtin (ctx, "atomic_compare_exchange");
+  if (!exchange_decl || exchange_decl == error_mark_node)
+    return;
+
+  auto dst = Backend::var_expression (ctx.param_vars[0], UNDEF_LOCATION);
+  TREE_READONLY (dst) = 0;
+  auto value = Backend::var_expression (ctx.param_vars[1], UNDEF_LOCATION);
+  auto value_type = ctx.param_types[1];
+
+  // release uses relaxed & acq_req uses acquire for loads on fail exchanges
+  int failure_ordering = ordering;
+  if (ordering == __ATOMIC_RELEASE)
+    failure_ordering = __ATOMIC_RELAXED;
+  else if (ordering == __ATOMIC_ACQ_REL)
+    failure_ordering = __ATOMIC_ACQUIRE;
+
+  auto failure_memorder = make_unsigned_long_tree (failure_ordering);
+  auto load_addr = build_fold_addr_expr_loc (UNDEF_LOCATION, load_decl);
+  auto load_call = Backend::call_expression (load_addr, {dst, failure_memorder},
+					     nullptr, UNDEF_LOCATION);
+  TREE_READONLY (load_call) = 0;
+  TREE_SIDE_EFFECTS (load_call) = 1;
+
+  tree tmp_stmt = NULL_TREE;
+  Bvariable *expected_var
+    = Backend::temporary_variable (ctx.fn, NULL_TREE, value_type, load_call,
+				   true, UNDEF_LOCATION, &tmp_stmt);
+  ctx.add_statement (tmp_stmt);
+  auto expected = expected_var->get_tree (UNDEF_LOCATION);
+
+  bool is_unsigned = kind == AtomicMinMaxKind::UnsignedMax
+		     || kind == AtomicMinMaxKind::UnsignedMin;
+  auto comparison_type = is_unsigned ? unsigned_type_for (value_type)
+				     : signed_type_for (value_type);
+
+  // handle signedness irrespective of what the original type of the var is,
+  // in case users do things like using atomic_umin on signed types and expect
+  // it to work correctly
+  bool is_min = (kind == AtomicMinMaxKind::SignedMin
+		 || kind == AtomicMinMaxKind::UnsignedMin);
+  auto desired = build2 (is_min ? MIN_EXPR : MAX_EXPR, comparison_type,
+			 fold_convert (comparison_type, expected),
+			 fold_convert (comparison_type, value));
+  desired = fold_convert (value_type, desired);
+
+  auto exchange_addr = build_fold_addr_expr_loc (UNDEF_LOCATION, exchange_decl);
+  auto expected_addr = build_fold_addr_expr_loc (UNDEF_LOCATION, expected);
+  auto exchange_call
+    = Backend::call_expression (exchange_addr,
+				{dst, expected_addr, desired, boolean_true_node,
+				 make_unsigned_long_tree (ordering),
+				 failure_memorder},
+				nullptr, UNDEF_LOCATION);
+  TREE_READONLY (exchange_call) = 0;
+  TREE_SIDE_EFFECTS (exchange_call) = 1;
+
+  auto exit = Backend::exit_expression (exchange_call, UNDEF_LOCATION);
+  ctx.add_statement (Backend::loop_expression (exit, UNDEF_LOCATION));
+  ctx.add_statement (
+    Backend::return_statement (ctx.fn, expected, UNDEF_LOCATION));
+}
+
+static void
+atomic_fence (IntrinsicCtx &ctx, bool is_multithread, int ordering)
+{
+  // Most intrinsic functions are pure but not the atomic ones
+  TREE_READONLY (ctx.fn) = 0;
+  TREE_SIDE_EFFECTS (ctx.fn) = 1;
+
+  auto builtin_decl = BuiltinsContext::get ().lookup_simple_builtin (
+    is_multithread ? "__atomic_thread_fence" : "__atomic_signal_fence");
+  rust_assert (builtin_decl);
+
+  auto fence = build_fold_addr_expr_loc (UNDEF_LOCATION, *builtin_decl);
+  auto memorder = make_unsigned_long_tree (ordering);
+  auto fence_call
+    = Backend::call_expression (fence, {memorder}, nullptr, UNDEF_LOCATION);
+  TREE_READONLY (fence_call) = 0;
+  TREE_SIDE_EFFECTS (fence_call) = 1;
+
+  ctx.add_statement (fence_call);
 }
 
 // Shared inner implementation for ctlz and ctlz_nonzero.
@@ -911,6 +1089,78 @@ atomic_load (int ordering)
 {
   return [ordering] (IntrinsicCtx &ctx) {
     return inner::atomic_load (ctx, ordering);
+  };
+}
+
+Intrinsic::CompileFn
+atomic_xadd (int ordering)
+{
+  return [ordering] (IntrinsicCtx &ctx) {
+    return inner::atomic_binary_op (ctx, "fetch_add", ordering);
+  };
+}
+
+Intrinsic::CompileFn
+atomic_xsub (int ordering)
+{
+  return [ordering] (IntrinsicCtx &ctx) {
+    return inner::atomic_binary_op (ctx, "fetch_sub", ordering);
+  };
+}
+
+Intrinsic::CompileFn
+atomic_and (int ordering)
+{
+  return [ordering] (IntrinsicCtx &ctx) {
+    return inner::atomic_binary_op (ctx, "fetch_and", ordering);
+  };
+}
+
+Intrinsic::CompileFn
+atomic_nand (int ordering)
+{
+  return [ordering] (IntrinsicCtx &ctx) {
+    return inner::atomic_binary_op (ctx, "fetch_nand", ordering);
+  };
+}
+
+Intrinsic::CompileFn
+atomic_or (int ordering)
+{
+  return [ordering] (IntrinsicCtx &ctx) {
+    return inner::atomic_binary_op (ctx, "fetch_or", ordering);
+  };
+}
+
+Intrinsic::CompileFn
+atomic_xor (int ordering)
+{
+  return [ordering] (IntrinsicCtx &ctx) {
+    return inner::atomic_binary_op (ctx, "fetch_xor", ordering);
+  };
+}
+Intrinsic::CompileFn
+atomic_compare_exchange (bool weak, int success_ordering, int failure_ordering)
+{
+  return [weak, success_ordering, failure_ordering] (IntrinsicCtx &ctx) {
+    return inner::atomic_compare_exchange (ctx, weak, success_ordering,
+					   failure_ordering);
+  };
+}
+
+Intrinsic::CompileFn
+atomic_minmax (AtomicMinMaxKind kind, int ordering)
+{
+  return [kind, ordering] (IntrinsicCtx &ctx) {
+    return inner::atomic_minmax (ctx, kind, ordering);
+  };
+}
+
+Intrinsic::CompileFn
+atomic_fence (bool is_multithread, int ordering)
+{
+  return [is_multithread, ordering] (IntrinsicCtx &ctx) {
+    return inner::atomic_fence (ctx, is_multithread, ordering);
   };
 }
 
