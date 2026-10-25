@@ -993,13 +993,23 @@ CompileExpr::visit (HIR::LoopExpr &expr)
   tree loop_begin_label = loop_labels.first;
   tree loop_end_label = loop_labels.second;
 
-  // label before the loop - continue should goto here
+  std::vector<Bvariable *> locals;
+  location_t start_location = expr.get_loop_block ().get_locus ();
+  tree loop_block = Backend::block (fnctx.fndecl, enclosing_scope, locals,
+				    start_location, start_location);
+  ctx->push_block (loop_block);
+
+  // label at the start of the loop body - continue should goto here, like in
+  // while loops
   ctx->add_statement (loop_begin_label);
 
   // loop body
   tree code_block
     = CompileBlock::compile (expr.get_loop_block (), ctx, nullptr);
-  tree loop_expr = Backend::loop_expression (code_block, expr.get_locus ());
+  ctx->add_statement (code_block);
+  ctx->pop_block ();
+
+  tree loop_expr = Backend::loop_expression (loop_block, expr.get_locus ());
   ctx->add_statement (loop_expr);
 
   ctx->pop_loop_context ();
@@ -3463,6 +3473,10 @@ CompileExpr::construct_loop_labels (tl::optional<HIR::LoopLabel> opt_loop_label)
   break_label_decl
     = Backend::label (fnctx.fndecl, break_label_name, label_locus);
   break_label_expr = Backend::label_definition_statement (break_label_decl);
+  // these are compiler-made jump targets even when the loop has a name, so
+  // const eval can treat the gotos to them like any other loop jump
+  DECL_ARTIFICIAL (continue_label_decl) = 1;
+  DECL_ARTIFICIAL (break_label_decl) = 1;
   if (label_hirid.has_value ())
     {
       ctx->insert_continue_label (label_hirid.value (), continue_label_decl);
