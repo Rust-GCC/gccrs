@@ -84,6 +84,7 @@ static const BuiltinAttrDefinition __definitions[]
      {Attrs::RUSTC_PAREN_SUGAR, TYPE_CHECK},
      {Attrs::RUSTC_NONNULL_OPTIMIZATION_GUARANTEED, TYPE_CHECK},
      {Attrs::RUSTC_LAYOUT_SCALAR_VALID_RANGE_START, CODE_GENERATION},
+     {Attrs::RUSTC_LAYOUT_SCALAR_VALID_RANGE_END, CODE_GENERATION},
      // TODO: be careful about calling functions marked with this?
      {Attrs::RUSTC_ARGS_REQUIRED_CONST, CODE_GENERATION},
      {Attrs::RUSTC_LEGACY_CONST_GENERICS, TYPE_CHECK},

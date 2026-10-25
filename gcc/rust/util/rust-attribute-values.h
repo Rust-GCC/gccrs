@@ -89,6 +89,8 @@ public:
 
   static constexpr auto &RUSTC_LAYOUT_SCALAR_VALID_RANGE_START
     = "rustc_layout_scalar_valid_range_start";
+  static constexpr auto &RUSTC_LAYOUT_SCALAR_VALID_RANGE_END
+    = "rustc_layout_scalar_valid_range_end";
 
   static constexpr auto &COMPILER_BUILTINS = "compiler_builtins";
   static constexpr auto &NO_BUILTINS = "no_builtins";
