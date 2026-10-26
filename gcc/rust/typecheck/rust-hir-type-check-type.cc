@@ -1043,9 +1043,10 @@ ResolveWhereClauseItem::Resolve (HIR::WhereClauseItem &item,
 
 void
 ResolveWhereClauseItem::Resolve (HIR::WhereClause &clause,
-				 TyTy::RegionConstraints &region_constraints)
+				 TyTy::RegionConstraints &region_constraints,
+				 TyTy::BaseType *trait_item_self)
 {
-  ResolveWhereClauseItem resolver (region_constraints);
+  ResolveWhereClauseItem resolver (region_constraints, trait_item_self);
 
   class PlainTypePath : public HIR::HIRTypeVisitor
   {
@@ -1138,6 +1139,14 @@ ResolveWhereClauseItem::visit (HIR::TypeBoundWhereClauseItem &item)
 
   if (defer_bindings && binding->get_kind () != TyTy::TypeKind::PARAM)
     return;
+
+  // `Self: Bound` on a trait item constrains that item only
+  if (trait_item_self != nullptr)
+    {
+      auto *param = binding->try_as<TyTy::ParamType> ();
+      if (param != nullptr && param->is_implicit_self_trait ())
+	binding = trait_item_self;
+    }
 
   // FIXME double check there might be a trait cycle here see TypeParam handling
 

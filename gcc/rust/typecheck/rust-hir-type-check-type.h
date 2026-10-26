@@ -131,9 +131,15 @@ class ResolveWhereClauseItem : public TypeCheckBase
   // pair(a, b) => a: b
   TyTy::RegionConstraints &region_constraints;
 
+  // When resolving the where clause of a trait item, bounds placed on the
+  // trait's implicit Self constrain that item only, so they are applied to
+  // the item's own copy of the Self parameter instead of the trait's.
+  TyTy::BaseType *trait_item_self;
+
 public:
   static void Resolve (HIR::WhereClause &clause,
-		       TyTy::RegionConstraints &region_constraints);
+		       TyTy::RegionConstraints &region_constraints,
+		       TyTy::BaseType *trait_item_self = nullptr);
 
 protected:
   void visit (HIR::LifetimeWhereClauseItem &item);
@@ -146,8 +152,9 @@ private:
   bool defer_bindings = false;
   bool complete_bindings = false;
 
-  ResolveWhereClauseItem (TyTy::RegionConstraints &region_constraints)
-    : region_constraints (region_constraints)
+  ResolveWhereClauseItem (TyTy::RegionConstraints &region_constraints,
+			  TyTy::BaseType *trait_item_self = nullptr)
+    : region_constraints (region_constraints), trait_item_self (trait_item_self)
   {}
 };
 
