@@ -552,7 +552,7 @@ public:
       rust_assert (!ctx.lifetime_resolver_stack.empty ());
       if (!ctx.lifetime_resolver_stack.top ().binder_empty ())
 	ctx.lifetime_resolver_stack.top ().pop_binder ();
-      if (kind == RESOLVER)
+      if (kind == RESOLVER || kind == IMPL_BLOCK_RESOLVER)
 	{
 	  ctx.lifetime_resolver_stack.pop ();
 	}
