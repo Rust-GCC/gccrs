@@ -115,10 +115,16 @@ private:
   CompileFn closure;
 };
 
-enum class Prefetch
+enum class Mode
 {
   Read,
   Write
+};
+
+enum class Cache
+{
+  Data,
+  Instruction,
 };
 
 enum class TyAssert
@@ -143,6 +149,8 @@ void op_with_overflow (IntrinsicCtx &ctx, tree_code op);
 
 inline void unchecked_op (IntrinsicCtx &ctx, tree_code op);
 
+void prefetch (IntrinsicCtx &ctx, Mode mode, Cache cache);
+
 } // namespace inner
 
 void rotate_left (IntrinsicCtx &ctx);
@@ -158,7 +166,6 @@ void transmute (IntrinsicCtx &ctx);
 // FIXME: This is supposed to be just a ctx without the op right?
 // Or are these inner functions and thus shouldn't live here?
 void rotate (IntrinsicCtx &ctx, tree_code op);
-void prefetch_data (IntrinsicCtx &ctx, Prefetch kind);
 
 void uninit (IntrinsicCtx &ctx);
 void move_val_init (IntrinsicCtx &ctx);
@@ -170,9 +177,6 @@ void ctlz_handler (IntrinsicCtx &ctx);
 void ctlz_nonzero_handler (IntrinsicCtx &ctx);
 void cttz_handler (IntrinsicCtx &ctx);
 void cttz_nonzero_handler (IntrinsicCtx &ctx);
-
-void prefetch_read_data (IntrinsicCtx &ctx);
-void prefetch_write_data (IntrinsicCtx &ctx);
 
 void sorry (IntrinsicCtx &ctx);
 
@@ -196,6 +200,8 @@ Intrinsic::CompileFn unchecked_op (tree_code op);
 Intrinsic::CompileFn copy (bool overlaps);
 Intrinsic::CompileFn expect (bool likely);
 Intrinsic::CompileFn try_handler (bool is_new_api);
+
+Intrinsic::CompileFn prefetch (Mode mode, Cache cache);
 
 /**
  * For fadd_fast, fsub_fast, fmul_fast, fdiv_fast and frem_fast
