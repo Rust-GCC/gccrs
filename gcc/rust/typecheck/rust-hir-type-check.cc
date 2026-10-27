@@ -179,9 +179,22 @@ TraitItemReference::get_type_from_fn (/*const*/ HIR::TraitItemFunc &fn) const
 					   ABI::RUST);
     }
 
+  // A `where Self: Bound` on this item must not end up on the trait's
+  // shared Self parameter, or every other item would require it too.
+  TyTy::BaseType *item_self = nullptr;
+  for (auto &mapping : substitutions)
+    {
+      auto *param = mapping.get_param_ty ()->try_as<TyTy::ParamType> ();
+      if (param != nullptr && param->is_implicit_self_trait ())
+	{
+	  item_self = param;
+	  break;
+	}
+    }
+
   TyTy::RegionConstraints region_constraints;
   ResolveWhereClauseItem::Resolve (function.get_where_clause (),
-				   region_constraints);
+				   region_constraints, item_self);
 
   TyTy::BaseType *ret_type = nullptr;
   if (!function.has_return_type ())
