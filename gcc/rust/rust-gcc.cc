@@ -1196,6 +1196,30 @@ arithmetic_or_logical_expression (ArithmeticOrLogicalOperator op, tree left,
   return ret;
 }
 
+// Division and Modulus requires check at runtime for integer type. They are:
+// Division by zero
+// INTEGER_MIN / -1 (causes overflow)
+static tree
+build_div_rem_check (tree left, tree right, location_t loc)
+{
+  tree type = TREE_TYPE (left);
+  tree cond = fold_build2_loc (loc, EQ_EXPR, boolean_type_node, right,
+			       build_zero_cst (type));
+
+  if (!TYPE_UNSIGNED (type))
+    {
+      tree lhs_is_min = fold_build2_loc (loc, EQ_EXPR, boolean_type_node, left,
+					 TYPE_MIN_VALUE (type));
+      tree rhs_is_m1 = fold_build2_loc (loc, EQ_EXPR, boolean_type_node, right,
+					build_minus_one_cst (type));
+      tree ovf = fold_build2_loc (loc, TRUTH_ANDIF_EXPR, boolean_type_node,
+				  lhs_is_min, rhs_is_m1);
+      cond
+	= fold_build2_loc (loc, TRUTH_ORIF_EXPR, boolean_type_node, cond, ovf);
+    }
+  return cond;
+}
+
 static bool
 is_overflowing_expr (ArithmeticOrLogicalOperator op)
 {
@@ -1253,6 +1277,29 @@ arithmetic_or_logical_expression_checked (ArithmeticOrLogicalOperator op,
      expression. */
   if (error_operand_p (left) || error_operand_p (right))
     return error_mark_node;
+
+  if (!is_floating_point (left)
+      && (op == ArithmeticOrLogicalOperator::DIVIDE
+	  || op == ArithmeticOrLogicalOperator::MODULUS))
+    {
+      left = save_expr (left);
+      right = save_expr (right);
+
+      tree checks = build_div_rem_check (left, right, location);
+
+      auto abort
+	= Rust::Compile::BuiltinsContext::get ().lookup_simple_builtin (
+	  "__builtin_abort");
+      rust_assert (abort);
+      tree abort_call = build_call_expr_loc (location, *abort, 0);
+
+      tree assign = assignment_statement (
+	receiver_var->get_tree (location),
+	arithmetic_or_logical_expression (op, left, right, location), location);
+
+      return build3_loc (location, COND_EXPR, void_type_node, checks,
+			 abort_call, assign);
+    }
 
   // FIXME: Add `if (!debug_mode)`
   // No overflow checks for floating point operations or divisions. In that
