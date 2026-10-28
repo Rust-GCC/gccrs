@@ -326,8 +326,11 @@ CompileExpr::visit (HIR::ArithmeticOrLogicalExpr &expr)
       return;
     }
 
+  bool is_div_op = op == ArithmeticOrLogicalOperator::DIVIDE
+		   || op == ArithmeticOrLogicalOperator::MODULUS;
   bool can_generate_overflow_checks
-    = (ctx->in_fn () && !ctx->const_context_p ()) && flag_overflow_checks;
+    = (ctx->in_fn () && !ctx->const_context_p ())
+      && (flag_overflow_checks || is_div_op);
   if (!can_generate_overflow_checks)
     {
       translated
