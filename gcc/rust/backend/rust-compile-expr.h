@@ -170,6 +170,7 @@ protected:
 
 private:
   CompileExpr (Context *ctx);
+  bool can_generate_overflow_checks (ArithmeticOrLogicalOperator &op);
 
   tree translated;
 };

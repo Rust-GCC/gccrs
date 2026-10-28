@@ -326,9 +326,7 @@ CompileExpr::visit (HIR::ArithmeticOrLogicalExpr &expr)
       return;
     }
 
-  bool can_generate_overflow_checks
-    = (ctx->in_fn () && !ctx->const_context_p ()) && flag_overflow_checks;
-  if (!can_generate_overflow_checks)
+  if (!can_generate_overflow_checks (op))
     {
       translated
 	= Backend::arithmetic_or_logical_expression (op, lhs, rhs,
@@ -3471,6 +3469,17 @@ CompileExpr::construct_loop_labels (tl::optional<HIR::LoopLabel> opt_loop_label)
   ctx->push_loop_begin_label (continue_label_decl);
   ctx->push_loop_end_label (break_label_decl);
   return std::make_pair (continue_label_expr, break_label_expr);
+}
+
+bool
+CompileExpr::can_generate_overflow_checks (ArithmeticOrLogicalOperator &op)
+{
+
+  bool is_div_op = op == ArithmeticOrLogicalOperator::DIVIDE
+		   || op == ArithmeticOrLogicalOperator::MODULUS;
+  bool overflow_checks = (ctx->in_fn () && !ctx->const_context_p ())
+			 && (flag_overflow_checks || is_div_op);
+  return overflow_checks;
 }
 
 } // namespace Compile
