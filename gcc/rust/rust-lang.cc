@@ -224,7 +224,7 @@ grs_langhook_type_for_mode (machine_mode mode, int unsignedp)
 			: int_n_trees[i].signed_type);
 
   /* rust_unreachable */
-  return NULL;
+  return nullptr;
 }
 
 // Record a builtin function.
@@ -256,7 +256,7 @@ static tree
 grs_langhook_pushdecl (tree decl ATTRIBUTE_UNUSED)
 {
   // rust_unreachable ();
-  return NULL;
+  return nullptr;
 }
 
 /* This hook is used to get the current list of declarations as trees.
@@ -266,7 +266,7 @@ static tree
 grs_langhook_getdecls (void)
 {
   // rust_unreachable();
-  return NULL;
+  return nullptr;
 }
 
 // Handle Rust-specific options. Return false if nothing happened.
