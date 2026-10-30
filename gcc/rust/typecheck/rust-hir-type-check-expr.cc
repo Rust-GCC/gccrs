@@ -50,8 +50,10 @@ TypeCheckExpr::Resolve (HIR::Expr &expr)
   TypeCheckExpr resolver;
   expr.accept_vis (resolver);
 
+  // the error type has to go in the context like any other, autoderef
+  // looks this expression's type up by ref later and would get nullptr
   if (resolver.infered == nullptr)
-    return new TyTy::ErrorType (expr.get_mappings ().get_hirid ());
+    resolver.infered = new TyTy::ErrorType (expr.get_mappings ().get_hirid ());
 
   if (resolver.infered->get_kind () != TyTy::TypeKind::CONST)
     {
@@ -1222,6 +1224,11 @@ TypeCheckExpr::visit (HIR::ArrayExpr &expr)
 			    TyTy::TyWithLocation (type, type->get_locus ()),
 			    expr.get_locus ());
 	  }
+
+	// a failed element leaves the shared error node here, whose ref
+	// isn't in the context
+	if (element_type->is<TyTy::ErrorType> ())
+	  return;
 
 	auto crate_num = mappings.crate.get_current_crate ();
 	Analysis::NodeMapping mapping (crate_num, UNKNOWN_NODEID,
