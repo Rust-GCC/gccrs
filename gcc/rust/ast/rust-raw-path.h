@@ -23,7 +23,6 @@
 #define RUST_RAW_PATH_H
 
 namespace Rust {
-namespace AST {
 
 template <typename Segment> class RawPath
 {
@@ -51,14 +50,8 @@ public:
 
   Segment &get_final_segment () { return get_segments ().back (); }
   const Segment &get_final_segment () const { return get_segments ().back (); }
-
-  UtilPath<Segment> as_util_path () const
-  {
-    return UtilPath<Segment> (get_segments (), has_opening_scope_resolution ());
-  }
 };
 
-} // namespace AST
 } // namespace Rust
 
 #endif

@@ -235,15 +235,11 @@ private:
 	  resolved.emplace_back (new_def);
 	};
 
-    auto util_path = UtilPath<
-      typename std::remove_reference_t<decltype (segments)>::value_type> (
-      segments, opening_scope_resolution);
-
-    ctx.resolve_path (util_path, mode, value_errors, Namespace::Values)
+    ctx.resolve_path (path, mode, value_errors, Namespace::Values)
       .map (resolved_fn);
-    ctx.resolve_path (util_path, mode, type_errors, Namespace::Types)
+    ctx.resolve_path (path, mode, type_errors, Namespace::Types)
       .map (resolved_fn);
-    ctx.resolve_path (util_path, mode, macro_errors, Namespace::Macros)
+    ctx.resolve_path (path, mode, macro_errors, Namespace::Macros)
       .map (resolved_fn);
 
     if (!value_errors.empty () && !type_errors.empty ()
