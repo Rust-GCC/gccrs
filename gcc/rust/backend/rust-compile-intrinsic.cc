@@ -228,11 +228,13 @@ static const std::map<std::string, Intrinsic::CompileFn> intrinsics = {
    handlers::fop_fast (ArithmeticOrLogicalOperator::MODULUS)},
   {IValue::FLOAT_TO_INT_UNCHECKED, handlers::float_to_int_unchecked},
   {IValue::EXACT_DIV, handlers::exact_div_handler},
+  {IValue::NONTEMPORAL_STORE, handlers::nontemporal_store},
   {IValue::BREAKPOINT, handlers::breakpoint},
   {IValue::PREF_ALIGN_OF, handlers::sorry},
   {IValue::ASSERT_ZERO_VALID, handlers::type_assert (TyAssert::ZeroValid)},
   {IValue::ASSERT_INHABITED, handlers::type_assert (TyAssert::Inhabited)},
   {IValue::ASSERT_UNINIT_VALID, handlers::type_assert (TyAssert::UninitValid)},
+  {IValue::PTR_OFFSET_FROM, handlers::ptr_offset_from},
 };
 
 Intrinsics::Intrinsics (Context *ctx) : ctx (ctx) {}

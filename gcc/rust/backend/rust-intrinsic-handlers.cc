@@ -27,6 +27,7 @@
 #include "rust-diagnostics.h"
 #include "rust-location.h"
 #include "rust-constexpr.h"
+#include "rust-operators.h"
 #include "rust-session-manager.h"
 #include "rust-tree.h"
 #include "rust-tyty.h"
@@ -1508,6 +1509,30 @@ variant_count (IntrinsicCtx &ctx)
 void
 move_val_init (IntrinsicCtx &ctx)
 {
+  // NOTE: Per rustc 1.49, `move_val_init` has magic semantics - code is down
+  // below. We need to ensure that we have the correct behavior by doing a
+  // memcpy here.
+
+  // if let Some(sym::move_val_init) = intrinsic {
+  //     `move_val_init` has "magic" semantics - the second argument is always
+  //     evaluated "directly" into the first one.
+
+  //     let mut args = args.into_iter();
+  //     let ptr = args.next().expect("0 arguments to `move_val_init`");
+  //     let val = args.next().expect("1 argument to `move_val_init`");
+  //     assert!(args.next().is_none(), ">2 arguments to `move_val_init`");
+
+  //     let ptr = this.hir.mirror(ptr);
+  //     let ptr_ty = ptr.ty;
+  //     // Create an *internal* temp for the pointer, so that unsafety
+  //     // checking won't complain about the raw pointer assignment.
+  //     let ptr_temp = this
+  //         .local_decls
+  //         .push(LocalDecl::with_source_info(ptr_ty, source_info).internal());
+  //     let ptr_temp = Place::from(ptr_temp);
+  //     let block = unpack!(this.into(ptr_temp, block, ptr));
+  //     this.into(this.hir.tcx().mk_place_deref(ptr_temp), block, val)
+
   // Most intrinsic functions are pure - not `move_val_init`
   TREE_READONLY (ctx.fn) = 0;
   TREE_SIDE_EFFECTS (ctx.fn) = 1;
@@ -2133,6 +2158,21 @@ exact_div_handler (IntrinsicCtx &ctx)
 }
 
 void
+nontemporal_store (IntrinsicCtx &ctx)
+{
+  // https://doc.rust-lang.org/std/intrinsics/fn.nontemporal_store.html
+  // Equivalent to ptr.write(value), but with an extra performance hint.
+  // AFAICT, GCC currently has no way to indicate that a write like this
+  // *should* be nontemporal - there are no tree attributes for it, and the code
+  // to check whether a store is nontemporal (nontemporal_store_p in
+  // tree-ssa-loop-prefetch.cc) checks manually if the store upholds certain
+  // conditions - it does not account for a flag on the `tree` or anything like
+  // that.
+
+  return move_val_init (ctx);
+}
+
+void
 float_to_int_unchecked (IntrinsicCtx &ctx)
 {
   auto &dst_param = ctx.fntype.get_substs ().at (1);
@@ -2174,6 +2214,45 @@ breakpoint (IntrinsicCtx &ctx)
   TREE_READONLY (ctx.fn) = 0;
   TREE_USED (ctx.fn) = 1;
   TREE_SIDE_EFFECTS (ctx.fn) = 1;
+}
+
+void
+ptr_offset_from (IntrinsicCtx &ctx)
+{
+  // Per offset_from's documentation
+  // https://doc.rust-lang.org/std/primitive.pointer.html#method.offset_from
+  //
+  // This calculates the distance between two pointers in terms of units of `T`
+  // - the distance in bytes divided by `size_of::<T>()`
+
+  auto &param_mapping = ctx.fntype.get_substs ().at (0);
+  auto param_tyty = param_mapping.get_param_ty ();
+  auto resolved_tyty = param_tyty->resolve ();
+  tree ty = TyTyResolveCompile::compile (ctx.inner (), resolved_tyty);
+
+  auto pointee_size_unsigned = TYPE_SIZE_UNIT (ty);
+  auto pointee_size
+    = Backend::convert_expression (signed_size_type_node, pointee_size_unsigned,
+				   ctx.loc);
+
+  auto addr = Backend::var_expression (ctx.param_vars[0], ctx.loc);
+  auto base = Backend::var_expression (ctx.param_vars[1], ctx.loc);
+
+  // Convert the pointers to integers
+  auto addr_int
+    = Backend::convert_expression (signed_size_type_node, addr, ctx.loc);
+  auto base_int
+    = Backend::convert_expression (signed_size_type_node, base, ctx.loc);
+
+  auto byte_diff = Backend::arithmetic_or_logical_expression (
+    ArithmeticOrLogicalOperator::SUBTRACT, addr_int, base_int, ctx.loc);
+
+  auto result = build2_loc (ctx.loc, EXACT_DIV_EXPR, signed_size_type_node,
+			    byte_diff, pointee_size);
+
+  auto return_stmt = Backend::return_statement (ctx.fn, result, ctx.loc);
+
+  ctx.add_statement (return_stmt);
 }
 
 } // namespace handlers
