@@ -220,8 +220,6 @@ private:
   std::vector<NameResolutionContext::NamespacedDefinition>
   resolve_path_in_all_ns (const P &path)
   {
-    auto &segments = path.get_segments ();
-    bool opening_scope_resolution = path.has_opening_scope_resolution ();
     auto mode = import_resolution_mode (path);
 
     std::vector<NameResolutionContext::NamespacedDefinition> resolved;
