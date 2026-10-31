@@ -466,11 +466,12 @@ check_leading_kw_at_start (std::vector<Error> &collect_errors,
 template <Namespace N>
 tl::optional<typename std::vector<ResolutionPath::Segment>::const_iterator>
 ForeverStack<N>::find_starting_point (
-  const std::vector<ResolutionPath::Segment> &segments,
+  const UtilPath<ResolutionPath::Segment> &path,
   std::reference_wrapper<Node> &starting_point,
   std::function<void (Usage, Definition, Namespace)> insert_segment_resolution,
   std::vector<Error> &collect_errors)
 {
+  auto &segments = path.get_segments ();
   auto iterator = segments.begin ();
 
   for (; iterator != segments.end (); iterator++)
@@ -493,6 +494,13 @@ ForeverStack<N>::find_starting_point (
 
       if (seg.is_crate_path_seg ())
 	{
+	  if (path.has_opening_scope ())
+	    {
+	      collect_errors.emplace_back (seg.locus, ErrorCode::E0433,
+					   "global paths cannot start with %qs",
+					   seg.name.c_str ());
+	      return tl::nullopt;
+	    }
 	  starting_point = root;
 	  insert_segment_resolution (Usage (seg.node_id),
 				     Definition (starting_point.get ().id), N);
