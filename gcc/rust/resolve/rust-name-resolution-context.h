@@ -851,7 +851,7 @@ public:
   {
     auto util_path
       = UtilPath<AST::PathExprSegment> (path.get_segments (),
-					path.opening_scope_resolution ());
+					path.has_opening_scope_resolution ());
     return resolve_path (util_path, std::forward<Args> (args)...);
   }
 
@@ -860,7 +860,7 @@ public:
 						   Args &&...args)
   {
     auto util_path = UtilPath<std::unique_ptr<AST::TypePathSegment>> (
-      path.get_segments (), path.has_opening_scope_resolution_op ());
+      path.get_segments (), path.has_opening_scope_resolution ());
     return resolve_path (util_path, std::forward<Args> (args)...);
   }
 
