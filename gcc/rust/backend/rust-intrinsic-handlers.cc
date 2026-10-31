@@ -29,6 +29,7 @@
 #include "rust-constexpr.h"
 #include "rust-session-manager.h"
 #include "rust-tree.h"
+#include "rust-type-validity.h"
 #include "rust-tyty.h"
 #include "tree-core.h"
 #include "rust-gcc.h"
@@ -1087,24 +1088,6 @@ build_rust_string (IntrinsicCtx &ctx, const std::string &content)
 					  ctx.loc);
 }
 
-/**
- * Check if a type is uninhabited - either the Never type or a variant-less enum
- */
-static bool
-is_uninhabited (TyTy::BaseType *t)
-{
-  rust_assert (t);
-
-  if (auto adt = t->try_as<TyTy::ADTType> ())
-    if (adt->is_enum () && adt->number_of_variants () == 0)
-      return true;
-
-  if (t->is<TyTy::NeverType> ())
-    return true;
-
-  return false;
-}
-
 static void
 type_assert (IntrinsicCtx &ctx, TyAssert assert)
 {
@@ -1113,73 +1096,46 @@ type_assert (IntrinsicCtx &ctx, TyAssert assert)
    * the given generic is invalid, then panic at runtime, otherwise do nothing.
    */
 
-  /**
-   * TODO: Since gccrs currently lacks comprehensive layout engine support for
-   * validity ranges (such as `rustc_layout_scalar_valid_range_start`), we
-   * cannot accurately determine if a type is safely zeroable or can be left
-   * uninitialized. Therefore, this is implemented as a temporary no-op stub
-   * except for uninhabited types. We emit a warning regarding this limitation.
-   */
-
   auto t_param = ctx.fntype.get_substs ().at (0);
   auto t_ty = t_param.get_param_ty ();
   auto t = t_ty->resolve ();
+  tree t_tree = TyTyResolveCompile::compile (ctx.inner (), t);
   auto t_name = t->get_name ();
   auto valid = true;
 
   // In all cases, invalid types are... invalid. So single out never and
   // variant-less enums and return early
-  if (is_uninhabited (t))
-    valid = false;
+  bool is_uninhabited_type = TypeValidity::is_uninhabited (t);
 
-  /**
-   * TODO: Since gccrs currently lacks comprehensive layout engine support for
-   * validity ranges (such as `rustc_layout_scalar_valid_range_start`), we
-   * cannot accurately determine if a type is safely zeroable or can be left
-   * uninitialized. Therefore, this is implemented as a temporary no-op stub
-   * except for uninhabited types
-   */
-  auto always_warn = false;
-  auto fn_name = "";
-
-  // FIXME: Once we have proper verification for the layout of the given type,
-  // we need to separate our panic strings based on the operation we're doing -
-  // asserting that a type is inhabited, zero valid, or uninit valid
   std::string panic_str;
 
   switch (assert)
     {
+      using TV = TypeValidity;
     case TyAssert::Inhabited:
-      panic_str = "attempted to instantiate uninhabited type `" + t_name + "`";
+      valid = !is_uninhabited_type;
       break;
     case TyAssert::ZeroValid:
-      panic_str = "attempted to zero-initialize type `" + t_name
-		  + "`, which is invalid";
-
-      // FIXME: Remove eventually
-      always_warn = true;
-      fn_name = "assert_zero_valid<T>";
+      valid = TV::might_permit_raw_init (t, t_tree, TV::RawInitKind::ZeroInit);
       break;
     case TyAssert::UninitValid:
-      panic_str = "attempted to leave type `" + t_name
-		  + "` uninitialized, which is invalid";
-
-      // FIXME: Remove eventually
-      always_warn = true;
-      fn_name = "assert_uninit_valid<T>";
+      valid = TV::might_permit_raw_init (t, t_tree, TV::RawInitKind::Uninit);
       break;
-    }
-
-  if (always_warn)
-    {
-      rust_warning_at (ctx.loc, 0,
-		       "%qs was emitted as a no-op and "
-		       "will not trigger - this may be invalid",
-		       fn_name);
     }
 
   if (!valid)
     {
+      if (is_uninhabited_type)
+	// Use this error even for the other intrinsics as it is more precise.
+	panic_str
+	  = "attempted to instantiate uninhabited type `" + t_name + "`";
+      else if (assert == TyAssert::ZeroValid)
+	panic_str = "attempted to zero-initialize type `" + t_name
+		    + "`, which is invalid";
+      else
+	panic_str = "attempted to leave type `" + t_name
+		    + "` uninitialized, which is invalid";
+
       auto arg = build_rust_string (ctx, panic_str);
 
       auto panic_call = lang_item_call (ctx, LangItem::Kind::PANIC, {arg});
