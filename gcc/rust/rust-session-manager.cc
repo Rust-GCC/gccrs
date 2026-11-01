@@ -65,7 +65,6 @@
 #include "rust-extern-crate-loader.h"
 
 #include "input.h"
-#include "selftest.h"
 #include "tm.h"
 #include "rust-target.h"
 #include "rust-system.h"
@@ -76,23 +75,23 @@ extern Linemap *rust_get_linemap ();
 
 namespace Rust {
 
-const char *kLexDumpFile = "gccrs.lex.dump";
-const char *kASTDumpFile = "gccrs.ast.dump";
-const char *kASTPrettyDumpFile = "gccrs.ast-pretty.dump";
-const char *kASTPrettyInternalDumpFile = "gccrs.ast-pretty-internal.dump";
-const char *kASTPrettyDumpFileExpanded = "gccrs.ast-pretty-expanded.dump";
-const char *kASTExpandedDumpFile = "gccrs.ast-expanded.dump";
-const char *kASTmacroResolutionDumpFile = "gccrs.ast-macro-resolution.dump";
-const char *kASTlabelResolutionDumpFile = "gccrs.ast-label-resolution.dump";
-const char *kASTtypeResolutionDumpFile = "gccrs.ast-type-resolution.dump";
-const char *kASTvalueResolutionDumpFile = "gccrs.ast-value-resolution.dump";
-const char *kHIRDumpFile = "gccrs.hir.dump";
-const char *kHIRPrettyDumpFile = "gccrs.hir-pretty.dump";
-const char *kHIRTypeResolutionDumpFile = "gccrs.type-resolution.dump";
-const char *kTargetOptionsDumpFile = "gccrs.target-options.dump";
+constexpr const char *kLexDumpFile = "gccrs.lex.dump";
+constexpr const char *kASTDumpFile = "gccrs.ast.dump";
+constexpr const char *kASTPrettyDumpFile = "gccrs.ast-pretty.dump";
+constexpr const char *kASTPrettyInternalDumpFile = "gccrs.ast-pretty-internal.dump";
+constexpr const char *kASTPrettyDumpFileExpanded = "gccrs.ast-pretty-expanded.dump";
+constexpr const char *kASTExpandedDumpFile = "gccrs.ast-expanded.dump";
+constexpr const char *kASTmacroResolutionDumpFile = "gccrs.ast-macro-resolution.dump";
+constexpr const char *kASTlabelResolutionDumpFile = "gccrs.ast-label-resolution.dump";
+constexpr const char *kASTtypeResolutionDumpFile = "gccrs.ast-type-resolution.dump";
+constexpr const char *kASTvalueResolutionDumpFile = "gccrs.ast-value-resolution.dump";
+constexpr const char *kHIRDumpFile = "gccrs.hir.dump";
+constexpr const char *kHIRPrettyDumpFile = "gccrs.hir-pretty.dump";
+constexpr const char *kHIRTypeResolutionDumpFile = "gccrs.type-resolution.dump";
+constexpr const char *kTargetOptionsDumpFile = "gccrs.target-options.dump";
 
-const std::string kDefaultCrateName = "rust_out";
-const size_t kMaxNameLength = 64;
+constexpr const std::string kDefaultCrateName = "rust_out";
+constexpr const size_t kMaxNameLength = 64;
 
 Session &
 Session::get_instance ()
