@@ -201,6 +201,8 @@ void assert_zero_valid_handler (IntrinsicCtx &ctx);
 
 void exact_div_handler (IntrinsicCtx &ctx);
 
+void nontemporal_store (IntrinsicCtx &ctx);
+
 Intrinsic::CompileFn op_with_overflow (tree_code op);
 
 Intrinsic::CompileFn wrapping_op (tree_code op);
@@ -240,6 +242,8 @@ Intrinsic::CompileFn fop_fast (ArithmeticOrLogicalOperator op);
 Intrinsic::CompileFn type_assert (TyAssert assert);
 
 void breakpoint (IntrinsicCtx &ctx);
+
+void ptr_offset_from (IntrinsicCtx &ctx);
 
 } // namespace handlers
 
