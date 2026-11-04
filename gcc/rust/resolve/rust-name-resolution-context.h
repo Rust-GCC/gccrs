@@ -499,6 +499,9 @@ public:
   insert_shadowable (Identifier name, NodeId id, Namespace ns);
 
   tl::expected<NodeId, DuplicateNameError>
+  insert_non_shadowable (Identifier name, NodeId id, Namespace ns);
+
+  tl::expected<NodeId, DuplicateNameError>
   insert_globbed (Identifier name, NodeId id, Namespace ns);
 
   // Crate are supposed to be injected before any other module because we want
