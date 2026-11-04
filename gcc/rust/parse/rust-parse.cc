@@ -383,6 +383,13 @@ resolve_literal_suffix (const_TokenPtr token)
   const std::string &raw_str = token->get_str ();
   uint16_t start = token->get_suffix_start ();
 
+  std::unordered_map<std::string, PrimitiveCoreType> core_types = {
+    {"i8", CORETYPE_I8},   {"i16", CORETYPE_I16},   {"i32", CORETYPE_I32},
+    {"i64", CORETYPE_I64}, {"i128", CORETYPE_I128}, {"isize", CORETYPE_ISIZE},
+    {"u8", CORETYPE_U8},   {"u16", CORETYPE_U16},   {"u32", CORETYPE_U32},
+    {"u64", CORETYPE_U64}, {"u128", CORETYPE_U128}, {"usize", CORETYPE_USIZE},
+  };
+
   if (start >= raw_str.length ())
     {
       return token->is_pure_decimal () ? CORETYPE_PURE_DECIMAL
@@ -411,56 +418,11 @@ resolve_literal_suffix (const_TokenPtr token)
 	}
       return suffix == "f32" ? CORETYPE_F32 : CORETYPE_F64;
     }
-  else if (suffix == "i8")
+  else if (core_types.find (suffix) != core_types.end ())
     {
-      return CORETYPE_I8;
-    }
-  else if (suffix == "i16")
-    {
-      return CORETYPE_I16;
-    }
-  else if (suffix == "i32")
-    {
-      return CORETYPE_I32;
-    }
-  else if (suffix == "i64")
-    {
-      return CORETYPE_I64;
-    }
-  else if (suffix == "i128")
-    {
-      return CORETYPE_I128;
-    }
-  else if (suffix == "isize")
-    {
-      return CORETYPE_ISIZE;
-    }
-  else if (suffix == "u8")
-    {
-      return CORETYPE_U8;
-    }
-  else if (suffix == "u16")
-    {
-      return CORETYPE_U16;
-    }
-  else if (suffix == "u32")
-    {
-      return CORETYPE_U32;
-    }
-  else if (suffix == "u64")
-    {
-      return CORETYPE_U64;
-    }
-  else if (suffix == "u128")
-    {
-      return CORETYPE_U128;
-    }
-  else if (suffix == "usize")
-    {
-      return CORETYPE_USIZE;
+      return core_types[suffix];
     }
   else
-
     rust_error_at (token->get_locus (), "invalid suffix %qs for number literal",
 		   suffix.c_str ());
 
