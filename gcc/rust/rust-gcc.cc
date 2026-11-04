@@ -2232,7 +2232,7 @@ static_chain_variable (tree fndecl, GGC::Ident name, tree type_tree,
 LocalVariable
 temporary_variable (tree fndecl, tree bind_tree, tree type_tree, tree init_tree,
 		    bool is_address_taken, location_t location,
-		    tree *pstatement)
+		    tree *pstatement, bool scoped)
 {
   gcc_assert (fndecl != NULL_TREE);
   if (error_operand_p (type_tree) || error_operand_p (init_tree)
@@ -2244,7 +2244,7 @@ temporary_variable (tree fndecl, tree bind_tree, tree type_tree, tree init_tree,
 
   tree var;
   // We can only use create_tmp_var if the type is not addressable.
-  if (!TREE_ADDRESSABLE (type_tree))
+  if (!TREE_ADDRESSABLE (type_tree) && !scoped)
     {
       if (DECL_STRUCT_FUNCTION (fndecl) == NULL)
 	push_struct_function (fndecl);
