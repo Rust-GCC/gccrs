@@ -1,0 +1,15 @@
+core/src/str/pattern.rs:763:81: error: unresolved lifetime
+core/src/str/pattern.rs:763:30: error: unresolved lifetime
+core/src/num/bignum.rs:163:49: error: no method named 'take_while' found in the current scope [E0599]
+core/src/num/bignum.rs:163:29: error: failed to resolve receiver in MethodCallExpr
+core/src/num/bignum.rs:164:42: error: cannot find value 'zeros' in this scope [E0425]
+core/src/num/bignum.rs:164:27: error: cannot apply operator '-' to types usize and <tyty::error>
+core/src/num/bignum.rs:165:41: error: cannot find value 'end' in this scope [E0425]
+core/src/num/bignum.rs:165:39: error: bounds not satisfied for <tyty::error> 'Sized' is not satisfied [E0277]
+core/src/num/bignum.rs:165:32: error: the type '& [u32]' cannot be indexed by 'RangeTo<Idx>' [E0277]
+core/src/num/bignum.rs:167:20: error: cannot find value 'nonzero' in this scope [E0425]
+core/src/num/bignum.rs:167:20: error: failed to resolve receiver in MethodCallExpr
+core/src/num/bignum.rs:167:17: error: mismatched types, expected 'bool' but got '<tyty::error>' [E0308]
+core/src/num/bignum.rs:174:29: error: cannot find value 'nonzero' in this scope [E0425]
+core/src/num/bignum.rs:174:29: error: failed to resolve receiver in MethodCallExpr
+crab1: internal compiler error: Segmentation fault
