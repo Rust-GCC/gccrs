@@ -241,7 +241,20 @@ MethodResolver::assemble_trait_impl_candidates (
 	if (!name_matches)
 	  continue;
 
-	TyTy::BaseType *impl_self = TypeCheckItem::ResolveImplBlockSelf (*impl);
+	// resolving the self type of every impl for every probe is what runs
+	// core out of memory, and it is only looked at here, so do it once
+	static std::map<HirId, TyTy::BaseType *> impl_selfs;
+	TyTy::BaseType *impl_self = nullptr;
+	auto cached = impl_selfs.find (id);
+	if (cached != impl_selfs.end ())
+	  impl_self = cached->second;
+	else
+	  {
+	    impl_self = TypeCheckItem::ResolveImplBlockSelf (*impl);
+	    if (impl_self != nullptr
+		&& impl_self->get_kind () != TyTy::TypeKind::ERROR)
+	      impl_selfs.emplace (id, impl_self);
+	  }
 
 	if (impl_self == nullptr
 	    || impl_self->get_kind () == TyTy::TypeKind::ERROR)
