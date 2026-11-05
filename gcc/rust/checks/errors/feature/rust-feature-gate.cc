@@ -54,9 +54,22 @@ FeatureGate::visit (AST::Crate &crate)
       if (feature == "libc" || feature == "test")
 	continue;
 
-      if (defined_lib_features.find (feature) != defined_lib_features.end ())
+      tl::optional<Stability> found_stability = tl::nullopt;
+      auto fpair = defined_lib_features.find (feature);
+      if (fpair != defined_lib_features.end ())
+	found_stability = fpair->second;
+      else
+	found_stability
+	  = Analysis::Mappings::get ().lookup_defined_extern_lib_feature (
+	    feature);
+
+      if (found_stability)
 	{
-	  // TODO: emit warning if stable
+	  if (found_stability.value () == Stability::STABLE)
+	    rust_warning_at (locus, 0,
+			     "the feature %qs has been stable and no longer "
+			     "requires an attribute to enable",
+			     feature.c_str ());
 	  continue;
 	}
 
@@ -186,50 +199,46 @@ FeatureGate::check_lang_item_attribute (
 }
 
 void
-FeatureGate::note_stability_attribute (
-  const std::vector<AST::Attribute> &attributes)
+FeatureGate::note_stability_attribute (const AST::Attribute &attribute)
 {
-  for (const AST::Attribute &attr : attributes)
+  std::string attr_name = attribute.get_path ().as_string ();
+
+  Stability stability;
+
+  if (attr_name == Values::Attributes::STABLE)
+    stability = Stability::STABLE;
+  else if (attr_name == Values::Attributes::UNSTABLE)
+    stability = Stability::UNSTABLE;
+  else if (attr_name == Values::Attributes::RUSTC_CONST_STABLE)
+    stability = Stability::STABLE;
+  else if (attr_name == Values::Attributes::RUSTC_CONST_UNSTABLE)
+    stability = Stability::UNSTABLE;
+  else
+    return;
+
+  if (attribute.empty_input ())
+    // TODO: error?
+    return;
+
+  auto &attr_input = attribute.get_attr_input ();
+  if (attr_input.get_attr_input_type ()
+      != AST::AttrInput::AttrInputType::TOKEN_TREE)
+    // TODO: error?
+    return;
+
+  std::unique_ptr<AST::AttrInputMetaItemContainer> meta_item (
+    static_cast<const AST::DelimTokenTree &> (attr_input)
+      .parse_to_meta_item ());
+
+  for (auto &item : meta_item->get_items ())
     {
-      std::string attr_name = attr.get_path ().as_string ();
-
-      Stability stability;
-
-      if (attr_name == Values::Attributes::STABLE)
-	stability = Stability::STABLE;
-      else if (attr_name == Values::Attributes::UNSTABLE)
-	stability = Stability::UNSTABLE;
-      else if (attr_name == Values::Attributes::RUSTC_CONST_STABLE)
-	stability = Stability::STABLE;
-      else if (attr_name == Values::Attributes::RUSTC_CONST_UNSTABLE)
-	stability = Stability::UNSTABLE;
-      else
-	continue;
-
-      if (attr.empty_input ())
-	// TODO: error?
-	continue;
-
-      auto &attr_input = attr.get_attr_input ();
-      if (attr_input.get_attr_input_type ()
-	  != AST::AttrInput::AttrInputType::TOKEN_TREE)
-	// TODO: error?
-	continue;
-
-      std::unique_ptr<AST::AttrInputMetaItemContainer> meta_item (
-	static_cast<const AST::DelimTokenTree &> (attr_input)
-	  .parse_to_meta_item ());
-
-      for (auto &item : meta_item->get_items ())
+      // TODO: more thorough error checking?
+      // ~only the standard libraries should ever exercise this
+      if (item->is_key_value_pair ())
 	{
-	  // TODO: more thorough error checking?
-	  // ~only the standard libraries should ever exercise this
-	  if (item->is_key_value_pair ())
-	    {
-	      auto &pair = static_cast<const AST::MetaNameValueStr &> (*item);
-	      if (pair.get_name ().as_string () == "feature")
-		defined_lib_features.emplace (pair.get_value (), stability);
-	    }
+	  auto &pair = static_cast<const AST::MetaNameValueStr &> (*item);
+	  if (pair.get_name ().as_string () == "feature")
+	    defined_lib_features.emplace (pair.get_value (), stability);
 	}
     }
 }
@@ -238,7 +247,9 @@ void
 FeatureGate::visit (AST::MacroRulesDefinition &rules_def)
 {
   check_rustc_attri (rules_def.get_outer_attrs ());
-  note_stability_attribute (rules_def.get_outer_attrs ());
+
+  for (auto &attr : rules_def.get_outer_attrs ())
+    note_stability_attribute (attr);
 }
 
 void
@@ -258,8 +269,6 @@ FeatureGate::visit (AST::Function &function)
     }
 
   check_lang_item_attribute (function.get_outer_attrs ());
-
-  note_stability_attribute (function.get_outer_attrs ());
 
   AST::DefaultASTVisitor::visit (function);
 }
@@ -407,6 +416,7 @@ FeatureGate::visit (AST::Attribute &attr)
 	"does nothing - we are waiting on a patchset to land "
 	"into GCC as the KCFI functionality is not present yet");
 
+  note_stability_attribute (attr);
   AST::DefaultASTVisitor::visit (attr);
 }
 

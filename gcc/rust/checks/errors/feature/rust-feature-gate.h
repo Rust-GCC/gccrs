@@ -21,6 +21,7 @@
 
 #include "rust-ast-visitor.h"
 #include "rust-feature-collector.h"
+#include "rust-feature-stability.h"
 
 namespace Rust {
 
@@ -73,17 +74,21 @@ private:
   check_may_dangle_attribute (const std::vector<AST::Attribute> &attributes);
   void
   check_lang_item_attribute (const std::vector<AST::Attribute> &attributes);
-  void note_stability_attribute (const std::vector<AST::Attribute> &attributes);
+  void note_stability_attribute (const AST::Attribute &attribute);
 
   Features::CrateFeatures &features;
 
-  enum class Stability
-  {
-    STABLE,
-    UNSTABLE,
-  };
-
   std::map<std::string, Stability> defined_lib_features;
+
+public:
+  std::map<std::string, Stability> get_defined_lib_features ()
+  {
+    return this->defined_lib_features;
+  }
+  std::map<std::string, Stability> take_defined_lib_features ()
+  {
+    return std::move (this->defined_lib_features);
+  }
 };
 } // namespace Rust
 #endif
