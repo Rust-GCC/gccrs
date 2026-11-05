@@ -640,9 +640,10 @@ HIRCompileBase::compile_constant_expr (
   HIR::Expr &const_value_expr, location_t locus, location_t expr_locus)
 {
   HIRCompileBase c (ctx);
+  // callers report their own error when this fails
   return c.compile_constant_item (coercion_id, resolved_type, expected_type,
 				  canonical_path, const_value_expr, locus,
-				  expr_locus);
+				  expr_locus, false);
 }
 
 tree
@@ -948,7 +949,8 @@ tree
 HIRCompileBase::compile_constant_item (
   HirId coercion_id, TyTy::BaseType *resolved_type,
   TyTy::BaseType *expected_type, const Resolver::CanonicalPath &canonical_path,
-  HIR::Expr &const_value_expr, location_t locus, location_t expr_locus)
+  HIR::Expr &const_value_expr, location_t locus, location_t expr_locus,
+  bool emit_error)
 {
   const std::string &ident = canonical_path.get ();
 
@@ -1026,7 +1028,16 @@ HIRCompileBase::compile_constant_item (
 
   // lets fold it into a call expr
   tree call = build_call_array_loc (locus, const_type, fndecl, 0, NULL);
-  tree folded_expr = fold_expr (call);
+  bool non_constant = false;
+  tree folded_expr = fold_expr (call, &non_constant);
+  if (non_constant)
+    {
+      // without any error the constant would be silently left uninitialized
+      if (emit_error && !seen_error ())
+	rust_error_at (expr_locus, ErrorCode::E0080,
+		       "evaluation of constant value failed");
+      return error_mark_node;
+    }
 
   // coercion site
   tree coerced = coercion_site (coercion_id, folded_expr, resolved_type,
