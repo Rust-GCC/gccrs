@@ -23,6 +23,7 @@
 #include "rust-desugar-apit.h"
 #include "rust-diagnostics.h"
 #include "rust-expression-yeast.h"
+#include "rust-feature-stability-check.h"
 #include "rust-hir-pattern-analysis.h"
 #include "rust-finalized-name-resolution-context.h"
 #include "rust-location.h"
@@ -832,6 +833,15 @@ Session::compile_crate (const char *filename)
   if (saw_errors ())
     return;
 
+  // Stability checker (Feature gating for library features)
+  auto stability_checker = HIR::StabilityChecker (parsed_crate_features);
+  // Early stability check on AST
+  stability_checker.check_early (parsed_crate);
+  // Late stability check on HIR
+  stability_checker.check_late (hir);
+  if (saw_errors ())
+    return;
+
   if (last_step == CompileOptions::CompileStep::Unsafety)
     return;
 
@@ -1341,6 +1351,14 @@ Session::load_extern_crate (const std::string &crate_name, location_t locus)
   Resolver2_0::Early early (ctx);
   early.go (parsed_crate);
   Resolver2_0::Late (ctx).go (parsed_crate);
+
+  auto parsed_crate_features
+    = Features::FeatureCollector{}.collect (parsed_crate);
+  auto fgate = FeatureGate (parsed_crate_features);
+  fgate.visit (parsed_crate);
+  auto defined_lib_features = fgate.take_defined_lib_features ();
+  for (auto &pair : defined_lib_features)
+    mappings.add_defined_extern_lib_feature (pair.first, pair.second);
 
   std::vector<AttributeProcMacro> attribute_macros;
   std::vector<CustomDeriveProcMacro> derive_macros;
