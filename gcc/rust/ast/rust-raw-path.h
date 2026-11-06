@@ -15,29 +15,40 @@
 // You should have received a copy of the GNU General Public License
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
-
+//
 #include "rust-system.h"
 
-#ifndef RUST_UTIL_PATH_H
-#define RUST_UTIL_PATH_H
+#ifndef RUST_RAW_PATH_H
+#define RUST_RAW_PATH_H
 
 namespace Rust {
 
-// Simple path container class to keep segments and opening scope flag together
-// whilst keeping the segment type generic.
-//
-// Only meant as a tuple for path elements with a name and a proper type.
-template <typename Segment> struct UtilPath
+template <typename Segment> class RawPath
 {
-  UtilPath (const std::vector<Segment> &segments, bool opening_scope)
-    : segments (segments), opening_scope (opening_scope)
+protected:
+  std::vector<Segment> segments;
+  bool opening_scope_resolution;
+
+public:
+  RawPath (std::vector<Segment> segments, bool opening_scope_resolution)
+    : segments (std::move (segments)),
+      opening_scope_resolution (opening_scope_resolution)
   {}
 
-  const std::vector<Segment> &segments;
-  bool opening_scope;
+  /* Returns whether the TypePath has an opening scope resolution operator
+   * (i.e. is global path or crate-relative path, not module-relative) */
+  bool has_opening_scope_resolution () const
+  {
+    return opening_scope_resolution;
+  }
 
-  bool has_opening_scope () const { return opening_scope; }
   const std::vector<Segment> &get_segments () const { return segments; }
+  std::vector<Segment> &get_segments () { return segments; }
+
+  bool is_empty () const { return segments.empty (); }
+
+  Segment &get_final_segment () { return get_segments ().back (); }
+  const Segment &get_final_segment () const { return get_segments ().back (); }
 };
 
 } // namespace Rust
