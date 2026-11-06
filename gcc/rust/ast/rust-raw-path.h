@@ -16,7 +16,6 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 //
-#include "rust-util-path.h"
 #include "rust-system.h"
 
 #ifndef RUST_RAW_PATH_H
