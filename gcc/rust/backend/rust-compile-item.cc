@@ -352,6 +352,16 @@ CompileItem::visit (HIR::Enum &enum_decl)
 
   if (lookup->is_concrete ())
     TyTyResolveCompile::compile (ctx, lookup);
+
+  // Compile each discriminant
+  rust_assert (lookup->get_kind () == TyTy::TypeKind::ADT);
+  auto *adt = static_cast<TyTy::ADTType *> (lookup);
+  for (auto *variant : adt->get_variants ())
+    {
+      if (!variant->has_discriminant ())
+	continue;
+      compile_enum_discriminant (variant);
+    }
 }
 
 void
