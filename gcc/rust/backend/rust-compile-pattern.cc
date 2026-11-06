@@ -51,6 +51,16 @@ CompilePatternCheckExpr::visit (HIR::PathInExpression &pattern)
     {
       tree constant_expr = ResolvePathRef::Compile (pattern, ctx);
 
+      // Check if the resolved constant is a floating-point NaN value.
+      // Matching on NaN is a hard error because NaN != NaN (IEEE 754),
+      // so a NaN pattern would never match any value.
+      if (constant_expr != error_mark_node
+	  && TREE_CODE (constant_expr) == REAL_CST
+	  && REAL_VALUE_ISNAN (TREE_REAL_CST (constant_expr)))
+	{
+	  rust_error_at (pattern.get_locus (), "cannot use NaN in patterns");
+	}
+
       check_expr
 	= Backend::comparison_expression (ComparisonOperator::EQUAL,
 					  match_scrutinee_expr, constant_expr,
@@ -97,24 +107,20 @@ CompilePatternCheckExpr::visit (HIR::PathInExpression &pattern)
 void
 CompilePatternCheckExpr::visit (HIR::LiteralPattern &pattern)
 {
-  // Compile the literal
   auto litexpr = std::make_unique<HIR::LiteralExpr> (
     HIR::LiteralExpr (pattern.get_mappings (), pattern.get_literal (),
 		      pattern.get_locus (), std::vector<AST::Attribute> ()));
   if (pattern.get_has_minus ())
     litexpr->set_negative ();
 
-  // Note: Floating point literals are currently accepted but will likely be
-  // forbidden in LiteralPatterns in a future version of Rust.
-  // See: https://github.com/rust-lang/rust/issues/41620
-  // For now, we cannot compile them anyway as CASE_LABEL_EXPR does not support
-  // floating point types.
-  if (pattern.get_literal ().get_lit_type () == HIR::Literal::LitType::FLOAT)
-    {
-      rust_sorry_at (pattern.get_locus (), "floating-point literal in pattern");
-    }
-
   tree lit = CompileExpr::Compile (*litexpr, ctx);
+
+  // Reject NaN literals in patterns. A NaN pattern can never match because
+  // NaN != NaN under IEEE 754 semantics. rustc emits a hard error for this.
+  if (TREE_CODE (lit) == REAL_CST && REAL_VALUE_ISNAN (TREE_REAL_CST (lit)))
+    {
+      rust_error_at (pattern.get_locus (), "cannot use NaN in patterns");
+    }
 
   check_expr = Backend::comparison_expression (ComparisonOperator::EQUAL,
 					       match_scrutinee_expr, lit,
