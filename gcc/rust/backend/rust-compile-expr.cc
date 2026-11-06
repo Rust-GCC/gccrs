@@ -1422,14 +1422,6 @@ check_match_scrutinee (HIR::MatchExpr &expr, Context *ctx)
 
   TyTy::TypeKind scrutinee_kind = scrutinee_expr_tyty->get_kind ();
 
-  if (scrutinee_kind == TyTy::TypeKind::FLOAT)
-    {
-      // FIXME: CASE_LABEL_EXPR does not support floating point types.
-      // Find another way to compile these.
-      rust_sorry_at (expr.get_locus (),
-		     "match on floating-point types is not yet supported");
-    }
-
   TyTy::BaseType *expr_tyty = nullptr;
   if (!ctx->get_tyctx ()->lookup_type (expr.get_mappings ().get_hirid (),
 				       &expr_tyty))
