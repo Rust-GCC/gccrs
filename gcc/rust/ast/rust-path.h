@@ -818,6 +818,11 @@ public:
   }
 
 protected:
+  PathInExpression *reconstruct_impl () const final override
+  {
+    return reconstruct ().release ();
+  }
+
   /* Use covariance to implement clone function as returning this object
    * rather than base */
   PathInExpression *clone_pattern_impl () const final override
@@ -1568,6 +1573,11 @@ public:
   }
 
 protected:
+  QualifiedPathInExpression *reconstruct_impl () const final override
+  {
+    return reconstruct ().release ();
+  }
+
   /* Use covariance to implement clone function as returning this object
    * rather than base */
   QualifiedPathInExpression *clone_pattern_impl () const final override
