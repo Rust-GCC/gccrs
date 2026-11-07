@@ -275,6 +275,15 @@ public:
   static constexpr auto &ASSERT_INHABITED = "assert_inhabited";
   static constexpr auto &ASSERT_UNINIT_VALID = "assert_uninit_valid";
 
+  static constexpr auto &VOLATILE_COPY_NONOVERLAPPING_MEMORY
+    = "volatile_copy_nonoverlapping_memory";
+  static constexpr auto &VOLATILE_COPY_MEMORY = "volatile_copy_memory";
+  static constexpr auto &VOLATILE_SET_MEMORY = "volatile_set_memory";
+  static constexpr auto &VOLATILE_LOAD = "volatile_load";
+  static constexpr auto &VOLATILE_STORE = "volatile_store";
+  static constexpr auto &UNALIGNED_VOLATILE_LOAD = "unaligned_volatile_load";
+  static constexpr auto &UNALIGNED_VOLATILE_STORE = "unaligned_volatile_store";
+
   static constexpr auto &FADD_FAST = "fadd_fast";
   static constexpr auto &FSUB_FAST = "fsub_fast";
   static constexpr auto &FMUL_FAST = "fmul_fast";

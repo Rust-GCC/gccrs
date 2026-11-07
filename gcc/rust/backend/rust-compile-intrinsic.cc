@@ -233,6 +233,10 @@ static const std::map<std::string, Intrinsic::CompileFn> intrinsics = {
   {IValue::ASSERT_ZERO_VALID, handlers::type_assert (TyAssert::ZeroValid)},
   {IValue::ASSERT_INHABITED, handlers::type_assert (TyAssert::Inhabited)},
   {IValue::ASSERT_UNINIT_VALID, handlers::type_assert (TyAssert::UninitValid)},
+  {IValue::VOLATILE_LOAD, handlers::volatile_load (false)},
+  {IValue::VOLATILE_STORE, handlers::volatile_store (false)},
+  {IValue::UNALIGNED_VOLATILE_LOAD, handlers::volatile_load (true)},
+  {IValue::UNALIGNED_VOLATILE_STORE, handlers::volatile_store (true)},
 };
 
 Intrinsics::Intrinsics (Context *ctx) : ctx (ctx) {}

@@ -1193,6 +1193,76 @@ type_assert (IntrinsicCtx &ctx, TyAssert assert)
     }
 }
 
+static tree
+volatile_memory_ref (tree ptr, tree value_type, bool is_unaligned,
+		     location_t locus)
+{
+  tree access_type = value_type;
+  if (is_unaligned && TYPE_ALIGN (access_type) != BITS_PER_UNIT)
+    {
+      // treat the pointer as unaligned (i.e. 1-byte alignment), setting
+      // type align to BITS_PER_UNIT should do the trick
+      access_type = build_variant_type_copy (access_type);
+      SET_TYPE_ALIGN (access_type, BITS_PER_UNIT);
+      TYPE_USER_ALIGN (access_type) = 1;
+    }
+
+  tree ptr_type = build_pointer_type (access_type);
+  tree address = fold_convert_loc (locus, ptr_type, ptr);
+
+  tree ref = build2_loc (locus, MEM_REF, access_type, address,
+			 build_int_cst (ptr_type, 0));
+
+  TREE_THIS_VOLATILE (ref) = 1;
+  TREE_SIDE_EFFECTS (ref) = 1;
+
+  return ref;
+}
+
+static void
+volatile_load (IntrinsicCtx &ctx, bool is_unaligned)
+{
+  // similar to atomics, volatile functions are not pure
+  TREE_READONLY (ctx.fn) = 0;
+  TREE_SIDE_EFFECTS (ctx.fn) = 1;
+
+  tree src = Backend::var_expression (ctx.param_vars[0], ctx.loc);
+  tree value_type = TREE_TYPE (ctx.param_types[0]);
+
+  tree src_ref = volatile_memory_ref (src, value_type, is_unaligned, ctx.loc);
+  tree decl_statement = NULL_TREE;
+  Bvariable *result
+    = Backend::temporary_variable (ctx.fn, ctx.ctx.peek_enclosing_scope (),
+				   value_type, NULL_TREE, false, ctx.loc,
+				   &decl_statement);
+  ctx.add_statement (decl_statement);
+
+  tree result_expr = Backend::var_expression (result, ctx.loc);
+  tree assign_statement
+    = Backend::assignment_statement (result_expr, src_ref, ctx.loc);
+  tree return_statement
+    = Backend::return_statement (ctx.fn, result_expr, ctx.loc);
+  ctx.add_statement (assign_statement);
+  ctx.add_statement (return_statement);
+}
+
+static void
+volatile_store (IntrinsicCtx &ctx, bool is_unaligned)
+{
+  // similar to atomics, volatile functions are not pure
+  TREE_READONLY (ctx.fn) = 0;
+  TREE_SIDE_EFFECTS (ctx.fn) = 1;
+
+  tree dst = Backend::var_expression (ctx.param_vars[0], ctx.loc);
+  tree value = Backend::var_expression (ctx.param_vars[1], ctx.loc);
+  tree value_type = ctx.param_types[1];
+
+  tree dst_ref = volatile_memory_ref (dst, value_type, is_unaligned, ctx.loc);
+  tree assign_statement
+    = Backend::assignment_statement (dst_ref, value, ctx.loc);
+  ctx.add_statement (assign_statement);
+}
+
 void
 prefetch (IntrinsicCtx &ctx, Mode mode, Cache cache)
 {
@@ -1268,6 +1338,22 @@ type_assert (TyAssert assert)
 {
   return
     [assert] (IntrinsicCtx &ctx) { return inner::type_assert (ctx, assert); };
+}
+
+Intrinsic::CompileFn
+volatile_load (bool is_unaligned)
+{
+  return [is_unaligned] (IntrinsicCtx &ctx) {
+    return inner::volatile_load (ctx, is_unaligned);
+  };
+}
+
+Intrinsic::CompileFn
+volatile_store (bool is_unaligned)
+{
+  return [is_unaligned] (IntrinsicCtx &ctx) {
+    return inner::volatile_store (ctx, is_unaligned);
+  };
 }
 
 void
