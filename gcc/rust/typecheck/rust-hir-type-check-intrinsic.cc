@@ -512,6 +512,33 @@ const std::unordered_map<std::string, IntrinsicRules>
     // fn assert_maybe_uninit<T>();
     {IValue::ASSERT_UNINIT_VALID, {1, {}, IRT::Unit}},
 
+    // pub fn volatile_copy_nonoverlapping_memory<T>(dst: *mut T, src: *const T,
+    // count: usize)
+    {IValue::VOLATILE_COPY_NONOVERLAPPING_MEMORY,
+     {1,
+      {IRT::MutPtrFirstGeneric, IRT::ConstPtrFirstGeneric, IRT::Usize},
+      IRT::Unit}},
+    // pub fn volatile_copy_memory<T>(dst: *mut T, src: *const T, count: usize)
+    {IValue::VOLATILE_COPY_MEMORY,
+     {1,
+      {IRT::MutPtrFirstGeneric, IRT::ConstPtrFirstGeneric, IRT::Usize},
+      IRT::Unit}},
+    // pub fn volatile_set_memory<T>(dst: *mut T, val: u8, count: usize);
+    {IValue::VOLATILE_SET_MEMORY,
+     {1, {IRT::MutPtrFirstGeneric, IRT::U8, IRT::Usize}, IRT::Unit}},
+    // pub fn volatile_load<T>(src: *const T) -> T;
+    {IValue::VOLATILE_LOAD,
+     {1, {IRT::ConstPtrFirstGeneric}, IRT::FirstGeneric}},
+    // pub fn volatile_store<T>(dst: *mut T, val: T);
+    {IValue::VOLATILE_STORE,
+     {1, {IRT::MutPtrFirstGeneric, IRT::FirstGeneric}, IRT::Unit}},
+    // pub fn unaligned_volatile_load<T>(src: *const T) -> T;
+    {IValue::UNALIGNED_VOLATILE_LOAD,
+     {1, {IRT::ConstPtrFirstGeneric}, IRT::FirstGeneric}},
+    // pub fn unaligned_volatile_store<T>(dst: *mut T, val: T);
+    {IValue::UNALIGNED_VOLATILE_STORE,
+     {1, {IRT::MutPtrFirstGeneric, IRT::FirstGeneric}, IRT::Unit}},
+
     // pub fn fadd_fast<T>(a: T, b: T) -> T
     // same for fsub_fast, fmul_fast, fdiv_fast and frem_fast
     {IValue::FADD_FAST,
