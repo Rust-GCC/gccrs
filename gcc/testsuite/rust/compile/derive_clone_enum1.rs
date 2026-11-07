@@ -1,6 +1,5 @@
 #![feature(no_core)]
 #![no_core]
-
 #![feature(lang_items)]
 
 #[lang = "clone"]
@@ -15,7 +14,7 @@ impl Clone for i32 {
 }
 
 #[derive(Clone)]
-enum AllIdentifiers {
+pub enum AllIdentifiers {
     A,
-    B
+    B,
 }

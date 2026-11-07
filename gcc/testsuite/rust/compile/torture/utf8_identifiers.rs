@@ -21,5 +21,5 @@ pub fn f<'かに>() {
 pub fn g<'β, γ>() {}
 
 struct _S {
-    δ: i32,
+    δ: i32, // { dg-warning "field is never read" }
 }

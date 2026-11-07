@@ -6,7 +6,7 @@
 #[lang = "sized"]
 trait Sized {}
 
-enum Result<T, E> {
+pub enum Result<T, E> {
     #[lang = "Ok"]
     Ok(T),
     #[lang = "Err"]
