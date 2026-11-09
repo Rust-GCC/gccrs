@@ -43,6 +43,7 @@ struct ImplTraitContextFrame
   const TraitReference *trait;
   TyTy::BaseType *self;
   std::map<DefId, AssocTypeEntry> assoc_types_by_trait_item;
+  HIR::ImplBlock *impl;
 };
 
 } // namespace Resolver

@@ -851,7 +851,8 @@ TypeCheckItem::resolve_trait_impl_block (HIR::ImplBlock &impl_block)
 				   trait_item_refs);
 
   ImplTraitContextFrame frame{trait_reference, self,
-			      std::move (assoc_types_by_trait_item)};
+			      std::move (assoc_types_by_trait_item),
+			      &impl_block};
   ImplTraitFrameGuard guard (frame);
   for (auto &impl_item : impl_block.get_impl_items ())
     {
