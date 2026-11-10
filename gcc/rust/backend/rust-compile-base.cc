@@ -1036,6 +1036,26 @@ HIRCompileBase::compile_constant_item (
 }
 
 tree
+HIRCompileBase::compile_enum_discriminant (TyTy::VariantDef *variant)
+{
+  HIR::Expr &discrim_expr = variant->get_discriminant ();
+  HirId id = discrim_expr.get_mappings ().get_hirid ();
+
+  tree cached = NULL_TREE;
+  if (ctx->lookup_const_decl (id, &cached))
+    return cached;
+
+  TyTy::BaseType *discrim_ty = nullptr;
+  bool ok = ctx->get_tyctx ()->lookup_type (id, &discrim_ty);
+  rust_assert (ok);
+
+  // Compile the const expression
+  tree folded = query_compile_const_expr (ctx, discrim_ty, discrim_expr);
+  ctx->insert_const_decl (id, folded);
+  return folded;
+}
+
+tree
 HIRCompileBase::named_constant_expression (tree type_tree,
 					   const std::string &name,
 					   tree const_val, location_t location)
