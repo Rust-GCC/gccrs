@@ -107,7 +107,7 @@ protected:
 			      TyTy::BaseType *expected_type,
 			      const Resolver::CanonicalPath &canonical_path,
 			      HIR::Expr &const_value_expr, location_t locus,
-			      location_t expr_locus);
+			      location_t expr_locus, bool emit_error = true);
 
   tree compile_function (bool is_root_item, const std::string &fn_name,
 			 tl::optional<HIR::SelfParam> &self_param,
