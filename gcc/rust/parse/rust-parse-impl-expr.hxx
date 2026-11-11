@@ -42,6 +42,10 @@ Parser<ManagedTokenSource>::parse_block_expr (
 	    Parse::Error::Node::MALFORMED);
 	}
     }
+  if(skip_token(RIGHT_CURLY))
+    {
+      rust_error_at(locus,"error[E0381]: used binding variable isn't initialized");
+    }
 
   AST::AttrVec inner_attrs = parse_inner_attributes ();
 
@@ -976,7 +980,7 @@ Parser<ManagedTokenSource>::parse_while_loop_expr (
     }
 
   // parse loop predicate (required) with HACK to prevent struct expr parsing
-  ParseRestrictions no_struct_expr;
+  ParseRestrictions no_struct_expr;   
   no_struct_expr.can_be_struct_expr = false;
   auto predicate = parse_expr ({}, no_struct_expr);
   if (!predicate)
