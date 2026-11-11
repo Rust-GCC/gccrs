@@ -239,6 +239,9 @@ static const std::map<std::string, Intrinsic::CompileFn> intrinsics = {
   {IValue::VOLATILE_STORE, handlers::volatile_store (false)},
   {IValue::UNALIGNED_VOLATILE_LOAD, handlers::volatile_load (true)},
   {IValue::UNALIGNED_VOLATILE_STORE, handlers::volatile_store (true)},
+  {IValue::VOLATILE_COPY_MEMORY, handlers::volatile_copy (false)},
+  {IValue::VOLATILE_COPY_NONOVERLAPPING_MEMORY, handlers::volatile_copy (true)},
+  {IValue::VOLATILE_SET_MEMORY, handlers::volatile_set_memory ()},
 };
 
 Intrinsics::Intrinsics (Context *ctx) : ctx (ctx) {}
