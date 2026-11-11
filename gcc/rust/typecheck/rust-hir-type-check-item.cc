@@ -220,6 +220,15 @@ TyTy::BaseType *
 TypeCheckItem::ResolveImplBlockSelf (HIR::ImplBlock &impl_block)
 {
   TypeCheckItem resolver;
+
+  // method probing asks for this on every impl it looks at, and redoing
+  // the generics and bounds each time is what runs core out of memory
+  TyTy::BaseType *self = nullptr;
+  if (resolver.context->lookup_type (
+	impl_block.get_type ().get_mappings ().get_hirid (), &self)
+      && self->get_kind () != TyTy::TypeKind::ERROR)
+    return self;
+
   auto lifetime_pin = resolver.context->push_clean_lifetime_resolver (true);
 
   bool failed_flag = false;
@@ -738,12 +747,13 @@ TypeCheckItem::visit (HIR::StaticItem &var)
   TyTy::BaseType *type = TypeCheckType::Resolve (var.get_type ());
   TyTy::BaseType *expr_type = TypeCheckExpr::Resolve (var.get_expr ());
 
-  TyTy::BaseType *unified
-    = coercion_site (var.get_mappings ().get_hirid (),
-		     TyTy::TyWithLocation (type, var.get_type ().get_locus ()),
-		     TyTy::TyWithLocation (expr_type,
-					   var.get_expr ().get_locus ()),
-		     var.get_locus ());
+  TyTy::BaseType *unified = type;
+  if (!expr_type->is<TyTy::ErrorType> ())
+    unified = coercion_site (
+      var.get_mappings ().get_hirid (),
+      TyTy::TyWithLocation (type, var.get_type ().get_locus ()),
+      TyTy::TyWithLocation (expr_type, var.get_expr ().get_locus ()),
+      var.get_locus ());
   context->insert_type (var.get_mappings (), unified);
   infered = unified;
 }
@@ -756,11 +766,14 @@ TypeCheckItem::visit (HIR::ConstantItem &constant)
   TyTy::BaseType *expr_type = TypeCheckExpr::Resolve (constant.get_expr ());
   context->pop_const_context ();
 
-  TyTy::BaseType *unified = coercion_site (
-    constant.get_mappings ().get_hirid (),
-    TyTy::TyWithLocation (type, constant.get_type ().get_locus ()),
-    TyTy::TyWithLocation (expr_type, constant.get_expr ().get_locus ()),
-    constant.get_locus ());
+  // the declared type stands if the initializer failed
+  TyTy::BaseType *unified = type;
+  if (!expr_type->is<TyTy::ErrorType> ())
+    unified = coercion_site (
+      constant.get_mappings ().get_hirid (),
+      TyTy::TyWithLocation (type, constant.get_type ().get_locus ()),
+      TyTy::TyWithLocation (expr_type, constant.get_expr ().get_locus ()),
+      constant.get_locus ());
   context->insert_type (constant.get_mappings (), unified);
   infered = unified;
 }

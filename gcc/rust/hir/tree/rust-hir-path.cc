@@ -82,7 +82,7 @@ GenericArgs::operator= (GenericArgs const &other)
 }
 
 GenericArgs::GenericArgs (std::vector<Lifetime> lifetime_args,
-			  std::vector<std::unique_ptr<Type> > type_args,
+			  std::vector<std::unique_ptr<Type>> type_args,
 			  std::vector<GenericArgsBinding> binding_args,
 			  std::vector<ConstGenericArg> const_args,
 			  location_t locus)
@@ -145,22 +145,18 @@ PathPattern::iterate_path_segments (std::function<bool (PathExprSegment &)> cb)
 }
 
 PathInExpression::PathInExpression (Analysis::NodeMapping mappings,
-				    std::vector<PathExprSegment> path_segments,
+				    RawPath<PathExprSegment> path,
 				    location_t locus,
-				    bool has_opening_scope_resolution,
 				    std::vector<AST::Attribute> outer_attrs)
-  : PathPattern (std::move (path_segments)),
-    PathExpr (std::move (mappings), std::move (outer_attrs)),
-    has_opening_scope_resolution (has_opening_scope_resolution), locus (locus)
+  : PathPattern (path),
+    PathExpr (std::move (mappings), std::move (outer_attrs)), locus (locus)
 {}
 
 PathInExpression::PathInExpression (Analysis::NodeMapping mappings,
 				    LangItem::Kind lang_item, location_t locus,
-				    bool has_opening_scope_resolution,
 				    std::vector<AST::Attribute> outer_attrs)
   : PathPattern (lang_item),
-    PathExpr (std::move (mappings), std::move (outer_attrs)),
-    has_opening_scope_resolution (has_opening_scope_resolution), locus (locus)
+    PathExpr (std::move (mappings), std::move (outer_attrs)), locus (locus)
 {}
 
 bool
@@ -223,7 +219,7 @@ TypePathSegmentGeneric::TypePathSegmentGeneric (Analysis::NodeMapping mappings,
 TypePathSegmentGeneric::TypePathSegmentGeneric (
   Analysis::NodeMapping mappings, std::string segment_name,
   bool has_separating_scope_resolution, std::vector<Lifetime> lifetime_args,
-  std::vector<std::unique_ptr<Type> > type_args,
+  std::vector<std::unique_ptr<Type>> type_args,
   std::vector<GenericArgsBinding> binding_args,
   std::vector<ConstGenericArg> const_args, location_t locus)
   : TypePathSegment (std::move (mappings), std::move (segment_name),
@@ -233,7 +229,7 @@ TypePathSegmentGeneric::TypePathSegmentGeneric (
 			       locus))
 {}
 
-TypePathFunction::TypePathFunction (std::vector<std::unique_ptr<Type> > inputs,
+TypePathFunction::TypePathFunction (std::vector<std::unique_ptr<Type>> inputs,
 				    std::unique_ptr<Type> type)
   : inputs (std::move (inputs)), return_type (std::move (type))
 {}
@@ -282,16 +278,14 @@ TypePathSegmentFunction::TypePathSegmentFunction (
 {}
 
 TypePath::TypePath (Analysis::NodeMapping mappings,
-		    std::vector<std::unique_ptr<TypePathSegment> > segments,
-		    location_t locus, bool has_opening_scope_resolution)
-  : TypeNoBounds (mappings, locus),
-    has_opening_scope_resolution (has_opening_scope_resolution),
-    segments (std::move (segments))
+		    RawPath<std::unique_ptr<TypePathSegment>> path,
+		    location_t locus)
+  : TypeNoBounds (mappings, locus), RawPath (std::move (path))
 {}
 
 TypePath::TypePath (TypePath const &other)
   : TypeNoBounds (other.mappings, other.locus),
-    has_opening_scope_resolution (other.has_opening_scope_resolution)
+    RawPath ({}, other.has_opening_scope_resolution ())
 {
   segments.reserve (other.segments.size ());
   for (const auto &e : other.segments)
@@ -301,7 +295,7 @@ TypePath::TypePath (TypePath const &other)
 TypePath &
 TypePath::operator= (TypePath const &other)
 {
-  has_opening_scope_resolution = other.has_opening_scope_resolution;
+  opening_scope_resolution = other.has_opening_scope_resolution ();
   locus = other.locus;
   mappings = other.mappings;
 
@@ -366,9 +360,9 @@ QualifiedPathType::get_trait_generic_args ()
 
 QualifiedPathInExpression::QualifiedPathInExpression (
   Analysis::NodeMapping mappings, QualifiedPathType qual_path_type,
-  std::vector<PathExprSegment> path_segments, location_t locus,
+  RawPath<PathExprSegment> path, location_t locus,
   std::vector<AST::Attribute> outer_attrs)
-  : PathPattern (std::move (path_segments)),
+  : PathPattern (std::move (path)),
     PathExpr (std::move (mappings), std::move (outer_attrs)),
     path_type (std::move (qual_path_type)), locus (locus)
 {}
@@ -385,8 +379,7 @@ QualifiedPathInExpression::QualifiedPathInExpression (
 QualifiedPathInType::QualifiedPathInType (
   Analysis::NodeMapping mappings, QualifiedPathType qual_path_type,
   std::unique_ptr<TypePathSegment> associated_segment,
-  std::vector<std::unique_ptr<TypePathSegment> > path_segments,
-  location_t locus)
+  std::vector<std::unique_ptr<TypePathSegment>> path_segments, location_t locus)
   : TypeNoBounds (mappings, locus), path_type (std::move (qual_path_type)),
     associated_segment (std::move (associated_segment)),
     segments (std::move (path_segments))

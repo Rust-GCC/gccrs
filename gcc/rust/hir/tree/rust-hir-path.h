@@ -153,7 +153,7 @@ private:
 class GenericArgs
 {
   std::vector<Lifetime> lifetime_args;
-  std::vector<std::unique_ptr<Type> > type_args;
+  std::vector<std::unique_ptr<Type>> type_args;
   std::vector<GenericArgsBinding> binding_args;
   std::vector<ConstGenericArg> const_args;
   location_t locus;
@@ -167,7 +167,7 @@ public:
   }
 
   GenericArgs (std::vector<Lifetime> lifetime_args,
-	       std::vector<std::unique_ptr<Type> > type_args,
+	       std::vector<std::unique_ptr<Type>> type_args,
 	       std::vector<GenericArgsBinding> binding_args,
 	       std::vector<ConstGenericArg> const_args, location_t locus);
 
@@ -199,7 +199,7 @@ public:
     return lifetime_args;
   }
 
-  std::vector<std::unique_ptr<Type> > &get_type_args () { return type_args; }
+  std::vector<std::unique_ptr<Type>> &get_type_args () { return type_args; }
 
   std::vector<GenericArgsBinding> &get_binding_args () { return binding_args; }
 
@@ -246,7 +246,7 @@ public:
 };
 
 // HIR node representing a pattern that involves a "path" - abstract base class
-class PathPattern : public Pattern
+class PathPattern : public Pattern, public RawPath<PathExprSegment>
 {
 public:
   enum class Kind
@@ -256,18 +256,17 @@ public:
   };
 
 private:
-  std::vector<PathExprSegment> segments;
   tl::optional<LangItem::Kind> lang_item;
   Kind kind;
 
 protected:
-  PathPattern (std::vector<PathExprSegment> segments)
-    : segments (std::move (segments)), lang_item (tl::nullopt),
+  PathPattern (RawPath<PathExprSegment> path)
+    : RawPath (std::move (path)), lang_item (tl::nullopt),
       kind (Kind::Segmented)
   {}
 
   PathPattern (LangItem::Kind lang_item)
-    : segments ({}), lang_item (lang_item), kind (Kind::LangItem)
+    : RawPath ({}, false), lang_item (lang_item), kind (Kind::LangItem)
   {}
   bool is_refutable (const TyTy::BaseType &scrutinee) const override;
   bool is_refutable () const override
@@ -352,7 +351,6 @@ public:
  * arguments) */
 class PathInExpression : public PathPattern, public PathExpr
 {
-  bool has_opening_scope_resolution;
   location_t locus;
 
 public:
@@ -360,24 +358,21 @@ public:
 
   // Constructor
   PathInExpression (Analysis::NodeMapping mappings,
-		    std::vector<PathExprSegment> path_segments,
+		    RawPath<PathExprSegment> path,
 		    location_t locus = UNDEF_LOCATION,
-		    bool has_opening_scope_resolution = false,
 		    std::vector<AST::Attribute> outer_attrs
 		    = std::vector<AST::Attribute> ());
 
   // lang-item Constructor
   PathInExpression (Analysis::NodeMapping mappings, LangItem::Kind kind,
 		    location_t locus = UNDEF_LOCATION,
-		    bool has_opening_scope_resolution = false,
 		    std::vector<AST::Attribute> outer_attrs
 		    = std::vector<AST::Attribute> ());
 
   // Creates an error state path in expression.
   static PathInExpression create_error ()
   {
-    return PathInExpression (Analysis::NodeMapping::get_error (),
-			     std::vector<PathExprSegment> ());
+    return PathInExpression (Analysis::NodeMapping::get_error (), {});
   }
 
   // Returns whether path in expression is in an error state.
@@ -392,7 +387,7 @@ public:
      * so the method in the parent class should be protected, not public. Have
      * to pass in opening scope resolution as parent class has no access to it.
      */
-    return convert_to_simple_path (has_opening_scope_resolution);
+    return convert_to_simple_path (has_opening_scope_resolution ());
   }
 
   location_t get_locus () const override final { return locus; }
@@ -400,8 +395,6 @@ public:
   void accept_vis (HIRFullVisitor &vis) override;
   void accept_vis (HIRExpressionVisitor &vis) override;
   void accept_vis (HIRPatternVisitor &vis) override;
-
-  bool opening_scope_resolution () { return has_opening_scope_resolution; }
 
   bool is_self () const;
 
@@ -548,7 +541,7 @@ public:
 			  std::string segment_name,
 			  bool has_separating_scope_resolution,
 			  std::vector<Lifetime> lifetime_args,
-			  std::vector<std::unique_ptr<Type> > type_args,
+			  std::vector<std::unique_ptr<Type>> type_args,
 			  std::vector<GenericArgsBinding> binding_args,
 			  std::vector<ConstGenericArg> const_args,
 			  location_t locus);
@@ -574,7 +567,7 @@ public:
 // A function as represented in a type path
 class TypePathFunction
 {
-  std::vector<std::unique_ptr<Type> > inputs;
+  std::vector<std::unique_ptr<Type>> inputs;
   std::unique_ptr<Type> return_type;
 
 public:
@@ -585,7 +578,7 @@ public:
   bool has_inputs () const { return !inputs.empty (); }
 
   // Constructor
-  TypePathFunction (std::vector<std::unique_ptr<Type> > inputs,
+  TypePathFunction (std::vector<std::unique_ptr<Type>> inputs,
 		    std::unique_ptr<Type> type);
 
   // Copy constructor with clone
@@ -602,11 +595,11 @@ public:
 
   std::string to_string () const;
 
-  const std::vector<std::unique_ptr<Type> > &get_params () const
+  const std::vector<std::unique_ptr<Type>> &get_params () const
   {
     return inputs;
   };
-  std::vector<std::unique_ptr<Type> > &get_params () { return inputs; };
+  std::vector<std::unique_ptr<Type>> &get_params () { return inputs; };
 
   const Type &get_return_type () const { return *return_type; };
   Type &get_return_type () { return *return_type; };
@@ -648,12 +641,9 @@ public:
 };
 
 // Path used inside types
-class TypePath : public TypeNoBounds
+class TypePath : public TypeNoBounds,
+		 public RawPath<std::unique_ptr<TypePathSegment>>
 {
-public:
-  bool has_opening_scope_resolution;
-  std::vector<std::unique_ptr<TypePathSegment> > segments;
-
 protected:
   /* Use covariance to implement clone function as returning this object rather
    * than base */
@@ -667,13 +657,6 @@ protected:
   }
 
 public:
-  /* Returns whether the TypePath has an opening scope resolution operator (i.e.
-   * is global path or crate-relative path, not module-relative) */
-  bool has_opening_scope_resolution_op () const
-  {
-    return has_opening_scope_resolution;
-  }
-
   // Returns whether the TypePath is in an invalid state.
   bool is_error () const { return segments.empty (); }
 
@@ -681,14 +664,13 @@ public:
   static TypePath create_error ()
   {
     return TypePath (Analysis::NodeMapping::get_error (),
-		     std::vector<std::unique_ptr<TypePathSegment> > (),
+		     RawPath<std::unique_ptr<TypePathSegment>>{{}, false},
 		     UNDEF_LOCATION);
   }
 
   // Constructor
   TypePath (Analysis::NodeMapping mappings,
-	    std::vector<std::unique_ptr<TypePathSegment> > segments,
-	    location_t locus, bool has_opening_scope_resolution = false);
+	    RawPath<std::unique_ptr<TypePathSegment>> path, location_t locus);
 
   // Copy constructor with vector clone
   TypePath (TypePath const &other);
@@ -714,7 +696,7 @@ public:
 
   size_t get_num_segments () const { return segments.size (); }
 
-  std::vector<std::unique_ptr<TypePathSegment> > &get_segments ()
+  std::vector<std::unique_ptr<TypePathSegment>> &get_segments ()
   {
     return segments;
   }
@@ -788,7 +770,7 @@ public:
 
   QualifiedPathInExpression (Analysis::NodeMapping mappings,
 			     QualifiedPathType qual_path_type,
-			     std::vector<PathExprSegment> path_segments,
+			     RawPath<PathExprSegment> path,
 			     location_t locus = UNDEF_LOCATION,
 			     std::vector<AST::Attribute> outer_attrs
 			     = std::vector<AST::Attribute> ());
@@ -838,7 +820,7 @@ class QualifiedPathInType : public TypeNoBounds
 {
   QualifiedPathType path_type;
   std::unique_ptr<TypePathSegment> associated_segment;
-  std::vector<std::unique_ptr<TypePathSegment> > segments;
+  std::vector<std::unique_ptr<TypePathSegment>> segments;
 
 protected:
   /* Use covariance to implement clone function as returning this object rather
@@ -859,7 +841,7 @@ public:
   QualifiedPathInType (
     Analysis::NodeMapping mappings, QualifiedPathType qual_path_type,
     std::unique_ptr<TypePathSegment> associated_segment,
-    std::vector<std::unique_ptr<TypePathSegment> > path_segments,
+    std::vector<std::unique_ptr<TypePathSegment>> path_segments,
     location_t locus = UNDEF_LOCATION);
 
   // Copy constructor with vector clone
@@ -881,7 +863,7 @@ public:
 
   TypePathSegment &get_associated_segment () { return *associated_segment; }
 
-  std::vector<std::unique_ptr<TypePathSegment> > &get_segments ()
+  std::vector<std::unique_ptr<TypePathSegment>> &get_segments ()
   {
     return segments;
   }

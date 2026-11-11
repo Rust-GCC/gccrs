@@ -144,28 +144,6 @@ enum class AtomicMinMaxKind
   UnsignedMin,
 };
 
-namespace inner {
-void wrapping_op (IntrinsicCtx &ctx, tree_code op);
-
-void atomic_store (IntrinsicCtx &ctx, int ordering);
-void atomic_load (IntrinsicCtx &ctx, int ordering);
-void atomic_binary_op (IntrinsicCtx &ctx, const std::string &op_name,
-		       int ordering);
-void atomic_compare_exchange (IntrinsicCtx &ctx, bool weak,
-			      int success_ordering, int failure_ordering);
-void atomic_minmax (IntrinsicCtx &ctx, AtomicMinMaxKind kind, int ordering);
-inline void copy (IntrinsicCtx &ctx, bool overlaps);
-inline void expect (IntrinsicCtx &ctx, bool likely);
-void try_handler (IntrinsicCtx &ctx, bool is_new_api);
-
-void op_with_overflow (IntrinsicCtx &ctx, tree_code op);
-
-inline void unchecked_op (IntrinsicCtx &ctx, tree_code op);
-
-void prefetch (IntrinsicCtx &ctx, Mode mode, Cache cache);
-
-} // namespace inner
-
 void rotate_left (IntrinsicCtx &ctx);
 void rotate_right (IntrinsicCtx &ctx);
 
@@ -200,6 +178,8 @@ void arith_offset_handler (IntrinsicCtx &ctx);
 void assert_zero_valid_handler (IntrinsicCtx &ctx);
 
 void exact_div_handler (IntrinsicCtx &ctx);
+
+void nontemporal_store (IntrinsicCtx &ctx);
 
 Intrinsic::CompileFn op_with_overflow (tree_code op);
 
@@ -240,6 +220,8 @@ Intrinsic::CompileFn fop_fast (ArithmeticOrLogicalOperator op);
 Intrinsic::CompileFn type_assert (TyAssert assert);
 
 void breakpoint (IntrinsicCtx &ctx);
+
+void ptr_offset_from (IntrinsicCtx &ctx);
 
 } // namespace handlers
 
