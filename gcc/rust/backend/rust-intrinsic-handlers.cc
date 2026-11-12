@@ -1194,6 +1194,186 @@ type_assert (IntrinsicCtx &ctx, TyAssert assert)
     }
 }
 
+static tree
+volatile_memory_ref (tree ptr, tree value_type, bool is_unaligned,
+		     location_t locus)
+{
+  tree access_type = value_type;
+  if (is_unaligned && TYPE_ALIGN (access_type) != BITS_PER_UNIT)
+    {
+      // treat the pointer as unaligned (i.e. 1-byte alignment), setting
+      // type align to BITS_PER_UNIT should do the trick
+      access_type = build_variant_type_copy (access_type);
+      SET_TYPE_ALIGN (access_type, BITS_PER_UNIT);
+      TYPE_USER_ALIGN (access_type) = 1;
+    }
+
+  tree ptr_type = build_pointer_type (access_type);
+  tree address = fold_convert_loc (locus, ptr_type, ptr);
+
+  tree ref = build2_loc (locus, MEM_REF, access_type, address,
+			 build_int_cst (ptr_type, 0));
+
+  TREE_THIS_VOLATILE (ref) = 1;
+  TREE_SIDE_EFFECTS (ref) = 1;
+
+  return ref;
+}
+
+static void
+volatile_load (IntrinsicCtx &ctx, bool is_unaligned)
+{
+  // similar to atomics, volatile functions are not pure
+  TREE_READONLY (ctx.fn) = 0;
+  TREE_SIDE_EFFECTS (ctx.fn) = 1;
+
+  tree src = Backend::var_expression (ctx.param_vars[0], ctx.loc);
+  tree value_type = TREE_TYPE (ctx.param_types[0]);
+
+  tree src_ref = volatile_memory_ref (src, value_type, is_unaligned, ctx.loc);
+  tree decl_statement = NULL_TREE;
+  Bvariable *result
+    = Backend::temporary_variable (ctx.fn, ctx.ctx.peek_enclosing_scope (),
+				   value_type, NULL_TREE, false, ctx.loc,
+				   &decl_statement);
+  ctx.add_statement (decl_statement);
+
+  tree result_expr = Backend::var_expression (result, ctx.loc);
+  tree assign_statement
+    = Backend::assignment_statement (result_expr, src_ref, ctx.loc);
+  tree return_statement
+    = Backend::return_statement (ctx.fn, result_expr, ctx.loc);
+  ctx.add_statement (assign_statement);
+  ctx.add_statement (return_statement);
+}
+
+static void
+volatile_store (IntrinsicCtx &ctx, bool is_unaligned)
+{
+  // similar to atomics, volatile functions are not pure
+  TREE_READONLY (ctx.fn) = 0;
+  TREE_SIDE_EFFECTS (ctx.fn) = 1;
+
+  tree dst = Backend::var_expression (ctx.param_vars[0], ctx.loc);
+  tree value = Backend::var_expression (ctx.param_vars[1], ctx.loc);
+  tree value_type = ctx.param_types[1];
+
+  tree dst_ref = volatile_memory_ref (dst, value_type, is_unaligned, ctx.loc);
+  tree assign_statement
+    = Backend::assignment_statement (dst_ref, value, ctx.loc);
+  ctx.add_statement (assign_statement);
+}
+
+// takes in a vec of pointers and define them as volatile with `asm volatile`
+// this is the same as `volatile_barrier` from rustc_codegen_gcc
+static tree
+volatile_memory_barrier (IntrinsicCtx &ctx, const std::vector<tree> &ptrs)
+{
+  tree inputs = NULL_TREE;
+  for (auto it : ptrs)
+    {
+      tree constraint = build_tree_list (NULL_TREE, build_string (2, "r"));
+      inputs = tree_cons (constraint, it, inputs);
+    }
+
+  tree barrier = make_node (ASM_EXPR);
+  TREE_TYPE (barrier) = void_type_node;
+  SET_EXPR_LOCATION (barrier, ctx.loc);
+
+  ASM_STRING (barrier) = build_string (1, "");
+  ASM_OUTPUTS (barrier) = NULL_TREE;
+  ASM_INPUTS (barrier) = inputs;
+  ASM_CLOBBERS (barrier)
+    = build_tree_list (NULL_TREE, build_string (7, "memory"));
+  ASM_LABELS (barrier) = NULL_TREE;
+
+  ASM_VOLATILE_P (barrier) = 1;
+  TREE_SIDE_EFFECTS (barrier) = 1;
+
+  return barrier;
+}
+
+static void
+volatile_copy (IntrinsicCtx &ctx, bool is_nonoverlapping)
+{
+  // similar to atomics, volatile functions are not pure
+  TREE_READONLY (ctx.fn) = 0;
+  TREE_SIDE_EFFECTS (ctx.fn) = 1;
+
+  tree dst = Backend::var_expression (ctx.param_vars[0], ctx.loc);
+  tree src = Backend::var_expression (ctx.param_vars[1], ctx.loc);
+  tree count = Backend::var_expression (ctx.param_vars[2], ctx.loc);
+  tree element_type = TREE_TYPE (ctx.param_types[0]);
+
+  // calculate bytes to be copied (count * sizeof(T))
+  tree size
+    = fold_build2_loc (ctx.loc, MULT_EXPR, size_type_node,
+		       fold_convert_loc (ctx.loc, size_type_node, count),
+		       fold_convert_loc (ctx.loc, size_type_node,
+					 TYPE_SIZE_UNIT (element_type)));
+  tree size_decl = NULL_TREE;
+  auto size_var
+    = Backend::temporary_variable (ctx.fn, ctx.ctx.peek_enclosing_scope (),
+				   size_type_node, size, false, ctx.loc,
+				   &size_decl);
+  ctx.add_statement (size_decl);
+  tree nbytes = Backend::var_expression (size_var, ctx.loc);
+
+  tree dst_ptr = fold_convert_loc (ctx.loc, ptr_type_node, dst);
+  tree src_ptr = fold_convert_loc (ctx.loc, const_ptr_type_node, src);
+
+  auto copy_builtin = BuiltinsContext::get ().lookup_simple_builtin (
+    is_nonoverlapping ? "__builtin_memcpy" : "__builtin_memmove");
+
+  tree copy_fn = build_fold_addr_expr_loc (ctx.loc, *copy_builtin);
+  tree copy_call
+    = Backend::call_expression (copy_fn, {dst_ptr, src_ptr, nbytes}, nullptr,
+				ctx.loc);
+
+  ctx.add_statement (copy_call);
+  ctx.add_statement (volatile_memory_barrier (ctx, {dst_ptr, src_ptr}));
+}
+
+static void
+volatile_set_memory (IntrinsicCtx &ctx)
+{
+  // similar to atomics, volatile functions are not pure
+  TREE_READONLY (ctx.fn) = 0;
+  TREE_SIDE_EFFECTS (ctx.fn) = 1;
+
+  tree dst = Backend::var_expression (ctx.param_vars[0], ctx.loc);
+  tree val = Backend::var_expression (ctx.param_vars[1], ctx.loc);
+  tree count = Backend::var_expression (ctx.param_vars[2], ctx.loc);
+  tree element_type = TREE_TYPE (ctx.param_types[0]);
+
+  // calculate bytes to be copied (count * sizeof(T))
+  tree size
+    = fold_build2_loc (ctx.loc, MULT_EXPR, size_type_node,
+		       fold_convert_loc (ctx.loc, size_type_node, count),
+		       fold_convert_loc (ctx.loc, size_type_node,
+					 TYPE_SIZE_UNIT (element_type)));
+  tree size_decl = NULL_TREE;
+  auto size_var
+    = Backend::temporary_variable (ctx.fn, ctx.ctx.peek_enclosing_scope (),
+				   size_type_node, size, false, ctx.loc,
+				   &size_decl);
+  ctx.add_statement (size_decl);
+  tree nbytes = Backend::var_expression (size_var, ctx.loc);
+
+  tree dst_ptr = fold_convert_loc (ctx.loc, ptr_type_node, dst);
+
+  auto memset_builtin
+    = BuiltinsContext::get ().lookup_simple_builtin ("__builtin_memset");
+  tree memset_fn = build_fold_addr_expr_loc (ctx.loc, *memset_builtin);
+
+  tree fill = fold_convert_loc (ctx.loc, integer_type_node, val);
+  tree memset_call
+    = Backend::call_expression (memset_fn, {dst_ptr, fill, nbytes}, nullptr,
+				ctx.loc);
+  ctx.add_statement (memset_call);
+  ctx.add_statement (volatile_memory_barrier (ctx, {dst_ptr}));
+}
+
 static void
 prefetch (IntrinsicCtx &ctx, Mode mode, Cache cache)
 {
@@ -1269,6 +1449,36 @@ type_assert (TyAssert assert)
 {
   return
     [assert] (IntrinsicCtx &ctx) { return inner::type_assert (ctx, assert); };
+}
+
+Intrinsic::CompileFn
+volatile_load (bool is_unaligned)
+{
+  return [is_unaligned] (IntrinsicCtx &ctx) {
+    return inner::volatile_load (ctx, is_unaligned);
+  };
+}
+
+Intrinsic::CompileFn
+volatile_store (bool is_unaligned)
+{
+  return [is_unaligned] (IntrinsicCtx &ctx) {
+    return inner::volatile_store (ctx, is_unaligned);
+  };
+}
+
+Intrinsic::CompileFn
+volatile_copy (bool is_nonoverlapping)
+{
+  return [is_nonoverlapping] (IntrinsicCtx &ctx) {
+    return inner::volatile_copy (ctx, is_nonoverlapping);
+  };
+}
+
+Intrinsic::CompileFn
+volatile_set_memory ()
+{
+  return [] (IntrinsicCtx &ctx) { return inner::volatile_set_memory (ctx); };
 }
 
 void
