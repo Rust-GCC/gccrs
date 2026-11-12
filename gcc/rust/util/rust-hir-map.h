@@ -20,6 +20,7 @@
 #define RUST_HIR_MAP_H
 
 #include "optional.h"
+#include "rust-feature-stability.h"
 #include "rust-system.h"
 #include "rust-location.h"
 #include "rust-mapping-common.h"
@@ -431,6 +432,8 @@ public:
 				AST::MacroRulesDefinition *def);
   tl::optional<AST::MacroRulesDefinition *>
   lookup_macro_invocation (AST::MacroInvocation &invoc);
+  std::map<NodeId, AST::MacroRulesDefinition *> &get_macro_invocations ();
+  location_t get_macro_invocation_location (NodeId id);
 
   void insert_exported_macro (AST::MacroRulesDefinition &def);
   std::vector<AST::MacroRulesDefinition> get_exported_macros ();
@@ -476,6 +479,11 @@ public:
 
   void add_function_node (NodeId node_id);
   bool is_function_node (NodeId node_id);
+
+  void add_defined_extern_lib_feature (std::string feature_name,
+				       Stability stability);
+  tl::optional<Stability>
+  lookup_defined_extern_lib_feature (const std::string &feature_name);
 
 private:
   Mappings ();
@@ -540,6 +548,7 @@ private:
   std::map<NodeId, std::pair<AST::MacroRulesDefinition *, CrateNum>>
     macroMappings;
   std::map<NodeId, AST::MacroRulesDefinition *> macroInvocations;
+  std::map<NodeId, location_t> macroInvocationLocations;
   std::vector<AST::MacroRulesDefinition> exportedMacros;
 
   // Low level visibility map for each DefId
@@ -566,6 +575,9 @@ private:
   std::set<NodeId> derived_nodes;
 
   std::set<NodeId> function_nodes;
+
+  // Defined extern library features
+  std::unordered_map<std::string, Stability> defined_extern_lib_features;
 };
 
 } // namespace Analysis
