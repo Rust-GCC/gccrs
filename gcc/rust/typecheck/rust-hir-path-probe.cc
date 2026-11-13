@@ -60,7 +60,24 @@ PathProbeCandidate::PathProbeCandidate (CandidateType type, TyTy::BaseType *ty,
 std::string
 PathProbeCandidate::as_string () const
 {
-  return "PathProbe candidate TODO - as_string";
+  if (is_error ())
+    return "PathProbe kind=Error";
+
+  std::stringstream ss;
+  ss << "PathProbe kind=";
+  if (is_enum_candidate ())
+    ss << "Enum";
+  else if (is_impl_candidate ())
+    ss << "Impl";
+  else if (is_trait_candidate ())
+    ss << (is_full_trait_item_candidate () ? "Trait" : "TraitImpl");
+  else
+    ss << "Unknown";
+
+  DefId id = get_defid ();
+  ss << ", type=" << (ty != nullptr ? ty->as_string () : "<null>")
+     << ", crate=" << id.crateNum << ", local=" << id.localDefId;
+  return ss.str ();
 }
 
 bool
