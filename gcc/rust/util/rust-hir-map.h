@@ -19,8 +19,8 @@
 #ifndef RUST_HIR_MAP_H
 #define RUST_HIR_MAP_H
 
-#include "optional.h"
 #include "rust-system.h"
+#include "stdbackport/optional"
 #include "rust-location.h"
 #include "rust-mapping-common.h"
 #include "rust-canonical-path.h"
@@ -30,7 +30,6 @@
 #include "rust-privacy-common.h"
 #include "libproc_macro_internal/proc_macro.h"
 #include "rust-proc-macro.h"
-#include "optional.h"
 
 namespace Rust {
 namespace Analysis {
@@ -85,19 +84,19 @@ class Mapping
   std::unordered_map<Id, Item> storage;
 
 public:
-  tl::optional<Item &> lookup (Id id)
+  gcc::optional<Item &> lookup (Id id)
   {
     auto it = storage.find (id);
     if (it == storage.cend ())
-      return tl::nullopt;
+      return gcc::nullopt;
     return it->second;
   }
 
-  tl::optional<const Item &> lookup (Id id) const
+  gcc::optional<const Item &> lookup (Id id) const
   {
     auto it = storage.find (id);
     if (it == storage.cend ())
-      return tl::nullopt;
+      return gcc::nullopt;
     return it->second;
   }
 
@@ -134,11 +133,11 @@ public:
   void set_current_crate (CrateNum crateNum);
   CrateNum get_current_crate () const;
 
-  tl::optional<CrateNum> lookup_crate_num (NodeId node_id) const;
+  gcc::optional<CrateNum> lookup_crate_num (NodeId node_id) const;
   const std::string &get_current_crate_name () const;
-  tl::optional<CrateNum>
+  gcc::optional<CrateNum>
   lookup_crate_name (const std::string &crate_name) const;
-  tl::optional<NodeId> crate_num_to_nodeid (const CrateNum &crate_num) const;
+  gcc::optional<NodeId> crate_num_to_nodeid (const CrateNum &crate_num) const;
   bool node_is_crate (NodeId node_id) const;
 
   AST::Crate &insert_ast_crate (std::unique_ptr<AST::Crate> &&crate,
@@ -200,7 +199,7 @@ class PtrMapping
   std::unordered_map<HirId, Item *> storage;
 
 public:
-  tl::optional<Item *> lookup (HirId id);
+  gcc::optional<Item *> lookup (HirId id);
   void insert (Item *item);
 };
 
@@ -264,14 +263,14 @@ public:
   bool is_local_hirid_crate (HirId crateNum);
 
   void insert_defid_mapping (DefId id, HIR::Item *item);
-  tl::optional<HIR::Item *> lookup_defid (DefId id);
+  gcc::optional<HIR::Item *> lookup_defid (DefId id);
   void insert_defid_mapping (DefId id, HIR::TraitItem *item);
-  tl::optional<HIR::TraitItem *> lookup_trait_item_defid (DefId id);
+  gcc::optional<HIR::TraitItem *> lookup_trait_item_defid (DefId id);
 
   void insert_local_defid_mapping (CrateNum crateNum, LocalDefId id,
 				   HIR::Item *item);
-  tl::optional<HIR::Item *> lookup_local_defid (CrateNum crateNum,
-						LocalDefId id);
+  gcc::optional<HIR::Item *> lookup_local_defid (CrateNum crateNum,
+						 LocalDefId id);
 
   void insert_hir_enumitem (HIR::Enum *parent, HIR::EnumItem *item);
   std::pair<HIR::Enum *, HIR::EnumItem *> lookup_hir_enumitem (HirId id);
@@ -279,29 +278,29 @@ public:
   void insert_hir_extern_item (HIR::ExternalItem *item, HirId parent_block);
 
   // std::pair<hir_extern_item, parent hirid>
-  tl::optional<std::pair<HIR::ExternalItem *, HirId>>
+  gcc::optional<std::pair<HIR::ExternalItem *, HirId>>
   lookup_hir_extern_item (HirId id);
 
   void insert_hir_impl_block (HIR::ImplBlock *item);
-  tl::optional<HIR::ImplBlock *> lookup_hir_impl_block (HirId id);
-  tl::optional<HIR::ImplBlock *> lookup_impl_block_type (HirId id);
+  gcc::optional<HIR::ImplBlock *> lookup_hir_impl_block (HirId id);
+  gcc::optional<HIR::ImplBlock *> lookup_impl_block_type (HirId id);
 
   void insert_hir_implitem (HirId parent_impl_id, HIR::ImplItem *item);
   // Optional<ImpItem, ParentImpl Hir id>
-  tl::optional<std::pair<HIR::ImplItem *, HirId>>
+  gcc::optional<std::pair<HIR::ImplItem *, HirId>>
   lookup_hir_implitem (HirId id);
 
   void walk_local_defids_for_crate (CrateNum crateNum,
 				    std::function<bool (HIR::Item *)> cb);
 
   void insert_node_to_hir (NodeId id, HirId ref);
-  tl::optional<HirId> lookup_node_to_hir (NodeId id);
-  tl::optional<NodeId> lookup_hir_to_node (HirId id);
+  gcc::optional<HirId> lookup_node_to_hir (NodeId id);
+  gcc::optional<NodeId> lookup_hir_to_node (HirId id);
 
   void insert_location (HirId id, location_t locus);
   location_t lookup_location (HirId id);
 
-  tl::optional<HIR::Stmt *> resolve_nodeid_to_stmt (NodeId id);
+  gcc::optional<HIR::Stmt *> resolve_nodeid_to_stmt (NodeId id);
 
   std::set<HirId> &get_hirids_within_crate (CrateNum crate)
   {
@@ -401,21 +400,21 @@ public:
     paths.emplace (id, std::move (path));
   }
 
-  tl::optional<const Resolver::CanonicalPath &>
+  gcc::optional<const Resolver::CanonicalPath &>
   lookup_canonical_path (NodeId id)
   {
     auto it = paths.find (id);
     if (it == paths.end ())
-      return tl::nullopt;
+      return gcc::nullopt;
 
     return it->second;
   }
 
   void insert_lang_item (LangItem::Kind item_type, DefId id);
-  tl::optional<DefId &> lookup_lang_item (LangItem::Kind item_type);
+  gcc::optional<DefId &> lookup_lang_item (LangItem::Kind item_type);
 
   void insert_lang_item_node (LangItem::Kind item_type, NodeId node_id);
-  tl::optional<NodeId &> lookup_lang_item_node (LangItem::Kind item_type);
+  gcc::optional<NodeId &> lookup_lang_item_node (LangItem::Kind item_type);
   NodeId get_lang_item_node (LangItem::Kind item_type);
   std::string &get_lang_item_identifier (LangItem::Kind item_type);
 
@@ -424,19 +423,19 @@ public:
 
   void insert_macro_def (AST::MacroRulesDefinition *macro);
 
-  tl::optional<AST::MacroRulesDefinition *> lookup_macro_def (NodeId id);
-  tl::optional<CrateNum> lookup_macro_def_crate (NodeId id);
+  gcc::optional<AST::MacroRulesDefinition *> lookup_macro_def (NodeId id);
+  gcc::optional<CrateNum> lookup_macro_def_crate (NodeId id);
 
   void insert_macro_invocation (AST::MacroInvocation &invoc,
 				AST::MacroRulesDefinition *def);
-  tl::optional<AST::MacroRulesDefinition *>
+  gcc::optional<AST::MacroRulesDefinition *>
   lookup_macro_invocation (AST::MacroInvocation &invoc);
 
   void insert_exported_macro (AST::MacroRulesDefinition &def);
   std::vector<AST::MacroRulesDefinition> get_exported_macros ();
 
   void insert_glob_container (NodeId, AST::GlobContainer *);
-  tl::optional<AST::GlobContainer *> lookup_glob_container (NodeId id);
+  gcc::optional<AST::GlobContainer *> lookup_glob_container (NodeId id);
 
   void insert_module_id (NodeId);
   bool is_module (NodeId id);
@@ -445,31 +444,31 @@ public:
   bool is_extern_crate (NodeId id);
 
   void insert_module_child (NodeId module, NodeId child);
-  tl::optional<std::vector<NodeId> &> lookup_module_children (NodeId module);
+  gcc::optional<std::vector<NodeId> &> lookup_module_children (NodeId module);
 
   void insert_module_child_item (NodeId module, Resolver::CanonicalPath item);
-  tl::optional<std::vector<Resolver::CanonicalPath> &>
+  gcc::optional<std::vector<Resolver::CanonicalPath> &>
   lookup_module_chidren_items (NodeId module);
-  tl::optional<Resolver::CanonicalPath &>
+  gcc::optional<Resolver::CanonicalPath &>
   lookup_module_child (NodeId module, const std::string &item_name);
 
   void insert_child_item_to_parent_module_mapping (NodeId child_item,
 						   NodeId parent_module);
-  tl::optional<NodeId> lookup_parent_module (NodeId child_item);
+  gcc::optional<NodeId> lookup_parent_module (NodeId child_item);
   bool node_is_module (NodeId query);
 
   void insert_ast_item (AST::Item *item);
-  tl::optional<AST::Item *> lookup_ast_item (NodeId id);
+  gcc::optional<AST::Item *> lookup_ast_item (NodeId id);
 
   HIR::ImplBlock *lookup_builtin_marker ();
 
-  tl::optional<HIR::TraitItem *>
+  gcc::optional<HIR::TraitItem *>
   lookup_trait_item_lang_item (LangItem::Kind item, location_t locus);
 
   void insert_auto_trait (HIR::Trait *trait);
   std::vector<HIR::Trait *> &get_auto_traits ();
   void add_capture (NodeId closure, NodeId definition);
-  tl::optional<std::vector<NodeId>> lookup_captures (NodeId closure);
+  gcc::optional<std::vector<NodeId>> lookup_captures (NodeId closure);
 
   void add_derived_node (NodeId node_id);
   bool is_derived_node (NodeId node_id);

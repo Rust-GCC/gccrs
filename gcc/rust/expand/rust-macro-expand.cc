@@ -17,7 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-macro-expand.h"
-#include "optional.h"
+#include "stdbackport/optional"
 #include "rust-ast-fragment.h"
 #include "rust-macro-builtins.h"
 #include "rust-macro-substitute-ctx.h"
@@ -456,15 +456,15 @@ MacroExpander::match_fragment (Parser<MacroInvocLexer> &parser,
   switch (fragment.get_frag_spec ().get_kind ())
     {
     case AST::MacroFragSpec::EXPR:
-      parser.parse_expr ();
+      std::ignore = parser.parse_expr ();
       break;
 
     case AST::MacroFragSpec::BLOCK:
-      parser.parse_block_expr ();
+      std::ignore = parser.parse_block_expr ();
       break;
 
     case AST::MacroFragSpec::IDENT:
-      parser.parse_identifier_or_keyword_token ();
+      std::ignore = parser.parse_identifier_or_keyword_token ();
       break;
 
     case AST::MacroFragSpec::LITERAL:
@@ -472,44 +472,44 @@ MacroExpander::match_fragment (Parser<MacroInvocLexer> &parser,
       break;
 
     case AST::MacroFragSpec::ITEM:
-      parser.parse_item (false);
+      std::ignore = parser.parse_item (false);
       break;
 
     case AST::MacroFragSpec::TY:
-      parser.parse_type ();
+      std::ignore = parser.parse_type ();
       break;
 
     case AST::MacroFragSpec::PAT:
-      parser.parse_pattern ();
+      std::ignore = parser.parse_pattern ();
       break;
 
     case AST::MacroFragSpec::PATH:
-      parser.parse_path_in_expression ();
+      std::ignore = parser.parse_path_in_expression ();
       break;
 
     case AST::MacroFragSpec::VIS:
-      parser.parse_visibility ();
+      std::ignore = parser.parse_visibility ();
       break;
 
     case AST::MacroFragSpec::STMT:
       {
 	auto restrictions = ParseRestrictions ();
 	restrictions.consume_semi = false;
-	parser.parse_stmt (restrictions);
+	std::ignore = parser.parse_stmt (restrictions);
 	break;
       }
 
     case AST::MacroFragSpec::LIFETIME:
-      parser.parse_lifetime_params ();
+      std::ignore = parser.parse_lifetime_params ();
       break;
 
       // is meta attributes?
     case AST::MacroFragSpec::META:
-      parser.parse_attribute_body ();
+      std::ignore = parser.parse_attribute_body ();
       break;
 
     case AST::MacroFragSpec::TT:
-      parser.parse_token_tree ();
+      std::ignore = parser.parse_token_tree ();
       break;
 
       // i guess we just ignore invalid and just error out

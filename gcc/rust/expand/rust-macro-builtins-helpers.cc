@@ -258,14 +258,14 @@ source_relative_path (std::string path, location_t locus)
 
 /* Read the full contents of the file FILENAME and return them in a vector.
    FIXME: platform specific.  */
-tl::optional<std::vector<uint8_t>>
+gcc::optional<std::vector<uint8_t>>
 load_file_bytes (location_t invoc_locus, const char *filename)
 {
   RAIIFile file_wrap (filename);
   if (file_wrap.get_raw () == nullptr)
     {
       rust_error_at (invoc_locus, "cannot open filename %s: %m", filename);
-      return tl::nullopt;
+      return gcc::nullopt;
     }
 
   FILE *f = file_wrap.get_raw ();

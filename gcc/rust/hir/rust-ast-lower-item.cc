@@ -508,7 +508,7 @@ ASTLoweringItem::visit (AST::Function &function)
 			 std::move (function_params), std::move (return_type),
 			 std::move (where_clause), std::move (function_body),
 			 std::move (vis), function.get_outer_attrs (),
-			 tl::nullopt, defaultness, locus);
+			 gcc::nullopt, defaultness, locus);
 
   // add the mappings for the function params at the end
   for (auto &param : fn->get_function_params ())

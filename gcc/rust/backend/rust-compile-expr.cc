@@ -18,7 +18,7 @@
 
 #include "rust-compile-expr.h"
 #include "line-map.h"
-#include "optional.h"
+#include "stdbackport/optional"
 #include "rust-backend.h"
 #include "rust-compile-context.h"
 #include "rust-compile-type.h"
@@ -322,7 +322,7 @@ CompileExpr::visit (HIR::ArithmeticOrLogicalExpr &expr)
 	= LangItem::OperatorToLangItem (expr.get_expr_type ());
       translated = resolve_operator_overload (
 	lang_item_type, expr, lhs, rhs, expr.get_lhs (),
-	tl::optional<std::reference_wrapper<HIR::Expr>> (expr.get_rhs ()));
+	gcc::optional<std::reference_wrapper<HIR::Expr>> (expr.get_rhs ()));
       return;
     }
 
@@ -432,7 +432,7 @@ CompileExpr::visit (HIR::NegationExpr &expr)
       auto lang_item_type = LangItem::NegationOperatorToLangItem (op);
       translated
 	= resolve_operator_overload (lang_item_type, expr, negated_expr,
-				     nullptr, expr.get_expr (), tl::nullopt);
+				     nullptr, expr.get_expr (), gcc::nullopt);
       return;
     }
 
@@ -462,7 +462,7 @@ CompileExpr::visit (HIR::ComparisonExpr &expr)
 
       translated = resolve_operator_overload (
 	lang_item_type, expr, lhs, rhs, expr.get_lhs (),
-	tl::optional<std::reference_wrapper<HIR::Expr>> (expr.get_rhs ()),
+	gcc::optional<std::reference_wrapper<HIR::Expr>> (expr.get_rhs ()),
 	segment);
       return;
     }
@@ -982,7 +982,7 @@ CompileExpr::visit (HIR::LoopExpr &expr)
   ctx->add_statement (ret_var_stmt);
   ctx->push_loop_context (tmp);
 
-  tl::optional<HIR::LoopLabel> loop_label = tl::nullopt;
+  gcc::optional<HIR::LoopLabel> loop_label = gcc::nullopt;
   if (expr.has_loop_label ())
     {
       loop_label = expr.get_loop_label ();
@@ -1019,9 +1019,9 @@ CompileExpr::visit (HIR::WhileLoopExpr &expr)
   fncontext fnctx = ctx->peek_fn ();
   tree enclosing_scope = ctx->peek_enclosing_scope ();
   ctx->push_loop_context (nullptr);
-  tl::optional<HIR::LoopLabel> loop_label = tl::nullopt;
+  gcc::optional<HIR::LoopLabel> loop_label = gcc::nullopt;
   if (expr.has_loop_label ())
-    loop_label = tl::optional<HIR::LoopLabel> (expr.get_loop_label ());
+    loop_label = gcc::optional<HIR::LoopLabel> (expr.get_loop_label ());
   std::pair<tree, tree> loop_labels = construct_loop_labels (loop_label);
   tree loop_begin_label = loop_labels.first;
   tree loop_end_label = loop_labels.second;
@@ -1080,7 +1080,7 @@ CompileExpr::visit (HIR::BreakExpr &expr)
 					 value, label.get_locus ());
       HirId label_hirid = resolve_nodeid (label.get_mappings ().get_nodeid (),
 					  Resolver2_0::Namespace::Labels);
-      tl::optional<tree> block_label = ctx->lookup_break_label (label_hirid);
+      gcc::optional<tree> block_label = ctx->lookup_break_label (label_hirid);
       rust_assert (block_label.has_value ());
       tree go_to
 	= Backend::goto_statement (block_label.value (), label.get_locus ());
@@ -1129,7 +1129,7 @@ CompileExpr::visit (HIR::BreakExpr &expr)
 	    expr.get_label ().get_mappings ().as_string ().c_str ());
 	  return;
 	}
-      tl::optional<HirId> hid
+      gcc::optional<HirId> hid
 	= ctx->get_mappings ().lookup_node_to_hir (resolved_node_id);
       if (!hid.has_value ())
 	{
@@ -1138,7 +1138,7 @@ CompileExpr::visit (HIR::BreakExpr &expr)
 	}
       auto ref = hid.value ();
 
-      tl::optional<tree> label = ctx->lookup_break_label (ref);
+      gcc::optional<tree> label = ctx->lookup_break_label (ref);
       rust_assert (label.has_value ());
       tree goto_label
 	= Backend::goto_statement (label.value (), expr.get_locus ());
@@ -1179,7 +1179,7 @@ CompileExpr::visit (HIR::ContinueExpr &expr)
 	  return;
 	}
 
-      tl::optional<HirId> hid
+      gcc::optional<HirId> hid
 	= ctx->get_mappings ().lookup_node_to_hir (resolved_node_id);
       if (!hid.has_value ())
 	{
@@ -1187,7 +1187,7 @@ CompileExpr::visit (HIR::ContinueExpr &expr)
 	  return;
 	}
       auto ref = hid.value ();
-      tl::optional<tree> opt_label = ctx->lookup_continue_label (ref);
+      gcc::optional<tree> opt_label = ctx->lookup_continue_label (ref);
       rust_assert (opt_label.has_value ());
       label = opt_label.value ();
     }
@@ -1310,7 +1310,7 @@ CompileExpr::visit (HIR::DereferenceExpr &expr)
       auto lang_item_type = LangItem::Kind::DEREF;
       tree operator_overload_call
 	= resolve_operator_overload (lang_item_type, expr, main_expr, nullptr,
-				     expr.get_expr (), tl::nullopt);
+				     expr.get_expr (), gcc::nullopt);
 
       // rust deref always returns a reference from this overload then we can
       // actually do the indirection
@@ -1506,8 +1506,8 @@ CompileExpr::visit (HIR::MatchExpr &expr)
   // setup the end label so the cases can exit properly
   tree fndecl = fnctx.fndecl;
   location_t end_label_locus = expr.get_locus (); // FIXME
-  // tl::nullopt creates an artificial label
-  tree end_label = Backend::label (fndecl, tl::nullopt, end_label_locus);
+  // gcc::nullopt creates an artificial label
+  tree end_label = Backend::label (fndecl, gcc::nullopt, end_label_locus);
   tree end_label_decl_statement
     = Backend::label_definition_statement (end_label);
 
@@ -2015,7 +2015,8 @@ CompileExpr::get_receiver_from_dyn (const TyTy::DynamicObjectType *dyn,
 tree
 CompileExpr::resolve_operator_overload (
   LangItem::Kind lang_item_type, HIR::OperatorExprMeta expr, tree lhs, tree rhs,
-  HIR::Expr &lhs_expr, tl::optional<std::reference_wrapper<HIR::Expr>> rhs_expr,
+  HIR::Expr &lhs_expr,
+  gcc::optional<std::reference_wrapper<HIR::Expr>> rhs_expr,
   HIR::PathIdentSegment specified_segment)
 {
   TyTy::FnType *fntype;
@@ -3133,7 +3134,7 @@ CompileExpr::generate_closure_function (HIR::ClosureExpr &expr,
   const Resolver::CanonicalPath &parent_canonical_path
     = closure_tyty.get_ident ().path;
 
-  tl::optional<NodeId> nid = ctx->get_mappings ().lookup_hir_to_node (
+  gcc::optional<NodeId> nid = ctx->get_mappings ().lookup_hir_to_node (
     expr.get_mappings ().get_hirid ());
   rust_assert (nid.has_value ());
   auto node_id = nid.value ();
@@ -3459,7 +3460,8 @@ CompileExpr::resolve_nodeid (NodeId to_be_resolved, Resolver2_0::Namespace ns)
 }
 
 std::pair<tree, tree>
-CompileExpr::construct_loop_labels (tl::optional<HIR::LoopLabel> opt_loop_label)
+CompileExpr::construct_loop_labels (
+  gcc::optional<HIR::LoopLabel> opt_loop_label)
 {
   fncontext fnctx = ctx->peek_fn ();
   tree break_label_decl = NULL_TREE;
@@ -3467,9 +3469,9 @@ CompileExpr::construct_loop_labels (tl::optional<HIR::LoopLabel> opt_loop_label)
   tree continue_label_decl = NULL_TREE;
   tree continue_label_expr = NULL_TREE;
   location_t label_locus = UNKNOWN_LOCATION;
-  tl::optional<std::string> continue_label_name = tl::nullopt;
-  tl::optional<std::string> break_label_name = tl::nullopt;
-  tl::optional<HirId> label_hirid = tl::nullopt;
+  gcc::optional<std::string> continue_label_name = gcc::nullopt;
+  gcc::optional<std::string> break_label_name = gcc::nullopt;
+  gcc::optional<HirId> label_hirid = gcc::nullopt;
   if (opt_loop_label.has_value ())
     {
       label_locus = opt_loop_label.value ().get_locus ();

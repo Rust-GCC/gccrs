@@ -19,7 +19,7 @@
 #include "rust-hir-pattern-abstract.h"
 #include "rust-hir-pattern.h"
 #include "rust-hir-item.h"
-#include "optional.h"
+#include "stdbackport/optional"
 #include "rust-tyty.h"
 #include "rust-hir-type-check.h"
 #include "rust-finalized-name-resolution-context.h"

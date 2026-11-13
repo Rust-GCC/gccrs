@@ -198,7 +198,7 @@ public: // External API
   /** Prints solution debug output. To be called after solve. */
   void debug_print_solutions ();
 
-  tl::optional<SolutionIndex> lookup_type_index (HirId orig_ref);
+  gcc::optional<SolutionIndex> lookup_type_index (HirId orig_ref);
 
 public: // Module internal API
   /** Format term tree to string. */

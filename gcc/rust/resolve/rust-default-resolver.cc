@@ -17,7 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-default-resolver.h"
-#include "optional.h"
+#include "stdbackport/optional"
 #include "rust-ast-full.h"
 #include "rust-ast-visitor.h"
 #include "rust-ast.h"
@@ -498,7 +498,7 @@ DefaultResolver::visit (AST::ExternCrate &crate)
 {
   auto &mappings = Analysis::Mappings::get ();
   auto &crate_mappings = mappings.crate;
-  tl::optional<CrateNum> num_opt;
+  gcc::optional<CrateNum> num_opt;
   if (crate.get_referenced_crate () == "self")
     num_opt = crate_mappings.get_current_crate ();
   else

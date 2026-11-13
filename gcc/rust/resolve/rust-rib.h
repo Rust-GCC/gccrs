@@ -21,8 +21,8 @@
 
 #include "rust-system.h"
 #include "rust-ast.h"
-#include "optional.h"
-#include "expected.h"
+#include "stdbackport/optional"
+#include "stdbackport/expected"
 
 namespace Rust {
 namespace Resolver2_0 {
@@ -242,8 +242,8 @@ public:
    *         `DuplicateNameError` class contains the NodeId of the existing
    * node. Returns the new NodeId on success.
    */
-  tl::expected<NodeId, DuplicateNameError> insert (std::string name,
-						   Definition def);
+  gcc::expected<NodeId, DuplicateNameError> insert (std::string name,
+						    Definition def);
 
   /**
    * Insert a new node, but as a glob import, in the rib
@@ -258,9 +258,9 @@ public:
   /**
    * Access an inserted NodeId.
    *
-   * @return tl::nullopt if the key does not exist, the NodeId otherwise
+   * @return gcc::nullopt if the key does not exist, the NodeId otherwise
    */
-  tl::optional<Rib::Definition> get (const std::string &name);
+  gcc::optional<Rib::Definition> get (const std::string &name);
 
   /* View all the values stored in the rib */
   const std::unordered_map<std::string, Definition> &get_values () const;

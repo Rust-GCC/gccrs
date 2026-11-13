@@ -777,7 +777,7 @@ get_abi (const AST::AttrVec &outer_attrs,
 tree
 HIRCompileBase::compile_function (
   bool is_root_item, const std::string &fn_name,
-  tl::optional<HIR::SelfParam> &self_param,
+  gcc::optional<HIR::SelfParam> &self_param,
   std::vector<HIR::FunctionParam> &function_params,
   const HIR::FunctionQualifiers &qualifiers, HIR::Visibility &visibility,
   AST::AttrVec &outer_attrs, location_t locus, HIR::BlockExpr *function_body,
@@ -811,7 +811,7 @@ HIRCompileBase::compile_function (
   auto export_name_attr
     = std::find_if (outer_attrs.begin (), outer_attrs.end (), get_export_name);
 
-  tl::optional<std::string> backend_asm_name = tl::nullopt;
+  gcc::optional<std::string> backend_asm_name = gcc::nullopt;
 
   if (export_name_attr != outer_attrs.end ())
     {
@@ -970,7 +970,7 @@ HIRCompileBase::compile_constant_item (
     receiver, {}, {Backend::typed_identifier ("_", const_type, locus)}, NULL,
     locus);
   tree fndecl
-    = Backend::function (compiled_fn_type, ident, tl::nullopt, 0, locus);
+    = Backend::function (compiled_fn_type, ident, gcc::nullopt, 0, locus);
   TREE_READONLY (fndecl) = 1;
 
   tree enclosing_scope = NULL_TREE;
@@ -1105,7 +1105,7 @@ HIRCompileBase::resolve_method_address (TyTy::FnType *fntype,
       rust_assert (ok);				    // found
       rust_assert (trait_item_ref->is_optional ()); // has definition
 
-      // FIXME tl::optional means it has a definition and an associated
+      // FIXME gcc::optional means it has a definition and an associated
       // block which can be a default implementation, if it does not
       // contain an implementation we should actually return
       // error_mark_node

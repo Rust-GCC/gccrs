@@ -17,18 +17,18 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-hir-map.h"
-#include "optional.h"
+#include "stdbackport/optional"
 
 namespace Rust {
 namespace Analysis {
 
 template <typename Item, InsertionPolicy policy, InsertLocation insert_location>
-tl::optional<Item *>
+gcc::optional<Item *>
 PtrMapping<Item, policy, insert_location>::lookup (HirId id)
 {
   auto it = storage.find (id);
   if (it == storage.cend ())
-    return tl::nullopt;
+    return gcc::nullopt;
   return it->second;
 }
 

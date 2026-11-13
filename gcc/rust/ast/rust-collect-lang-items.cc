@@ -17,7 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-collect-lang-items.h"
-#include "optional.h"
+#include "stdbackport/optional"
 #include "rust-ast-collector.h"
 #include "rust-ast-visitor.h"
 #include "rust-ast.h"
@@ -30,7 +30,7 @@ namespace Rust {
 namespace AST {
 
 template <typename T>
-tl::optional<LangItem::Kind>
+gcc::optional<LangItem::Kind>
 get_lang_item_attr (const T &maybe_lang_item)
 {
   for (const auto &attr : maybe_lang_item.get_outer_attrs ())
@@ -53,7 +53,7 @@ get_lang_item_attr (const T &maybe_lang_item)
 	}
     }
 
-  return tl::nullopt;
+  return gcc::nullopt;
 }
 
 template <typename T>

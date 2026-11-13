@@ -738,7 +738,7 @@ ASTLoweringBase::lower_self (AST::Param &param)
 			     self.get_is_mut (), self.get_locus ());
     }
 
-  tl::optional<HIR::Lifetime> lifetime = tl::nullopt;
+  gcc::optional<HIR::Lifetime> lifetime = gcc::nullopt;
 
   if (self.has_lifetime ())
     lifetime = lower_lifetime (self.get_lifetime ());

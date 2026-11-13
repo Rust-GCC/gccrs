@@ -18,7 +18,7 @@
 
 #include "rust-input-source.h"
 #include "rust-system.h"
-#include "optional.h"
+#include "stdbackport/optional"
 #include "selftest.h"
 #include "rust-lex.h"
 #include "rust-unicode.h"
@@ -66,7 +66,7 @@ lookup_cc (codepoint_t c)
     return 0;
 }
 
-tl::optional<codepoint_t>
+gcc::optional<codepoint_t>
 lookup_recomp (codepoint_t starter, codepoint_t c)
 {
   auto it = Rust::RECOMPOSITION_MAP.find ({starter.value, c.value});
@@ -77,7 +77,7 @@ lookup_recomp (codepoint_t starter, codepoint_t c)
   if (it != Rust::RECOMPOSITION_MAP.end ())
     return {it->second};
 
-  return tl::nullopt;
+  return gcc::nullopt;
 }
 
 void
@@ -211,7 +211,7 @@ recomp (string_t s)
       codepoint_t ch = s[src_pos];
 
       int ch_class = lookup_cc (ch);
-      tl::optional<codepoint_t> composite = lookup_recomp (starter_ch, ch);
+      gcc::optional<codepoint_t> composite = lookup_recomp (starter_ch, ch);
       if (composite.has_value () && last_class < ch_class)
 	{
 	  // ch can be composed

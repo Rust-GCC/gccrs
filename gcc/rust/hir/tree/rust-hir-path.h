@@ -256,12 +256,12 @@ public:
   };
 
 private:
-  tl::optional<LangItem::Kind> lang_item;
+  gcc::optional<LangItem::Kind> lang_item;
   Kind kind;
 
 protected:
   PathPattern (RawPath<PathExprSegment> path)
-    : RawPath (std::move (path)), lang_item (tl::nullopt),
+    : RawPath (std::move (path)), lang_item (gcc::nullopt),
       kind (Kind::Segmented)
   {}
 
@@ -433,8 +433,8 @@ public:
 
 private:
   Analysis::NodeMapping mappings;
-  tl::optional<PathIdentSegment> ident_segment;
-  tl::optional<LangItem::Kind> lang_item;
+  gcc::optional<PathIdentSegment> ident_segment;
+  gcc::optional<LangItem::Kind> lang_item;
   location_t locus;
 
 protected:

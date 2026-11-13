@@ -17,9 +17,9 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-hir-item.h"
-#include "optional.h"
 #include "rust-attribute-values.h"
 #include "rust-attributes.h"
+#include "stdbackport/optional"
 
 namespace Rust {
 namespace HIR {
@@ -28,7 +28,7 @@ TypeParam::TypeParam (
   Analysis::NodeMapping mappings, Identifier type_representation,
   location_t locus,
   std::vector<std::unique_ptr<TypeParamBound>> type_param_bounds,
-  tl::optional<std::unique_ptr<Type>> type, AST::AttrVec outer_attrs,
+  gcc::optional<std::unique_ptr<Type>> type, AST::AttrVec outer_attrs,
   bool was_impl_trait)
   : GenericParam (mappings), outer_attrs (std::move (outer_attrs)),
     type_representation (std::move (type_representation)),
@@ -45,7 +45,7 @@ TypeParam::TypeParam (TypeParam const &other)
   if (other.has_type ())
     type = {other.type.value ()->clone_type ()};
   else
-    type = tl::nullopt;
+    type = gcc::nullopt;
 
   type_param_bounds.reserve (other.type_param_bounds.size ());
   for (const auto &e : other.type_param_bounds)
@@ -65,7 +65,7 @@ TypeParam::operator= (TypeParam const &other)
   if (other.has_type ())
     type = {other.type.value ()->clone_type ()};
   else
-    type = tl::nullopt;
+    type = gcc::nullopt;
 
   type_param_bounds.reserve (other.type_param_bounds.size ());
   for (const auto &e : other.type_param_bounds)
@@ -129,7 +129,7 @@ TypeBoundWhereClauseItem::get_type_param_bounds ()
 
 SelfParam::SelfParam (Analysis::NodeMapping mappings,
 		      ImplicitSelfKind self_kind,
-		      tl::optional<Lifetime> lifetime, Type *type)
+		      gcc::optional<Lifetime> lifetime, Type *type)
   : self_kind (self_kind), lifetime (std::move (lifetime)), type (type),
     mappings (mappings)
 {}
@@ -137,12 +137,12 @@ SelfParam::SelfParam (Analysis::NodeMapping mappings,
 SelfParam::SelfParam (Analysis::NodeMapping mappings,
 		      std::unique_ptr<Type> type, bool is_mut, location_t locus)
   : self_kind (is_mut ? ImplicitSelfKind::MUT : ImplicitSelfKind::IMM),
-    lifetime (tl::nullopt), type (std::move (type)), locus (locus),
+    lifetime (gcc::nullopt), type (std::move (type)), locus (locus),
     mappings (mappings)
 {}
 
 SelfParam::SelfParam (Analysis::NodeMapping mappings,
-		      tl::optional<Lifetime> lifetime, bool is_mut,
+		      gcc::optional<Lifetime> lifetime, bool is_mut,
 		      location_t locus)
   : self_kind (is_mut ? ImplicitSelfKind::MUT_REF : ImplicitSelfKind::IMM_REF),
     lifetime (std::move (lifetime)), locus (locus), mappings (mappings)
@@ -263,7 +263,7 @@ Module::operator= (Module const &other)
   return *this;
 }
 
-tl::optional<std::vector<size_t>>
+gcc::optional<std::vector<size_t>>
 Function::get_legacy_const_generic_indexes () const
 {
   std::vector<size_t> legacy_const_generic_indexes;
@@ -282,7 +282,7 @@ Function::get_legacy_const_generic_indexes () const
 	{
 	  rust_error_at (attr.get_locus (), "malformed %qs attribute",
 			 mapping.name.c_str ());
-	  return tl::nullopt;
+	  return gcc::nullopt;
 	}
 
       auto parsed_attr = attr;
@@ -291,7 +291,7 @@ Function::get_legacy_const_generic_indexes () const
 	{
 	  rust_error_at (attr.get_locus (), "malformed %qs attribute",
 			 mapping.name.c_str ());
-	  return tl::nullopt;
+	  return gcc::nullopt;
 	}
 
       const auto &container
@@ -304,7 +304,7 @@ Function::get_legacy_const_generic_indexes () const
 	    {
 	      rust_error_at (item->get_locus (),
 			     "expected an integer argument index");
-	      return tl::nullopt;
+	      return gcc::nullopt;
 	    }
 	  const auto &literal
 	    = static_cast<AST::MetaItemLitExpr &> (*item).get_literal ();
@@ -312,7 +312,7 @@ Function::get_legacy_const_generic_indexes () const
 	    {
 	      rust_error_at (item->get_locus (),
 			     "expected an integer argument index");
-	      return tl::nullopt;
+	      return gcc::nullopt;
 	    }
 
 	  mpz_t value;
@@ -320,7 +320,7 @@ Function::get_legacy_const_generic_indexes () const
 	    {
 	      mpz_clear (value);
 	      rust_error_at (item->get_locus (), "failed load argument index");
-	      return tl::nullopt;
+	      return gcc::nullopt;
 	    }
 
 	  size_t index = 0;
@@ -339,7 +339,7 @@ Function::Function (Analysis::NodeMapping mappings, Identifier function_name,
 		    std::vector<FunctionParam> function_params,
 		    std::unique_ptr<Type> return_type, WhereClause where_clause,
 		    std::unique_ptr<BlockExpr> function_body, Visibility vis,
-		    AST::AttrVec outer_attrs, tl::optional<SelfParam> self,
+		    AST::AttrVec outer_attrs, gcc::optional<SelfParam> self,
 		    Defaultness defaultness, location_t locus)
   : VisItem (std::move (mappings), std::move (vis), std::move (outer_attrs)),
     qualifiers (std::move (qualifiers)),
@@ -689,7 +689,7 @@ StaticItem::operator= (StaticItem const &other)
 TraitFunctionDecl::TraitFunctionDecl (
   Identifier function_name, FunctionQualifiers qualifiers,
   std::vector<std::unique_ptr<GenericParam>> generic_params,
-  tl::optional<SelfParam> self, std::vector<FunctionParam> function_params,
+  gcc::optional<SelfParam> self, std::vector<FunctionParam> function_params,
   std::unique_ptr<Type> return_type, WhereClause where_clause)
   : qualifiers (std::move (qualifiers)),
     function_name (std::move (function_name)),

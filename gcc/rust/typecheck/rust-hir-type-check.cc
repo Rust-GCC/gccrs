@@ -32,7 +32,7 @@ extern bool saw_errors (void);
 namespace Rust {
 namespace Resolver {
 
-tl::optional<TyTy::Region>
+gcc::optional<TyTy::Region>
 TypeCheckContext::LifetimeResolver::resolve (const Lifetime &placeholder) const
 {
   if (placeholder.is_static ())
@@ -62,7 +62,7 @@ TypeCheckContext::LifetimeResolver::resolve (const Lifetime &placeholder) const
 	}
     }
 
-  return tl::nullopt;
+  return gcc::nullopt;
 }
 
 void

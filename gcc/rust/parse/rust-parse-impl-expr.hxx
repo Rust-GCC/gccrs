@@ -26,9 +26,9 @@ namespace Rust {
 
 // Parses a block expression, including the curly braces at start and end.
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::BlockExpr>, Parse::Error::Node>
+gcc::expected<std::unique_ptr<AST::BlockExpr>, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_block_expr (
-  AST::AttrVec outer_attrs, tl::optional<AST::LoopLabel> label,
+  AST::AttrVec outer_attrs, gcc::optional<AST::LoopLabel> label,
   location_t pratt_parsed_loc)
 {
   location_t locus = pratt_parsed_loc;
@@ -38,7 +38,7 @@ Parser<ManagedTokenSource>::parse_block_expr (
       if (!skip_token (LEFT_CURLY))
 	{
 	  skip_after_end_block ();
-	  return tl::unexpected<Parse::Error::Node> (
+	  return gcc::unexpected<Parse::Error::Node> (
 	    Parse::Error::Node::MALFORMED);
 	}
     }
@@ -56,7 +56,7 @@ Parser<ManagedTokenSource>::parse_block_expr (
       if (!expr_or_stmt)
 	{
 	  skip_after_end_block ();
-	  return tl::unexpected<Parse::Error::Node> (
+	  return gcc::unexpected<Parse::Error::Node> (
 	    Parse::Error::Node::CHILD_ERROR);
 	}
 
@@ -79,7 +79,7 @@ Parser<ManagedTokenSource>::parse_block_expr (
     {
       // We don't need to throw an error as it already reported by skip_token
       skip_after_end_block ();
-      return tl::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
+      return gcc::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
     }
 
   // grammar allows for empty block expressions
@@ -95,7 +95,7 @@ Parser<ManagedTokenSource>::parse_block_expr (
 /* Parse an anonymous const expression. This can be a regular const expression
  * or an underscore for deferred const inference */
 template <typename ManagedTokenSource>
-tl::expected<AST::AnonConst, Parse::Error::Node>
+gcc::expected<AST::AnonConst, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_anon_const ()
 {
   auto current = lexer.peek_token ();
@@ -108,7 +108,7 @@ Parser<ManagedTokenSource>::parse_anon_const ()
   auto expr = parse_expr ();
 
   if (!expr)
-    return tl::make_unexpected (Parse::Error::Node{});
+    return gcc::make_unexpected (Parse::Error::Node{});
 
   return AST::AnonConst (std::move (expr.value ()), locus);
 }
@@ -116,7 +116,7 @@ Parser<ManagedTokenSource>::parse_anon_const ()
 /* Parse a "const block", a block preceded by the `const` keyword whose
  * statements can be const evaluated and used in constant contexts */
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::ConstBlock>, Parse::Error::Node>
+gcc::expected<std::unique_ptr<AST::ConstBlock>, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_const_block_expr (AST::AttrVec outer_attrs,
 						    location_t locus)
 {
@@ -127,7 +127,7 @@ Parser<ManagedTokenSource>::parse_const_block_expr (AST::AttrVec outer_attrs,
       add_error (Error (locus, "failed to parse inner block in const block"));
       skip_after_end_block ();
 
-      return tl::unexpected<Parse::Error::Node> (
+      return gcc::unexpected<Parse::Error::Node> (
 	Parse::Error::Node::CHILD_ERROR);
     }
   auto block = std::move (block_res.value ());
@@ -142,7 +142,7 @@ Parser<ManagedTokenSource>::parse_const_block_expr (AST::AttrVec outer_attrs,
 /* Parses a "grouped" expression (expression in parentheses), used to control
  * precedence. */
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::GroupedExpr>, Parse::Error::Node>
+gcc::expected<std::unique_ptr<AST::GroupedExpr>, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_grouped_expr (AST::AttrVec outer_attrs)
 {
   location_t locus = lexer.peek_token ()->get_locus ();
@@ -156,14 +156,14 @@ Parser<ManagedTokenSource>::parse_grouped_expr (AST::AttrVec outer_attrs)
     {
       // skip after somewhere?
       // error?
-      return tl::unexpected<Parse::Error::Node> (
+      return gcc::unexpected<Parse::Error::Node> (
 	Parse::Error::Node::CHILD_ERROR);
     }
 
   if (!skip_token (RIGHT_PAREN))
     {
       // skip after somewhere?
-      return tl::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
+      return gcc::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
     }
 
   return std::unique_ptr<AST::GroupedExpr> (
@@ -174,7 +174,7 @@ Parser<ManagedTokenSource>::parse_grouped_expr (AST::AttrVec outer_attrs)
 
 // Parses a closure expression (closure definition).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::ClosureExpr>, Parse::Error::Node>
+gcc::expected<std::unique_ptr<AST::ClosureExpr>, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_closure_expr (AST::AttrVec outer_attrs)
 {
   location_t locus = lexer.peek_token ()->get_locus ();
@@ -234,7 +234,7 @@ Parser<ManagedTokenSource>::parse_closure_expr (AST::AttrVec outer_attrs)
 			t->get_token_description ()));
 
       // skip somewhere?
-      return tl::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
+      return gcc::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
     }
 
   // again branch based on next token
@@ -255,7 +255,7 @@ Parser<ManagedTokenSource>::parse_closure_expr (AST::AttrVec outer_attrs)
 	  add_error (std::move (error));
 
 	  // skip somewhere?
-	  return tl::unexpected<Parse::Error::Node> (
+	  return gcc::unexpected<Parse::Error::Node> (
 	    Parse::Error::Node::CHILD_ERROR);
 	}
 
@@ -269,7 +269,7 @@ Parser<ManagedTokenSource>::parse_closure_expr (AST::AttrVec outer_attrs)
 	  add_error (std::move (error));
 
 	  // skip somewhere?
-	  return tl::unexpected<Parse::Error::Node> (
+	  return gcc::unexpected<Parse::Error::Node> (
 	    Parse::Error::Node::CHILD_ERROR);
 	}
 
@@ -292,7 +292,7 @@ Parser<ManagedTokenSource>::parse_closure_expr (AST::AttrVec outer_attrs)
 	  add_error (std::move (error));
 
 	  // skip somewhere?
-	  return tl::unexpected<Parse::Error::Node> (
+	  return gcc::unexpected<Parse::Error::Node> (
 	    Parse::Error::Node::CHILD_ERROR);
 	}
 
@@ -305,7 +305,7 @@ Parser<ManagedTokenSource>::parse_closure_expr (AST::AttrVec outer_attrs)
 
 // Parses a literal token (to literal expression).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::LiteralExpr>, Parse::Error::Node>
+gcc::expected<std::unique_ptr<AST::LiteralExpr>, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_literal_expr (AST::AttrVec outer_attrs)
 {
   // TODO: change if literal representation in lexer changes
@@ -358,7 +358,7 @@ Parser<ManagedTokenSource>::parse_literal_expr (AST::AttrVec outer_attrs)
 		     "C-style string literals require "
 		     "%<-frust-compat-version%> to be set to least 1.64",
 		     t->get_token_description ()));
-	    return tl::unexpected<Parse::Error::Node> (
+	    return gcc::unexpected<Parse::Error::Node> (
 	      Parse::Error::Node::MALFORMED);
 	  }
       }
@@ -393,7 +393,7 @@ Parser<ManagedTokenSource>::parse_literal_expr (AST::AttrVec outer_attrs)
 			t->get_token_description ()));
 
       // skip?
-      return tl::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
+      return gcc::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
     }
 
   auto type_hint
@@ -408,7 +408,7 @@ Parser<ManagedTokenSource>::parse_literal_expr (AST::AttrVec outer_attrs)
 }
 
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::BoxExpr>, Parse::Error::Node>
+gcc::expected<std::unique_ptr<AST::BoxExpr>, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_box_expr (AST::AttrVec outer_attrs,
 					    location_t pratt_parsed_loc)
 {
@@ -424,7 +424,7 @@ Parser<ManagedTokenSource>::parse_box_expr (AST::AttrVec outer_attrs,
 
   auto expr = parse_expr (AST::AttrVec (), restrictions);
   if (!expr)
-    return tl::unexpected<Parse::Error::Node> (Parse::Error::Node::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Node> (Parse::Error::Node::CHILD_ERROR);
 
   return std::unique_ptr<AST::BoxExpr> (
     new AST::BoxExpr (std::move (expr.value ()), std::move (outer_attrs),
@@ -433,7 +433,7 @@ Parser<ManagedTokenSource>::parse_box_expr (AST::AttrVec outer_attrs,
 
 // Parses a return expression (including any expression to return).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::ReturnExpr>, Parse::Error::Node>
+gcc::expected<std::unique_ptr<AST::ReturnExpr>, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_return_expr (AST::AttrVec outer_attrs,
 					       location_t pratt_parsed_loc)
 {
@@ -448,7 +448,7 @@ Parser<ManagedTokenSource>::parse_return_expr (AST::AttrVec outer_attrs,
   ParseRestrictions restrictions;
   restrictions.expr_can_be_null = true;
   auto returned_expr = parse_expr (AST::AttrVec (), restrictions);
-  tl::optional<std::unique_ptr<AST::Expr>> expr = tl::nullopt;
+  gcc::optional<std::unique_ptr<AST::Expr>> expr = gcc::nullopt;
   if (returned_expr)
     expr = std::move (returned_expr.value ());
 
@@ -458,7 +458,7 @@ Parser<ManagedTokenSource>::parse_return_expr (AST::AttrVec outer_attrs,
 
 // Parses a try expression.
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::TryExpr>, Parse::Error::Node>
+gcc::expected<std::unique_ptr<AST::TryExpr>, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_try_expr (AST::AttrVec outer_attrs,
 					    location_t pratt_parsed_loc)
 {
@@ -472,7 +472,7 @@ Parser<ManagedTokenSource>::parse_try_expr (AST::AttrVec outer_attrs,
   auto block_expr = parse_block_expr ();
 
   if (!block_expr)
-    return tl::unexpected<Parse::Error::Node> (Parse::Error::Node::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Node> (Parse::Error::Node::CHILD_ERROR);
 
   return std::unique_ptr<AST::TryExpr> (
     new AST::TryExpr (std::move (block_expr.value ()), std::move (outer_attrs),
@@ -482,7 +482,7 @@ Parser<ManagedTokenSource>::parse_try_expr (AST::AttrVec outer_attrs,
 /* Parses a break expression (including any label to break to AND any return
  * expression). */
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::BreakExpr>, Parse::Error::Node>
+gcc::expected<std::unique_ptr<AST::BreakExpr>, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_break_expr (AST::AttrVec outer_attrs,
 					      location_t pratt_parsed_loc)
 {
@@ -495,8 +495,8 @@ Parser<ManagedTokenSource>::parse_break_expr (AST::AttrVec outer_attrs,
 
   auto parsed_label = parse_lifetime (false);
   auto label = (parsed_label)
-		 ? tl::optional<AST::Lifetime> (parsed_label.value ())
-		 : tl::nullopt;
+		 ? gcc::optional<AST::Lifetime> (parsed_label.value ())
+		 : gcc::nullopt;
 
   // parse break return expression if it exists
   ParseRestrictions restrictions;
@@ -509,10 +509,10 @@ Parser<ManagedTokenSource>::parse_break_expr (AST::AttrVec outer_attrs,
 			  std::move (outer_attrs), locus));
   else if (return_expr.error () == Parse::Error::Expr::NULL_EXPR)
     return std::unique_ptr<AST::BreakExpr> (
-      new AST::BreakExpr (std::move (label), tl::nullopt,
+      new AST::BreakExpr (std::move (label), gcc::nullopt,
 			  std::move (outer_attrs), locus));
   else
-    return tl::unexpected<Parse::Error::Node> (Parse::Error::Node::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Node> (Parse::Error::Node::CHILD_ERROR);
 }
 
 // Parses a continue expression (including any label to continue from).
@@ -530,8 +530,8 @@ Parser<ManagedTokenSource>::parse_continue_expr (AST::AttrVec outer_attrs,
 
   auto parsed_label = parse_lifetime (false);
   auto label = (parsed_label)
-		 ? tl::optional<AST::Lifetime> (parsed_label.value ())
-		 : tl::nullopt;
+		 ? gcc::optional<AST::Lifetime> (parsed_label.value ())
+		 : gcc::nullopt;
 
   return std::make_unique<AST::ContinueExpr> (std::move (label),
 					      std::move (outer_attrs), locus);
@@ -541,7 +541,7 @@ Parser<ManagedTokenSource>::parse_continue_expr (AST::AttrVec outer_attrs,
  * let, and neither. Note that any outer attributes will be ignored because if
  * expressions don't support them. */
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::IfExpr>, Parse::Error::Node>
+gcc::expected<std::unique_ptr<AST::IfExpr>, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_if_expr (AST::AttrVec outer_attrs,
 					   location_t pratt_parsed_loc)
 {
@@ -553,7 +553,7 @@ Parser<ManagedTokenSource>::parse_if_expr (AST::AttrVec outer_attrs,
       if (!skip_token (IF))
 	{
 	  skip_after_end_block ();
-	  return tl::unexpected<Parse::Error::Node> (
+	  return gcc::unexpected<Parse::Error::Node> (
 	    Parse::Error::Node::MALFORMED);
 	}
     }
@@ -567,7 +567,7 @@ Parser<ManagedTokenSource>::parse_if_expr (AST::AttrVec outer_attrs,
       add_error (std::move (error));
 
       // skip somewhere?
-      return tl::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
+      return gcc::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
     }
 
   /* parse required condition expr - HACK to prevent struct expr from being
@@ -582,14 +582,14 @@ Parser<ManagedTokenSource>::parse_if_expr (AST::AttrVec outer_attrs,
       add_error (std::move (error));
 
       // skip somewhere?
-      return tl::unexpected<Parse::Error::Node> (
+      return gcc::unexpected<Parse::Error::Node> (
 	Parse::Error::Node::CHILD_ERROR);
     }
 
   // parse required block expr
   auto if_body = parse_block_expr ();
   if (!if_body)
-    return tl::unexpected<Parse::Error::Node> (Parse::Error::Node::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Node> (Parse::Error::Node::CHILD_ERROR);
 
   // branch to parse end or else (and then else, else if, or else if let)
   if (lexer.peek_token ()->get_id () != ELSE)
@@ -624,7 +624,7 @@ Parser<ManagedTokenSource>::parse_if_expr (AST::AttrVec outer_attrs,
 		add_error (std::move (error));
 
 		// skip somewhere?
-		return tl::unexpected<Parse::Error::Node> (
+		return gcc::unexpected<Parse::Error::Node> (
 		  Parse::Error::Node::CHILD_ERROR);
 	      }
 
@@ -650,7 +650,7 @@ Parser<ManagedTokenSource>::parse_if_expr (AST::AttrVec outer_attrs,
 		    add_error (std::move (error));
 
 		    // skip somewhere?
-		    return tl::unexpected<Parse::Error::Node> (
+		    return gcc::unexpected<Parse::Error::Node> (
 		      Parse::Error::Node::CHILD_ERROR);
 		  }
 
@@ -672,7 +672,7 @@ Parser<ManagedTokenSource>::parse_if_expr (AST::AttrVec outer_attrs,
 		    add_error (std::move (error));
 
 		    // skip somewhere?
-		    return tl::unexpected<Parse::Error::Node> (
+		    return gcc::unexpected<Parse::Error::Node> (
 		      Parse::Error::Node::CHILD_ERROR);
 		  }
 
@@ -690,7 +690,7 @@ Parser<ManagedTokenSource>::parse_if_expr (AST::AttrVec outer_attrs,
 			    t->get_token_description ()));
 
 	  // skip somewhere?
-	  return tl::unexpected<Parse::Error::Node> (
+	  return gcc::unexpected<Parse::Error::Node> (
 	    Parse::Error::Node::MALFORMED);
 	}
     }
@@ -700,7 +700,7 @@ Parser<ManagedTokenSource>::parse_if_expr (AST::AttrVec outer_attrs,
  * if let, and none. Note that any outer attributes will be ignored as if let
  * expressions don't support them. */
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::IfLetExpr>, Parse::Error::Node>
+gcc::expected<std::unique_ptr<AST::IfLetExpr>, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_if_let_expr (AST::AttrVec outer_attrs,
 					       location_t pratt_parsed_loc)
 {
@@ -712,7 +712,7 @@ Parser<ManagedTokenSource>::parse_if_let_expr (AST::AttrVec outer_attrs,
       if (!skip_token (IF))
 	{
 	  skip_after_end_block ();
-	  return tl::unexpected<Parse::Error::Node> (
+	  return gcc::unexpected<Parse::Error::Node> (
 	    Parse::Error::Node::MALFORMED);
 	}
     }
@@ -726,7 +726,7 @@ Parser<ManagedTokenSource>::parse_if_let_expr (AST::AttrVec outer_attrs,
       add_error (std::move (error));
 
       // skip somewhere?
-      return tl::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
+      return gcc::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
     }
   lexer.skip_token ();
 
@@ -741,14 +741,14 @@ Parser<ManagedTokenSource>::parse_if_let_expr (AST::AttrVec outer_attrs,
       add_error (std::move (error));
 
       // skip somewhere?
-      return tl::unexpected<Parse::Error::Node> (
+      return gcc::unexpected<Parse::Error::Node> (
 	Parse::Error::Node::CHILD_ERROR);
     }
 
   if (!skip_token (EQUAL))
     {
       // skip somewhere?
-      return tl::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
+      return gcc::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
     }
 
   // parse expression (required) - HACK to prevent struct expr being parsed
@@ -762,7 +762,7 @@ Parser<ManagedTokenSource>::parse_if_let_expr (AST::AttrVec outer_attrs,
       add_error (std::move (error));
 
       // skip somewhere?
-      return tl::unexpected<Parse::Error::Node> (
+      return gcc::unexpected<Parse::Error::Node> (
 	Parse::Error::Node::CHILD_ERROR);
     }
   /* TODO: check for expression not being a struct expression or lazy boolean
@@ -778,7 +778,7 @@ Parser<ManagedTokenSource>::parse_if_let_expr (AST::AttrVec outer_attrs,
       add_error (std::move (error));
 
       // skip somewhere?
-      return tl::unexpected<Parse::Error::Node> (
+      return gcc::unexpected<Parse::Error::Node> (
 	Parse::Error::Node::CHILD_ERROR);
     }
 
@@ -814,7 +814,7 @@ Parser<ManagedTokenSource>::parse_if_let_expr (AST::AttrVec outer_attrs,
 		add_error (std::move (error));
 
 		// skip somewhere?
-		return tl::unexpected<Parse::Error::Node> (
+		return gcc::unexpected<Parse::Error::Node> (
 		  Parse::Error::Node::CHILD_ERROR);
 	      }
 
@@ -841,7 +841,7 @@ Parser<ManagedTokenSource>::parse_if_let_expr (AST::AttrVec outer_attrs,
 		    add_error (std::move (error));
 
 		    // skip somewhere?
-		    return tl::unexpected<Parse::Error::Node> (
+		    return gcc::unexpected<Parse::Error::Node> (
 		      Parse::Error::Node::CHILD_ERROR);
 		  }
 
@@ -865,7 +865,7 @@ Parser<ManagedTokenSource>::parse_if_let_expr (AST::AttrVec outer_attrs,
 		    add_error (std::move (error));
 
 		    // skip somewhere?
-		    return tl::unexpected<Parse::Error::Node> (
+		    return gcc::unexpected<Parse::Error::Node> (
 		      Parse::Error::Node::CHILD_ERROR);
 		  }
 
@@ -886,7 +886,7 @@ Parser<ManagedTokenSource>::parse_if_let_expr (AST::AttrVec outer_attrs,
 		   t->get_token_description ()));
 
 	  // skip somewhere?
-	  return tl::unexpected<Parse::Error::Node> (
+	  return gcc::unexpected<Parse::Error::Node> (
 	    Parse::Error::Node::MALFORMED);
 	}
     }
@@ -898,9 +898,9 @@ Parser<ManagedTokenSource>::parse_if_let_expr (AST::AttrVec outer_attrs,
 /* Parses a "loop" infinite loop expression. Label is not parsed and should be
  * parsed via parse_labelled_loop_expr, which would call this. */
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::LoopExpr>, Parse::Error::Node>
+gcc::expected<std::unique_ptr<AST::LoopExpr>, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_loop_expr (AST::AttrVec outer_attrs,
-					     tl::optional<AST::LoopLabel> label,
+					     gcc::optional<AST::LoopLabel> label,
 					     location_t pratt_parsed_loc)
 {
   location_t locus = pratt_parsed_loc;
@@ -914,7 +914,7 @@ Parser<ManagedTokenSource>::parse_loop_expr (AST::AttrVec outer_attrs,
       if (!skip_token (LOOP))
 	{
 	  skip_after_end_block ();
-	  return tl::unexpected<Parse::Error::Node> (
+	  return gcc::unexpected<Parse::Error::Node> (
 	    Parse::Error::Node::MALFORMED);
 	}
     }
@@ -927,7 +927,7 @@ Parser<ManagedTokenSource>::parse_loop_expr (AST::AttrVec outer_attrs,
   // parse loop body, which is required
   auto loop_body = parse_block_expr ();
   if (!loop_body)
-    return tl::unexpected<Parse::Error::Node> (Parse::Error::Node::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Node> (Parse::Error::Node::CHILD_ERROR);
 
   return std::unique_ptr<AST::LoopExpr> (
     new AST::LoopExpr (std::move (loop_body.value ()), locus, std::move (label),
@@ -937,9 +937,9 @@ Parser<ManagedTokenSource>::parse_loop_expr (AST::AttrVec outer_attrs,
 /* Parses a "while" loop expression. Label is not parsed and should be parsed
  * via parse_labelled_loop_expr, which would call this. */
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::WhileLoopExpr>, Parse::Error::Node>
+gcc::expected<std::unique_ptr<AST::WhileLoopExpr>, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_while_loop_expr (
-  AST::AttrVec outer_attrs, tl::optional<AST::LoopLabel> label,
+  AST::AttrVec outer_attrs, gcc::optional<AST::LoopLabel> label,
   location_t pratt_parsed_loc)
 {
   location_t locus = pratt_parsed_loc;
@@ -953,7 +953,7 @@ Parser<ManagedTokenSource>::parse_while_loop_expr (
       if (!skip_token (WHILE))
 	{
 	  skip_after_end_block ();
-	  return tl::unexpected<Parse::Error::Node> (
+	  return gcc::unexpected<Parse::Error::Node> (
 	    Parse::Error::Node::MALFORMED);
 	}
     }
@@ -972,7 +972,7 @@ Parser<ManagedTokenSource>::parse_while_loop_expr (
       add_error (std::move (error));
 
       // skip somewhere?
-      return tl::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
+      return gcc::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
     }
 
   // parse loop predicate (required) with HACK to prevent struct expr parsing
@@ -986,7 +986,7 @@ Parser<ManagedTokenSource>::parse_while_loop_expr (
       add_error (std::move (error));
 
       // skip somewhere?
-      return tl::unexpected<Parse::Error::Node> (
+      return gcc::unexpected<Parse::Error::Node> (
 	Parse::Error::Node::CHILD_ERROR);
     }
   /* TODO: check that it isn't struct expression here? actually, probably in
@@ -1001,7 +1001,7 @@ Parser<ManagedTokenSource>::parse_while_loop_expr (
       add_error (std::move (error));
 
       // skip somewhere
-      return tl::unexpected<Parse::Error::Node> (
+      return gcc::unexpected<Parse::Error::Node> (
 	Parse::Error::Node::CHILD_ERROR);
     }
 
@@ -1014,9 +1014,9 @@ Parser<ManagedTokenSource>::parse_while_loop_expr (
 /* Parses a "while let" loop expression. Label is not parsed and should be
  * parsed via parse_labelled_loop_expr, which would call this. */
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::WhileLetLoopExpr>, Parse::Error::Node>
+gcc::expected<std::unique_ptr<AST::WhileLetLoopExpr>, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_while_let_loop_expr (
-  AST::AttrVec outer_attrs, tl::optional<AST::LoopLabel> label)
+  AST::AttrVec outer_attrs, gcc::optional<AST::LoopLabel> label)
 {
   location_t locus = UNKNOWN_LOCATION;
   if (label)
@@ -1035,7 +1035,7 @@ Parser<ManagedTokenSource>::parse_while_let_loop_expr (
       add_error (std::move (error));
 
       // skip somewhere
-      return tl::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
+      return gcc::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
     }
   // as this token is definitely let now, save the computation of comparison
   lexer.skip_token ();
@@ -1049,13 +1049,13 @@ Parser<ManagedTokenSource>::parse_while_let_loop_expr (
       Error error (lexer.peek_token ()->get_locus (),
 		   "should be at least 1 pattern");
       add_error (std::move (error));
-      return tl::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
+      return gcc::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
     }
 
   if (!skip_token (EQUAL))
     {
       // skip somewhere?
-      return tl::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
+      return gcc::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
     }
 
   /* parse predicate expression, which is required (and HACK to prevent struct
@@ -1070,7 +1070,7 @@ Parser<ManagedTokenSource>::parse_while_let_loop_expr (
       add_error (std::move (error));
 
       // skip somewhere?
-      return tl::unexpected<Parse::Error::Node> (
+      return gcc::unexpected<Parse::Error::Node> (
 	Parse::Error::Node::CHILD_ERROR);
     }
   /* TODO: ensure that struct expression is not parsed? Actually, probably in
@@ -1085,7 +1085,7 @@ Parser<ManagedTokenSource>::parse_while_let_loop_expr (
       add_error (std::move (error));
 
       // skip somewhere?
-      return tl::unexpected<Parse::Error::Node> (
+      return gcc::unexpected<Parse::Error::Node> (
 	Parse::Error::Node::CHILD_ERROR);
     }
 
@@ -1099,9 +1099,9 @@ Parser<ManagedTokenSource>::parse_while_let_loop_expr (
 /* Parses a "for" iterative loop. Label is not parsed and should be parsed via
  * parse_labelled_loop_expr, which would call this. */
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::ForLoopExpr>, Parse::Error::Node>
+gcc::expected<std::unique_ptr<AST::ForLoopExpr>, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_for_loop_expr (
-  AST::AttrVec outer_attrs, tl::optional<AST::LoopLabel> label)
+  AST::AttrVec outer_attrs, gcc::optional<AST::LoopLabel> label)
 {
   location_t locus = UNKNOWN_LOCATION;
   if (label)
@@ -1119,14 +1119,14 @@ Parser<ManagedTokenSource>::parse_for_loop_expr (
       add_error (std::move (error));
 
       // skip somewhere?
-      return tl::unexpected<Parse::Error::Node> (
+      return gcc::unexpected<Parse::Error::Node> (
 	Parse::Error::Node::CHILD_ERROR);
     }
 
   if (!skip_token (IN))
     {
       // skip somewhere?
-      return tl::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
+      return gcc::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
     }
 
   /* parse iterator expression, which is required - also HACK to prevent
@@ -1141,7 +1141,7 @@ Parser<ManagedTokenSource>::parse_for_loop_expr (
       add_error (std::move (error));
 
       // skip somewhere?
-      return tl::unexpected<Parse::Error::Node> (
+      return gcc::unexpected<Parse::Error::Node> (
 	Parse::Error::Node::CHILD_ERROR);
     }
   // TODO: check to ensure this isn't struct expr? Or in semantic analysis.
@@ -1155,7 +1155,7 @@ Parser<ManagedTokenSource>::parse_for_loop_expr (
       add_error (std::move (error));
 
       // skip somewhere?
-      return tl::unexpected<Parse::Error::Node> (
+      return gcc::unexpected<Parse::Error::Node> (
 	Parse::Error::Node::CHILD_ERROR);
     }
   return std::unique_ptr<AST::ForLoopExpr> (
@@ -1166,7 +1166,7 @@ Parser<ManagedTokenSource>::parse_for_loop_expr (
 
 // Parses a loop expression with label (any kind of loop - disambiguates).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::Expr>, Parse::Error::Node>
+gcc::expected<std::unique_ptr<AST::Expr>, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_labelled_loop_expr (const_TokenPtr tok,
 						      AST::AttrVec outer_attrs)
 {
@@ -1186,7 +1186,7 @@ Parser<ManagedTokenSource>::parse_labelled_loop_expr (const_TokenPtr tok,
 		       "label) - found %qs",
 		       tok->get_token_description ());
 	  add_error (std::move (error));
-	  return tl::unexpected<Parse::Error::Node> (
+	  return gcc::unexpected<Parse::Error::Node> (
 	    Parse::Error::Node::CHILD_ERROR);
 	}
 
@@ -1197,14 +1197,14 @@ Parser<ManagedTokenSource>::parse_labelled_loop_expr (const_TokenPtr tok,
 	  add_error (std::move (error));
 
 	  // skip?
-	  return tl::unexpected<Parse::Error::Node> (
+	  return gcc::unexpected<Parse::Error::Node> (
 	    Parse::Error::Node::CHILD_ERROR);
 	}
     }
 
   auto label = parsed_label
-		 ? tl::optional<AST::LoopLabel> (parsed_label.value ())
-		 : tl::nullopt;
+		 ? gcc::optional<AST::LoopLabel> (parsed_label.value ())
+		 : gcc::nullopt;
 
   // branch on next token
   const_TokenPtr t = lexer.peek_token ();
@@ -1231,14 +1231,14 @@ Parser<ManagedTokenSource>::parse_labelled_loop_expr (const_TokenPtr tok,
 			t->get_token_description ()));
 
       // skip?
-      return tl::unexpected<Parse::Error::Node> (
+      return gcc::unexpected<Parse::Error::Node> (
 	Parse::Error::Node::CHILD_ERROR);
     }
 }
 
 // Parses a match expression.
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::MatchExpr>, Parse::Error::Node>
+gcc::expected<std::unique_ptr<AST::MatchExpr>, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_match_expr (AST::AttrVec outer_attrs,
 					      location_t pratt_parsed_loc)
 {
@@ -1261,7 +1261,7 @@ Parser<ManagedTokenSource>::parse_match_expr (AST::AttrVec outer_attrs,
       add_error (std::move (error));
 
       // skip somewhere?
-      return tl::unexpected<Parse::Error::Node> (
+      return gcc::unexpected<Parse::Error::Node> (
 	Parse::Error::Node::CHILD_ERROR);
     }
   /* TODO: check for scrutinee expr not being struct expr? or do so in
@@ -1270,7 +1270,7 @@ Parser<ManagedTokenSource>::parse_match_expr (AST::AttrVec outer_attrs,
   if (!skip_token (LEFT_CURLY))
     {
       // skip somewhere?
-      return tl::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
+      return gcc::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
     }
 
   // parse inner attributes (if they exist)
@@ -1292,7 +1292,7 @@ Parser<ManagedTokenSource>::parse_match_expr (AST::AttrVec outer_attrs,
 		       "failed to parse match arm in match arms");
 	  add_error (std::move (error));
 
-	  return tl::unexpected<Parse::Error::Node> (
+	  return gcc::unexpected<Parse::Error::Node> (
 	    Parse::Error::Node::CHILD_ERROR);
 	}
 
@@ -1300,7 +1300,7 @@ Parser<ManagedTokenSource>::parse_match_expr (AST::AttrVec outer_attrs,
 	{
 	  // skip after somewhere?
 	  // TODO is returning here a good idea? or is break better?
-	  return tl::unexpected<Parse::Error::Node> (
+	  return gcc::unexpected<Parse::Error::Node> (
 	    Parse::Error::Node::MALFORMED);
 	}
 
@@ -1314,7 +1314,7 @@ Parser<ManagedTokenSource>::parse_match_expr (AST::AttrVec outer_attrs,
 	  /* We don't need to throw an error as it already reported by
 	   * parse_expr
 	   */
-	  return tl::unexpected<Parse::Error::Node> (
+	  return gcc::unexpected<Parse::Error::Node> (
 	    Parse::Error::Node::CHILD_ERROR);
 	}
 
@@ -1340,7 +1340,7 @@ Parser<ManagedTokenSource>::parse_match_expr (AST::AttrVec outer_attrs,
 			   "expression in match arm (if not final case)");
 	      add_error (std::move (error));
 
-	      return tl::unexpected<Parse::Error::Node> (
+	      return gcc::unexpected<Parse::Error::Node> (
 		Parse::Error::Node::MALFORMED);
 	    }
 	  else
@@ -1355,7 +1355,7 @@ Parser<ManagedTokenSource>::parse_match_expr (AST::AttrVec outer_attrs,
   if (!skip_token (RIGHT_CURLY))
     {
       // skip somewhere?
-      return tl::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
+      return gcc::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
     }
 
   match_arms.shrink_to_fit ();
@@ -1368,7 +1368,7 @@ Parser<ManagedTokenSource>::parse_match_expr (AST::AttrVec outer_attrs,
 
 // Parses an async block expression.
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::AsyncBlockExpr>, Parse::Error::Node>
+gcc::expected<std::unique_ptr<AST::AsyncBlockExpr>, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_async_block_expr (AST::AttrVec outer_attrs)
 {
   location_t locus = lexer.peek_token ()->get_locus ();
@@ -1392,7 +1392,7 @@ Parser<ManagedTokenSource>::parse_async_block_expr (AST::AttrVec outer_attrs)
       add_error (std::move (error));
 
       // skip somewhere?
-      return tl::unexpected<Parse::Error::Node> (
+      return gcc::unexpected<Parse::Error::Node> (
 	Parse::Error::Node::CHILD_ERROR);
     }
 
@@ -1403,7 +1403,7 @@ Parser<ManagedTokenSource>::parse_async_block_expr (AST::AttrVec outer_attrs)
 
 // Parses an unsafe block expression.
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::UnsafeBlockExpr>, Parse::Error::Node>
+gcc::expected<std::unique_ptr<AST::UnsafeBlockExpr>, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_unsafe_block_expr (
   AST::AttrVec outer_attrs, location_t pratt_parsed_loc)
 {
@@ -1424,7 +1424,7 @@ Parser<ManagedTokenSource>::parse_unsafe_block_expr (
       add_error (std::move (error));
 
       // skip somewhere?
-      return tl::unexpected<Parse::Error::Node> (
+      return gcc::unexpected<Parse::Error::Node> (
 	Parse::Error::Node::CHILD_ERROR);
     }
   return std::unique_ptr<AST::UnsafeBlockExpr> (
@@ -1434,7 +1434,7 @@ Parser<ManagedTokenSource>::parse_unsafe_block_expr (
 
 // Parses an array definition expression.
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::ArrayExpr>, Parse::Error::Node>
+gcc::expected<std::unique_ptr<AST::ArrayExpr>, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_array_expr (AST::AttrVec outer_attrs,
 					      location_t pratt_parsed_loc)
 {
@@ -1474,7 +1474,7 @@ Parser<ManagedTokenSource>::parse_array_expr (AST::AttrVec outer_attrs,
 	  add_error (std::move (error));
 
 	  // skip somewhere?
-	  return tl::unexpected<Parse::Error::Node> (
+	  return gcc::unexpected<Parse::Error::Node> (
 	    Parse::Error::Node::CHILD_ERROR);
 	}
 
@@ -1493,7 +1493,7 @@ Parser<ManagedTokenSource>::parse_array_expr (AST::AttrVec outer_attrs,
 	      add_error (std::move (error));
 
 	      // skip somewhere?
-	      return tl::unexpected<Parse::Error::Node> (
+	      return gcc::unexpected<Parse::Error::Node> (
 		Parse::Error::Node::CHILD_ERROR);
 	    }
 
@@ -1549,7 +1549,7 @@ Parser<ManagedTokenSource>::parse_array_expr (AST::AttrVec outer_attrs,
 		  add_error (std::move (error));
 
 		  // skip somewhere?
-		  return tl::unexpected<Parse::Error::Node> (
+		  return gcc::unexpected<Parse::Error::Node> (
 		    Parse::Error::Node::CHILD_ERROR);
 		}
 	      exprs.push_back (std::move (expr.value ()));
@@ -1577,7 +1577,7 @@ Parser<ManagedTokenSource>::parse_array_expr (AST::AttrVec outer_attrs,
 	  add_error (std::move (error));
 
 	  // skip somewhere?
-	  return tl::unexpected<Parse::Error::Node> (
+	  return gcc::unexpected<Parse::Error::Node> (
 	    Parse::Error::Node::MALFORMED);
 	}
     }
@@ -1585,7 +1585,7 @@ Parser<ManagedTokenSource>::parse_array_expr (AST::AttrVec outer_attrs,
 
 // Parses a grouped or tuple expression (disambiguates).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::ExprWithoutBlock>, Parse::Error::Node>
+gcc::expected<std::unique_ptr<AST::ExprWithoutBlock>, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_grouped_or_tuple_expr (
   AST::AttrVec outer_attrs, location_t pratt_parsed_loc)
 {
@@ -1621,7 +1621,7 @@ Parser<ManagedTokenSource>::parse_grouped_or_tuple_expr (
       add_error (std::move (error));
 
       // skip after somewhere?
-      return tl::unexpected<Parse::Error::Node> (
+      return gcc::unexpected<Parse::Error::Node> (
 	Parse::Error::Node::CHILD_ERROR);
     }
 
@@ -1662,7 +1662,7 @@ Parser<ManagedTokenSource>::parse_grouped_or_tuple_expr (
 	      add_error (std::move (error));
 
 	      // skip somewhere?
-	      return tl::unexpected<Parse::Error::Node> (
+	      return gcc::unexpected<Parse::Error::Node> (
 		Parse::Error::Node::CHILD_ERROR);
 	    }
 	  exprs.push_back (std::move (expr.value ()));
@@ -1689,13 +1689,13 @@ Parser<ManagedTokenSource>::parse_grouped_or_tuple_expr (
       add_error (std::move (error));
 
       // skip somewhere?
-      return tl::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
+      return gcc::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
     }
 }
 
 // Parses a struct expression field.
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::StructExprField>,
+gcc::expected<std::unique_ptr<AST::StructExprField>,
 	     Parse::Error::StructExprField>
 Parser<ManagedTokenSource>::parse_struct_expr_field ()
 {
@@ -1719,7 +1719,7 @@ Parser<ManagedTokenSource>::parse_struct_expr_field ()
 			   "identifier and expression");
 	      add_error (std::move (error));
 
-	      return tl::unexpected<Parse::Error::StructExprField> (
+	      return gcc::unexpected<Parse::Error::StructExprField> (
 		Parse::Error::StructExprField::CHILD_ERROR);
 	    }
 
@@ -1749,7 +1749,7 @@ Parser<ManagedTokenSource>::parse_struct_expr_field ()
 	if (!skip_token (COLON))
 	  {
 	    // skip somewhere?
-	    return tl::unexpected<Parse::Error::StructExprField> (
+	    return gcc::unexpected<Parse::Error::StructExprField> (
 	      Parse::Error::StructExprField::MALFORMED);
 	  }
 
@@ -1762,7 +1762,7 @@ Parser<ManagedTokenSource>::parse_struct_expr_field ()
 			 "field with tuple index");
 	    add_error (std::move (error));
 
-	    return tl::unexpected<Parse::Error::StructExprField> (
+	    return gcc::unexpected<Parse::Error::StructExprField> (
 	      Parse::Error::StructExprField::CHILD_ERROR);
 	  }
 
@@ -1781,11 +1781,11 @@ Parser<ManagedTokenSource>::parse_struct_expr_field ()
 		   "attributes are not allowed before %<..%> in a struct "
 		   "expression"));
 
-	  return tl::unexpected<Parse::Error::StructExprField> (
+	  return gcc::unexpected<Parse::Error::StructExprField> (
 	    Parse::Error::StructExprField::STRUCT_BASE_ATTRIBUTES);
 	}
 
-      return tl::unexpected<Parse::Error::StructExprField> (
+      return gcc::unexpected<Parse::Error::StructExprField> (
 	Parse::Error::StructExprField::STRUCT_BASE);
     default:
       add_error (
@@ -1794,7 +1794,7 @@ Parser<ManagedTokenSource>::parse_struct_expr_field ()
 	       "expected identifier or integer literal",
 	       t->get_token_description ()));
 
-      return tl::unexpected<Parse::Error::StructExprField> (
+      return gcc::unexpected<Parse::Error::StructExprField> (
 	Parse::Error::StructExprField::MALFORMED);
     }
 }
@@ -1802,7 +1802,7 @@ Parser<ManagedTokenSource>::parse_struct_expr_field ()
 /* Pratt parser impl of parse_expr. FIXME: this is only provisional and
  * probably will be changed. */
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::Expr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::Expr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_expr (int right_binding_power,
 					AST::AttrVec outer_attrs,
 					ParseRestrictions restrictions)
@@ -1818,7 +1818,7 @@ Parser<ManagedTokenSource>::parse_expr (int right_binding_power,
       TokenId id = current_token->get_id ();
       if (id == SEMICOLON || id == RIGHT_PAREN || id == RIGHT_CURLY
 	  || id == RIGHT_SQUARE || id == COMMA || id == LEFT_CURLY)
-	return tl::unexpected<Parse::Error::Expr> (
+	return gcc::unexpected<Parse::Error::Expr> (
 	  Parse::Error::Expr::NULL_EXPR);
     }
 
@@ -1826,12 +1826,12 @@ Parser<ManagedTokenSource>::parse_expr (int right_binding_power,
   null_denotation_restrictions.expr_can_be_stmt = false;
 
   // parse null denotation (unary part of expression)
-  tl::expected<std::unique_ptr<AST::Expr>, Parse::Error::Expr> expr
+  gcc::expected<std::unique_ptr<AST::Expr>, Parse::Error::Expr> expr
     = null_denotation ({}, null_denotation_restrictions);
   if (!expr)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
   if (expr.value () == nullptr)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
 
   return left_denotations (std::move (expr), right_binding_power,
 			   std::move (outer_attrs), restrictions);
@@ -1839,7 +1839,7 @@ Parser<ManagedTokenSource>::parse_expr (int right_binding_power,
 
 // Parse expression with lowest left binding power.
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::Expr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::Expr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_expr (AST::AttrVec outer_attrs,
 					ParseRestrictions restrictions)
 {
@@ -1847,9 +1847,9 @@ Parser<ManagedTokenSource>::parse_expr (AST::AttrVec outer_attrs,
 }
 
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::Expr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::Expr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::left_denotations (
-  tl::expected<std::unique_ptr<AST::Expr>, Parse::Error::Expr> expr,
+  gcc::expected<std::unique_ptr<AST::Expr>, Parse::Error::Expr> expr,
   int right_binding_power, AST::AttrVec outer_attrs,
   ParseRestrictions restrictions)
 {
@@ -1857,7 +1857,7 @@ Parser<ManagedTokenSource>::left_denotations (
     {
       // DEBUG
       rust_debug ("null denotation is null; returning null for parse_expr");
-      return tl::unexpected<Parse::Error::Expr> (
+      return gcc::unexpected<Parse::Error::Expr> (
 	Parse::Error::Expr::NULL_DENOTATION);
     }
 
@@ -1888,7 +1888,7 @@ Parser<ManagedTokenSource>::left_denotations (
 	  // DEBUG
 	  rust_debug ("left denotation is null; returning null for parse_expr");
 
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::LEFT_DENOTATION);
 	}
 
@@ -1900,7 +1900,7 @@ Parser<ManagedTokenSource>::left_denotations (
 
 /* Determines action to take when finding token at beginning of expression. */
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::Expr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::Expr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::null_denotation (AST::AttrVec outer_attrs,
 					     ParseRestrictions restrictions)
 {
@@ -1954,7 +1954,7 @@ Parser<ManagedTokenSource>::null_denotation (AST::AttrVec outer_attrs,
 	    if (next_tok->get_id () == SEMICOLON)
 	      add_error (Error (next_tok->get_locus (),
 				"expected expression, found %<;%>"));
-	    return tl::unexpected<Parse::Error::Expr> (
+	    return gcc::unexpected<Parse::Error::Expr> (
 	      Parse::Error::Expr::CHILD_ERROR);
 	  }
 	return expr;
@@ -1974,7 +1974,7 @@ Parser<ManagedTokenSource>::null_denotation (AST::AttrVec outer_attrs,
 
 // Handling of expresions that start with a path for `null_denotation`.
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::Expr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::Expr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::null_denotation_path (
   AST::PathInExpression path, AST::AttrVec outer_attrs,
   ParseRestrictions restrictions)
@@ -2000,7 +2000,7 @@ Parser<ManagedTokenSource>::null_denotation_path (
 	auto macro = parse_macro_invocation_partial (std::move (path),
 						     std::move (outer_attrs));
 	if (macro == nullptr)
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::CHILD_ERROR);
 	return std::unique_ptr<AST::Expr> (std::move (macro));
       }
@@ -2042,7 +2042,7 @@ Parser<ManagedTokenSource>::null_denotation_path (
 					      std::move (outer_attrs));
 	if (struct_expr == nullptr)
 	  {
-	    return tl::unexpected<Parse::Error::Expr> (
+	    return gcc::unexpected<Parse::Error::Expr> (
 	      Parse::Error::Expr::CHILD_ERROR);
 	  }
 	return struct_expr;
@@ -2062,7 +2062,7 @@ Parser<ManagedTokenSource>::null_denotation_path (
 					     std::move (outer_attrs));
 	if (tuple_expr == nullptr)
 	  {
-	    return tl::unexpected<Parse::Error::Expr> (
+	    return gcc::unexpected<Parse::Error::Expr> (
 	      Parse::Error::Expr::CHILD_ERROR);
 	  }
 	return tuple_expr;
@@ -2088,7 +2088,7 @@ Parser<ManagedTokenSource>::null_denotation_path (
 
 // Handling of expresions that do not start with a path for `null_denotation`.
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::Expr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::Expr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::null_denotation_not_path (
   const_TokenPtr tok, AST::AttrVec outer_attrs, ParseRestrictions restrictions)
 {
@@ -2147,7 +2147,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 		       "C-style string literals require "
 		       "%<-frust-compat-version%> to be set to least 1.64");
 	  add_error (std::move (error));
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::MALFORMED);
 	}
     case CHAR_LITERAL:
@@ -2176,7 +2176,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	if (grouped_or_tuple_expr)
 	  return std::move (grouped_or_tuple_expr.value ());
 	else
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::CHILD_ERROR);
       }
 
@@ -2205,7 +2205,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	auto expr = parse_expr (LBP_UNARY_MINUS, {}, entered_from_unary);
 
 	if (!expr)
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::CHILD_ERROR);
 	// can only apply to integer and float expressions
 	/*if (expr.get_type() != integer_type_node || expr.get_type() !=
@@ -2234,7 +2234,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	auto expr = parse_expr (LBP_UNARY_EXCLAM, {}, entered_from_unary);
 
 	if (!expr)
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::CHILD_ERROR);
 	// can only apply to boolean expressions
 	/*if (expr.get_type() != boolean_type_node) {
@@ -2261,7 +2261,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	entered_from_unary.can_be_struct_expr = false;
 	auto expr = parse_expr (LBP_UNARY_ASTERISK, {}, entered_from_unary);
 	if (!expr)
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::CHILD_ERROR);
 	// FIXME: allow outer attributes on expression
 	return std::make_unique<AST::DereferenceExpr> (std::move (
@@ -2272,8 +2272,8 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
     case AMP:
       {
 	// (single) "borrow" expression - shared (mutable) or immutable
-	tl::expected<std::unique_ptr<AST::Expr>, Parse::Error::Expr> expr
-	  = tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
+	gcc::expected<std::unique_ptr<AST::Expr>, Parse::Error::Expr> expr
+	  = gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
 	Mutability mutability = Mutability::Imm;
 	bool raw_borrow = false;
 
@@ -2312,7 +2312,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	    if (expr_result)
 	      expr = std::move (expr_result.value ());
 	    else
-	      return tl::unexpected<Parse::Error::Expr> (
+	      return gcc::unexpected<Parse::Error::Expr> (
 		Parse::Error::Expr::CHILD_ERROR);
 	    raw_borrow = true;
 	  }
@@ -2324,7 +2324,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	    if (expr_result)
 	      expr = std::move (expr_result.value ());
 	    else
-	      return tl::unexpected<Parse::Error::Expr> (
+	      return gcc::unexpected<Parse::Error::Expr> (
 		Parse::Error::Expr::CHILD_ERROR);
 	    mutability = Mutability::Mut;
 	    raw_borrow = false;
@@ -2336,7 +2336,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	    if (expr_result)
 	      expr = std::move (expr_result.value ());
 	    else
-	      return tl::unexpected<Parse::Error::Expr> (
+	      return gcc::unexpected<Parse::Error::Expr> (
 		Parse::Error::Expr::CHILD_ERROR);
 	    raw_borrow = false;
 	  }
@@ -2362,7 +2362,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	    auto expr_res
 	      = parse_expr (LBP_UNARY_AMP_MUT, {}, entered_from_unary);
 	    if (!expr_res)
-	      return tl::unexpected<Parse::Error::Expr> (
+	      return gcc::unexpected<Parse::Error::Expr> (
 		Parse::Error::Expr::CHILD_ERROR);
 	    expr = std::move (expr_res.value ());
 	    mutability = Mutability::Mut;
@@ -2374,7 +2374,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	    if (expr_result)
 	      expr = std::move (expr_result.value ());
 	    else
-	      return tl::unexpected<Parse::Error::Expr> (
+	      return gcc::unexpected<Parse::Error::Expr> (
 		Parse::Error::Expr::CHILD_ERROR);
 	    mutability = Mutability::Imm;
 	  }
@@ -2394,7 +2394,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	if (ret)
 	  return std::move (ret.value ());
 	else
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::CHILD_ERROR);
       }
     case DOT_DOT:
@@ -2405,7 +2405,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	if (ret)
 	  return std::move (ret.value ());
 	else
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::CHILD_ERROR);
       }
     case DOT_DOT_EQ:
@@ -2415,7 +2415,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	if (ret)
 	  return std::move (ret.value ());
 	else
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::CHILD_ERROR);
       }
     case RETURN_KW:
@@ -2426,7 +2426,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	if (ret)
 	  return std::move (ret.value ());
 	else
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::CHILD_ERROR);
       }
     case TRY:
@@ -2436,7 +2436,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	if (ret)
 	  return std::move (ret.value ());
 	else
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::CHILD_ERROR);
       }
     case BREAK:
@@ -2447,7 +2447,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	if (ret)
 	  return std::move (ret.value ());
 	else
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::CHILD_ERROR);
       }
     case CONTINUE:
@@ -2455,12 +2455,12 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
     case LEFT_CURLY:
       // ok - this is an expression with block for once.
       {
-	auto ret = parse_block_expr (std::move (outer_attrs), tl::nullopt,
+	auto ret = parse_block_expr (std::move (outer_attrs), gcc::nullopt,
 				     tok->get_locus ());
 	if (ret)
 	  return std::move (ret.value ());
 	else
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::CHILD_ERROR);
       }
     case IF:
@@ -2473,7 +2473,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	  if (ret)
 	    return std::move (ret.value ());
 	  else
-	    return tl::unexpected<Parse::Error::Expr> (
+	    return gcc::unexpected<Parse::Error::Expr> (
 	      Parse::Error::Expr::CHILD_ERROR);
 	}
       else
@@ -2483,7 +2483,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	  if (ret)
 	    return std::move (ret.value ());
 	  else
-	    return tl::unexpected<Parse::Error::Expr> (
+	    return gcc::unexpected<Parse::Error::Expr> (
 	      Parse::Error::Expr::CHILD_ERROR);
 	}
     case LIFETIME:
@@ -2492,17 +2492,17 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	if (ret)
 	  return std::move (ret.value ());
 	else
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::CHILD_ERROR);
       }
     case LOOP:
       {
-	auto ret = parse_loop_expr (std::move (outer_attrs), tl::nullopt,
+	auto ret = parse_loop_expr (std::move (outer_attrs), gcc::nullopt,
 				    tok->get_locus ());
 	if (ret)
 	  return std::move (ret.value ());
 	else
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::CHILD_ERROR);
       }
     case WHILE:
@@ -2512,26 +2512,26 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	  if (ret)
 	    return std::move (ret.value ());
 	  else
-	    return tl::unexpected<Parse::Error::Expr> (
+	    return gcc::unexpected<Parse::Error::Expr> (
 	      Parse::Error::Expr::CHILD_ERROR);
 	}
       else
 	{
 	  auto ret = parse_while_loop_expr (std::move (outer_attrs),
-					    tl::nullopt, tok->get_locus ());
+					    gcc::nullopt, tok->get_locus ());
 	  if (ret)
 	    return std::move (ret.value ());
 	  else
-	    return tl::unexpected<Parse::Error::Expr> (
+	    return gcc::unexpected<Parse::Error::Expr> (
 	      Parse::Error::Expr::CHILD_ERROR);
 	}
     case FOR:
       {
-	auto ret = parse_for_loop_expr (std::move (outer_attrs), tl::nullopt);
+	auto ret = parse_for_loop_expr (std::move (outer_attrs), gcc::nullopt);
 	if (ret)
 	  return std::move (ret.value ());
 	else
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::CHILD_ERROR);
       }
     case MATCH_KW:
@@ -2542,7 +2542,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	if (ret)
 	  return std::move (ret.value ());
 	else
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::CHILD_ERROR);
       }
 
@@ -2554,7 +2554,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	if (ret)
 	  return std::move (ret.value ());
 	else
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::CHILD_ERROR);
       }
     case UNSAFE:
@@ -2564,7 +2564,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	if (ret)
 	  return std::move (ret.value ());
 	else
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::CHILD_ERROR);
       }
     case BOX:
@@ -2573,7 +2573,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	if (ret)
 	  return std::move (ret.value ());
 	else
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::CHILD_ERROR);
       }
     case UNDERSCORE:
@@ -2581,7 +2581,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	Error (tok->get_locus (),
 	       "use of %qs is not allowed on the right-side of an assignment",
 	       tok->get_token_description ()));
-      return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
+      return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
     case CONST:
       {
 	auto ret
@@ -2589,7 +2589,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	if (ret)
 	  return std::move (ret.value ());
 	else
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::CHILD_ERROR);
       }
     default:
@@ -2597,7 +2597,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
 	add_error (Error (tok->get_locus (),
 			  "found unexpected token %qs in null denotation",
 			  tok->get_token_description ()));
-      return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
+      return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
     }
 }
 
@@ -2605,7 +2605,7 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
  * operators or other punctuation. Returns a function pointer to member
  * function that implements the left denotation for the token given. */
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::Expr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::Expr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::left_denotation (const_TokenPtr tok,
 					     std::unique_ptr<AST::Expr> left,
 					     AST::AttrVec outer_attrs,
@@ -2868,7 +2868,7 @@ Parser<ManagedTokenSource>::left_denotation (const_TokenPtr tok,
 	       "found scope resolution operator in left denotation "
 	       "function - this should probably be handled elsewhere"));
 
-      return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
+      return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
     case DOT:
       {
 	/* field expression or method call - relies on parentheses after next
@@ -2959,7 +2959,7 @@ Parser<ManagedTokenSource>::left_denotation (const_TokenPtr tok,
 			"found unexpected token %qs in left denotation",
 			tok->get_token_description ()));
 
-      return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
+      return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
     }
 }
 
@@ -3001,7 +3001,7 @@ get_lbp_for_arithmetic_or_logical_expr (
 
 // Parses an arithmetic or logical expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::ArithmeticOrLogicalExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::ArithmeticOrLogicalExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_arithmetic_or_logical_expr (
   const_TokenPtr, std::unique_ptr<AST::Expr> left, AST::AttrVec,
   AST::ArithmeticOrLogicalExpr::ExprType expr_type,
@@ -3011,7 +3011,7 @@ Parser<ManagedTokenSource>::parse_arithmetic_or_logical_expr (
   auto right = parse_expr (get_lbp_for_arithmetic_or_logical_expr (expr_type),
 			   AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
 
   // TODO: check types. actually, do so during semantic analysis
   location_t locus = left->get_locus ();
@@ -3022,7 +3022,7 @@ Parser<ManagedTokenSource>::parse_arithmetic_or_logical_expr (
 
 // Parses a binary addition expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::ArithmeticOrLogicalExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::ArithmeticOrLogicalExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_binary_plus_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3030,7 +3030,7 @@ Parser<ManagedTokenSource>::parse_binary_plus_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_PLUS, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
 
   // TODO: check types. actually, do so during semantic analysis
   location_t locus = left->get_locus ();
@@ -3042,7 +3042,7 @@ Parser<ManagedTokenSource>::parse_binary_plus_expr (
 
 // Parses a binary subtraction expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::ArithmeticOrLogicalExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::ArithmeticOrLogicalExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_binary_minus_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3050,7 +3050,7 @@ Parser<ManagedTokenSource>::parse_binary_minus_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_MINUS, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
 
   // TODO: check types. actually, do so during semantic analysis
   location_t locus = left->get_locus ();
@@ -3062,7 +3062,7 @@ Parser<ManagedTokenSource>::parse_binary_minus_expr (
 
 // Parses a binary multiplication expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::ArithmeticOrLogicalExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::ArithmeticOrLogicalExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_binary_mult_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3070,7 +3070,7 @@ Parser<ManagedTokenSource>::parse_binary_mult_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_MUL, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
 
   // TODO: check types. actually, do so during semantic analysis
   location_t locus = left->get_locus ();
@@ -3082,7 +3082,7 @@ Parser<ManagedTokenSource>::parse_binary_mult_expr (
 
 // Parses a binary division expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::ArithmeticOrLogicalExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::ArithmeticOrLogicalExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_binary_div_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3090,7 +3090,7 @@ Parser<ManagedTokenSource>::parse_binary_div_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_DIV, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
 
   // TODO: check types. actually, do so during semantic analysis
   location_t locus = left->get_locus ();
@@ -3102,7 +3102,7 @@ Parser<ManagedTokenSource>::parse_binary_div_expr (
 
 // Parses a binary modulo expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::ArithmeticOrLogicalExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::ArithmeticOrLogicalExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_binary_mod_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3110,7 +3110,7 @@ Parser<ManagedTokenSource>::parse_binary_mod_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_MOD, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
 
   // TODO: check types. actually, do so during semantic analysis
   location_t locus = left->get_locus ();
@@ -3123,7 +3123,7 @@ Parser<ManagedTokenSource>::parse_binary_mod_expr (
 /* Parses a binary bitwise (or eager logical) and expression (with Pratt
  * parsing). */
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::ArithmeticOrLogicalExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::ArithmeticOrLogicalExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_bitwise_and_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3131,7 +3131,7 @@ Parser<ManagedTokenSource>::parse_bitwise_and_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_AMP, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
 
   // TODO: check types. actually, do so during semantic analysis
   location_t locus = left->get_locus ();
@@ -3144,7 +3144,7 @@ Parser<ManagedTokenSource>::parse_bitwise_and_expr (
 /* Parses a binary bitwise (or eager logical) or expression (with Pratt
  * parsing). */
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::ArithmeticOrLogicalExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::ArithmeticOrLogicalExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_bitwise_or_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3152,7 +3152,7 @@ Parser<ManagedTokenSource>::parse_bitwise_or_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_PIPE, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
 
   // TODO: check types. actually, do so during semantic analysis
   location_t locus = left->get_locus ();
@@ -3165,7 +3165,7 @@ Parser<ManagedTokenSource>::parse_bitwise_or_expr (
 /* Parses a binary bitwise (or eager logical) xor expression (with Pratt
  * parsing). */
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::ArithmeticOrLogicalExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::ArithmeticOrLogicalExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_bitwise_xor_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3173,7 +3173,7 @@ Parser<ManagedTokenSource>::parse_bitwise_xor_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_CARET, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
 
   // TODO: check types. actually, do so during semantic analysis
   location_t locus = left->get_locus ();
@@ -3185,7 +3185,7 @@ Parser<ManagedTokenSource>::parse_bitwise_xor_expr (
 
 // Parses a binary left shift expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::ArithmeticOrLogicalExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::ArithmeticOrLogicalExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_left_shift_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3193,7 +3193,7 @@ Parser<ManagedTokenSource>::parse_left_shift_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_L_SHIFT, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
 
   // TODO: check types. actually, do so during semantic analysis
   location_t locus = left->get_locus ();
@@ -3205,7 +3205,7 @@ Parser<ManagedTokenSource>::parse_left_shift_expr (
 
 // Parses a binary right shift expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::ArithmeticOrLogicalExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::ArithmeticOrLogicalExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_right_shift_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3213,7 +3213,7 @@ Parser<ManagedTokenSource>::parse_right_shift_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_R_SHIFT, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
 
   // TODO: check types. actually, do so during semantic analysis
   location_t locus = left->get_locus ();
@@ -3254,7 +3254,7 @@ get_lbp_for_comparison_expr (AST::ComparisonExpr::ExprType expr_type)
  * specify one and have the other looked up - e.g. specify ExprType and
  * binding power is looked up? */
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::ComparisonExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::ComparisonExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_comparison_expr (
   const_TokenPtr, std::unique_ptr<AST::Expr> left, AST::AttrVec,
   AST::ComparisonExpr::ExprType expr_type, ParseRestrictions restrictions)
@@ -3263,7 +3263,7 @@ Parser<ManagedTokenSource>::parse_comparison_expr (
   auto right = parse_expr (get_lbp_for_comparison_expr (expr_type),
 			   AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
 
   // TODO: check types. actually, do so during semantic analysis
   location_t locus = left->get_locus ();
@@ -3275,7 +3275,7 @@ Parser<ManagedTokenSource>::parse_comparison_expr (
 
 // Parses a binary equal to expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::ComparisonExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::ComparisonExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_binary_equal_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3283,7 +3283,7 @@ Parser<ManagedTokenSource>::parse_binary_equal_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_EQUAL, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
 
   // TODO: check types. actually, do so during semantic analysis
   location_t locus = left->get_locus ();
@@ -3296,7 +3296,7 @@ Parser<ManagedTokenSource>::parse_binary_equal_expr (
 
 // Parses a binary not equal to expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::ComparisonExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::ComparisonExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_binary_not_equal_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3304,7 +3304,7 @@ Parser<ManagedTokenSource>::parse_binary_not_equal_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_NOT_EQUAL, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
 
   // TODO: check types. actually, do so during semantic analysis
   location_t locus = left->get_locus ();
@@ -3317,7 +3317,7 @@ Parser<ManagedTokenSource>::parse_binary_not_equal_expr (
 
 // Parses a binary greater than expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::ComparisonExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::ComparisonExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_binary_greater_than_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3325,7 +3325,7 @@ Parser<ManagedTokenSource>::parse_binary_greater_than_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_GREATER_THAN, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
 
   // TODO: check types. actually, do so during semantic analysis
   location_t locus = left->get_locus ();
@@ -3337,7 +3337,7 @@ Parser<ManagedTokenSource>::parse_binary_greater_than_expr (
 
 // Parses a binary less than expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::ComparisonExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::ComparisonExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_binary_less_than_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3345,7 +3345,7 @@ Parser<ManagedTokenSource>::parse_binary_less_than_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_SMALLER_THAN, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
 
   // TODO: check types. actually, do so during semantic analysis
   location_t locus = left->get_locus ();
@@ -3358,7 +3358,7 @@ Parser<ManagedTokenSource>::parse_binary_less_than_expr (
 
 // Parses a binary greater than or equal to expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::ComparisonExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::ComparisonExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_binary_greater_equal_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3366,7 +3366,7 @@ Parser<ManagedTokenSource>::parse_binary_greater_equal_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_GREATER_EQUAL, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
 
   // TODO: check types. actually, do so during semantic analysis
   location_t locus = left->get_locus ();
@@ -3378,7 +3378,7 @@ Parser<ManagedTokenSource>::parse_binary_greater_equal_expr (
 
 // Parses a binary less than or equal to expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::ComparisonExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::ComparisonExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_binary_less_equal_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3386,7 +3386,7 @@ Parser<ManagedTokenSource>::parse_binary_less_equal_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_SMALLER_EQUAL, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
 
   // TODO: check types. actually, do so during semantic analysis
   location_t locus = left->get_locus ();
@@ -3398,7 +3398,7 @@ Parser<ManagedTokenSource>::parse_binary_less_equal_expr (
 
 // Parses a binary lazy boolean or expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::LazyBooleanExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::LazyBooleanExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_lazy_or_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3406,7 +3406,7 @@ Parser<ManagedTokenSource>::parse_lazy_or_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_LOGICAL_OR, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
 
   // TODO: check types. actually, do so during semantic analysis
   location_t locus = left->get_locus ();
@@ -3418,7 +3418,7 @@ Parser<ManagedTokenSource>::parse_lazy_or_expr (
 
 // Parses a binary lazy boolean and expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::LazyBooleanExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::LazyBooleanExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_lazy_and_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3426,7 +3426,7 @@ Parser<ManagedTokenSource>::parse_lazy_and_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_LOGICAL_AND, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
 
   // TODO: check types. actually, do so during semantic analysis
   location_t locus = left->get_locus ();
@@ -3438,7 +3438,7 @@ Parser<ManagedTokenSource>::parse_lazy_and_expr (
 
 // Parses a pseudo-binary infix type cast expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::TypeCastExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::TypeCastExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_type_cast_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> expr_to_cast,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED,
@@ -3447,7 +3447,7 @@ Parser<ManagedTokenSource>::parse_type_cast_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto type = parse_type_no_bounds ();
   if (!type)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
   // FIXME: how do I get precedence put in here?
 
   // TODO: check types. actually, do so during semantic analysis
@@ -3459,7 +3459,7 @@ Parser<ManagedTokenSource>::parse_type_cast_expr (
 
 // Parses a binary assignment expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::AssignmentExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::AssignmentExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_assig_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs, ParseRestrictions restrictions)
@@ -3467,7 +3467,7 @@ Parser<ManagedTokenSource>::parse_assig_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_ASSIG - 1, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
   // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
 
   location_t locus = left->get_locus ();
@@ -3515,7 +3515,7 @@ get_lbp_for_compound_assignment_expr (
 
 // Parses a compound assignment expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::CompoundAssignmentExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::CompoundAssignmentExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_compound_assignment_expr (
   const_TokenPtr, std::unique_ptr<AST::Expr> left, AST::AttrVec,
   AST::CompoundAssignmentExpr::ExprType expr_type,
@@ -3525,7 +3525,7 @@ Parser<ManagedTokenSource>::parse_compound_assignment_expr (
   auto right = parse_expr (get_lbp_for_compound_assignment_expr (expr_type) - 1,
 			   AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
   // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
 
   // TODO: check types. actually, do so during semantic analysis
@@ -3537,7 +3537,7 @@ Parser<ManagedTokenSource>::parse_compound_assignment_expr (
 
 // Parses a binary add-assignment expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::CompoundAssignmentExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::CompoundAssignmentExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_plus_assig_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3545,7 +3545,7 @@ Parser<ManagedTokenSource>::parse_plus_assig_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_PLUS_ASSIG - 1, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
   // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
 
   // TODO: check types. actually, do so during semantic analysis
@@ -3558,7 +3558,7 @@ Parser<ManagedTokenSource>::parse_plus_assig_expr (
 
 // Parses a binary minus-assignment expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::CompoundAssignmentExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::CompoundAssignmentExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_minus_assig_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3566,7 +3566,7 @@ Parser<ManagedTokenSource>::parse_minus_assig_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_MINUS_ASSIG - 1, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
   // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
 
   // TODO: check types. actually, do so during semantic analysis
@@ -3579,7 +3579,7 @@ Parser<ManagedTokenSource>::parse_minus_assig_expr (
 
 // Parses a binary multiplication-assignment expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::CompoundAssignmentExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::CompoundAssignmentExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_mult_assig_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3587,7 +3587,7 @@ Parser<ManagedTokenSource>::parse_mult_assig_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_MULT_ASSIG - 1, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
   // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
 
   // TODO: check types. actually, do so during semantic analysis
@@ -3600,7 +3600,7 @@ Parser<ManagedTokenSource>::parse_mult_assig_expr (
 
 // Parses a binary division-assignment expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::CompoundAssignmentExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::CompoundAssignmentExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_div_assig_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3608,7 +3608,7 @@ Parser<ManagedTokenSource>::parse_div_assig_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_DIV_ASSIG - 1, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
   // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
 
   // TODO: check types. actually, do so during semantic analysis
@@ -3621,7 +3621,7 @@ Parser<ManagedTokenSource>::parse_div_assig_expr (
 
 // Parses a binary modulo-assignment expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::CompoundAssignmentExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::CompoundAssignmentExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_mod_assig_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3629,7 +3629,7 @@ Parser<ManagedTokenSource>::parse_mod_assig_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_MOD_ASSIG - 1, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
   // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
 
   // TODO: check types. actually, do so during semantic analysis
@@ -3642,7 +3642,7 @@ Parser<ManagedTokenSource>::parse_mod_assig_expr (
 
 // Parses a binary and-assignment expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::CompoundAssignmentExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::CompoundAssignmentExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_and_assig_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3650,7 +3650,7 @@ Parser<ManagedTokenSource>::parse_and_assig_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_AMP_ASSIG - 1, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
   // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
 
   // TODO: check types. actually, do so during semantic analysis
@@ -3663,7 +3663,7 @@ Parser<ManagedTokenSource>::parse_and_assig_expr (
 
 // Parses a binary or-assignment expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::CompoundAssignmentExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::CompoundAssignmentExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_or_assig_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3671,7 +3671,7 @@ Parser<ManagedTokenSource>::parse_or_assig_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_PIPE_ASSIG - 1, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
   // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
 
   // TODO: check types. actually, do so during semantic analysis
@@ -3684,7 +3684,7 @@ Parser<ManagedTokenSource>::parse_or_assig_expr (
 
 // Parses a binary xor-assignment expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::CompoundAssignmentExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::CompoundAssignmentExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_xor_assig_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3692,7 +3692,7 @@ Parser<ManagedTokenSource>::parse_xor_assig_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_CARET_ASSIG - 1, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
   // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
 
   // TODO: check types. actually, do so during semantic analysis
@@ -3705,7 +3705,7 @@ Parser<ManagedTokenSource>::parse_xor_assig_expr (
 
 // Parses a binary left shift-assignment expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::CompoundAssignmentExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::CompoundAssignmentExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_left_shift_assig_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3714,7 +3714,7 @@ Parser<ManagedTokenSource>::parse_left_shift_assig_expr (
   auto right
     = parse_expr (LBP_L_SHIFT_ASSIG - 1, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
   // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
 
   // TODO: check types. actually, do so during semantic analysis
@@ -3727,7 +3727,7 @@ Parser<ManagedTokenSource>::parse_left_shift_assig_expr (
 
 // Parses a binary right shift-assignment expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::CompoundAssignmentExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::CompoundAssignmentExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_right_shift_assig_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3736,7 +3736,7 @@ Parser<ManagedTokenSource>::parse_right_shift_assig_expr (
   auto right
     = parse_expr (LBP_R_SHIFT_ASSIG - 1, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
   // FIXME: ensure right-associativity for this - 'LBP - 1' may do this?
 
   // TODO: check types. actually, do so during semantic analysis
@@ -3749,7 +3749,7 @@ Parser<ManagedTokenSource>::parse_right_shift_assig_expr (
 
 // Parses a postfix unary await expression (with Pratt parsing).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::AwaitExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::AwaitExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_await_expr (
   const_TokenPtr tok, std::unique_ptr<AST::Expr> expr_to_await,
   AST::AttrVec outer_attrs)
@@ -3764,7 +3764,7 @@ Parser<ManagedTokenSource>::parse_await_expr (
       add_error (std::move (error));
 
       // skip somewhere?
-      return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
+      return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
     }
 
   // TODO: check inside async block in semantic analysis
@@ -3778,7 +3778,7 @@ Parser<ManagedTokenSource>::parse_await_expr (
 /* Parses an exclusive range ('..') in left denotation position (i.e.
  * RangeFromExpr or RangeFromToExpr). */
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::RangeExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::RangeExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_led_range_exclusive_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3809,7 +3809,7 @@ Parser<ManagedTokenSource>::parse_led_range_exclusive_expr (
 /* Parses an exclusive range ('..') in null denotation position (i.e.
  * RangeToExpr or RangeFullExpr). */
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::RangeExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::RangeExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_nud_range_exclusive_expr (
   const_TokenPtr tok, AST::AttrVec outer_attrs ATTRIBUTE_UNUSED)
 {
@@ -3837,7 +3837,7 @@ Parser<ManagedTokenSource>::parse_nud_range_exclusive_expr (
 
 // Parses a full binary range inclusive expression.
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::RangeFromToInclExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::RangeFromToInclExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_range_inclusive_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> left,
   AST::AttrVec outer_attrs ATTRIBUTE_UNUSED, ParseRestrictions restrictions)
@@ -3845,7 +3845,7 @@ Parser<ManagedTokenSource>::parse_range_inclusive_expr (
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_DOT_DOT_EQ, AST::AttrVec (), restrictions);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
   // FIXME: make non-associative
 
   // TODO: check types. actually, do so during semantic analysis
@@ -3858,14 +3858,14 @@ Parser<ManagedTokenSource>::parse_range_inclusive_expr (
 
 // Parses an inclusive range-to prefix unary expression.
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::RangeToInclExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::RangeToInclExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_range_to_inclusive_expr (
   const_TokenPtr tok, AST::AttrVec outer_attrs ATTRIBUTE_UNUSED)
 {
   // parse RHS (as tok has already been consumed in parse_expression)
   auto right = parse_expr (LBP_DOT_DOT_EQ);
   if (!right)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
   // FIXME: make non-associative
 
   // TODO: check types. actually, do so during semantic analysis
@@ -3876,7 +3876,7 @@ Parser<ManagedTokenSource>::parse_range_to_inclusive_expr (
 
 // Parses a pseudo-binary infix tuple index expression.
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::TupleIndexExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::TupleIndexExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_tuple_index_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> tuple_expr,
   AST::AttrVec outer_attrs, ParseRestrictions restrictions ATTRIBUTE_UNUSED)
@@ -3884,7 +3884,7 @@ Parser<ManagedTokenSource>::parse_tuple_index_expr (
   // parse int literal (as token already skipped)
   const_TokenPtr index_tok = expect_token (INT_LITERAL);
   if (index_tok == nullptr)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
 
   std::string index = index_tok->get_str ();
 
@@ -3906,7 +3906,7 @@ Parser<ManagedTokenSource>::parse_tuple_index_expr (
 
 // Parses a pseudo-binary infix array (or slice) index expression.
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::ArrayIndexExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::ArrayIndexExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_index_expr (
   const_TokenPtr, std::unique_ptr<AST::Expr> array_expr,
   AST::AttrVec outer_attrs, ParseRestrictions)
@@ -3918,13 +3918,13 @@ Parser<ManagedTokenSource>::parse_index_expr (
   // TODO: conceptually, should treat [] as brackets, so just parse all expr
   auto index_expr = parse_expr ();
   if (!index_expr)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::CHILD_ERROR);
 
   // skip ']' at end of array
   if (!skip_token (RIGHT_SQUARE))
     {
       // skip somewhere?
-      return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
+      return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
     }
 
   // TODO: check types. actually, do so during semantic analysis
@@ -3937,7 +3937,7 @@ Parser<ManagedTokenSource>::parse_index_expr (
 
 // Parses a pseudo-binary infix struct field access expression.
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::FieldAccessExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::FieldAccessExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_field_access_expr (
   const_TokenPtr tok ATTRIBUTE_UNUSED, std::unique_ptr<AST::Expr> struct_expr,
   AST::AttrVec outer_attrs, ParseRestrictions restrictions ATTRIBUTE_UNUSED)
@@ -3946,7 +3946,7 @@ Parser<ManagedTokenSource>::parse_field_access_expr (
    * not await, for instance) */
   const_TokenPtr ident_tok = expect_token (IDENTIFIER);
   if (ident_tok == nullptr)
-    return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
+    return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
 
   Identifier ident{ident_tok};
 
@@ -3961,7 +3961,7 @@ Parser<ManagedTokenSource>::parse_field_access_expr (
 
 // Parses a pseudo-binary infix method call expression.
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::MethodCallExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::MethodCallExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_method_call_expr (
   const_TokenPtr tok, std::unique_ptr<AST::Expr> receiver_expr,
   AST::AttrVec outer_attrs, ParseRestrictions)
@@ -3974,14 +3974,14 @@ Parser<ManagedTokenSource>::parse_method_call_expr (
 		   "failed to parse path expr segment of method call expr");
       add_error (std::move (error));
 
-      return tl::unexpected<Parse::Error::Expr> (
+      return gcc::unexpected<Parse::Error::Expr> (
 	Parse::Error::Expr::CHILD_ERROR);
     }
 
   // skip left parentheses
   if (!skip_token (LEFT_PAREN))
     {
-      return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
+      return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
     }
 
   // parse method params (if they exist)
@@ -3997,7 +3997,7 @@ Parser<ManagedTokenSource>::parse_method_call_expr (
 		       "failed to parse method param in method call");
 	  add_error (std::move (error));
 
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::CHILD_ERROR);
 	}
       params.push_back (std::move (param.value ()));
@@ -4012,7 +4012,7 @@ Parser<ManagedTokenSource>::parse_method_call_expr (
   // skip right paren
   if (!skip_token (RIGHT_PAREN))
     {
-      return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
+      return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
     }
 
   // TODO: check types. actually do so in semantic analysis pass.
@@ -4026,7 +4026,7 @@ Parser<ManagedTokenSource>::parse_method_call_expr (
 
 // Parses a pseudo-binary infix function call expression.
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::CallExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::CallExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_function_call_expr (
   const_TokenPtr, std::unique_ptr<AST::Expr> function_expr,
   AST::AttrVec outer_attrs, ParseRestrictions)
@@ -4044,7 +4044,7 @@ Parser<ManagedTokenSource>::parse_function_call_expr (
 		       "failed to parse function param in function call");
 	  add_error (std::move (error));
 
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::CHILD_ERROR);
 	}
       params.push_back (std::move (param.value ()));
@@ -4060,7 +4060,7 @@ Parser<ManagedTokenSource>::parse_function_call_expr (
   if (!skip_token (RIGHT_PAREN))
     {
       // skip somewhere?
-      return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
+      return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
     }
 
   // TODO: check types. actually, do so during semantic analysis
@@ -4075,7 +4075,7 @@ Parser<ManagedTokenSource>::parse_function_call_expr (
  * not
  * '{' token). */
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::StructExprStruct>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::StructExprStruct>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_struct_expr_struct_partial (
   AST::PathInExpression path, AST::AttrVec outer_attrs)
 {
@@ -4083,7 +4083,7 @@ Parser<ManagedTokenSource>::parse_struct_expr_struct_partial (
   // lookup) again, make statement if final ';'
   if (!skip_token (LEFT_CURLY))
     {
-      return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
+      return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
     }
 
   // parse inner attributes
@@ -4123,14 +4123,14 @@ Parser<ManagedTokenSource>::parse_struct_expr_struct_partial (
 		  break;
 		if (field.error ()
 		    == Parse::Error::StructExprField::STRUCT_BASE_ATTRIBUTES)
-		  return tl::unexpected<Parse::Error::Expr> (
+		  return gcc::unexpected<Parse::Error::Expr> (
 		    Parse::Error::Expr::CHILD_ERROR);
 
 		Error error (t->get_locus (),
 			     "failed to parse struct (or enum) expr field");
 		add_error (std::move (error));
 
-		return tl::unexpected<Parse::Error::Expr> (
+		return gcc::unexpected<Parse::Error::Expr> (
 		  Parse::Error::Expr::CHILD_ERROR);
 	      }
 
@@ -4176,7 +4176,7 @@ Parser<ManagedTokenSource>::parse_struct_expr_struct_partial (
 			     "expression");
 		add_error (std::move (error));
 
-		return tl::unexpected<Parse::Error::Expr> (
+		return gcc::unexpected<Parse::Error::Expr> (
 		  Parse::Error::Expr::CHILD_ERROR);
 	      }
 
@@ -4192,7 +4192,7 @@ Parser<ManagedTokenSource>::parse_struct_expr_struct_partial (
 
 	if (!skip_token (RIGHT_CURLY))
 	  {
-	    return tl::unexpected<Parse::Error::Expr> (
+	    return gcc::unexpected<Parse::Error::Expr> (
 	      Parse::Error::Expr::MALFORMED);
 	  }
 
@@ -4212,7 +4212,7 @@ Parser<ManagedTokenSource>::parse_struct_expr_struct_partial (
 	       "expected %<}%>, identifier, integer literal, or %<..%>",
 	       t->get_token_description ()));
 
-      return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
+      return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
     }
 }
 
@@ -4223,13 +4223,13 @@ Parser<ManagedTokenSource>::parse_struct_expr_struct_partial (
  * A better solution would be to just get this to call that function directly.
  * */
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::CallExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::CallExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_struct_expr_tuple_partial (
   AST::PathInExpression path, AST::AttrVec outer_attrs)
 {
   if (!skip_token (LEFT_PAREN))
     {
-      return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
+      return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
     }
 
   AST::AttrVec inner_attrs = parse_inner_attributes ();
@@ -4247,7 +4247,7 @@ Parser<ManagedTokenSource>::parse_struct_expr_tuple_partial (
 					"struct (or enum) expression tuple");
 	  add_error (std::move (error));
 
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::CHILD_ERROR);
 	}
       exprs.push_back (std::move (expr.value ()));
@@ -4262,7 +4262,7 @@ Parser<ManagedTokenSource>::parse_struct_expr_tuple_partial (
 
   if (!skip_token (RIGHT_PAREN))
     {
-      return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
+      return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
     }
 
   location_t path_locus = path.get_locus ();
@@ -4276,7 +4276,7 @@ Parser<ManagedTokenSource>::parse_struct_expr_tuple_partial (
 
 // Parses a closure expression with pratt parsing (from null denotation).
 template <typename ManagedTokenSource>
-tl::expected<std::unique_ptr<AST::ClosureExpr>, Parse::Error::Expr>
+gcc::expected<std::unique_ptr<AST::ClosureExpr>, Parse::Error::Expr>
 Parser<ManagedTokenSource>::parse_closure_expr_pratt (const_TokenPtr tok,
 						      AST::AttrVec outer_attrs)
 {
@@ -4314,7 +4314,7 @@ Parser<ManagedTokenSource>::parse_closure_expr_pratt (const_TokenPtr tok,
 		Error error (t->get_locus (), "could not parse closure param");
 		add_error (std::move (error));
 
-		return tl::unexpected<Parse::Error::Expr> (
+		return gcc::unexpected<Parse::Error::Expr> (
 		  Parse::Error::Expr::CHILD_ERROR);
 	      }
 	    params.push_back (std::move (param));
@@ -4337,7 +4337,7 @@ Parser<ManagedTokenSource>::parse_closure_expr_pratt (const_TokenPtr tok,
 
 	if (!skip_token (PIPE))
 	  {
-	    return tl::unexpected<Parse::Error::Expr> (
+	    return gcc::unexpected<Parse::Error::Expr> (
 	      Parse::Error::Expr::MALFORMED);
 	  }
 	break;
@@ -4349,7 +4349,7 @@ Parser<ManagedTokenSource>::parse_closure_expr_pratt (const_TokenPtr tok,
 			tok->get_token_description ()));
 
       // skip somewhere?
-      return tl::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
+      return gcc::unexpected<Parse::Error::Expr> (Parse::Error::Expr::MALFORMED);
     }
 
   // again branch based on next token
@@ -4370,7 +4370,7 @@ Parser<ManagedTokenSource>::parse_closure_expr_pratt (const_TokenPtr tok,
 	  add_error (std::move (error));
 
 	  // skip somewhere?
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::CHILD_ERROR);
 	}
 
@@ -4384,7 +4384,7 @@ Parser<ManagedTokenSource>::parse_closure_expr_pratt (const_TokenPtr tok,
 	  add_error (std::move (error));
 
 	  // skip somewhere?
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::CHILD_ERROR);
 	}
 
@@ -4405,7 +4405,7 @@ Parser<ManagedTokenSource>::parse_closure_expr_pratt (const_TokenPtr tok,
 	  add_error (std::move (error));
 
 	  // skip somewhere?
-	  return tl::unexpected<Parse::Error::Expr> (
+	  return gcc::unexpected<Parse::Error::Expr> (
 	    Parse::Error::Expr::CHILD_ERROR);
 	}
 

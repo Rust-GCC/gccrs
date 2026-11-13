@@ -20,14 +20,14 @@
 #define RUST_PUNYCODE_H
 
 #include "rust-unicode.h"
-#include "optional.h"
+#include "stdbackport/optional"
 
 namespace Rust {
 
 /* Encode a string as punycode. Returns a string if encoding is successful.
  * Returns nullopt otherwise. Note that a returned string contains only ASCII
  * characters and does not start with `xn--`. */
-tl::optional<std::string> encode_punycode (const Utf8String &src);
+gcc::optional<std::string> encode_punycode (const Utf8String &src);
 
 } // namespace Rust
 

@@ -1311,7 +1311,7 @@ class StructExprStructFields : public StructExprStruct
 {
   // std::vector<StructExprField> fields;
   std::vector<std::unique_ptr<StructExprField>> fields;
-  tl::optional<std::unique_ptr<StructBase>> struct_base;
+  gcc::optional<std::unique_ptr<StructBase>> struct_base;
 
 public:
   // For unions there is just one field, the index
@@ -1326,7 +1326,7 @@ public:
   StructExprStructFields (
     Analysis::NodeMapping mappings, PathInExpression struct_path,
     std::vector<std::unique_ptr<StructExprField>> expr_fields, location_t locus,
-    tl::optional<std::unique_ptr<StructBase>> base_struct,
+    gcc::optional<std::unique_ptr<StructBase>> base_struct,
     AST::AttrVec inner_attribs, AST::AttrVec outer_attribs);
 
   // copy constructor with vector clone
@@ -1730,7 +1730,7 @@ public:
   std::vector<std::unique_ptr<Stmt>> statements;
   std::unique_ptr<Expr> expr;
   bool tail_reachable;
-  tl::optional<LoopLabel> label;
+  gcc::optional<LoopLabel> label;
   location_t start_locus;
   location_t end_locus;
 
@@ -1750,7 +1750,7 @@ public:
 	     std::vector<std::unique_ptr<Stmt>> block_statements,
 	     std::unique_ptr<Expr> block_expr, bool tail_reachable,
 	     AST::AttrVec inner_attribs, AST::AttrVec outer_attribs,
-	     tl::optional<LoopLabel> label, location_t start_locus,
+	     gcc::optional<LoopLabel> label, location_t start_locus,
 	     location_t end_locus);
 
   // Copy constructor with clone
@@ -1861,7 +1861,7 @@ public:
 private:
   location_t locus;
   Kind kind;
-  tl::optional<std::unique_ptr<Expr>> expr;
+  gcc::optional<std::unique_ptr<Expr>> expr;
 
   AnonConst *clone_expr_with_block_impl () const override
   {
@@ -1905,7 +1905,7 @@ private:
 // HIR node representing continue expression within loops
 class ContinueExpr : public ExprWithoutBlock
 {
-  tl::optional<Lifetime> label;
+  gcc::optional<Lifetime> label;
   location_t locus;
 
 public:
@@ -1916,7 +1916,7 @@ public:
 
   // Constructor for a ContinueExpr with a label.
   ContinueExpr (Analysis::NodeMapping mappings, location_t locus,
-		tl::optional<Lifetime> label,
+		gcc::optional<Lifetime> label,
 		AST::AttrVec outer_attribs = AST::AttrVec ());
 
   location_t get_locus () const override final { return locus; }
@@ -1952,7 +1952,7 @@ protected:
 class BreakExpr : public ExprWithoutBlock
 {
   // bool has_label;
-  tl::optional<Lifetime> label;
+  gcc::optional<Lifetime> label;
 
   // bool has_break_expr;
   std::unique_ptr<Expr> break_expr;
@@ -1971,7 +1971,7 @@ public:
 
   // Constructor for a break expression
   BreakExpr (Analysis::NodeMapping mappings, location_t locus,
-	     tl::optional<Lifetime> break_label,
+	     gcc::optional<Lifetime> break_label,
 	     std::unique_ptr<Expr> expr_in_break = nullptr,
 	     AST::AttrVec outer_attribs = AST::AttrVec ());
 
@@ -2397,7 +2397,7 @@ protected:
 class BaseLoopExpr : public ExprWithBlock
 {
 protected:
-  tl::optional<LoopLabel> loop_label;
+  gcc::optional<LoopLabel> loop_label;
   std::unique_ptr<BlockExpr> loop_block;
 
 private:
@@ -2407,7 +2407,7 @@ protected:
   // Constructor for BaseLoopExpr
   BaseLoopExpr (Analysis::NodeMapping mappings,
 		std::unique_ptr<BlockExpr> loop_block, location_t locus,
-		tl::optional<LoopLabel> loop_label,
+		gcc::optional<LoopLabel> loop_label,
 		AST::AttrVec outer_attribs = AST::AttrVec ());
 
   // Copy constructor for BaseLoopExpr with clone
@@ -2445,7 +2445,7 @@ public:
   // Constructor for LoopExpr
   LoopExpr (Analysis::NodeMapping mappings,
 	    std::unique_ptr<BlockExpr> loop_block, location_t locus,
-	    tl::optional<LoopLabel> loop_label,
+	    gcc::optional<LoopLabel> loop_label,
 	    AST::AttrVec outer_attribs = AST::AttrVec ());
 
   void accept_vis (HIRFullVisitor &vis) override;
@@ -2476,7 +2476,7 @@ public:
   WhileLoopExpr (Analysis::NodeMapping mappings,
 		 std::unique_ptr<Expr> loop_condition,
 		 std::unique_ptr<BlockExpr> loop_block, location_t locus,
-		 tl::optional<LoopLabel> loop_label,
+		 gcc::optional<LoopLabel> loop_label,
 		 AST::AttrVec outer_attribs = AST::AttrVec ());
 
   // Copy constructor with clone
@@ -2525,7 +2525,7 @@ public:
 		    std::unique_ptr<Pattern> match_arm_pattern,
 		    std::unique_ptr<Expr> condition,
 		    std::unique_ptr<BlockExpr> loop_block, location_t locus,
-		    tl::optional<LoopLabel> loop_label,
+		    gcc::optional<LoopLabel> loop_label,
 		    AST::AttrVec outer_attribs = AST::AttrVec ());
 
   // Copy constructor with clone
@@ -3022,10 +3022,10 @@ class InlineAsmOperand
 public:
   struct In
   {
-    tl::optional<struct AST::InlineAsmRegOrRegClass> reg;
+    gcc::optional<struct AST::InlineAsmRegOrRegClass> reg;
     std::unique_ptr<Expr> expr;
 
-    In (const tl::optional<struct AST::InlineAsmRegOrRegClass> &reg,
+    In (const gcc::optional<struct AST::InlineAsmRegOrRegClass> &reg,
 	std::unique_ptr<Expr> expr);
 
     In (const struct In &other);
@@ -3035,11 +3035,11 @@ public:
 
   struct Out
   {
-    tl::optional<struct AST::InlineAsmRegOrRegClass> reg;
+    gcc::optional<struct AST::InlineAsmRegOrRegClass> reg;
     bool late;
     std::unique_ptr<Expr> expr; // can be null
 
-    Out (tl::optional<struct AST::InlineAsmRegOrRegClass> &reg, bool late,
+    Out (gcc::optional<struct AST::InlineAsmRegOrRegClass> &reg, bool late,
 	 std::unique_ptr<Expr> expr);
 
     Out (const struct Out &other);
@@ -3049,11 +3049,11 @@ public:
 
   struct InOut
   {
-    tl::optional<struct AST::InlineAsmRegOrRegClass> reg;
+    gcc::optional<struct AST::InlineAsmRegOrRegClass> reg;
     bool late;
     std::unique_ptr<Expr> expr; // this can't be null
 
-    InOut (tl::optional<struct AST::InlineAsmRegOrRegClass> &reg, bool late,
+    InOut (gcc::optional<struct AST::InlineAsmRegOrRegClass> &reg, bool late,
 	   std::unique_ptr<Expr> expr);
 
     InOut (const struct InOut &other);
@@ -3063,12 +3063,12 @@ public:
 
   struct SplitInOut
   {
-    tl::optional<struct AST::InlineAsmRegOrRegClass> reg;
+    gcc::optional<struct AST::InlineAsmRegOrRegClass> reg;
     bool late;
     std::unique_ptr<Expr> in_expr;
     std::unique_ptr<Expr> out_expr; // could be null
 
-    SplitInOut (tl::optional<struct AST::InlineAsmRegOrRegClass> &reg,
+    SplitInOut (gcc::optional<struct AST::InlineAsmRegOrRegClass> &reg,
 		bool late, std::unique_ptr<Expr> in_expr,
 		std::unique_ptr<Expr> out_expr);
 
@@ -3098,7 +3098,7 @@ public:
     std::string label_name;
     std::unique_ptr<Expr> expr;
 
-    Label (tl::optional<std::string> label_name, std::unique_ptr<Expr> expr);
+    Label (gcc::optional<std::string> label_name, std::unique_ptr<Expr> expr);
 
     Label (const struct Label &other);
 
@@ -3110,13 +3110,13 @@ public:
 private:
   AST::InlineAsmOperand::RegisterType register_type;
 
-  tl::optional<struct In> in;
-  tl::optional<struct Out> out;
-  tl::optional<struct InOut> in_out;
-  tl::optional<struct SplitInOut> split_in_out;
-  tl::optional<struct Const> cnst;
-  tl::optional<struct Sym> sym;
-  tl::optional<struct Label> label;
+  gcc::optional<struct In> in;
+  gcc::optional<struct Out> out;
+  gcc::optional<struct InOut> in_out;
+  gcc::optional<struct SplitInOut> split_in_out;
+  gcc::optional<struct Const> cnst;
+  gcc::optional<struct Sym> sym;
+  gcc::optional<struct Label> label;
 
 public:
   InlineAsmOperand (const InlineAsmOperand &other)

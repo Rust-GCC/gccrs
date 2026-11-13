@@ -19,9 +19,11 @@
 #ifndef RUST_BIR_BASE_H
 #define RUST_BIR_BASE_H
 
+#include "rust-system.h"
+#include "stdbackport/optional"
+
 #include "rust-bir-place.h"
 #include "rust-bir-visitor.h"
-#include "optional.h"
 
 #include "polonius/rust-polonius-ffi.h"
 #include "rust-tyty-variance-analysis.h"
@@ -116,12 +118,12 @@ private:
   location_t location;
   // HIR expression which consumes the RHS of an assignment.  This is used to
   // attach backend drop-flag updates to the corresponding expression.
-  tl::optional<HirId> move_site;
+  gcc::optional<HirId> move_site;
 
 public:
-  static Statement make_assignment (PlaceId place, AbstractExpr *rhs,
-				    location_t location,
-				    tl::optional<HirId> move_site = tl::nullopt)
+  static Statement
+  make_assignment (PlaceId place, AbstractExpr *rhs, location_t location,
+		   gcc::optional<HirId> move_site = gcc::nullopt)
   {
     return Statement (Kind::ASSIGNMENT, place, rhs, nullptr, location,
 		      move_site);
@@ -162,7 +164,7 @@ private:
   Statement (Kind kind, PlaceId place = INVALID_PLACE,
 	     AbstractExpr *rhs = nullptr, TyTy::BaseType *type = nullptr,
 	     location_t location = UNKNOWN_LOCATION,
-	     tl::optional<HirId> move_site = tl::nullopt)
+	     gcc::optional<HirId> move_site = gcc::nullopt)
     : kind (kind), place (place), expr (rhs), type (type), location (location),
       move_site (move_site)
   {}
@@ -175,7 +177,7 @@ public:
   WARN_UNUSED_RESULT AbstractExpr &get_expr () const { return *expr; }
   WARN_UNUSED_RESULT TyTy::BaseType *get_type () const { return type; }
   WARN_UNUSED_RESULT location_t get_location () const { return location; }
-  WARN_UNUSED_RESULT const tl::optional<HirId> &get_move_site () const
+  WARN_UNUSED_RESULT const gcc::optional<HirId> &get_move_site () const
   {
     return move_site;
   }

@@ -21,7 +21,9 @@
 /* "Path" (identifier within namespaces, essentially) handling. Required include
  * for virtually all AST-related functionality. */
 
-#include "optional.h"
+#include "rust-system.h"
+#include "stdbackport/optional"
+
 #include "rust-ast.h"
 #include "rust-hir-map.h"
 #include "rust-mapping-common.h"
@@ -380,14 +382,14 @@ class ConstGenericParam : public GenericParam
   /**
    * Default value for the const generic parameter
    */
-  tl::optional<GenericArg> default_value;
+  gcc::optional<GenericArg> default_value;
 
   AST::AttrVec outer_attrs;
   location_t locus;
 
 public:
   ConstGenericParam (Identifier name, std::unique_ptr<AST::Type> type,
-		     tl::optional<GenericArg> default_value,
+		     gcc::optional<GenericArg> default_value,
 		     AST::AttrVec outer_attrs, location_t locus)
     : name (name), type (std::move (type)),
       default_value (std::move (default_value)), outer_attrs (outer_attrs),
@@ -435,9 +437,9 @@ public:
     return default_value.value ();
   }
 
-  tl::optional<GenericArg> &get_default_value () { return default_value; }
+  gcc::optional<GenericArg> &get_default_value () { return default_value; }
 
-  const tl::optional<GenericArg> &get_default_value () const
+  const gcc::optional<GenericArg> &get_default_value () const
   {
     return default_value;
   }
@@ -651,7 +653,7 @@ public:
 
   Path (std::vector<PathExprSegment> segments, bool opening_scope_resolution)
     : RawPath (std::move (segments), opening_scope_resolution),
-      lang_item (tl::nullopt), kind (Kind::Regular)
+      lang_item (gcc::nullopt), kind (Kind::Regular)
   {}
 
   Path (LangItem::Kind lang_item)
@@ -703,7 +705,7 @@ public:
   Path::Kind get_path_kind () { return kind; }
 
 protected:
-  tl::optional<LangItem::Kind> lang_item;
+  gcc::optional<LangItem::Kind> lang_item;
 
   Path::Kind kind;
 };
@@ -831,7 +833,7 @@ public:
   };
 
 private:
-  tl::optional<LangItem::Kind> lang_item;
+  gcc::optional<LangItem::Kind> lang_item;
   PathIdentSegment ident_segment;
   location_t locus;
 
@@ -872,7 +874,7 @@ public:
 
   TypePathSegment (PathIdentSegment ident_segment,
 		   bool has_separating_scope_resolution, location_t locus)
-    : lang_item (tl::nullopt), ident_segment (std::move (ident_segment)),
+    : lang_item (gcc::nullopt), ident_segment (std::move (ident_segment)),
       locus (locus),
       has_separating_scope_resolution (has_separating_scope_resolution),
       node_id (Analysis::Mappings::get ().get_next_node_id ())
@@ -887,7 +889,7 @@ public:
 
   TypePathSegment (std::string segment_name,
 		   bool has_separating_scope_resolution, location_t locus)
-    : lang_item (tl::nullopt),
+    : lang_item (gcc::nullopt),
       ident_segment (PathIdentSegment (std::move (segment_name), locus)),
       locus (locus),
       has_separating_scope_resolution (has_separating_scope_resolution),
@@ -895,7 +897,7 @@ public:
   {}
 
   // General constructor
-  TypePathSegment (tl::optional<LangItem::Kind> lang_item,
+  TypePathSegment (gcc::optional<LangItem::Kind> lang_item,
 		   PathIdentSegment ident_segment,
 		   bool has_separating_scope_resolution, location_t locus)
     : lang_item (lang_item), ident_segment (ident_segment), locus (locus),

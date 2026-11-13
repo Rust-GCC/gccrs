@@ -16,7 +16,9 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-#include "optional.h"
+#include "rust-system.h"
+#include "stdbackport/optional"
+
 #include "rust-ast-lower-item.h"
 #include "rust-ast-lower-stmt.h"
 #include "rust-ast-lower-type.h"
@@ -70,14 +72,14 @@ ASTLoweringStmt::visit (AST::LetStmt &stmt)
   HIR::Pattern *variables
     = ASTLoweringPattern::translate (stmt.get_pattern (), true);
 
-  tl::optional<std::unique_ptr<Type>> type = tl::nullopt;
+  gcc::optional<std::unique_ptr<Type>> type = gcc::nullopt;
 
   if (stmt.has_type ())
     type
       = std::unique_ptr<Type> (ASTLoweringType::translate (stmt.get_type ()));
 
-  tl::optional<std::unique_ptr<HIR::Expr>> init_expr = tl::nullopt;
-  tl::optional<std::unique_ptr<HIR::Expr>> else_expr = tl::nullopt;
+  gcc::optional<std::unique_ptr<HIR::Expr>> init_expr = gcc::nullopt;
+  gcc::optional<std::unique_ptr<HIR::Expr>> else_expr = gcc::nullopt;
 
   if (stmt.has_init_expr ())
     init_expr = std::unique_ptr<HIR::Expr> (

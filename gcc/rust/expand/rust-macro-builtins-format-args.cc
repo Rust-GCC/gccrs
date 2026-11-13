@@ -37,7 +37,7 @@ struct FormatArgsParseError
   } kind;
 };
 
-static inline tl::expected<std::string, AST::Fragment>
+static inline gcc::expected<std::string, AST::Fragment>
 format_args_parse_expr (location_t invoc_locus, AST::MacroInvocData &invoc,
 			Parser<MacroInvocLexer> &parser,
 			BuiltinMacro macro_kind)
@@ -51,21 +51,21 @@ format_args_parse_expr (location_t invoc_locus, AST::MacroInvocData &invoc,
       std::vector<std::unique_ptr<AST::MacroInvocation>> pending;
       pending.emplace_back (
 	static_cast<AST::MacroInvocation *> (format_expr.release ()));
-      return tl::unexpected<AST::Fragment> (
+      return gcc::unexpected<AST::Fragment> (
 	make_eager_builtin_invocation (macro_kind, invoc_locus,
 				       invoc.get_delim_tok_tree (),
 				       std::move (pending)));
     }
 
   // TODO(Arthur): Clean this up - if we haven't parsed a string literal but a
-  // macro invocation, what do we do here? return a tl::unexpected?
+  // macro invocation, what do we do here? return a gcc::unexpected?
   rust_assert (format_expr->is_literal ());
   return static_cast<AST::LiteralExpr &> (*format_expr)
     .get_literal ()
     .as_string ();
 }
 
-static inline tl::expected<AST::FormatArguments, FormatArgsParseError>
+static inline gcc::expected<AST::FormatArguments, FormatArgsParseError>
 format_args_parse_arguments (AST::MacroInvocData &invoc,
 			     Parser<MacroInvocLexer> &parser,
 			     TokenId last_token_id)
@@ -134,7 +134,7 @@ format_args_parse_arguments (AST::MacroInvocData &invoc,
   return args;
 }
 
-tl::optional<AST::Fragment>
+gcc::optional<AST::Fragment>
 MacroBuiltin::format_args_handler (location_t invoc_locus,
 				   AST::MacroInvocData &invoc,
 				   AST::InvocKind semicolon,
@@ -161,7 +161,7 @@ MacroBuiltin::format_args_handler (location_t invoc_locus,
     {
       rust_error_at (invoc_locus,
 		     "could not parse arguments to %<format_args!()%>");
-      return tl::nullopt;
+      return gcc::nullopt;
     }
 
   // TODO(Arthur): We need to handle this

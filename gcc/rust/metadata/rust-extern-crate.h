@@ -21,7 +21,7 @@
 
 #include "rust-system.h"
 #include "rust-imports.h"
-#include "optional.h"
+#include "stdbackport/optional"
 
 namespace Rust {
 namespace Imports {
@@ -48,7 +48,7 @@ public:
 			     bool is_neg_ok, int *ret);
 
 private:
-  tl::optional<std::reference_wrapper<Import::Stream>> import_stream;
+  gcc::optional<std::reference_wrapper<Import::Stream>> import_stream;
   std::vector<ProcMacro::Procmacro> proc_macros;
 
   std::string crate_name;

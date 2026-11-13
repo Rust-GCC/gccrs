@@ -26,7 +26,7 @@ namespace Rust {
 
 // Parses a SimplePath AST node, if it exists. Does nothing otherwise.
 template <typename ManagedTokenSource>
-tl::expected<AST::SimplePath, Parse::Error::Node>
+gcc::expected<AST::SimplePath, Parse::Error::Node>
 Parser<ManagedTokenSource>::parse_simple_path ()
 {
   bool has_opening_scope_resolution = false;
@@ -37,7 +37,7 @@ Parser<ManagedTokenSource>::parse_simple_path ()
   // don't parse anything if not a path upfront
   if (!is_simple_path_segment (lexer.peek_token ()->get_id ())
       && !is_simple_path_segment (lexer.peek_token (1)->get_id ()))
-    return tl::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
+    return gcc::unexpected<Parse::Error::Node> (Parse::Error::Node::MALFORMED);
 
   /* Checks for opening scope resolution (i.e. global scope fully-qualified
    * path) */
@@ -54,7 +54,7 @@ Parser<ManagedTokenSource>::parse_simple_path ()
   auto segment = parse_simple_path_segment ();
 
   if (!segment)
-    return tl::unexpected<Parse::Error::Node> (Parse::Error::Node::CHILD_ERROR);
+    return gcc::unexpected<Parse::Error::Node> (Parse::Error::Node::CHILD_ERROR);
 
   // get location if not gotten already
   if (locus == UNKNOWN_LOCATION)
@@ -75,7 +75,7 @@ Parser<ManagedTokenSource>::parse_simple_path ()
 	  if (new_segment.error ().kind == Error::INVALID_SIMPLE_PATH_TOKEN)
 	    break; /* Could be end of path */
 	  else	   /* Any other error is an hard error */
-	    return tl::unexpected<Parse::Error::Node> (
+	    return gcc::unexpected<Parse::Error::Node> (
 	      Parse::Error::Node::CHILD_ERROR);
 	}
 
@@ -92,7 +92,7 @@ Parser<ManagedTokenSource>::parse_simple_path ()
  * operators)
  * Starts parsing at an offset of base_peek */
 template <typename ManagedTokenSource>
-tl::expected<AST::SimplePathSegment, Parse::Error::SimplePathSegment>
+gcc::expected<AST::SimplePathSegment, Parse::Error::SimplePathSegment>
 Parser<ManagedTokenSource>::parse_simple_path_segment (int base_peek)
 {
   using namespace Values;
@@ -135,7 +135,7 @@ Parser<ManagedTokenSource>::parse_simple_path_segment (int base_peek)
 
 // Parses a PathIdentSegment - an identifier segment of a non-SimplePath path.
 template <typename ManagedTokenSource>
-tl::expected<AST::PathIdentSegment, Parse::Error::PathIdentSegment>
+gcc::expected<AST::PathIdentSegment, Parse::Error::PathIdentSegment>
 Parser<ManagedTokenSource>::parse_path_ident_segment ()
 {
   const_TokenPtr t = lexer.peek_token ();

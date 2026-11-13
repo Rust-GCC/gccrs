@@ -68,9 +68,9 @@ protected:
   ImplGenerics setup_impl_generics (
     const std::string &type_name,
     const std::vector<std::unique_ptr<GenericParam>> &type_generics,
-    tl::optional<std::function<std::unique_ptr<TypeParamBound> ()>>
+    gcc::optional<std::function<std::unique_ptr<TypeParamBound> ()>>
       &&extra_bound
-    = tl::nullopt) const;
+    = gcc::nullopt) const;
 
 private:
   // the 4 "allowed" visitors, which a derive-visitor can specify and override

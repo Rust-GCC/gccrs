@@ -533,7 +533,7 @@ MethodResolver::get_predicate_items (
   std::vector<predicate_candidate> predicate_items;
   for (auto &bound : specified_bounds)
     {
-      tl::optional<TyTy::TypeBoundPredicateItem> lookup
+      gcc::optional<TyTy::TypeBoundPredicateItem> lookup
 	= bound.lookup_associated_item (segment_name.to_string ());
       if (!lookup.has_value ())
 	continue;

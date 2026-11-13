@@ -397,7 +397,7 @@ SubstitutionArgumentMappings::get_argument_for_symbol (
     }
   return false;
 }
-tl::optional<size_t>
+gcc::optional<size_t>
 SubstitutionArgumentMappings::find_symbol (const ParamType &param_to_find) const
 {
   auto it = std::find_if (mappings.begin (), mappings.end (),
@@ -406,7 +406,7 @@ SubstitutionArgumentMappings::find_symbol (const ParamType &param_to_find) const
 				   == param_to_find.get_symbol ();
 			  });
   if (it == mappings.end ())
-    return tl::nullopt;
+    return gcc::nullopt;
   return std::distance (mappings.begin (), it);
 }
 
@@ -651,14 +651,14 @@ SubstitutionRef::get_used_arguments () const
   return used_arguments;
 }
 
-tl::optional<SubstitutionArg>
+gcc::optional<SubstitutionArg>
 SubstitutionRef::get_arg_at (size_t i) const
 {
   auto param_ty = get_substs ().at (i).get_param_ty ();
   SubstitutionArg arg = SubstitutionArg::error ();
   get_used_arguments ().get_argument_for_symbol (param_ty, &arg);
   if (arg.is_error ())
-    return tl::nullopt;
+    return gcc::nullopt;
   return arg;
 }
 

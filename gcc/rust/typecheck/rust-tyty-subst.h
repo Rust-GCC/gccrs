@@ -24,7 +24,7 @@
 #include "rust-hir-full-decls.h"
 #include "rust-tyty-region.h"
 #include "rust-ast.h"
-#include "optional.h"
+#include "stdbackport/optional"
 
 namespace Rust {
 namespace TyTy {
@@ -207,7 +207,7 @@ public:
 				SubstitutionArg *argument) const;
 
   /** Return type parameter index for symbol */
-  tl::optional<size_t> find_symbol (const ParamType &param_to_find) const;
+  gcc::optional<size_t> find_symbol (const ParamType &param_to_find) const;
 
   bool get_argument_at (size_t index, SubstitutionArg *argument);
 
@@ -413,7 +413,7 @@ public:
   WARN_UNUSED_RESULT const SubstitutionArgumentMappings &
   get_used_arguments () const;
 
-  WARN_UNUSED_RESULT tl::optional<SubstitutionArg> get_arg_at (size_t i) const;
+  WARN_UNUSED_RESULT gcc::optional<SubstitutionArg> get_arg_at (size_t i) const;
 
   const RegionConstraints &get_region_constraints () const;
 

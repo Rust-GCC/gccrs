@@ -17,7 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-hir-stmt.h"
-#include "optional.h"
+#include "stdbackport/optional"
 #include "rust-system.h"
 
 namespace Rust {
@@ -25,9 +25,9 @@ namespace HIR {
 
 LetStmt::LetStmt (Analysis::NodeMapping mappings,
 		  std::unique_ptr<Pattern> variables_pattern,
-		  tl::optional<std::unique_ptr<Expr>> init_expr,
-		  tl::optional<std::unique_ptr<Expr>> else_expr,
-		  tl::optional<std::unique_ptr<Type>> type,
+		  gcc::optional<std::unique_ptr<Expr>> init_expr,
+		  gcc::optional<std::unique_ptr<Expr>> else_expr,
+		  gcc::optional<std::unique_ptr<Type>> type,
 		  AST::AttrVec outer_attrs, location_t locus)
   : Stmt (std::move (mappings)), outer_attrs (std::move (outer_attrs)),
     variables_pattern (std::move (variables_pattern)), type (std::move (type)),
@@ -51,7 +51,7 @@ LetStmt::LetStmt (LetStmt const &other)
   if (other.has_type ())
     type = other.get_type ().clone_type ();
   else
-    type = tl::nullopt;
+    type = gcc::nullopt;
 }
 
 LetStmt &
@@ -75,12 +75,12 @@ LetStmt::operator= (LetStmt const &other)
   if (other.has_else_expr ())
     else_expr = other.get_else_expr ().clone_expr ();
   else
-    else_expr = tl::nullopt;
+    else_expr = gcc::nullopt;
 
   if (other.has_type ())
     type = other.get_type ().clone_type ();
   else
-    type = tl::nullopt;
+    type = gcc::nullopt;
 
   return *this;
 }

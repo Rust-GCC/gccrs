@@ -78,7 +78,7 @@ TypeCheckExpr::visit (HIR::QualifiedPathInExpression &expr)
   // lookup the associated item from the specified bound
   HIR::PathExprSegment &item_seg = expr.get_segments ().at (0);
   HIR::PathIdentSegment item_seg_identifier = item_seg.get_segment ();
-  tl::optional<TyTy::TypeBoundPredicateItem> item
+  gcc::optional<TyTy::TypeBoundPredicateItem> item
     = specified_bound.lookup_associated_item (item_seg_identifier.to_string ());
   if (!item.has_value ())
     {
@@ -294,7 +294,7 @@ TypeCheckExpr::resolve_root_path (HIR::PathInExpression &expr, size_t *offset,
 	}
 
       // node back to HIR
-      tl::optional<HirId> hid = mappings.lookup_node_to_hir (ref_node_id);
+      gcc::optional<HirId> hid = mappings.lookup_node_to_hir (ref_node_id);
       if (!hid.has_value ())
 	{
 	  rust_error_at (seg.get_locus (), "456 reverse lookup failure");

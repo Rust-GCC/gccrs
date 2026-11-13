@@ -292,7 +292,7 @@ TyTyResolveCompile::visit (const TyTy::ClosureType &type)
   for (const auto &capture : type.get_captures ())
     {
       // lookup the HirId
-      tl::optional<HirId> hid = mappings.lookup_node_to_hir (capture);
+      gcc::optional<HirId> hid = mappings.lookup_node_to_hir (capture);
       rust_assert (hid.has_value ());
       auto ref = hid.value ();
 

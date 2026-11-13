@@ -710,8 +710,8 @@ ExprStmtBuilder::visit (HIR::PathInExpression &expr)
 void
 ExprStmtBuilder::visit (HIR::LetStmt &stmt)
 {
-  tl::optional<PlaceId> init;
-  tl::optional<TyTy::BaseType *> type_annotation;
+  gcc::optional<PlaceId> init;
+  gcc::optional<TyTy::BaseType *> type_annotation;
 
   if (stmt.has_type ())
     type_annotation = lookup_type (stmt.get_type ());
