@@ -210,15 +210,15 @@ ForeverStack<N>::insert_crate_in_prelude (Identifier crate_name,
 {
   auto &extern_prelude_rib = extern_prelude.rib (N);
   auto definition = Rib::Definition::NonShadowable (extern_crate_node_id);
-  insert_inner (extern_prelude_rib, crate_name, definition);
+  std::ignore = insert_inner (extern_prelude_rib, crate_name, definition);
 }
 
 template <Namespace N>
 inline void
 ForeverStack<N>::insert_lang_prelude (Identifier name, NodeId id)
 {
-  insert_inner (lang_prelude.rib (N), name.as_string (),
-		Rib::Definition::NonShadowable (id, false));
+  std::ignore = insert_inner (lang_prelude.rib (N), name.as_string (),
+			      Rib::Definition::NonShadowable (id, false));
 }
 
 template <Namespace N>

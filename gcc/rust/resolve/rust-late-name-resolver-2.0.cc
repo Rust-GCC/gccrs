@@ -327,8 +327,9 @@ Late::visit (AST::LoopLabel &label)
   if (resolved.has_value ())
     return;
   auto &lifetime = label.get_lifetime ();
-  ctx.labels.insert (Identifier (lifetime.as_string (), lifetime.get_locus ()),
-		     lifetime.get_node_id ());
+  std::ignore = ctx.labels.insert (Identifier (lifetime.as_string (),
+					       lifetime.get_locus ()),
+				   lifetime.get_node_id ());
 }
 
 void

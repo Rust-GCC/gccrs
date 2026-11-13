@@ -431,7 +431,7 @@ NameResolutionContext::merge (NameResolutionContext &other, NodeId at)
 	  {
 	    auto name = kv.first;
 	    auto def = kv.second;
-	    extern_crate_node.rib (ns).insert (name, def);
+	    std::ignore = extern_crate_node.rib (ns).insert (name, def);
 	  }
       }
     stack.resolved_nodes.insert (other_stack.resolved_nodes.begin (),
