@@ -5662,7 +5662,7 @@ Parser<ManagedTokenSource>::parse_loop_label (const_TokenPtr tok)
   if (!skip_token (COLON))
     {
       // skip somewhere?
-      Parse::Error::LoopLabel::make_missing_colon ();
+      return Parse::Error::LoopLabel::make_missing_colon ();
     }
 
   return gcc::expected<AST::LoopLabel, Parse::Error::LoopLabel> (
