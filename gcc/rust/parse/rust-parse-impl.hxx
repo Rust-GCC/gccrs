@@ -3641,6 +3641,8 @@ Parser<ManagedTokenSource>::parse_enum_item ()
 
   // branch based on next token
   const_TokenPtr t = lexer.peek_token ();
+  std::unique_ptr<AST::EnumItem> item = nullptr;
+
   switch (t->get_id ())
     {
     case LEFT_PAREN:
@@ -3650,20 +3652,20 @@ Parser<ManagedTokenSource>::parse_enum_item ()
 
 	std::vector<AST::TupleField> tuple_fields;
 	// Might be empty tuple for unit tuple enum variant.
-	if (lexer.peek_token ()->get_id () == RIGHT_PAREN)
-	  tuple_fields = std::vector<AST::TupleField> ();
-	else
+	if (lexer.peek_token ()->get_id () != RIGHT_PAREN)
 	  tuple_fields = parse_tuple_fields ();
 
+	// skip after somewhere
 	if (!skip_token (RIGHT_PAREN))
-	  {
-	    // skip after somewhere
-	    return Parse::Error::EnumVariant::make_unfinished_tuple_variant ();
-	  }
+	  return Parse::Error::EnumVariant::make_unfinished_tuple_variant ();
 
-	return std::unique_ptr<AST::EnumItemTuple> (new AST::EnumItemTuple (
-	  std::move (item_name), std::move (vis), std::move (tuple_fields),
-	  std::move (outer_attrs), item_name_tok->get_locus ()));
+	item
+	  = std::make_unique<AST::EnumItemTuple> (std::move (item_name),
+						  nullptr, std::move (vis),
+						  std::move (tuple_fields),
+						  std::move (outer_attrs),
+						  item_name_tok->get_locus ());
+	break;
       }
     case LEFT_CURLY:
       {
@@ -3673,37 +3675,38 @@ Parser<ManagedTokenSource>::parse_enum_item ()
 	std::vector<AST::StructField> struct_fields
 	  = parse_struct_fields ([] (TokenId id) { return id == RIGHT_CURLY; });
 
+	// skip after somewhere
 	if (!skip_token (RIGHT_CURLY))
-	  {
-	    // skip after somewhere
-	    return Parse::Error::EnumVariant::make_unfinished_tuple_variant ();
-	  }
+	  return Parse::Error::EnumVariant::make_unfinished_tuple_variant ();
 
-	return std::unique_ptr<AST::EnumItemStruct> (new AST::EnumItemStruct (
-	  std::move (item_name), std::move (vis), std::move (struct_fields),
-	  std::move (outer_attrs), item_name_tok->get_locus ()));
-      }
-    case EQUAL:
-      {
-	// discriminant enum item
-	lexer.skip_token ();
-
-	auto discriminant_expr = parse_expr ();
-	if (!discriminant_expr)
-	  return Parse::Error::EnumVariant::make_child_error ();
-
-	return std::make_unique<AST::EnumItemDiscriminant> (
-	  std::move (item_name), std::move (vis),
-	  std::move (discriminant_expr.value ()), std::move (outer_attrs),
-	  item_name_tok->get_locus ());
+	item
+	  = std::make_unique<AST::EnumItemStruct> (std::move (item_name),
+						   nullptr, std::move (vis),
+						   std::move (struct_fields),
+						   std::move (outer_attrs),
+						   item_name_tok->get_locus ());
+	break;
       }
     default:
       // regular enum with just an identifier
-      return std::make_unique<AST::EnumItem> (std::move (item_name),
+      item = std::make_unique<AST::EnumItem> (std::move (item_name), nullptr,
 					      std::move (vis),
 					      std::move (outer_attrs),
 					      item_name_tok->get_locus ());
+      break;
     }
+
+  if (lexer.peek_token ()->get_id () == EQUAL)
+    {
+      lexer.skip_token ();
+      auto discriminant_expr = parse_expr ();
+      if (!discriminant_expr)
+	return Parse::Error::EnumVariant::make_child_error ();
+
+      item->set_discriminant (std::move (discriminant_expr.value ()));
+    }
+
+  return item;
 }
 
 // Parses a C-style (and C-compat) untagged union declaration.

@@ -23,14 +23,18 @@
 #include "rust-rib.h"
 #include "rust-type-util.h"
 #include "rust-finalized-name-resolution-context.h"
+#include "rust-compile-base.h"
+#include "rust-constexpr.h"
 
 namespace Rust {
 namespace Resolver {
 
 TyTy::VariantDef *
-TypeCheckEnumItem::Resolve (HIR::EnumItem &item, int64_t last_discriminant)
+TypeCheckEnumItem::Resolve (HIR::EnumItem &item,
+			    std::map<int64_t, location_t> &discriminant_values,
+			    int64_t &last_discriminant)
 {
-  TypeCheckEnumItem resolver (last_discriminant);
+  TypeCheckEnumItem resolver (discriminant_values, last_discriminant);
   switch (item.get_enum_item_kind ())
     {
     case HIR::EnumItem::EnumItemKind::Named:
@@ -44,38 +48,24 @@ TypeCheckEnumItem::Resolve (HIR::EnumItem &item, int64_t last_discriminant)
     case HIR::EnumItem::EnumItemKind::Struct:
       resolver.visit (static_cast<HIR::EnumItemStruct &> (item));
       break;
-
-    case HIR::EnumItem::EnumItemKind::Discriminant:
-      resolver.visit (static_cast<HIR::EnumItemDiscriminant &> (item));
-      break;
     }
   return resolver.variant;
 }
 
-TypeCheckEnumItem::TypeCheckEnumItem (int64_t last_discriminant)
-  : TypeCheckBase (), variant (nullptr), last_discriminant (last_discriminant)
+TypeCheckEnumItem::TypeCheckEnumItem (
+  std::map<int64_t, location_t> &discriminant_values,
+  int64_t &last_discriminant)
+  : TypeCheckBase (), variant (nullptr),
+    discriminant_values (discriminant_values),
+    last_discriminant (last_discriminant)
 {}
 
 void
 TypeCheckEnumItem::visit (HIR::EnumItem &item)
 {
-  if (last_discriminant == INT64_MAX)
-    rust_error_at (item.get_locus (), "discriminant too big");
-
-  Analysis::NodeMapping mapping (item.get_mappings ().get_crate_num (),
-				 item.get_mappings ().get_nodeid (),
-				 mappings.get_next_hir_id (
-				   item.get_mappings ().get_crate_num ()),
-				 item.get_mappings ().get_local_defid ());
-  auto discim_expr = std::make_unique<HIR::LiteralExpr> (
-    HIR::LiteralExpr (mapping, std::to_string (last_discriminant),
-		      HIR::Literal::LitType::INT,
-		      PrimitiveCoreType::CORETYPE_I64, item.get_locus (), {}));
-
-  TyTy::BaseType *isize = nullptr;
-  bool ok = context->lookup_builtin ("isize", &isize);
-  rust_assert (ok);
-  context->insert_type (mapping, isize);
+  auto discim_expr = discriminant_of (item);
+  if (discim_expr == nullptr)
+    return;
 
   auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
@@ -91,43 +81,11 @@ TypeCheckEnumItem::visit (HIR::EnumItem &item)
 }
 
 void
-TypeCheckEnumItem::visit (HIR::EnumItemDiscriminant &item)
-{
-  if (last_discriminant == INT64_MAX)
-    rust_error_at (item.get_locus (), "discriminant too big");
-
-  auto &discriminant = item.get_discriminant_expression ();
-  auto capacity_type = TypeCheckExpr::Resolve (discriminant);
-  if (capacity_type->get_kind () == TyTy::TypeKind::ERROR)
-    return;
-
-  TyTy::ISizeType *expected_ty
-    = new TyTy::ISizeType (discriminant.get_mappings ().get_hirid ());
-  context->insert_type (discriminant.get_mappings (), expected_ty);
-
-  unify_site (item.get_mappings ().get_hirid (),
-	      TyTy::TyWithLocation (expected_ty),
-	      TyTy::TyWithLocation (capacity_type), item.get_locus ());
-
-  auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
-
-  CanonicalPath canonical_path
-    = nr_ctx.to_canonical_path (item.get_mappings ().get_nodeid (),
-				Resolver2_0::Namespace::Types);
-
-  RustIdent ident{canonical_path, item.get_locus ()};
-  variant
-    = new TyTy::VariantDef (item.get_mappings ().get_hirid (),
-			    item.get_mappings ().get_defid (),
-			    item.get_identifier ().as_string (), ident,
-			    item.get_discriminant_expression ().clone_expr ());
-}
-
-void
 TypeCheckEnumItem::visit (HIR::EnumItemTuple &item)
 {
-  if (last_discriminant == INT64_MAX)
-    rust_error_at (item.get_locus (), "discriminant too big");
+  auto discim_expr = discriminant_of (item);
+  if (discim_expr == nullptr)
+    return;
 
   std::vector<TyTy::StructFieldType *> fields;
   size_t idx = 0;
@@ -143,21 +101,6 @@ TypeCheckEnumItem::visit (HIR::EnumItemTuple &item)
       context->insert_type (field.get_mappings (), ty_field->get_field_type ());
       idx++;
     }
-
-  Analysis::NodeMapping mapping (item.get_mappings ().get_crate_num (),
-				 item.get_mappings ().get_nodeid (),
-				 mappings.get_next_hir_id (
-				   item.get_mappings ().get_crate_num ()),
-				 item.get_mappings ().get_local_defid ());
-  auto discim_expr = std::make_unique<HIR::LiteralExpr> (
-    HIR::LiteralExpr (mapping, std::to_string (last_discriminant),
-		      HIR::Literal::LitType::INT,
-		      PrimitiveCoreType::CORETYPE_I64, item.get_locus (), {}));
-
-  TyTy::BaseType *isize = nullptr;
-  bool ok = context->lookup_builtin ("isize", &isize);
-  rust_assert (ok);
-  context->insert_type (mapping, isize);
 
   auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
@@ -176,8 +119,9 @@ TypeCheckEnumItem::visit (HIR::EnumItemTuple &item)
 void
 TypeCheckEnumItem::visit (HIR::EnumItemStruct &item)
 {
-  if (last_discriminant == INT64_MAX)
-    rust_error_at (item.get_locus (), "discriminant too big");
+  auto discim_expr = discriminant_of (item);
+  if (discim_expr == nullptr)
+    return;
 
   std::vector<TyTy::StructFieldType *> fields;
   for (auto &field : item.get_struct_fields ())
@@ -219,6 +163,88 @@ TypeCheckEnumItem::visit (HIR::EnumItemStruct &item)
 				  item.get_identifier ().as_string (), ident,
 				  TyTy::VariantDef::VariantType::STRUCT,
 				  std::move (discrim_expr), fields);
+}
+
+std::unique_ptr<HIR::Expr>
+TypeCheckEnumItem::discriminant_of (HIR::EnumItem &item)
+{
+  std::unique_ptr<HIR::Expr> discim_expr;
+  if (item.has_discriminant ())
+    {
+      auto &discriminant = item.get_discriminant ();
+      auto discriminant_type = TypeCheckExpr::Resolve (discriminant);
+      if (discriminant_type->get_kind () == TyTy::TypeKind::ERROR)
+	return nullptr;
+
+      TyTy::BaseType *isize = nullptr;
+      bool ok = context->lookup_builtin ("isize", &isize);
+      rust_assert (ok);
+
+      auto unified_ty = unify_site (item.get_mappings ().get_hirid (),
+				    TyTy::TyWithLocation (isize),
+				    TyTy::TyWithLocation (discriminant_type),
+				    item.get_locus ());
+
+      if (unified_ty->is<TyTy::ErrorType> ())
+	return nullptr;
+
+      context->insert_type (discriminant.get_mappings (), unified_ty);
+
+      tree discriminant_value
+	= Compile::HIRCompileBase::query_compile_const_expr (
+	  Compile::Context::get (), unified_ty, discriminant);
+      tree folded_discriminant_expr = Compile::fold_expr (discriminant_value);
+
+      if (error_operand_p (folded_discriminant_expr)
+	  || TREE_CODE (folded_discriminant_expr) != INTEGER_CST)
+	return nullptr;
+
+      discim_expr = discriminant.clone_expr ();
+
+      last_discriminant
+	= (int64_t) wi::to_wide (folded_discriminant_expr).to_shwi ();
+    }
+  else
+    {
+      if (last_discriminant == INT64_MAX)
+	{
+	  rust_error_at (item.get_locus (), ErrorCode::E0370,
+			 "enum discriminant overflowed");
+	  rust_inform (item.get_locus (),
+		       "explicitly set %<%s = %ld%> if that is desired outcome",
+		       item.get_identifier ().as_string ().c_str (), INT64_MIN);
+	  return nullptr;
+	}
+      last_discriminant++;
+
+      Analysis::NodeMapping mapping (item.get_mappings ().get_crate_num (),
+				     item.get_mappings ().get_nodeid (),
+				     mappings.get_next_hir_id (
+				       item.get_mappings ().get_crate_num ()),
+				     item.get_mappings ().get_local_defid ());
+
+      discim_expr = std::make_unique<HIR::LiteralExpr> (HIR::LiteralExpr (
+	mapping, std::to_string (last_discriminant), HIR::Literal::LitType::INT,
+	PrimitiveCoreType::CORETYPE_I64, item.get_locus (), {}));
+
+      TyTy::BaseType *isize = nullptr;
+      bool ok = context->lookup_builtin ("isize", &isize);
+      rust_assert (ok);
+      context->insert_type (mapping, isize);
+    }
+
+  auto result = discriminant_values.insert (
+    {last_discriminant, discim_expr->get_locus ()});
+  if (!result.second)
+    {
+      rust_error_at (discim_expr->get_locus (), ErrorCode::E0081,
+		     "discriminant value %<%ld%> already exists",
+		     last_discriminant);
+      rust_inform (result.first->second, "first use of %<%ld%>",
+		   last_discriminant);
+    }
+
+  return discim_expr;
 }
 
 } // namespace Resolver

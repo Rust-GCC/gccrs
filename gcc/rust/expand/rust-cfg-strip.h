@@ -55,6 +55,7 @@ public:
   void maybe_strip_closure_params (std::vector<AST::ClosureParam> &params);
   void maybe_strip_self_param (AST::SelfParam &self_param);
   void maybe_strip_where_clause (AST::WhereClause &where_clause);
+  void maybe_strip_discriminant (AST::EnumItem &item);
 
   /**
    * maybe_strip a set of values, erasing them if they are marked for strip.
@@ -151,7 +152,6 @@ public:
   void visit (AST::EnumItem &item) override;
   void visit (AST::EnumItemTuple &item) override;
   void visit (AST::EnumItemStruct &item) override;
-  void visit (AST::EnumItemDiscriminant &item) override;
   void visit (AST::Enum &enum_item) override;
   void visit (AST::Union &union_item) override;
   void visit (AST::ConstantItem &const_item) override;

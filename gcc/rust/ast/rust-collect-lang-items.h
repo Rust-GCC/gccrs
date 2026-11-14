@@ -54,7 +54,6 @@ public:
   void visit (AST::EnumItem &item) override;
   void visit (AST::EnumItemTuple &item) override;
   void visit (AST::EnumItemStruct &item) override;
-  void visit (AST::EnumItemDiscriminant &item) override;
 
 private:
   template <typename T> void maybe_add_lang_item (const T &item);

@@ -494,10 +494,6 @@ AttributeChecker::visit (AST::EnumItemStruct &)
 {}
 
 void
-AttributeChecker::visit (AST::EnumItemDiscriminant &)
-{}
-
-void
 AttributeChecker::visit (AST::Enum &enumeration)
 {
   for (auto &attr : enumeration.get_outer_attrs ())
