@@ -762,12 +762,25 @@ ExpandVisitor::visit (AST::Function &function)
 
 void
 ExpandVisitor::visit (AST::EnumItem &item)
-{}
+{
+  if (item.has_discriminant ())
+    maybe_expand_expr (item.get_discriminant_ptr ());
+}
 
 void
-ExpandVisitor::visit (AST::EnumItemDiscriminant &item)
+ExpandVisitor::visit (AST::EnumItemTuple &item)
 {
-  maybe_expand_expr (item.get_expr_ptr ());
+  for (auto &field : item.get_tuple_fields ())
+    visit (field);
+  visit (static_cast<AST::EnumItem &> (item));
+}
+
+void
+ExpandVisitor::visit (AST::EnumItemStruct &item)
+{
+  for (auto &field : item.get_struct_fields ())
+    visit (field);
+  visit (static_cast<AST::EnumItem &> (item));
 }
 
 void

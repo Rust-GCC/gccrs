@@ -258,7 +258,8 @@ public:
   void visit (AST::UseDeclaration &use_decl) override;
   void visit (AST::Function &function) override;
   void visit (AST::EnumItem &item) override;
-  void visit (AST::EnumItemDiscriminant &item) override;
+  void visit (AST::EnumItemTuple &item) override;
+  void visit (AST::EnumItemStruct &item) override;
   void visit (AST::Trait &trait) override;
   void visit (AST::InherentImpl &impl) override;
   void visit (AST::TraitImpl &impl) override;

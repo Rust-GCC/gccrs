@@ -406,6 +406,23 @@ CfgStrip::visit (AST::IdentifierExpr &ident_expr)
 }
 
 void
+CfgStrip::maybe_strip_discriminant (AST::EnumItem &item)
+{
+  if (item.has_discriminant ())
+    {
+      /* strip any internal sub-expressions - expression itself isn't
+       * allowed to have external attributes in this position so can't be
+       * stripped. */
+      auto &expr = item.get_discriminant ();
+      expr.accept_vis (*this);
+      if (expr.is_marked_for_strip ())
+	rust_error_at (expr.get_locus (),
+		       "cannot strip expression in this position - outer "
+		       "attributes not allowed");
+    }
+}
+
+void
 CfgStrip::visit (AST::MacroInvocation &macro_invoc)
 {
   // initial strip test based on outer attrs
@@ -1897,6 +1914,7 @@ CfgStrip::visit (AST::TupleStruct &tuple_struct)
    * allowed by spec */
   maybe_strip_tuple_fields (tuple_struct.get_fields ());
 }
+
 void
 CfgStrip::visit (AST::EnumItem &item)
 {
@@ -1907,6 +1925,8 @@ CfgStrip::visit (AST::EnumItem &item)
       item.mark_for_strip ();
       return;
     }
+
+  maybe_strip_discriminant (item);
 }
 
 void
@@ -1919,6 +1939,8 @@ CfgStrip::visit (AST::EnumItemTuple &item)
       item.mark_for_strip ();
       return;
     }
+
+  maybe_strip_discriminant (item);
 
   /* strip item fields if required - this is presumably
    * allowed by spec */
@@ -1936,32 +1958,13 @@ CfgStrip::visit (AST::EnumItemStruct &item)
       return;
     }
 
+  maybe_strip_discriminant (item);
+
   /* strip item fields if required - this is presumably
    * allowed by spec */
   maybe_strip_struct_fields (item.get_struct_fields ());
 }
 
-void
-CfgStrip::visit (AST::EnumItemDiscriminant &item)
-{
-  // initial test based on outer attrs
-  expand_cfg_attrs (item.get_outer_attrs ());
-  if (fails_cfg_with_expand (item.get_outer_attrs ()))
-    {
-      item.mark_for_strip ();
-      return;
-    }
-
-  AST::DefaultASTVisitor::visit (item);
-  /* strip any internal sub-expressions - expression itself isn't
-   * allowed to have external attributes in this position so can't be
-   * stripped. */
-  auto &expr = item.get_expr ();
-  if (expr.is_marked_for_strip ())
-    rust_error_at (expr.get_locus (),
-		   "cannot strip expression in this position - outer "
-		   "attributes not allowed");
-}
 void
 CfgStrip::visit (AST::Enum &enum_item)
 {

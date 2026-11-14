@@ -121,14 +121,6 @@ CollectLangItems::visit (AST::EnumItemStruct &item)
 }
 
 void
-CollectLangItems::visit (AST::EnumItemDiscriminant &item)
-{
-  maybe_add_lang_item (item);
-
-  DefaultASTVisitor::visit (item);
-}
-
-void
 CollectLangItems::visit (AST::ExternCrate &extern_crate)
 {
   auto &crate_mappings = Analysis::Mappings::get ().crate;

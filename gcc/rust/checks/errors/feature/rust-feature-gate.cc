@@ -367,6 +367,34 @@ void
 FeatureGate::visit (AST::Enum &enum_item)
 {
   check_lang_item_attribute (enum_item.get_outer_attrs ());
+
+  bool has_data_variant = false;
+
+  for (auto &variant : enum_item.get_variants ())
+    if (variant->get_enum_item_kind () != AST::EnumItem::Kind::Identifier)
+      {
+	has_data_variant = true;
+	break;
+      }
+
+  for (auto &variant : enum_item.get_variants ())
+    {
+      if (variant->get_enum_item_kind () != AST::EnumItem::Kind::Identifier)
+	{
+	  if (variant->has_discriminant ())
+	    gate (Feature::Name::ARBITRARY_ENUM_DISCRIMINANT,
+		  variant->get_discriminant ().get_locus (),
+		  "discriminants on non-unit variants are experimental");
+	}
+      else if (has_data_variant && variant->has_discriminant ())
+	{
+	  gate (
+	    Feature::Name::ARBITRARY_ENUM_DISCRIMINANT,
+	    variant->get_discriminant ().get_locus (),
+	    "custom discriminant values are not allowed in enums with tuple "
+	    "or struct variants");
+	}
+    }
   AST::DefaultASTVisitor::visit (enum_item);
 }
 

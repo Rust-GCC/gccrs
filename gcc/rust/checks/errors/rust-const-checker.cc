@@ -640,25 +640,26 @@ ConstChecker::visit (TupleStruct &tuple_struct)
 }
 
 void
-ConstChecker::visit (EnumItem &)
-{}
-
-void
-ConstChecker::visit (EnumItemTuple &)
-{}
-
-void
-ConstChecker::visit (EnumItemStruct &)
-{}
-
-void
-ConstChecker::visit (EnumItemDiscriminant &item)
+ConstChecker::visit (EnumItem &item)
 {
-  const_context.enter (item.get_mappings ().get_hirid ());
+  if (item.has_discriminant ())
+    {
+      const_context.enter (item.get_mappings ().get_hirid ());
+      item.get_discriminant ().accept_vis (*this);
+      const_context.exit ();
+    }
+}
 
-  item.get_discriminant_expression ().accept_vis (*this);
+void
+ConstChecker::visit (EnumItemTuple &item)
+{
+  visit (static_cast<EnumItem &> (item));
+}
 
-  const_context.exit ();
+void
+ConstChecker::visit (EnumItemStruct &item)
+{
+  visit (static_cast<EnumItem &> (item));
 }
 
 void
