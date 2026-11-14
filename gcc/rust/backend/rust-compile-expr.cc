@@ -2464,7 +2464,9 @@ CompileExpr::array_copied_expr (location_t expr_locus,
 
   if (!TREE_CONSTANT (TYPE_MAX_VALUE (domain)))
     {
-      rust_error_at (expr_locus, "non const capacity domain %qT", array_type);
+      rust_error_at (elems.get_num_copies_expr ().get_locus (),
+		     ErrorCode::E0435,
+		     "attempt to use a non-constant value in a constant");
       return error_mark_node;
     }
 
