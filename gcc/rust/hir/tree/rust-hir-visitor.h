@@ -106,7 +106,6 @@ public:
   virtual void visit (EnumItem &item) = 0;
   virtual void visit (EnumItemTuple &item) = 0;
   virtual void visit (EnumItemStruct &item) = 0;
-  virtual void visit (EnumItemDiscriminant &item) = 0;
   virtual void visit (Enum &enum_item) = 0;
   virtual void visit (Union &union_item) = 0;
   virtual void visit (ConstantItem &const_item) = 0;
@@ -275,7 +274,6 @@ public:
   virtual void visit (EnumItem &node) override { walk (node); }
   virtual void visit (EnumItemTuple &node) override { walk (node); }
   virtual void visit (EnumItemStruct &node) override { walk (node); }
-  virtual void visit (EnumItemDiscriminant &node) override { walk (node); }
   virtual void visit (Enum &node) override { walk (node); }
   virtual void visit (Union &node) override { walk (node); }
   virtual void visit (ConstantItem &node) override { walk (node); }
@@ -416,7 +414,6 @@ protected:
   virtual void walk (EnumItem &) final;
   virtual void walk (EnumItemTuple &) final;
   virtual void walk (EnumItemStruct &) final;
-  virtual void walk (EnumItemDiscriminant &) final;
   virtual void walk (Enum &) final;
   virtual void walk (Union &) final;
   virtual void walk (ConstantItem &) final;
@@ -561,7 +558,6 @@ public:
   virtual void visit (EnumItem &) override {}
   virtual void visit (EnumItemTuple &) override {}
   virtual void visit (EnumItemStruct &) override {}
-  virtual void visit (EnumItemDiscriminant &) override {}
   virtual void visit (Enum &) override {}
   virtual void visit (Union &) override {}
   virtual void visit (ConstantItem &) override {}
@@ -693,7 +689,6 @@ public:
   virtual void visit (EnumItemStruct &) = 0;
   virtual void visit (EnumItem &item) = 0;
   virtual void visit (TupleStruct &tuple_struct) = 0;
-  virtual void visit (EnumItemDiscriminant &) = 0;
   virtual void visit (TypePathSegmentFunction &segment) = 0;
   virtual void visit (TypePath &path) = 0;
   virtual void visit (QualifiedPathInType &path) = 0;

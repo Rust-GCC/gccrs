@@ -379,14 +379,6 @@ TopLevel::visit (AST::EnumItemStruct &variant)
 }
 
 void
-TopLevel::visit (AST::EnumItemDiscriminant &variant)
-{
-  insert_enum_variant_or_error_out (variant.get_identifier (), variant, true);
-
-  DefaultResolver::visit (variant);
-}
-
-void
 TopLevel::visit (AST::Enum &enum_item)
 {
   insert_or_error_out (enum_item.get_identifier (), enum_item,

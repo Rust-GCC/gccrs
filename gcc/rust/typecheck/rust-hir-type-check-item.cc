@@ -623,17 +623,38 @@ TypeCheckItem::visit (HIR::Enum &enum_decl)
     region_constraints);
   context->insert_type (enum_decl.get_mappings (), type);
 
-  int64_t discriminant_value = 0;
+  bool has_data_variant = false;
+  bool has_unit_discr = false;
+  bool has_data_discr = false;
+
+  std::map<int64_t, location_t> discriminant_values;
+  int64_t last_discriminant = -1;
   for (auto &variant : enum_decl.get_variants ())
     {
       TyTy::VariantDef *field_type
-	= TypeCheckEnumItem::Resolve (*variant, discriminant_value);
+	= TypeCheckEnumItem::Resolve (*variant, discriminant_values,
+				      last_discriminant);
       if (field_type)
 	{
-	  discriminant_value++;
 	  type->get_variants ().push_back (field_type);
+
+	  if (field_type->is_data_variant ())
+	    {
+	      has_data_variant = true;
+	      if (variant->has_discriminant ())
+		has_data_discr = true;
+	    }
+	  else if (variant->has_discriminant ())
+	    {
+	      has_unit_discr = true;
+	    }
 	}
     }
+
+  if (repr.repr_kind == TyTy::ADTType::ReprKind::RUST)
+    if (has_data_discr || (has_unit_discr && has_data_variant))
+      rust_error_at (enum_decl.get_locus (), ErrorCode::E0732,
+		     "%<#[repr(inttype)]%> must be specified");
 
   // Check for zero-variant enum compatibility
   if (enum_decl.is_zero_variant ())

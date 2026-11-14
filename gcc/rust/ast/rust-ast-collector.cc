@@ -2318,6 +2318,11 @@ TokenCollector::visit (EnumItem &item)
     visit_items_as_lines (item.get_outer_attrs ());
     auto id = item.get_identifier ().as_string ();
     push (Rust::Token::make_identifier (item.get_locus (), std::move (id)));
+    if (item.has_discriminant ())
+      {
+	push (Rust::Token::make (EQUAL, UNDEF_LOCATION));
+	visit (item.get_discriminant ());
+      }
   });
 }
 
@@ -2330,6 +2335,11 @@ TokenCollector::visit (EnumItemTuple &item)
     push (Rust::Token::make (LEFT_PAREN, UNDEF_LOCATION));
     visit_items_joined_by_separator (item.get_tuple_fields (), COMMA);
     push (Rust::Token::make (RIGHT_PAREN, UNDEF_LOCATION));
+    if (item.has_discriminant ())
+      {
+	push (Rust::Token::make (EQUAL, UNDEF_LOCATION));
+	visit (item.get_discriminant ());
+      }
   });
 }
 
@@ -2341,17 +2351,11 @@ TokenCollector::visit (EnumItemStruct &item)
     push (Rust::Token::make_identifier (item.get_locus (), std::move (id)));
     visit_items_as_block (item.get_struct_fields (),
 			  {Rust::Token::make (COMMA, UNDEF_LOCATION)});
-  });
-}
-
-void
-TokenCollector::visit (EnumItemDiscriminant &item)
-{
-  describe_node (std::string ("EnumItemDiscriminant"), [this, &item] () {
-    auto id = item.get_identifier ().as_string ();
-    push (Rust::Token::make_identifier (item.get_locus (), std::move (id)));
-    push (Rust::Token::make (EQUAL, UNDEF_LOCATION));
-    visit (item.get_expr ());
+    if (item.has_discriminant ())
+      {
+	push (Rust::Token::make (EQUAL, UNDEF_LOCATION));
+	visit (item.get_discriminant ());
+      }
   });
 }
 

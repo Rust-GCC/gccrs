@@ -3189,9 +3189,6 @@ EnumItem::to_string () const
     case Struct:
       str += "[Struct variant]";
       break;
-    case Discriminant:
-      str += "[Discriminant variant]";
-      break;
     }
 
   return str;
@@ -3221,6 +3218,9 @@ EnumItemTuple::to_string () const
 
   // add tuple closing parens
   str += ")";
+
+  if (has_discriminant ())
+    str += " = " + get_discriminant ().to_string ();
 
   return str;
 }
@@ -3279,6 +3279,9 @@ EnumItemStruct::to_string () const
   // add struct closing parens
   str += "}";
 
+  if (has_discriminant ())
+    str += " = " + get_discriminant ().to_string ();
+
   return str;
 }
 
@@ -3307,17 +3310,6 @@ StructField::to_string () const
     }
 
   str += " " + field_name.as_string () + " : " + field_type->to_string ();
-
-  return str;
-}
-
-std::string
-EnumItemDiscriminant::to_string () const
-{
-  std::string str = EnumItem::to_string ();
-
-  // add equal and expression
-  str += " = " + expression->to_string ();
 
   return str;
 }
@@ -4429,12 +4421,6 @@ EnumItemStruct::accept_vis (HIRFullVisitor &vis)
 }
 
 void
-EnumItemDiscriminant::accept_vis (HIRFullVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
 Enum::accept_vis (HIRFullVisitor &vis)
 {
   vis.visit (*this);
@@ -4790,12 +4776,6 @@ ExternalTypeItem::accept_vis (HIRExternalItemVisitor &vis)
 
 void
 ExternalStaticItem::accept_vis (HIRExternalItemVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-EnumItemDiscriminant::accept_vis (HIRStmtVisitor &vis)
 {
   vis.visit (*this);
 }

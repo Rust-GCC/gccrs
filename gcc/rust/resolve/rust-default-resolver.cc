@@ -320,15 +320,6 @@ DefaultResolver::visit (AST::EnumItemStruct &item)
 }
 
 void
-DefaultResolver::visit (AST::EnumItemDiscriminant &item)
-{
-  auto inner_fn = [this, &item] () { AST::DefaultASTVisitor::visit (item); };
-
-  ctx.canonical_ctx.scope (item.get_node_id (), item.get_identifier (),
-			   inner_fn);
-}
-
-void
 DefaultResolver::visit (AST::Enum &type)
 {
   auto inner_fn_1 = [this, &type] () { AST::DefaultASTVisitor::visit (type); };

@@ -743,6 +743,8 @@ void
 DefaultHIRVisitor::walk (EnumItem &item)
 {
   visit_outer_attrs (item);
+  if (item.has_discriminant ())
+    item.get_discriminant ().accept_vis (*this);
 }
 
 void
@@ -759,13 +761,6 @@ DefaultHIRVisitor::walk (EnumItemStruct &item_struct)
   item_struct.EnumItem::accept_vis (*this);
   for (auto &field : item_struct.get_struct_fields ())
     field.get_field_type ().accept_vis (*this);
-}
-
-void
-DefaultHIRVisitor::walk (EnumItemDiscriminant &item)
-{
-  item.EnumItem::accept_vis (*this);
-  item.get_discriminant_expression ().accept_vis (*this);
 }
 
 void

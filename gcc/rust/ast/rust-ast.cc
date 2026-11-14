@@ -2982,6 +2982,9 @@ EnumItem::as_string () const
   std::string str = VisItem::as_string ();
   str += variant_name.as_string ();
 
+  if (has_discriminant () && get_enum_item_kind () == Kind::Identifier)
+    str += " = " + get_discriminant ().as_string ();
+
   return str;
 }
 
@@ -3009,6 +3012,9 @@ EnumItemTuple::as_string () const
 
   // add tuple closing parens
   str += ")";
+
+  if (has_discriminant ())
+    str += " = " + get_discriminant ().as_string ();
 
   return str;
 }
@@ -3054,6 +3060,9 @@ EnumItemStruct::as_string () const
   // add struct closing parens
   str += "}";
 
+  if (has_discriminant ())
+    str += " = " + get_discriminant ().as_string ();
+
   return str;
 }
 
@@ -3068,18 +3077,6 @@ StructField::as_string () const
     str += "\n" + visibility.as_string ();
 
   str += " " + field_name.as_string () + " : " + field_type->as_string ();
-
-  return str;
-}
-
-std::string
-EnumItemDiscriminant::as_string () const
-{
-  // TODO: rewrite to work with non-linearisable exprs
-  std::string str = EnumItem::as_string ();
-
-  // add equal and expression
-  str += " = " + expression->as_string ();
 
   return str;
 }
@@ -4844,12 +4841,6 @@ EnumItemTuple::accept_vis (ASTVisitor &vis)
 
 void
 EnumItemStruct::accept_vis (ASTVisitor &vis)
-{
-  vis.visit (*this);
-}
-
-void
-EnumItemDiscriminant::accept_vis (ASTVisitor &vis)
 {
   vis.visit (*this);
 }

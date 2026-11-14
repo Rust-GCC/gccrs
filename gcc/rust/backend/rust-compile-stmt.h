@@ -38,7 +38,6 @@ public:
   void visit (HIR::EnumItem &) override {}
   void visit (HIR::EnumItemTuple &) override {}
   void visit (HIR::EnumItemStruct &) override {}
-  void visit (HIR::EnumItemDiscriminant &) override {}
   void visit (HIR::TypePathSegmentFunction &) override {}
   void visit (HIR::TypePath &) override {}
   void visit (HIR::QualifiedPathInType &) override {}

@@ -2158,7 +2158,7 @@ protected:
 class EnumItem : public VisItem
 {
   Identifier variant_name;
-
+  std::unique_ptr<Expr> discriminant;
   location_t locus;
 
 public:
@@ -2167,43 +2167,40 @@ public:
     Identifier,
     Tuple,
     Struct,
-
-    // FIXME: In the future, we'll need to remove this possibility as well as
-    // remove the EnumItemDiscriminant class. The feature for arbitrary
-    // discriminants on all kinds of variants has been stabilized, and a
-    // "discriminant" is no longer an enum item variant - it's simply an
-    // optional part of all variants.
-    //
-    // Per the reference:
-    //
-    // EnumItem :
-    //    OuterAttribute* Visibility?
-    //    IDENTIFIER ( EnumItemTuple | EnumItemStruct )? EnumItemDiscriminant?
-    //
-    // EnumItemTuple :
-    //    ( TupleFields? )
-    //
-    // EnumItemStruct :
-    //    { StructFields? }
-    //
-    // EnumItemDiscriminant :
-    //    = Expression
-    //
-    // So we instead need to remove the class, and add an optional expression to
-    // the base EnumItem class
-    //
-    // gccrs#3340
-
-    Discriminant,
   };
 
   virtual ~EnumItem () {}
 
-  EnumItem (Identifier variant_name, Visibility vis,
-	    std::vector<Attribute> outer_attrs, location_t locus)
+  EnumItem (Identifier variant_name, std::unique_ptr<Expr> discriminant,
+	    Visibility vis, std::vector<Attribute> outer_attrs,
+	    location_t locus)
     : VisItem (std::move (vis), std::move (outer_attrs)),
-      variant_name (std::move (variant_name)), locus (locus)
+      variant_name (std::move (variant_name)),
+      discriminant (std::move (discriminant)), locus (locus)
   {}
+
+  EnumItem (EnumItem const &other)
+    : VisItem (other), variant_name (other.variant_name), locus (other.locus)
+  {
+    if (other.discriminant != nullptr)
+      discriminant = other.discriminant->clone_expr ();
+  }
+
+  EnumItem &operator= (EnumItem const &other)
+  {
+    VisItem::operator= (other);
+    variant_name = other.variant_name;
+    locus = other.locus;
+    if (other.discriminant != nullptr)
+      discriminant = other.discriminant->clone_expr ();
+    else
+      discriminant = nullptr;
+
+    return *this;
+  }
+
+  EnumItem (EnumItem &&other) = default;
+  EnumItem &operator= (EnumItem &&other) = default;
 
   virtual Kind get_enum_item_kind () const { return Kind::Identifier; }
 
@@ -2221,6 +2218,22 @@ public:
   location_t get_locus () const override { return locus; }
 
   Identifier get_identifier () const { return variant_name; }
+
+  bool has_discriminant () const { return discriminant != nullptr; }
+  Expr &get_discriminant () const
+  {
+    rust_assert (discriminant != nullptr);
+    return *discriminant;
+  }
+  std::unique_ptr<Expr> &get_discriminant_ptr ()
+  {
+    rust_assert (discriminant != nullptr);
+    return discriminant;
+  }
+  void set_discriminant (std::unique_ptr<Expr> discr)
+  {
+    discriminant = std::move (discr);
+  }
 
   // Based on idea that name is never empty.
   void mark_for_strip () override { variant_name = {""}; }
@@ -2242,11 +2255,11 @@ public:
   // Returns whether tuple enum item has tuple fields.
   bool has_tuple_fields () const { return !tuple_fields.empty (); }
 
-  EnumItemTuple (Identifier variant_name, Visibility vis,
-		 std::vector<TupleField> tuple_fields,
+  EnumItemTuple (Identifier variant_name, std::unique_ptr<Expr> discriminant,
+		 Visibility vis, std::vector<TupleField> tuple_fields,
 		 std::vector<Attribute> outer_attrs, location_t locus)
-    : EnumItem (std::move (variant_name), std::move (vis),
-		std::move (outer_attrs), locus),
+    : EnumItem (std::move (variant_name), std::move (discriminant),
+		std::move (vis), std::move (outer_attrs), locus),
       tuple_fields (std::move (tuple_fields))
   {}
 
@@ -2284,11 +2297,11 @@ public:
   // Returns whether struct enum item has struct fields.
   bool has_struct_fields () const { return !struct_fields.empty (); }
 
-  EnumItemStruct (Identifier variant_name, Visibility vis,
-		  std::vector<StructField> struct_fields,
+  EnumItemStruct (Identifier variant_name, std::unique_ptr<Expr> discriminant,
+		  Visibility vis, std::vector<StructField> struct_fields,
 		  std::vector<Attribute> outer_attrs, location_t locus)
-    : EnumItem (std::move (variant_name), std::move (vis),
-		std::move (outer_attrs), locus),
+    : EnumItem (std::move (variant_name), std::move (discriminant),
+		std::move (vis), std::move (outer_attrs), locus),
       struct_fields (std::move (struct_fields))
   {}
 
@@ -2313,72 +2326,6 @@ protected:
   EnumItemStruct *clone_item_impl () const override
   {
     return new EnumItemStruct (*this);
-  }
-};
-
-// A discriminant (numbered enum) item used in an "enum" tagged union
-class EnumItemDiscriminant : public EnumItem
-{
-  std::unique_ptr<Expr> expression;
-
-public:
-  EnumItemDiscriminant (Identifier variant_name, Visibility vis,
-			std::unique_ptr<Expr> expr,
-			std::vector<Attribute> outer_attrs, location_t locus)
-    : EnumItem (std::move (variant_name), std::move (vis),
-		std::move (outer_attrs), locus),
-      expression (std::move (expr))
-  {}
-
-  // Copy constructor with clone
-  EnumItemDiscriminant (EnumItemDiscriminant const &other)
-    : EnumItem (other), expression (other.expression->clone_expr ())
-  {}
-
-  // Overloaded assignment operator to clone
-  EnumItemDiscriminant &operator= (EnumItemDiscriminant const &other)
-  {
-    EnumItem::operator= (other);
-    expression = other.expression->clone_expr ();
-    // variant_name = other.variant_name;
-    // outer_attrs = other.outer_attrs;
-
-    return *this;
-  }
-
-  // move constructors
-  EnumItemDiscriminant (EnumItemDiscriminant &&other) = default;
-  EnumItemDiscriminant &operator= (EnumItemDiscriminant &&other) = default;
-
-  EnumItem::Kind get_enum_item_kind () const override
-  {
-    return EnumItem::Kind::Discriminant;
-  }
-
-  std::string as_string () const override;
-
-  void accept_vis (ASTVisitor &vis) override;
-
-  bool has_expr () { return expression != nullptr; }
-
-  // TODO: is this better? Or is a "vis_block" better?
-  Expr &get_expr ()
-  {
-    rust_assert (expression != nullptr);
-    return *expression;
-  }
-
-  std::unique_ptr<Expr> &get_expr_ptr ()
-  {
-    rust_assert (expression != nullptr);
-    return expression;
-  }
-
-protected:
-  // Clone function implementation as (not pure) virtual method
-  EnumItemDiscriminant *clone_item_impl () const override
-  {
-    return new EnumItemDiscriminant (*this);
   }
 };
 

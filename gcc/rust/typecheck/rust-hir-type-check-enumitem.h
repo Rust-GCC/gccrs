@@ -28,20 +28,25 @@ namespace Resolver {
 class TypeCheckEnumItem : public TypeCheckBase
 {
 public:
-  static TyTy::VariantDef *Resolve (HIR::EnumItem &item,
-				    int64_t last_discriminant);
+  static TyTy::VariantDef *
+  Resolve (HIR::EnumItem &item,
+	   std::map<int64_t, location_t> &discriminant_values,
+	   int64_t &last_discriminant);
 
 protected:
   void visit (HIR::EnumItem &item);
-  void visit (HIR::EnumItemDiscriminant &item);
   void visit (HIR::EnumItemTuple &item);
   void visit (HIR::EnumItemStruct &item);
 
 private:
-  TypeCheckEnumItem (int64_t last_discriminant);
+  TypeCheckEnumItem (std::map<int64_t, location_t> &discriminant_values,
+		     int64_t &last_discriminant);
+
+  std::unique_ptr<HIR::Expr> discriminant_of (HIR::EnumItem &item);
 
   TyTy::VariantDef *variant;
-  int64_t last_discriminant;
+  std::map<int64_t, location_t> &discriminant_values;
+  int64_t &last_discriminant;
 };
 
 } // namespace Resolver
