@@ -816,7 +816,7 @@ TypeCheckContext::intern_and_insert_lifetime (const HIR::Lifetime &lifetime)
   get_lifetime_resolver ().insert_mapping (intern_lifetime (lifetime));
 }
 
-WARN_UNUSED_RESULT std::vector<TyTy::Region>
+WARN_UNUSED_RESULT tl::optional<std::vector<TyTy::Region>>
 TypeCheckContext::regions_from_generic_args (const HIR::GenericArgs &args) const
 {
   std::vector<TyTy::Region> regions;
@@ -826,7 +826,7 @@ TypeCheckContext::regions_from_generic_args (const HIR::GenericArgs &args) const
       if (!resolved)
 	{
 	  rust_error_at (lifetime.get_locus (), "unresolved lifetime");
-	  return {};
+	  return tl::nullopt;
 	}
       regions.push_back (*resolved);
     }
