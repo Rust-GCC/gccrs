@@ -225,7 +225,11 @@ struct Items
   static gcc::expected<std::vector<std::unique_ptr<AST::Item>>, Items>
   make_malformed (std::vector<std::unique_ptr<AST::Item>> items)
   {
-    return gcc::unexpected<Items> (Items (Kind::MALFORMED, std::move (items)));
+    // GCC 5 does not like this line but somehow it is fine with all other
+    // compilers
+    // return gcc::unexpected<Items> (Items (Kind::MALFORMED, std::move
+    // (items)));
+    return gcc::make_unexpected (Items (Kind::MALFORMED, std::move (items)));
   }
 
   enum class Kind
