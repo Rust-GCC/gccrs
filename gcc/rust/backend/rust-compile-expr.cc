@@ -2451,6 +2451,35 @@ CompileExpr::array_value_expr (location_t expr_locus,
 						constructor, expr_locus);
 }
 
+// rustc reports a local in an array length as E0435
+// shortcut: only a bare path is checked, `n + 1` gets the plain message
+static void
+report_non_const_length (Context *ctx, HIR::Expr &length)
+{
+  bool is_local = false;
+  if (length.get_expression_type () == HIR::Expr::ExprType::Path)
+    {
+      auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
+      auto def = nr_ctx.lookup (length.get_mappings ().get_nodeid (),
+				Resolver2_0::Namespace::Values);
+      tl::optional<HirId> hid = tl::nullopt;
+      if (def)
+	hid = ctx->get_mappings ().lookup_node_to_hir (*def);
+
+      Bvariable *var = nullptr;
+      tree binding = NULL_TREE;
+      is_local = hid.has_value ()
+		 && (ctx->lookup_var_decl (*hid, &var)
+		     || ctx->lookup_pattern_binding (*hid, &binding));
+    }
+
+  if (is_local)
+    rust_error_at (length.get_locus (), ErrorCode::E0435,
+		   "attempt to use a non-constant value in a constant");
+  else
+    rust_error_at (length.get_locus (), "array length is not a constant");
+}
+
 tree
 CompileExpr::array_copied_expr (location_t expr_locus,
 				const TyTy::ArrayType &array_tyty,
@@ -2464,7 +2493,7 @@ CompileExpr::array_copied_expr (location_t expr_locus,
 
   if (!TREE_CONSTANT (TYPE_MAX_VALUE (domain)))
     {
-      rust_error_at (expr_locus, "non const capacity domain %qT", array_type);
+      report_non_const_length (ctx, elems.get_num_copies_expr ());
       return error_mark_node;
     }
 
@@ -2484,9 +2513,11 @@ CompileExpr::array_copied_expr (location_t expr_locus,
 	       == TyTy::BaseConstType::ConstKind::Value);
   auto &capacity_value = *static_cast<TyTy::ConstValueType *> (capacity_const);
   auto cap_tree = capacity_value.get_value ();
-  if (error_operand_p (cap_tree) || !TREE_CONSTANT (cap_tree))
+  if (error_operand_p (cap_tree))
+    return error_mark_node;
+  if (!TREE_CONSTANT (cap_tree))
     {
-      rust_error_at (expr_locus, "non const num copies %qT", cap_tree);
+      report_non_const_length (ctx, elems.get_num_copies_expr ());
       return error_mark_node;
     }
 
