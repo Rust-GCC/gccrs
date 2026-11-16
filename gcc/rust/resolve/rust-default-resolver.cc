@@ -163,8 +163,7 @@ DefaultResolver::visit (AST::Trait &trait)
 
   auto inner_fn_2 = [this, &trait, &inner_fn_1] () {
     visit (trait.get_implicit_self ());
-    for (auto &generic : trait.get_generic_params ())
-      visit (generic);
+    visit_generic_params (trait.get_generic_params ());
     if (trait.has_where_clause ())
       visit (trait.get_where_clause ());
     for (auto &bound : trait.get_type_param_bounds ())
@@ -206,8 +205,7 @@ DefaultResolver::visit (AST::InherentImpl &impl)
 
   auto inner_fn_2 = [this, &impl, &inner_fn_1] () {
     maybe_insert_big_self (impl);
-    for (auto &generic : impl.get_generic_params ())
-      visit (generic);
+    visit_generic_params (impl.get_generic_params ());
     if (impl.has_where_clause ())
       visit (impl.get_where_clause ());
     visit_impl_type (impl.get_type ());
@@ -247,8 +245,7 @@ DefaultResolver::visit (AST::TraitImpl &impl)
 
   auto inner_fn_2 = [this, &impl, &inner_fn_1] () {
     maybe_insert_big_self (impl);
-    for (auto &generic : impl.get_generic_params ())
-      visit (generic);
+    visit_generic_params (impl.get_generic_params ());
     if (impl.has_where_clause ())
       visit (impl.get_where_clause ());
     visit_impl_type (impl.get_type ());
