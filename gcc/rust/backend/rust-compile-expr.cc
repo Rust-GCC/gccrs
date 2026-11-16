@@ -2464,7 +2464,7 @@ CompileExpr::array_copied_expr (location_t expr_locus,
 
   if (!TREE_CONSTANT (TYPE_MAX_VALUE (domain)))
     {
-      rust_error_at (expr_locus, "non const capacity domain %qT", array_type);
+      report_non_const_length (elems.get_num_copies_expr ());
       return error_mark_node;
     }
 
@@ -2484,9 +2484,11 @@ CompileExpr::array_copied_expr (location_t expr_locus,
 	       == TyTy::BaseConstType::ConstKind::Value);
   auto &capacity_value = *static_cast<TyTy::ConstValueType *> (capacity_const);
   auto cap_tree = capacity_value.get_value ();
-  if (error_operand_p (cap_tree) || !TREE_CONSTANT (cap_tree))
+  if (error_operand_p (cap_tree))
+    return error_mark_node;
+  if (!TREE_CONSTANT (cap_tree))
     {
-      rust_error_at (expr_locus, "non const num copies %qT", cap_tree);
+      report_non_const_length (elems.get_num_copies_expr ());
       return error_mark_node;
     }
 
