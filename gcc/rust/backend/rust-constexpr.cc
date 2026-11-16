@@ -599,7 +599,7 @@ cx_error_context (void)
 
 // this is ported from cxx_eval_outermost_constant_expr
 tree
-fold_expr (tree expr)
+fold_expr (tree expr, bool *non_constant_out)
 {
   bool allow_non_constant = false;
   bool strict = true;
@@ -623,6 +623,9 @@ fold_expr (tree expr)
   tree folded = eval_constant_expression (&ctx, expr, false, &non_constant_p,
 					  &overflow_p, &jump_target);
   rust_assert (folded != NULL_TREE);
+
+  if (non_constant_out)
+    *non_constant_out = non_constant_p;
 
   // more logic here to possibly port
   return folded;
