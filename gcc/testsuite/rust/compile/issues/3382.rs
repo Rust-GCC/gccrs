@@ -1,12 +1,11 @@
 #![feature(no_core)]
 #![no_core]
-
 #![feature(lang_items)]
 
 #[lang = "sized"]
 trait Sized {}
 
-enum Result<T, E> {
+pub enum Result<T, E> {
     #[lang = "Ok"]
     Ok(T),
     #[lang = "Err"]

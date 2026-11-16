@@ -1,6 +1,5 @@
 #![feature(no_core)]
 #![no_core]
-
 #![feature(lang_items)]
 #[lang = "sized"]
 pub trait Sized {}
@@ -10,7 +9,7 @@ extern "C" {
 }
 
 mod option {
-    enum Option<T> {
+    pub enum Option<T> {
         #[lang = "None"]
         None,
         #[lang = "Some"]
