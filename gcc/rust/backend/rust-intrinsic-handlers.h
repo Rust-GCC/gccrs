@@ -219,6 +219,11 @@ Intrinsic::CompileFn fop_fast (ArithmeticOrLogicalOperator op);
  */
 Intrinsic::CompileFn type_assert (TyAssert assert);
 
+Intrinsic::CompileFn volatile_load (bool is_unaligned);
+Intrinsic::CompileFn volatile_store (bool is_unaligned);
+Intrinsic::CompileFn volatile_copy (bool is_nonoverlapping);
+Intrinsic::CompileFn volatile_set_memory ();
+
 void breakpoint (IntrinsicCtx &ctx);
 
 void ptr_offset_from (IntrinsicCtx &ctx);
