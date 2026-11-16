@@ -60,7 +60,8 @@ DeriveDefault::default_fn (std::unique_ptr<Expr> &&return_expr)
     = std::unique_ptr<Type> (new TypePath (builder.type_path ("Self")));
 
   auto block = std::unique_ptr<BlockExpr> (
-    new BlockExpr ({}, std::move (return_expr), {}, {}, tl::nullopt, loc, loc));
+    new BlockExpr ({}, std::move (return_expr), {}, {}, gcc::nullopt, loc,
+		   loc));
 
   return builder.function ("default", {}, std::move (self_ty),
 			   std::move (block));

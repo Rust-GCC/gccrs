@@ -247,7 +247,7 @@ CompileItem::visit (HIR::Function &function)
 
   auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
-  tl::optional<Resolver::ImplTraitFrameGuard> guard;
+  gcc::optional<Resolver::ImplTraitFrameGuard> guard;
   if (impl)
     guard.emplace (impl->get_frame ());
 

@@ -41,12 +41,12 @@ PatternBindingBuilder::visit (HIR::ReferencePattern &pattern)
 {
   SavedState saved (this);
 
-  init = init.map ([&] (PlaceId id) {
+  init = init.transform ([&] (PlaceId id) {
     return ctx.place_db.lookup_or_add_path (Place::DEREF, lookup_type (pattern),
 					    id);
   });
 
-  type_annotation = type_annotation.map ([&] (TyTy::BaseType *ty) {
+  type_annotation = type_annotation.transform ([&] (TyTy::BaseType *ty) {
     return ty->as<TyTy::ReferenceType> ()->get_base ();
   });
 
@@ -61,12 +61,12 @@ PatternBindingBuilder::visit (HIR::SlicePattern &pattern)
   // All indexes are supposed to point to the same place for borrow-checking.
   // init = ctx.place_db.lookup_or_add_path (Place::INDEX, lookup_type
   // (pattern), saved.init);
-  init = init.map ([&] (PlaceId id) {
+  init = init.transform ([&] (PlaceId id) {
     return ctx.place_db.lookup_or_add_path (Place::INDEX, lookup_type (pattern),
 					    id);
   });
 
-  type_annotation = type_annotation.map ([&] (TyTy::BaseType *ty) {
+  type_annotation = type_annotation.transform ([&] (TyTy::BaseType *ty) {
     return ty->as<TyTy::SliceType> ()->get_element_type ();
   });
 
@@ -133,20 +133,21 @@ PatternBindingBuilder::visit (HIR::StructPattern &pattern)
 	    auto tuple
 	      = static_cast<HIR::StructPatternFieldTuplePat *> (field.get ());
 
-	    init = init.map ([&] (PlaceId id) {
+	    init = init.transform ([&] (PlaceId id) {
 	      return ctx.place_db.lookup_or_add_path (
 		Place::FIELD, lookup_type (tuple->get_tuple_pattern ()), id,
 		tuple->get_index ());
 	    });
 
-	    type_annotation = type_annotation.map ([&] (TyTy::BaseType *ty) {
-	      return ty->as<TyTy::ADTType> ()
-		->get_variants ()
-		.at (0)
-		->get_fields ()
-		.at (tuple->get_index ())
-		->get_field_type ();
-	    });
+	    type_annotation
+	      = type_annotation.transform ([&] (TyTy::BaseType *ty) {
+		  return ty->as<TyTy::ADTType> ()
+		    ->get_variants ()
+		    .at (0)
+		    ->get_fields ()
+		    .at (tuple->get_index ())
+		    ->get_field_type ();
+		});
 
 	    tuple->get_tuple_pattern ().accept_vis (*this);
 	    break;
@@ -201,15 +202,15 @@ PatternBindingBuilder::visit_tuple_fields (
     {
       auto type = lookup_type (*item);
 
-      init = init.map ([&] (PlaceId id) {
+      init = init.transform ([&] (PlaceId id) {
 	return ctx.place_db.lookup_or_add_path (Place::FIELD, type, id, index);
       });
 
-      type_annotation = type_annotation.map ([&] (TyTy::BaseType *ty) {
+      type_annotation = type_annotation.transform ([&] (TyTy::BaseType *ty) {
 	return ty->as<TyTy::TupleType> ()->get_fields ().at (index).get_tyty ();
       });
 
-      regions = regions.map ([&] (FreeRegions regs) {
+      regions = regions.transform ([&] (FreeRegions regs) {
 	return bind_regions (Resolver::TypeCheckContext::get ()
 			       ->get_variance_analysis_ctx ()
 			       .query_type_regions (type),
@@ -262,11 +263,11 @@ PatternBindingBuilder::visit (HIR::TupleStructPattern &pattern)
 {
   SavedState saved (this);
 
-  type_annotation = tl::nullopt;
+  type_annotation = gcc::nullopt;
 
   auto type = lookup_type (pattern);
 
-  regions = regions.map ([&] (FreeRegions regs) {
+  regions = regions.transform ([&] (FreeRegions regs) {
     return bind_regions (Resolver::TypeCheckContext::get ()
 			   ->get_variance_analysis_ctx ()
 			   .query_type_regions (type),

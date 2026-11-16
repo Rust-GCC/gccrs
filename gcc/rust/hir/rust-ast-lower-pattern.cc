@@ -352,8 +352,8 @@ lower_pattern_seq (It begin, It end)
 void
 ASTLoweringPattern::visit (AST::SlicePattern &pattern)
 {
-  tl::optional<size_t> rest_index;
-  tl::optional<HIR::IdentifierPattern> rest_bind;
+  gcc::optional<size_t> rest_index;
+  gcc::optional<HIR::IdentifierPattern> rest_bind;
 
   std::vector<std::unique_ptr<AST::Pattern>> &sub_patterns
     = pattern.get_patterns ();

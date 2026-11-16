@@ -18,8 +18,8 @@
 
 #include "rust-hir-type-check-type.h"
 #include "options.h"
-#include "optional.h"
 #include "rich-location.h"
+#include "stdbackport/optional"
 #include "rust-hir-map.h"
 #include "rust-hir-trait-resolve.h"
 #include "rust-hir-type-check-expr.h"
@@ -235,7 +235,7 @@ TypeCheckType::visit (HIR::QualifiedPathInType &path)
   // lookup the associated item from the specified bound
   HIR::TypePathSegment &item_seg = path.get_associated_segment ();
   HIR::PathIdentSegment item_seg_identifier = item_seg.get_ident_segment ();
-  tl::optional<TyTy::TypeBoundPredicateItem> item
+  gcc::optional<TyTy::TypeBoundPredicateItem> item
     = specified_bound.lookup_associated_item (item_seg_identifier.to_string ());
   if (!item.has_value ())
     {
@@ -337,8 +337,11 @@ TypeCheckType::resolve_root_path (HIR::TypePath &path, size_t *offset,
 	  auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
 	  // assign the ref_node_id if we've found something
-	  nr_ctx.lookup (ast_node_id, Resolver2_0::Namespace::Types)
-	    .map ([&ref_node_id] (NodeId resolved) { ref_node_id = resolved; });
+	  if (auto resolved
+	      = nr_ctx.lookup (ast_node_id, Resolver2_0::Namespace::Types))
+	    {
+	      ref_node_id = resolved.value ();
+	    }
 
 	  // TODO: Should we add a special method to the name resolver to handle
 	  // that case? Resolving something in the Types NS when we want to
@@ -373,7 +376,7 @@ TypeCheckType::resolve_root_path (HIR::TypePath &path, size_t *offset,
 	*wasBigSelf = true;
 
       // node back to HIR
-      tl::optional<HirId> hid = mappings.lookup_node_to_hir (ref_node_id);
+      gcc::optional<HirId> hid = mappings.lookup_node_to_hir (ref_node_id);
       if (!hid.has_value ())
 	{
 	  if (is_root)
@@ -671,7 +674,7 @@ TypeCheckType::visit (HIR::TraitObjectType &type)
 
       TyTy::TypeBoundPredicate predicate = get_predicate_from_bound (
 	trait_bound.get_path (),
-	tl::nullopt /*this will setup a PLACEHOLDER for self*/);
+	gcc::nullopt /*this will setup a PLACEHOLDER for self*/);
 
       if (!predicate.is_error ()
 	  && predicate.is_object_safe (true, type.get_locus ()))
@@ -835,7 +838,7 @@ TypeCheckType::visit (HIR::ImplTraitType &type)
 
       TyTy::TypeBoundPredicate predicate = get_predicate_from_bound (
 	trait_bound.get_path (),
-	tl::nullopt /*this will setup a PLACEHOLDER for self*/);
+	gcc::nullopt /*this will setup a PLACEHOLDER for self*/);
 
       if (!predicate.is_error ()
 	  && predicate.is_object_safe (true, type.get_locus ()))
@@ -961,7 +964,7 @@ TypeResolveGenericParam::apply_trait_bounds (HIR::TypeParam &param,
 
 		TyTy::TypeBoundPredicate predicate = get_predicate_from_bound (
 		  b.get_path (),
-		  tl::optional<std::reference_wrapper<HIR::Type>> (
+		  gcc::optional<std::reference_wrapper<HIR::Type>> (
 		    std::ref (*implicit_self_bound)),
 		  b.get_polarity ());
 		if (!predicate.is_error ())

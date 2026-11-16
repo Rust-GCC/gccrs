@@ -277,7 +277,7 @@ HIRCompileBase::compute_address_for_trait_item (
     &receiver_bounds,
   const TyTy::BaseType *receiver, const TyTy::BaseType *root, location_t locus)
 {
-  tl::optional<TyTy::TypeBoundPredicateItem> predicate_item
+  gcc::optional<TyTy::TypeBoundPredicateItem> predicate_item
     = predicate->lookup_associated_item (ref->get_identifier ());
   rust_assert (predicate_item.has_value ());
 

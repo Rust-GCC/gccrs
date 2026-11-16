@@ -14,8 +14,9 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-#include "expected.h"
-#include "optional.h"
+#include "rust-system.h"
+#include "stdbackport/optional"
+#include "stdbackport/expected"
 #include "rust-diagnostics.h"
 #include "rust-system.h"
 #include "rust-builtins.h"
@@ -38,7 +39,7 @@ BuiltinsContext::get ()
   return instance;
 }
 
-tl::optional<tree>
+gcc::optional<tree>
 BuiltinsContext::lookup_simple_builtin (const std::string &name)
 {
   auto *to_search = &name;
@@ -50,17 +51,17 @@ BuiltinsContext::lookup_simple_builtin (const std::string &name)
   return lookup_gcc_builtin (*to_search);
 }
 
-tl::expected<std::pair<tree, LlvmBuiltinAdapter>, LlvmBuiltinMappingError>
+gcc::expected<std::pair<tree, LlvmBuiltinAdapter>, LlvmBuiltinMappingError>
 BuiltinsContext::map_llvm_to_gcc_builtin (const std::string &name)
 {
   auto mapping = llvm_to_gcc_builtin.find (name);
   if (mapping == llvm_to_gcc_builtin.end ())
-    return tl::make_unexpected (LlvmBuiltinMappingError::NotMapped ());
+    return gcc::make_unexpected (LlvmBuiltinMappingError::NotMapped ());
 
   if (auto lookup = lookup_gcc_builtin (mapping->second.gcc_name))
     return std::make_pair (*lookup, mapping->second.adapter);
 
-  return tl::make_unexpected (LlvmBuiltinMappingError::TargetUnavailable ());
+  return gcc::make_unexpected (LlvmBuiltinMappingError::TargetUnavailable ());
 }
 
 BuiltinsContext::BuiltinsContext () : setup_state (SetupState::UNINITIALIZED) {}
@@ -453,12 +454,12 @@ BuiltinsContext::setup ()
   setup_state = SetupState::READY;
 }
 
-tl::optional<tree>
+gcc::optional<tree>
 BuiltinsContext::lookup_gcc_builtin (const std::string &name)
 {
   auto it = builtin_functions.find (name);
   if (it == builtin_functions.end ())
-    return tl::nullopt;
+    return gcc::nullopt;
 
   return it->second;
 }

@@ -28,7 +28,7 @@
 #include "rust-diagnostics.h"
 #include "util/rust-operators.h"
 #include "util/rust-ggc.h"
-#include "util/optional.h"
+#include "stdbackport/optional"
 #include "tree.h"
 #include "rust-gcc.h"
 
@@ -379,10 +379,10 @@ LocalVariable temporary_variable (tree fndecl, tree bind_tree, tree type,
 
 // Labels.
 
-// Create a new label.  NAME will be tl::nullopt if this is a label
+// Create a new label.  NAME will be gcc::nullopt if this is a label
 // created by the frontend for a loop construct.  The location is
 // where the label is defined.
-tree label (tree, tl::optional<GGC::Ident> name, location_t);
+tree label (tree, gcc::optional<GGC::Ident> name, location_t);
 
 // Create a statement which defines a label.  This statement will be
 // put into the codestream at the point where the label should be
@@ -424,11 +424,11 @@ static const unsigned int function_does_not_return = 1 << 2;
 static const unsigned int function_in_unique_section = 1 << 3;
 
 // Declare or define a function of FNTYPE.
-// NAME is the Go name of the function.  ASM_NAME, if not tl::nullopt,
+// NAME is the Go name of the function.  ASM_NAME, if not gcc::nullopt,
 // is the name that should be used in the symbol table; this
 // will be non-empty if a magic extern comment is used.  FLAGS is
 // bit flags described above.
-tree function (tree fntype, GGC::Ident name, tl::optional<GGC::Ident> asm_name,
+tree function (tree fntype, GGC::Ident name, gcc::optional<GGC::Ident> asm_name,
 	       unsigned int flags, location_t);
 
 // Record PARAM_VARS as the variables to use for the parameters of FUNCTION.

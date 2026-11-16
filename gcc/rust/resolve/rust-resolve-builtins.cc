@@ -148,14 +148,14 @@ setup_type_ctx ()
 			 unit_type);
 }
 
-tl::optional<NodeId>
+gcc::optional<NodeId>
 find_builtin_node_id (const std::string &name)
 {
   for (size_t i = 0; i < builtin_count; i++)
     if (strcmp (name.c_str (), builtin_names[i]) == 0)
       return LangPreludeSingleton::get ().get_node_ids ()[i];
 
-  return tl::nullopt;
+  return gcc::nullopt;
 }
 
 } // namespace Builtins

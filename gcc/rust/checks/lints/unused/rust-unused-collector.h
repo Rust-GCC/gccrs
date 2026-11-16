@@ -57,7 +57,7 @@ private:
   virtual void visit (HIR::ContinueExpr &expr) override;
 
   template <typename T>
-  tl::optional<HirId> get_def_id (T &path_expr, Resolver2_0::Namespace ns)
+  gcc::optional<HirId> get_def_id (T &path_expr, Resolver2_0::Namespace ns)
   {
     NodeId ast_node_id = path_expr.get_mappings ().get_nodeid ();
 
@@ -68,12 +68,12 @@ private:
 	    return *def_id;
 	  }
       }
-    return tl::nullopt;
+    return gcc::nullopt;
   }
 
   template <typename T>
-  tl::optional<HirId> get_def_id (T &path_expr, Resolver2_0::Namespace ns1,
-				  Resolver2_0::Namespace ns2)
+  gcc::optional<HirId> get_def_id (T &path_expr, Resolver2_0::Namespace ns1,
+				   Resolver2_0::Namespace ns2)
   {
     NodeId ast_node_id = path_expr.get_mappings ().get_nodeid ();
 
@@ -87,7 +87,7 @@ private:
 	  }
       }
 
-    return tl::nullopt;
+    return gcc::nullopt;
   }
 
   template <typename T> void mark_path_used (T &path_expr)

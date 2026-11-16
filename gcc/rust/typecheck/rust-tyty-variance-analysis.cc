@@ -227,7 +227,7 @@ GenericTyPerCrateCtx::debug_print_solutions ()
     }
 }
 
-tl::optional<SolutionIndex>
+gcc::optional<SolutionIndex>
 GenericTyPerCrateCtx::lookup_type_index (HirId orig_ref)
 {
   auto it = map_from_ty_orig_ref.find (orig_ref);
@@ -235,7 +235,7 @@ GenericTyPerCrateCtx::lookup_type_index (HirId orig_ref)
     {
       return it->second;
     }
-  return tl::nullopt;
+  return gcc::nullopt;
 }
 
 void

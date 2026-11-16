@@ -1438,13 +1438,13 @@ class SlicePatternItemsHasRest : public SlicePatternItems
   std::vector<std::unique_ptr<Pattern>> upper_patterns;
 
   // c in [a, b, c @ ..]
-  tl::optional<IdentifierPattern> rest_bind;
+  gcc::optional<IdentifierPattern> rest_bind;
 
 public:
   SlicePatternItemsHasRest (
     std::vector<std::unique_ptr<Pattern>> lower_patterns,
     std::vector<std::unique_ptr<Pattern>> upper_patterns,
-    tl::optional<IdentifierPattern> rest_bind)
+    gcc::optional<IdentifierPattern> rest_bind)
     : lower_patterns (std::move (lower_patterns)),
       upper_patterns (std::move (upper_patterns)),
       rest_bind (std::move (rest_bind))

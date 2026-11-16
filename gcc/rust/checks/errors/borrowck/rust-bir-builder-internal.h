@@ -19,6 +19,8 @@
 #ifndef RUST_BIR_BUILDER_INTERNAL_H
 #define RUST_BIR_BUILDER_INTERNAL_H
 
+#include "rust-system.h"
+#include "stdbackport/optional"
 #include "rust-bir-place.h"
 #include "rust-hir-expr.h"
 #include "rust-hir-item.h"
@@ -266,7 +268,7 @@ protected:
 
 protected: // Helpers to add BIR statements
   void push_assignment (PlaceId lhs, AbstractExpr *rhs, location_t location,
-			tl::optional<HirId> move_site = tl::nullopt)
+			gcc::optional<HirId> move_site = gcc::nullopt)
   {
     ctx.get_current_bb ().statements.push_back (
       Statement::make_assignment (lhs, rhs, location, move_site));
@@ -274,14 +276,14 @@ protected: // Helpers to add BIR statements
   }
 
   void push_assignment (PlaceId lhs, PlaceId rhs, location_t location,
-			tl::optional<HirId> move_site = tl::nullopt)
+			gcc::optional<HirId> move_site = gcc::nullopt)
   {
     push_assignment (lhs, new Assignment (rhs), location, move_site);
   }
 
   void push_tmp_assignment (AbstractExpr *rhs, TyTy::BaseType *tyty,
 			    location_t location,
-			    tl::optional<HirId> move_site = tl::nullopt)
+			    gcc::optional<HirId> move_site = gcc::nullopt)
   {
     PlaceId tmp = ctx.place_db.add_temporary (tyty);
     push_storage_live (tmp);
@@ -289,7 +291,7 @@ protected: // Helpers to add BIR statements
   }
 
   void push_tmp_assignment (PlaceId rhs, location_t location,
-			    tl::optional<HirId> move_site = tl::nullopt)
+			    gcc::optional<HirId> move_site = gcc::nullopt)
   {
     push_tmp_assignment (new Assignment (rhs), ctx.place_db[rhs].tyty, location,
 			 move_site);
@@ -356,7 +358,7 @@ protected: // Helpers to add BIR statements
   }
 
   PlaceId move_place (PlaceId arg, location_t location,
-		      tl::optional<HirId> move_site = tl::nullopt)
+		      gcc::optional<HirId> move_site = gcc::nullopt)
   {
     auto &place = ctx.place_db[arg];
 
@@ -383,7 +385,7 @@ protected: // Helpers to add BIR statements
 
   template <typename T>
   void move_all (T &args, std::vector<location_t> locations,
-		 tl::optional<HirId> move_site = tl::nullopt)
+		 gcc::optional<HirId> move_site = gcc::nullopt)
   {
     rust_assert (args.size () == locations.size ());
     std::transform (args.begin (), args.end (), locations.begin (),
@@ -608,7 +610,7 @@ protected:
 
   /** Mark place to be a result of processed subexpression. */
   void return_place (PlaceId place, location_t location, bool can_panic = false,
-		     tl::optional<HirId> move_site = tl::nullopt)
+		     gcc::optional<HirId> move_site = gcc::nullopt)
   {
     if (expr_return_place != INVALID_PLACE)
       {
@@ -673,13 +675,13 @@ protected:
  * possibly null pointers.
  */
 template <typename T>
-tl::optional<T>
+gcc::optional<T>
 optional_from_ptr (T ptr)
 {
   if (ptr != nullptr)
     return {ptr};
   else
-    return tl::nullopt;
+    return gcc::nullopt;
 }
 
 } // namespace BIR

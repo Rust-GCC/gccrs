@@ -36,8 +36,8 @@ DesugarForLoops::DesugarCtx::make_break_arm ()
   auto arm = builder.match_arm (std::unique_ptr<Pattern> (new PathInExpression (
     builder.path_in_expression (LangItem::Kind::OPTION_NONE))));
 
-  auto break_expr
-    = std::unique_ptr<Expr> (new BreakExpr (tl::nullopt, tl::nullopt, {}, loc));
+  auto break_expr = std::unique_ptr<Expr> (
+    new BreakExpr (gcc::nullopt, gcc::nullopt, {}, loc));
 
   return MatchCase (std::move (arm), std::move (break_expr));
 }

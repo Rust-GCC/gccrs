@@ -21,7 +21,7 @@
 
 #include "rust-autoderef.h"
 #include "rust-hir-type-check.h"
-#include "expected.h"
+#include "stdbackport/expected"
 
 namespace Rust {
 namespace Resolver {
@@ -68,7 +68,7 @@ public:
 					  TyTy::ReferenceType *expected,
 					  Mutability mutability);
 
-  tl::expected<CoercionResult, CoerceUnsizedError>
+  gcc::expected<CoercionResult, CoerceUnsizedError>
   coerce_unsized (TyTy::BaseType *receiver, TyTy::BaseType *expected,
 		  bool is_inner = false);
 
@@ -97,13 +97,13 @@ protected:
     Mutability expected_mutability;
     bool unwrapped_pointer;
   };
-  tl::expected<CoercionSetup, CoerceUnsizedError>
+  gcc::expected<CoercionSetup, CoerceUnsizedError>
   unwrap_ptrs_and_refs (TyTy::BaseType *source, TyTy::BaseType *target);
-  tl::expected<TyTy::BaseType *, CoerceUnsizedError>
+  gcc::expected<TyTy::BaseType *, CoerceUnsizedError>
   coerce_unsized_array_to_slice (TyTy::BaseType *a, TyTy::BaseType *b);
-  tl::expected<TyTy::BaseType *, CoerceUnsizedError>
+  gcc::expected<TyTy::BaseType *, CoerceUnsizedError>
   coerce_unsized_dyn (TyTy::BaseType *a, TyTy::BaseType *b);
-  tl::expected<TyTy::BaseType *, CoerceUnsizedError>
+  gcc::expected<TyTy::BaseType *, CoerceUnsizedError>
   coerce_unsized_adt (TyTy::BaseType *a, TyTy::BaseType *b,
 		      bool needs_reborrow);
   TyTy::BaseType *apply_reborrow_adjustment (TyTy::BaseType *source,

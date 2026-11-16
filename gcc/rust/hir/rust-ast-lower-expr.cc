@@ -17,7 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-ast-lower-expr.h"
-#include "optional.h"
+#include "stdbackport/optional"
 #include "rust-ast-lower-base.h"
 #include "rust-ast-lower-block.h"
 #include "rust-ast-lower-struct-field-expr.h"
@@ -561,12 +561,12 @@ ASTLoweringExpr::visit (AST::StructExprStructFields &struct_expr)
   HIR::PathInExpression copied_path (*path);
   delete path;
 
-  tl::optional<std::unique_ptr<HIR::StructBase>> base = tl::nullopt;
+  gcc::optional<std::unique_ptr<HIR::StructBase>> base = gcc::nullopt;
   if (struct_expr.has_struct_base ())
     {
       HIR::Expr *translated_base = ASTLoweringExpr::translate (
 	struct_expr.get_struct_base ().get_base_struct ());
-      base = tl::optional<std::unique_ptr<HIR::StructBase>> (
+      base = gcc::optional<std::unique_ptr<HIR::StructBase>> (
 	std::make_unique<StructBase> (
 	  std::unique_ptr<HIR::Expr> (translated_base)));
     }
@@ -639,7 +639,7 @@ ASTLoweringExpr::visit (AST::WhileLoopExpr &expr)
 void
 ASTLoweringExpr::visit (AST::BreakExpr &expr)
 {
-  tl::optional<HIR::Lifetime> break_label = tl::nullopt;
+  gcc::optional<HIR::Lifetime> break_label = gcc::nullopt;
   if (expr.has_label ())
     break_label = lower_lifetime (expr.get_label_unchecked ().get_lifetime ());
 
@@ -662,7 +662,7 @@ ASTLoweringExpr::visit (AST::BreakExpr &expr)
 void
 ASTLoweringExpr::visit (AST::ContinueExpr &expr)
 {
-  tl::optional<HIR::Lifetime> break_label;
+  gcc::optional<HIR::Lifetime> break_label;
   if (expr.has_label ())
     break_label = lower_lifetime (expr.get_label_unchecked ());
 
@@ -1014,7 +1014,7 @@ ASTLoweringExpr::visit (AST::InlineAsm &expr)
 
 namespace {
 
-tl::optional<std::string>
+gcc::optional<std::string>
 convert_template_str (const std::string &in_template)
 {
   std::string out_template;
@@ -1027,7 +1027,7 @@ convert_template_str (const std::string &in_template)
 	  it++;
 	  if (it == in_template.cend ())
 	    {
-	      return tl::nullopt;
+	      return gcc::nullopt;
 	    }
 	  else if (*it >= '0' && *it <= '9')
 	    {
@@ -1052,7 +1052,7 @@ convert_template_str (const std::string &in_template)
 	      while (true)
 		{
 		  if (it == in_template.cend ())
-		    return tl::nullopt;
+		    return gcc::nullopt;
 		  if (*it == ':')
 		    break;
 		  it++;
@@ -1061,7 +1061,7 @@ convert_template_str (const std::string &in_template)
 	      while (true)
 		{
 		  if (it == in_template.cend ())
-		    return tl::nullopt;
+		    return gcc::nullopt;
 		  if (*it == '}')
 		    break;
 		  it++;
@@ -1075,7 +1075,7 @@ convert_template_str (const std::string &in_template)
 	    }
 	  else
 	    {
-	      return tl::nullopt;
+	      return gcc::nullopt;
 	    }
 	}
       else if (*it == '%' || *it == '{' || *it == '|' || *it == '}')

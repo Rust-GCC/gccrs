@@ -19,13 +19,13 @@
 #ifndef RUST_HIR_ITEM_H
 #define RUST_HIR_ITEM_H
 
-#include "optional.h"
+#include "rust-system.h"
+#include "stdbackport/optional"
 #include "rust-abi.h"
 #include "rust-hir-stmt.h"
 #include "rust-common.h"
 #include "rust-hir-visibility.h"
 #include "rust-hir-generic-param.h"
-#include "rust-system.h"
 
 namespace Rust {
 namespace HIR {
@@ -97,7 +97,7 @@ class TypeParam : public GenericParam
   AST::AttrVec outer_attrs;
   Identifier type_representation;
   std::vector<std::unique_ptr<TypeParamBound>> type_param_bounds;
-  tl::optional<std::unique_ptr<Type>> type;
+  gcc::optional<std::unique_ptr<Type>> type;
   location_t locus;
   bool was_impl_trait;
 
@@ -116,7 +116,7 @@ public:
 	     location_t locus = UNDEF_LOCATION,
 	     std::vector<std::unique_ptr<TypeParamBound>> type_param_bounds
 	     = {},
-	     tl::optional<std::unique_ptr<Type>> type = tl::nullopt,
+	     gcc::optional<std::unique_ptr<Type>> type = gcc::nullopt,
 	     AST::AttrVec outer_attrs = {}, bool was_impl_trait = false);
 
   // Copy constructor uses clone
@@ -371,13 +371,13 @@ public:
 
 private:
   ImplicitSelfKind self_kind;
-  tl::optional<Lifetime> lifetime;
+  gcc::optional<Lifetime> lifetime;
   std::unique_ptr<Type> type;
   location_t locus;
   Analysis::NodeMapping mappings;
 
   SelfParam (Analysis::NodeMapping mappings, ImplicitSelfKind self_kind,
-	     tl::optional<Lifetime> lifetime, Type *type);
+	     gcc::optional<Lifetime> lifetime, Type *type);
 
 public:
   // Type-based self parameter (not ref, no lifetime)
@@ -385,7 +385,7 @@ public:
 	     bool is_mut, location_t locus);
 
   // Lifetime-based self parameter (is ref, no type)
-  SelfParam (Analysis::NodeMapping mappings, tl::optional<Lifetime> lifetime,
+  SelfParam (Analysis::NodeMapping mappings, gcc::optional<Lifetime> lifetime,
 	     bool is_mut, location_t locus);
 
   // Copy constructor requires clone
@@ -955,7 +955,7 @@ class Function : public VisItem, public ImplItem
   std::unique_ptr<Type> return_type;
   WhereClause where_clause;
   std::unique_ptr<BlockExpr> function_body;
-  tl::optional<SelfParam> self;
+  gcc::optional<SelfParam> self;
   location_t locus;
 
   // NOTE: This should be moved to the trait item base class once we start
@@ -966,7 +966,7 @@ class Function : public VisItem, public ImplItem
 public:
   std::string to_string () const override;
 
-  tl::optional<std::vector<size_t>> get_legacy_const_generic_indexes () const;
+  gcc::optional<std::vector<size_t>> get_legacy_const_generic_indexes () const;
 
   // Returns whether function has generic parameters.
   bool has_generics () const { return !generic_params.empty (); }
@@ -997,7 +997,7 @@ public:
 	    std::vector<FunctionParam> function_params,
 	    std::unique_ptr<Type> return_type, WhereClause where_clause,
 	    std::unique_ptr<BlockExpr> function_body, Visibility vis,
-	    AST::AttrVec outer_attrs, tl::optional<SelfParam> self,
+	    AST::AttrVec outer_attrs, gcc::optional<SelfParam> self,
 	    Defaultness defaultness, location_t locus);
 
   // Copy constructor with clone
@@ -1054,8 +1054,8 @@ public:
 
   bool is_method () const { return self.has_value (); }
 
-  tl::optional<SelfParam> &get_self_param () { return self; }
-  const tl::optional<SelfParam> &get_self_param () const { return self; }
+  gcc::optional<SelfParam> &get_self_param () { return self; }
+  const gcc::optional<SelfParam> &get_self_param () const { return self; }
 
   SelfParam &get_self_param_unchecked () { return self.value (); }
   const SelfParam &get_self_param_unchecked () const { return self.value (); }
@@ -1915,13 +1915,13 @@ private:
   std::vector<FunctionParam> function_params;
   std::unique_ptr<Type> return_type;
   WhereClause where_clause;
-  tl::optional<SelfParam> self;
+  gcc::optional<SelfParam> self;
 
 public:
   // Mega-constructor
   TraitFunctionDecl (Identifier function_name, FunctionQualifiers qualifiers,
 		     std::vector<std::unique_ptr<GenericParam>> generic_params,
-		     tl::optional<SelfParam> self,
+		     gcc::optional<SelfParam> self,
 		     std::vector<FunctionParam> function_params,
 		     std::unique_ptr<Type> return_type,
 		     WhereClause where_clause);
@@ -1959,8 +1959,8 @@ public:
   SelfParam &get_self_unchecked () { return self.value (); }
   const SelfParam &get_self_unchecked () const { return self.value (); }
 
-  tl::optional<SelfParam> &get_self () { return self; }
-  const tl::optional<SelfParam> &get_self () const { return self; }
+  gcc::optional<SelfParam> &get_self () { return self; }
+  const gcc::optional<SelfParam> &get_self () const { return self; }
 
   Identifier get_function_name () const { return function_name; }
 

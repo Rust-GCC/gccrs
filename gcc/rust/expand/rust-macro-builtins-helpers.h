@@ -74,7 +74,7 @@ std::string source_relative_path (std::string path, location_t locus);
 
 // Read the full contents of the file FILENAME and return them in a vector.
 // FIXME: platform specific.
-tl::optional<std::vector<uint8_t>> load_file_bytes (location_t invoc_locus,
-						    const char *filename);
+gcc::optional<std::vector<uint8_t>> load_file_bytes (location_t invoc_locus,
+						     const char *filename);
 } // namespace Rust
 #endif // GCCRS_RUST_MACRO_BUILTINS_HELPERS_H

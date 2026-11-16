@@ -132,7 +132,7 @@ ASTLowerImplItem::visit (AST::Function &function)
   Identifier function_name = function.get_function_name ();
   location_t locus = function.get_locus ();
 
-  tl::optional<HIR::SelfParam> self_param = tl::nullopt;
+  gcc::optional<HIR::SelfParam> self_param = gcc::nullopt;
   if (function.has_self_param ())
     self_param = lower_self (function.get_self_param ());
 
@@ -254,7 +254,7 @@ ASTLowerTraitItem::visit (AST::Function &func)
 
   // set self parameter to error if this is a method
   // else lower to hir
-  tl::optional<HIR::SelfParam> self_param = tl::nullopt;
+  gcc::optional<HIR::SelfParam> self_param = gcc::nullopt;
   if (func.has_self_param ())
     self_param = lower_self (func.get_self_param ());
 

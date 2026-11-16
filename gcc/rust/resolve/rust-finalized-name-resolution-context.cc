@@ -17,8 +17,8 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-finalized-name-resolution-context.h"
-#include "expected.h"
-#include "optional.h"
+#include "stdbackport/expected"
+#include "stdbackport/optional"
 #include "rust-forever-stack.h"
 
 namespace Rust {
@@ -48,8 +48,8 @@ void
 FinalizedNameResolutionContext::map_usage (Usage usage, Definition definition,
 					   Namespace ns)
 {
-  tl::expected<Definition, LookupFinalizeError> leaf_result
-    = tl::make_unexpected (LookupFinalizeError::NoDefinition);
+  gcc::expected<Definition, LookupFinalizeError> leaf_result
+    = gcc::make_unexpected (LookupFinalizeError::NoDefinition);
 
   switch (ns)
     {
@@ -70,20 +70,20 @@ FinalizedNameResolutionContext::map_usage (Usage usage, Definition definition,
   ctx.map_usage (usage, leaf_result.value_or (definition), ns);
 }
 
-tl::optional<NodeId>
+gcc::optional<NodeId>
 FinalizedNameResolutionContext::lookup (NodeId usage, Namespace ns) const
 {
   return ctx.lookup (usage, ns);
 }
 
-tl::optional<NameResolutionContext::NSLookup>
+gcc::optional<NameResolutionContext::NSLookup>
 FinalizedNameResolutionContext::lookup (NodeId usage, Namespace ns1,
 					Namespace ns2) const
 {
   return ctx.lookup (usage, ns1, ns2);
 }
 
-tl::optional<NameResolutionContext::NSLookup>
+gcc::optional<NameResolutionContext::NSLookup>
 FinalizedNameResolutionContext::lookup (NodeId usage, Namespace ns1,
 					Namespace ns2, Namespace ns3) const
 {

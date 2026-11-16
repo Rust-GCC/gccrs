@@ -19,7 +19,7 @@
 #ifndef RUST_TOPLEVEL_NAME_RESOLVER_2_0_H
 #define RUST_TOPLEVEL_NAME_RESOLVER_2_0_H
 
-#include "optional.h"
+#include "stdbackport/optional"
 #include "rust-ast-visitor.h"
 #include "rust-ast.h"
 #include "rust-item.h"
@@ -94,7 +94,7 @@ public:
     AST::SimplePath to_resolve;
 
     // The path to rebind an import to - only present if kind is Kind::Rebind
-    tl::optional<AST::UseTreeRebind> rebind;
+    gcc::optional<AST::UseTreeRebind> rebind;
 
     Rib &values_rib;
     Rib &types_rib;
@@ -107,7 +107,7 @@ public:
   private:
     ImportKind (Kind kind, AST::SimplePath &&to_resolve, Rib &values_rib,
 		Rib &types_rib, Rib &macros_rib, bool is_prelude = false,
-		tl::optional<AST::UseTreeRebind> &&rebind = tl::nullopt)
+		gcc::optional<AST::UseTreeRebind> &&rebind = gcc::nullopt)
       : kind (kind), to_resolve (std::move (to_resolve)),
 	rebind (std::move (rebind)), values_rib (values_rib),
 	types_rib (types_rib), macros_rib (macros_rib), is_prelude (is_prelude)
@@ -120,7 +120,7 @@ public:
   }
 
   void check_multiple_insertion_error (
-    tl::expected<NodeId, DuplicateNameError> result,
+    gcc::expected<NodeId, DuplicateNameError> result,
     const Identifier &identifier, const location_t &locus,
     const NodeId node_id);
 
