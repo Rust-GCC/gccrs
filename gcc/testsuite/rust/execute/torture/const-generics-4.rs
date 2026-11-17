@@ -26,9 +26,8 @@ const fn simd_shuffle(_a: [u32; 4], _b: [u32; 4], idx: [u32; 4]) -> [u32; 4] {
 fn main() -> i32 {
     let a = [1, 2, 3, 4];
     let b = [5, 6, 7, 8];
-    let indices = [3, 2, 1, 0];
 
-    let result: [u32; 4] = simd_shuffle!(a, b, indices);
+    let result: [u32; 4] = simd_shuffle!(a, b, [3, 2, 1, 0]);
 
     if result[0] != 3 {
         return 1;

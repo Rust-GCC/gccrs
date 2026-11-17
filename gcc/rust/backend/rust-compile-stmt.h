@@ -50,8 +50,8 @@ public:
   void visit (HIR::StructStruct &) override {}
   void visit (HIR::Enum &) override {}
   void visit (HIR::Union &) override {}
-  void visit (HIR::ConstantItem &) override {}
-  void visit (HIR::StaticItem &) override {}
+  void visit (HIR::ConstantItem &) override;
+  void visit (HIR::StaticItem &) override;
   void visit (HIR::Trait &) override {}
   void visit (HIR::ImplBlock &) override {}
   void visit (HIR::ExternBlock &) override {}
