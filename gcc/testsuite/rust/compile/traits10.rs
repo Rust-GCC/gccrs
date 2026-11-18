@@ -17,6 +17,6 @@ pub fn main() {
     let a;
     a = Foo(123);
 
-    let b: &dyn Bar = &a;
-    // { dg-error "trait bound is not object safe" "" { target *-*-* } .-1 }
+    let _: &dyn Bar = &a;
+    // { dg-warning "trait bound is not object safe" "" { target *-*-* } .-1 }
 }

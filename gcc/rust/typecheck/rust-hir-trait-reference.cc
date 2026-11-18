@@ -418,7 +418,20 @@ TraitReference::is_object_safe (bool emit_error, location_t locus) const
       for (auto &item : non_object_safe_items)
 	r.add_range (item->get_locus ());
 
-      rust_error_at (r, "trait bound is not object safe");
+      // FIXME: This should be an error, but this triggers on valid code like
+      // the implementation of `Hash` for `Pin<P>`. For now, the rich_location
+      // is unused since `rust_warning_at` cannot handle rich locations - when
+      // you turn this back into an error, switch from
+      // `rust_warning_at(r.get_loc(), ...)` to `rust_error_at(r, ...)`
+      //
+      // ```rust
+      // impl<P: Deref<Target: Hash>> Hash for Pin<P> {
+      //     fn hash<H: Hasher>(&self, state: &mut H) {
+      //         P::Target::hash(self, state);
+      //     }
+      // }
+      // ```
+      rust_warning_at (r.get_loc (), 0, "trait bound is not object safe");
     }
 
   return is_safe;
