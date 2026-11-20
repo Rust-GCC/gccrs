@@ -831,6 +831,15 @@ Mappings::insert_macro_invocation (AST::MacroInvocation &invoc,
   rust_assert (it == macroInvocations.end ());
 
   macroInvocations[invoc.get_node_id ()] = def;
+  macroInvocationLocations[invoc.get_node_id ()] = invoc.get_locus ();
+}
+
+location_t
+Mappings::get_macro_invocation_location (NodeId id)
+{
+  rust_assert (macroInvocationLocations.find (id)
+	       != macroInvocationLocations.end ());
+  return macroInvocationLocations.at (id);
 }
 
 tl::optional<AST::MacroRulesDefinition *>
@@ -841,6 +850,12 @@ Mappings::lookup_macro_invocation (AST::MacroInvocation &invoc)
     return tl::nullopt;
 
   return it->second;
+}
+
+std::map<NodeId, AST::MacroRulesDefinition *> &
+Mappings::get_macro_invocations ()
+{
+  return macroInvocations;
 }
 
 void
@@ -1154,6 +1169,27 @@ bool
 Mappings::is_function_node (NodeId node_id)
 {
   return function_nodes.find (node_id) != function_nodes.end ();
+}
+
+void
+Mappings::add_defined_extern_lib_feature (std::string feature_name,
+					  Stability stability)
+{
+  auto result = defined_extern_lib_features.insert (
+    {std::move (feature_name), stability});
+
+  if (!result.second && result.first->second == Stability::STABLE
+      && stability == Stability::UNSTABLE)
+    result.first->second = Stability::UNSTABLE;
+}
+
+tl::optional<Stability>
+Mappings::lookup_defined_extern_lib_feature (const std::string &feature_name)
+{
+  auto feature = defined_extern_lib_features.find (feature_name);
+  if (feature != defined_extern_lib_features.end ())
+    return feature->second;
+  return tl::nullopt;
 }
 
 } // namespace Analysis
