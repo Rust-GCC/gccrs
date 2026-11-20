@@ -1,0 +1,9 @@
+fn main() {}
+
+pub struct Value {}
+pub fn new() -> Result<Value, ()> {
+    Ok(Value {
+    }
+}
+// { dg-error "" "" { target *-*-* } .-1 }
+

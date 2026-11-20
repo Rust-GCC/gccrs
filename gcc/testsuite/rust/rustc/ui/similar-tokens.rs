@@ -1,0 +1,14 @@
+// run-rustfix
+
+#![allow(unused_imports)]
+
+pub mod x {
+    pub struct A;
+    pub struct B;
+}
+
+// `.` is similar to `,` so list parsing should continue to closing `}`
+use x::{A. B}; // { dg-error "" "" { target *-*-* } }
+
+fn main() {}
+
