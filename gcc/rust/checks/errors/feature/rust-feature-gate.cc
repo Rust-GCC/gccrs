@@ -24,6 +24,7 @@
 #include "rust-feature.h"
 #include "rust-ast-full.h"
 #include "rust-feature-store.h"
+#include "rust-session-manager.h"
 
 namespace Rust {
 
@@ -321,8 +322,9 @@ void
 FeatureGate::visit (AST::BorrowExpr &expr)
 {
   if (expr.is_raw_borrow ())
-    gate (Feature::Name::RAW_REF_OP, expr.get_locus (),
-	  "raw address of syntax is experimental");
+    if (Session::get_instance ().get_compat_version () < 82)
+      gate (Feature::Name::RAW_REF_OP, expr.get_locus (),
+	    "raw address of syntax is experimental");
 }
 
 void
