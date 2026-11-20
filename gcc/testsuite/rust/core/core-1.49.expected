@@ -7,4 +7,38 @@ core/src/num/wrapping.rs:145:55: error: cannot find value 'self::shift_max::i64'
 core/src/num/wrapping.rs:145:55: error: cannot find value 'self::shift_max::i128' in this scope [E0425]
 core/src/num/wrapping.rs:983:32: error: cannot find value 'super::i64' in this scope [E0425]
 core/src/pin.rs:462:23: error: trait bound is not object safe
-crab1: internal compiler error: in add_constrints_from_param, at rust/typecheck/rust-tyty-variance-analysis.cc:497
+core/src/str/pattern.rs:763:34: error: unresolved lifetime
+core/src/num/int_macros.rs:1607:44: error: failed to resolve path segment using an impl Probe
+core/src/num/int_macros.rs:1607:17: error: mismatched types, expected 'bool' but got '<tyty::error>' [E0308]
+core/src/num/int_macros.rs:1608:28: error: failed to resolve path segment using an impl Probe
+core/src/num/int_macros.rs:1607:17: error: mismatched types, expected '<tyty::error>' but got 'i128' [E0308]
+core/src/slice/index.rs:262:23: error: duplicate definitions with name 'get' [E0592]
+core/src/slice/index.rs:267:23: error: duplicate definitions with name 'get_mut' [E0592]
+core/src/slice/index.rs:273:32: error: duplicate definitions with name 'get_unchecked' [E0592]
+core/src/slice/index.rs:279:32: error: duplicate definitions with name 'get_unchecked_mut' [E0592]
+core/src/slice/index.rs:284:23: error: duplicate definitions with name 'index' [E0592]
+core/src/slice/index.rs:289:23: error: duplicate definitions with name 'index_mut' [E0592]
+core/src/num/bignum.rs:163:49: error: no method named 'take_while' found in the current scope [E0599]
+core/src/num/bignum.rs:163:29: error: failed to resolve receiver in MethodCallExpr
+core/src/num/bignum.rs:164:42: error: cannot find value 'zeros' in this scope [E0425]
+core/src/num/bignum.rs:165:41: error: cannot find value 'end' in this scope [E0425]
+core/src/num/bignum.rs:165:39: error: bounds not satisfied for <tyty::error> 'Sized' is not satisfied [E0277]
+core/src/num/bignum.rs:165:32: error: the type '& [u32]' cannot be indexed by 'RangeTo<Idx>' [E0277]
+core/src/num/bignum.rs:167:20: error: cannot find value 'nonzero' in this scope [E0425]
+core/src/num/bignum.rs:167:20: error: failed to resolve receiver in MethodCallExpr
+core/src/num/bignum.rs:167:17: error: mismatched types, expected 'bool' but got '<tyty::error>' [E0308]
+core/src/num/bignum.rs:174:29: error: cannot find value 'nonzero' in this scope [E0425]
+core/src/num/bignum.rs:174:29: error: failed to resolve receiver in MethodCallExpr
+core/src/num/bignum.rs:175:36: error: cannot find value 'i' in this scope [E0425]
+core/src/num/bignum.rs:175:36: error: failed to resolve type for argument
+core/src/num/bignum.rs:175:23: error: failed to lookup type to MethodCallExpr
+core/src/num/bignum.rs:175:23: error: expected boolean expression in 'while' condition
+core/src/num/bignum.rs:175:17: error: bounds not satisfied for <tyty::error> 'PartialEq, Eq, PartialOrd, Ord, Default, Extend, Debug, Hash, FromIterator' is not satisfied [E0277]
+core/src/num/bignum.rs:178:17: error: cannot find value 'i' in this scope [E0425]
+core/src/num/bignum.rs:188:58: error: no method named 'zip' found in the current scope [E0599]
+core/src/num/bignum.rs:188:21: error: cannot find value '#result' in this scope [E0425]
+core/src/num/bignum.rs:188:17: error: bounds not satisfied for <tyty::error> 'PartialEq, Eq, PartialOrd, Ord, Default, Extend, Debug, Hash, FromIterator' is not satisfied [E0277]
+core/src/num/bignum.rs:226:58: error: no method named 'zip' found in the current scope [E0599]
+core/src/num/bignum.rs:226:21: error: cannot find value '#result' in this scope [E0425]
+core/src/num/bignum.rs:226:17: error: bounds not satisfied for <tyty::error> 'PartialEq, Eq, PartialOrd, Ord, Default, Extend, Debug, Hash, FromIterator' is not satisfied [E0277]
+crab1: internal compiler error: in visit, at rust/typecheck/rust-hir-type-check-expr.cc:1831

@@ -156,7 +156,8 @@ query_type (HirId reference, TyTy::BaseType **result)
 	    assoc_types_by_trait_item, trait_item_refs);
 
 	  ImplTraitContextFrame frame{trait_reference, self,
-				      std::move (assoc_types_by_trait_item)};
+				      std::move (assoc_types_by_trait_item),
+				      impl_block};
 	  guard.emplace (frame);
 	}
 
@@ -661,7 +662,7 @@ normalize_projection (TyTy::ProjectionType *proj, location_t locus,
 	}
     }
 
-  ImplTraitContextFrame frame;
+  ImplTraitContextFrame frame{};
   if (!ctx->find_matching_impl_trait_frame (*proj->get_trait_ref (),
 					    *proj->get_self (), &frame))
     {
@@ -901,6 +902,31 @@ normalize_projection (TyTy::ProjectionType *proj, location_t locus,
 
   auto &entry = it->second;
   auto impl_value = entry.value;
+
+  // the frame holds the impl's own generics, so a projection on another
+  // self, like <MultiCharEqPattern<F> as Pattern>::Searcher resolved while
+  // impl<C> Pattern for MultiCharEqPattern<C> is being checked, still has
+  // to map C to F. is_equal follows param bindings and calls those the
+  // same, so compare the written types. a bare param or infer self matches
+  // any frame and binding the impl to it would commit nonsense, same rule
+  // as the direct impl lookup
+  TyTy::BaseType *proj_self = proj->get_self ()->destructure ();
+  bool concrete_self = proj_self->get_kind () != TyTy::TypeKind::PARAM
+		       && proj_self->get_kind () != TyTy::TypeKind::INFER
+		       && proj_self->get_kind () != TyTy::TypeKind::PROJECTION;
+  if (frame.impl != nullptr && concrete_self
+      && proj_self->as_string () != frame.self->as_string ())
+    {
+      auto predicate = TypeCheckBase::ResolvePredicateFromBound (
+	frame.impl->get_trait_ref (), frame.impl->get_type (),
+	frame.impl->get_polarity ());
+      AssociatedImplTrait associated (const_cast<TraitReference *> (
+					frame.trait),
+				      predicate, frame.impl, frame.self, frame);
+      auto mapping = associated.bind_impl_for_projection (*proj, locus);
+      if (!mapping.is_error ())
+	impl_value = SubstMapperInternal::Resolve (impl_value, mapping);
+    }
 
   // chase the impl body through any further projections it contains
   TyTy::BaseType *normalized = impl_value;
