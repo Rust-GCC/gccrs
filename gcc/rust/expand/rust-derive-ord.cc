@@ -300,7 +300,6 @@ DeriveOrd::visit_enum (Enum &item)
 	  cases.emplace_back (enum_builder.tuple (*variant));
 	  break;
 	case EnumItem::Kind::Identifier:
-	case EnumItem::Kind::Discriminant:
 	  // We don't need to do anything for these, as they are handled by the
 	  // discriminant value comparison
 	  break;

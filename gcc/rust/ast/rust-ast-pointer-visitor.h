@@ -132,7 +132,9 @@ public:
   void visit (AST::TypeAlias &type_alias) override;
   void visit (AST::StructField &field) override;
   void visit (AST::TupleField &field) override;
-  void visit (AST::EnumItemDiscriminant &item) override;
+  void visit (AST::EnumItem &item) override;
+  void visit (AST::EnumItemTuple &item) override;
+  void visit (AST::EnumItemStruct &item) override;
   void visit (AST::ConstantItem &const_item) override;
   void visit (AST::StaticItem &static_item) override;
   void visit (AST::Trait &trait) override;
