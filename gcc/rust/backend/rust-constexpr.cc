@@ -616,6 +616,9 @@ fold_expr (tree expr)
   auto_vec<tree, 16> cleanups;
   global_ctx.cleanups = &cleanups;
 
+  /* Floating point operations do not trap in Rust constants.  */
+  warning_sentinel tm (flag_trapping_math);
+
   bool non_constant_p = false;
   bool overflow_p = false;
 
