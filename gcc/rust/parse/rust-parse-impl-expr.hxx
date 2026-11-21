@@ -434,8 +434,9 @@ Parser<ManagedTokenSource>::parse_box_expr (AST::AttrVec outer_attrs,
 // Parses a return expression (including any expression to return).
 template <typename ManagedTokenSource>
 tl::expected<std::unique_ptr<AST::ReturnExpr>, Parse::Error::Node>
-Parser<ManagedTokenSource>::parse_return_expr (AST::AttrVec outer_attrs,
-					       location_t pratt_parsed_loc)
+Parser<ManagedTokenSource>::parse_return_expr (
+  AST::AttrVec outer_attrs, location_t pratt_parsed_loc,
+  ParseRestrictions outer_restrictions)
 {
   location_t locus = pratt_parsed_loc;
   if (locus == UNKNOWN_LOCATION)
@@ -444,9 +445,14 @@ Parser<ManagedTokenSource>::parse_return_expr (AST::AttrVec outer_attrs,
       skip_token (RETURN_KW);
     }
 
-  // parse expression to return, if it exists
+  /* Parse expression to return, if it exists.  A '{' after 'return' starts
+   * a block expression, unless the caller does not allow it, e.g. in
+   * `while return {}` the '{' starts the loop body.  */
   ParseRestrictions restrictions;
-  restrictions.expr_can_be_null = true;
+  restrictions.can_be_struct_expr = outer_restrictions.can_be_struct_expr;
+  if (lexer.peek_token ()->get_id () != LEFT_CURLY
+      || !outer_restrictions.can_be_struct_expr)
+    restrictions.expr_can_be_null = true;
   auto returned_expr = parse_expr (AST::AttrVec (), restrictions);
   tl::optional<std::unique_ptr<AST::Expr>> expr = tl::nullopt;
   if (returned_expr)
@@ -2421,8 +2427,8 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
     case RETURN_KW:
       // FIXME: is this really a null denotation expression?
       {
-	auto ret
-	  = parse_return_expr (std::move (outer_attrs), tok->get_locus ());
+	auto ret = parse_return_expr (std::move (outer_attrs),
+				      tok->get_locus (), restrictions);
 	if (ret)
 	  return std::move (ret.value ());
 	else
