@@ -579,8 +579,10 @@ public:
     tl::optional<Node &> parent; // `None` only if the node is a root
   };
 
-  ForeverStackBase (Node &root, Node &lang_prelude, Node &extern_prelude)
-    : root (root), lang_prelude (lang_prelude), extern_prelude (extern_prelude)
+  ForeverStackBase (Node &root, Node &lang_prelude, Node &extern_prelude,
+		    Node &macro_use_prelude)
+    : root (root), lang_prelude (lang_prelude), extern_prelude (extern_prelude),
+      macro_use_prelude (macro_use_prelude)
   {}
 
   /* The forever stack's actual nodes */
@@ -597,13 +599,16 @@ public:
    * The extern prelude, used for resolving external crates
    */
   Node &extern_prelude;
+
+  Node &macro_use_prelude;
 };
 
 template <Namespace N> class ForeverStack : public ForeverStackBase
 {
 public:
-  ForeverStack (Node &root, Node &lang_prelude, Node &extern_prelude)
-    : ForeverStackBase (root, lang_prelude, extern_prelude),
+  ForeverStack (Node &root, Node &lang_prelude, Node &extern_prelude,
+		Node &macro_use_prelude)
+    : ForeverStackBase (root, lang_prelude, extern_prelude, macro_use_prelude),
       cursor_reference (root)
   {
     rust_assert (root.is_root ());
@@ -617,6 +622,7 @@ public:
       crate_mappings.get_current_crate ());
     extern_prelude.id = mappings.get_next_node_id ();
     lang_prelude.id = mappings.get_next_node_id ();
+    macro_use_prelude.id = mappings.get_next_node_id ();
   }
 
   /**
@@ -654,7 +660,15 @@ public:
   tl::expected<NodeId, DuplicateNameError> insert_variant (Identifier name,
 							   NodeId id);
 
+  /*
+   * Insert a crate in the extern crate prelude.
+   */
   void insert_crate_in_prelude (Identifier crate_name, NodeId crate_id);
+
+  /*
+    Insert a macro in the macro_use prelude.
+  */
+  void insert_macro_in_prelude (Identifier macro_name, NodeId macro_id);
 
   /**
    * Insert a new shadowable definition in the innermost `Rib` in this stack

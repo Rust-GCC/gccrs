@@ -204,10 +204,12 @@ NameResolutionContext::NameResolutionContext ()
       std::make_unique<Node> (Rib::Kind::Prelude, UNKNOWN_NODEID, *root)),
     extern_prelude (
       std::make_unique<Node> (Rib::Kind::Prelude, UNKNOWN_NODEID)),
-    values (*root, *lang_prelude, *extern_prelude),
-    types (*root, *lang_prelude, *extern_prelude),
-    macros (*root, *lang_prelude, *extern_prelude),
-    labels (*root, *lang_prelude, *extern_prelude),
+    macro_use_prelude (
+      std::make_unique<Node> (Rib::Kind::Prelude, UNKNOWN_NODEID)),
+    values (*root, *lang_prelude, *extern_prelude, *macro_use_prelude),
+    types (*root, *lang_prelude, *extern_prelude, *macro_use_prelude),
+    macros (*root, *lang_prelude, *extern_prelude, *macro_use_prelude),
+    labels (*root, *lang_prelude, *extern_prelude, *macro_use_prelude),
     mappings (Analysis::Mappings::get ()), canonical_ctx (*this)
 {}
 
@@ -410,7 +412,8 @@ NameResolutionContext::scoped (Rib::Kind rib_kind, Namespace ns,
 }
 
 void
-NameResolutionContext::merge (NameResolutionContext &other, NodeId at)
+NameResolutionContext::merge (NameResolutionContext &other, NodeId at,
+			      bool macro_use)
 {
   // TODO: merge once, for all namespaces at once
 
@@ -439,6 +442,17 @@ NameResolutionContext::merge (NameResolutionContext &other, NodeId at)
 
   merge_fstack (values, other.values, Namespace::Values);
   merge_fstack (types, other.types, Namespace::Types);
+
+  if (macro_use)
+    {
+      for (auto kv : other.macros.root.rib_macros.get_values ())
+	{
+	  auto &name = kv.first;
+	  auto &definition = kv.second;
+	  macros.insert_macro_in_prelude (name, definition.get_node_id ());
+	}
+    }
+
   merge_fstack (macros, other.macros, Namespace::Macros);
   merge_fstack (labels, other.labels, Namespace::Labels);
   canonical_ctx.merge (std::move (other.canonical_ctx));
