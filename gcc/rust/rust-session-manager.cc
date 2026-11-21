@@ -1090,7 +1090,8 @@ Session::expansion (AST::Crate &crate, Resolver2_0::NameResolutionContext &ctx)
       Resolver2_0::Early early (ctx);
       early.go (crate);
       for (auto &loaded_crate : loaded_crates)
-	ctx.merge (loaded_crate.ctx, loaded_crate.node_id);
+	ctx.merge (loaded_crate.ctx, loaded_crate.node_id,
+		   loaded_crate.macro_use);
       macro_errors = early.get_macro_resolve_errors ();
 
       if (saw_errors ())
@@ -1253,7 +1254,8 @@ Session::dump_hir_pretty (HIR::Crate &crate) const
 // imports
 
 tl::expected<Session::LoadedCrate, Session::LoadingError>
-Session::load_extern_crate (const std::string &crate_name, location_t locus)
+Session::load_extern_crate (const std::string &crate_name, bool macro_use,
+			    location_t locus)
 {
   auto &crate_mapping = mappings.crate;
   // has it already been loaded?
@@ -1371,7 +1373,8 @@ Session::load_extern_crate (const std::string &crate_name, location_t locus)
   // always restore the crate_num
   crate_mapping.set_current_crate (saved_crate_num);
 
-  return LoadedCrate{crate_name, parsed_crate.get_node_id (), std::move (ctx)};
+  return LoadedCrate{crate_name, macro_use, parsed_crate.get_node_id (),
+		     std::move (ctx)};
 }
 //
 
