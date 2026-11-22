@@ -18,7 +18,7 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 #include "rust-ast.h"
-#include "optional.h"
+#include "stdbackport/optional"
 #include "rust-builtin-ast-nodes.h"
 #include "rust-common.h"
 #include "rust-expr.h"
@@ -1121,7 +1121,7 @@ Function::Function (Function const &other)
   if (other.has_body ())
     function_body = other.function_body.value ()->clone_block_expr ();
   else
-    function_body = tl::nullopt;
+    function_body = gcc::nullopt;
 
   generic_params.reserve (other.generic_params.size ());
   for (const auto &e : other.generic_params)
@@ -1154,7 +1154,7 @@ Function::operator= (Function const &other)
   if (other.has_body ())
     function_body = other.function_body.value ()->clone_block_expr ();
   else
-    function_body = tl::nullopt;
+    function_body = gcc::nullopt;
 
   generic_params.reserve (other.generic_params.size ());
   for (const auto &e : other.generic_params)

@@ -510,7 +510,7 @@ UnsafeChecker::visit (MethodCallExpr &expr)
 
   // FIXME
   // should probably use the defid lookup instead
-  // tl::optional<HIR::Item *> lookup_defid (DefId id);
+  // gcc::optional<HIR::Item *> lookup_defid (DefId id);
   auto method = mappings.lookup_hir_implitem (fn.get_ref ());
   if (method
       && check_unsafe_call (static_cast<Function *> (method->first),

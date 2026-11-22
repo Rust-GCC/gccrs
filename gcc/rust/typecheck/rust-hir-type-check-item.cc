@@ -17,7 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-hir-type-check-item.h"
-#include "optional.h"
+#include "stdbackport/optional"
 #include "rust-canonical-path.h"
 #include "rust-diagnostics.h"
 #include "rust-hir-item.h"
@@ -471,7 +471,7 @@ TypeCheckItem::visit (HIR::TupleStruct &struct_decl)
     = new TyTy::VariantDef (struct_decl.get_mappings ().get_hirid (),
 			    struct_decl.get_mappings ().get_defid (),
 			    struct_decl.get_identifier ().as_string (), ident,
-			    TyTy::VariantDef::VariantType::TUPLE, tl::nullopt,
+			    TyTy::VariantDef::VariantType::TUPLE, gcc::nullopt,
 			    std::move (fields));
   type->get_variants ().push_back (variant);
   if (!validate_adt_size (type))
@@ -581,7 +581,7 @@ TypeCheckItem::visit (HIR::StructStruct &struct_decl)
     = new TyTy::VariantDef (struct_decl.get_mappings ().get_hirid (),
 			    struct_decl.get_mappings ().get_defid (),
 			    struct_decl.get_identifier ().as_string (), ident,
-			    variant_type, tl::nullopt, std::move (fields));
+			    variant_type, gcc::nullopt, std::move (fields));
   type->get_variants ().push_back (variant);
   if (!validate_adt_size (type))
     {
@@ -726,7 +726,7 @@ TypeCheckItem::visit (HIR::Union &union_decl)
     = new TyTy::VariantDef (union_decl.get_mappings ().get_hirid (),
 			    union_decl.get_mappings ().get_defid (),
 			    union_decl.get_identifier ().as_string (), ident,
-			    TyTy::VariantDef::VariantType::STRUCT, tl::nullopt,
+			    TyTy::VariantDef::VariantType::STRUCT, gcc::nullopt,
 			    std::move (fields));
   type->get_variants ().push_back (variant);
   if (!validate_adt_size (type))

@@ -120,7 +120,7 @@ MarkLive::visit (HIR::PathInExpression &expr)
     find_value_definition (ast_node_id, ref_node_id);
 
   // node back to HIR
-  tl::optional<HirId> hid = mappings.lookup_node_to_hir (ref_node_id);
+  gcc::optional<HirId> hid = mappings.lookup_node_to_hir (ref_node_id);
   rust_assert (hid.has_value ());
   auto ref = hid.value ();
 

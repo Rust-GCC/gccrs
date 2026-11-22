@@ -165,17 +165,17 @@ Attributes::valid_outer_attribute (const std::string &attribute_path)
   return __outer_attributes.find (attribute_path) != __outer_attributes.cend ();
 }
 
-tl::optional<std::string>
+gcc::optional<std::string>
 Attributes::extract_string_literal (const AST::Attribute &attr)
 {
   if (!attr.has_attr_input ())
-    return tl::nullopt;
+    return gcc::nullopt;
 
   auto &attr_input = attr.get_attr_input ();
 
   if (attr_input.get_attr_input_type ()
       != AST::AttrInput::AttrInputType::LITERAL)
-    return tl::nullopt;
+    return gcc::nullopt;
 
   auto &literal_expr
     = static_cast<AST::AttrInputLiteral &> (attr_input).get_literal ();
@@ -185,7 +185,7 @@ Attributes::extract_string_literal (const AST::Attribute &attr)
   // TODO: bring escape sequence handling out of lexing?
   if (lit_type != AST::Literal::LitType::STRING
       && lit_type != AST::Literal::LitType::RAW_STRING)
-    return tl::nullopt;
+    return gcc::nullopt;
 
   return literal_expr.as_string ();
 }
@@ -219,7 +219,7 @@ BuiltinAttributeMappings::BuiltinAttributeMappings ()
     }
 }
 
-tl::optional<BuiltinAttrDefinition>
+gcc::optional<BuiltinAttrDefinition>
 lookup_builtin (const AST::Attribute &attribute)
 {
   auto &segments = attribute.get_path ().get_segments ();
@@ -228,7 +228,7 @@ lookup_builtin (const AST::Attribute &attribute)
   // strings all over the place and performing a linear search in the builtins
   // map
   if (segments.size () != 1)
-    return tl::nullopt;
+    return gcc::nullopt;
 
   return BuiltinAttributeMappings::get ()->lookup_builtin (
     segments.at (0).get_segment_name ());

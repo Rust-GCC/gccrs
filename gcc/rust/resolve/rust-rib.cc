@@ -116,7 +116,7 @@ Rib::Rib (Kind kind, std::unordered_map<std::string, NodeId> to_insert)
     values.insert ({value.first, Definition::NonShadowable (value.second)});
 }
 
-tl::expected<NodeId, DuplicateNameError>
+gcc::expected<NodeId, DuplicateNameError>
 Rib::insert (std::string name, Definition def)
 {
   auto it = values.find (name);
@@ -137,7 +137,7 @@ Rib::insert (std::string name, Definition def)
 	    current.ids_non_shadowable.push_back (id);
 	  else
 	    // TODO: should this produce an error?
-	    return tl::make_unexpected (DuplicateNameError (name, id));
+	    return gcc::make_unexpected (DuplicateNameError (name, id));
 	}
       for (auto id : def.ids_shadowable)
 	{
@@ -147,7 +147,7 @@ Rib::insert (std::string name, Definition def)
 	    current.ids_shadowable.push_back (id);
 	  else
 	    // TODO: should this produce an error?
-	    return tl::make_unexpected (DuplicateNameError (name, id));
+	    return gcc::make_unexpected (DuplicateNameError (name, id));
 	}
       for (auto id : def.ids_globbed)
 	{
@@ -157,12 +157,12 @@ Rib::insert (std::string name, Definition def)
 	    current.ids_globbed.push_back (id);
 	  else
 	    // TODO: should this produce an error?
-	    return tl::make_unexpected (DuplicateNameError (name, id));
+	    return gcc::make_unexpected (DuplicateNameError (name, id));
 	}
     }
   else /* Multiple non-shadowable */
     {
-      return tl::make_unexpected (
+      return gcc::make_unexpected (
 	DuplicateNameError (name, it->second.ids_non_shadowable.back ()));
     }
 
@@ -208,13 +208,13 @@ Rib::insert_globbed (std::string name, const Definition &def)
   return dirty;
 }
 
-tl::optional<Rib::Definition>
+gcc::optional<Rib::Definition>
 Rib::get (const std::string &name)
 {
   auto it = values.find (name);
 
   if (it == values.end ())
-    return tl::nullopt;
+    return gcc::nullopt;
 
   return it->second;
 }

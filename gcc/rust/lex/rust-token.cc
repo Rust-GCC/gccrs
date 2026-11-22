@@ -166,7 +166,7 @@ nfc_normalize_token_string (location_t loc, TokenId id, const std::string &str)
 {
   if (id == IDENTIFIER || id == LIFETIME)
     {
-      tl::optional<Utf8String> ustring = Utf8String::make_utf8_string (str);
+      gcc::optional<Utf8String> ustring = Utf8String::make_utf8_string (str);
       if (ustring.has_value ())
 	return ustring.value ().nfc_normalize ().as_string ();
       else

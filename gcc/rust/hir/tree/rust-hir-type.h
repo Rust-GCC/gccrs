@@ -291,7 +291,7 @@ protected:
 class ReferenceType : public TypeNoBounds
 {
   // bool has_lifetime; // TODO: handle in lifetime or something?
-  tl::optional<Lifetime> lifetime;
+  gcc::optional<Lifetime> lifetime;
 
   Mutability mut;
   std::unique_ptr<Type> type;
@@ -306,7 +306,7 @@ public:
   // Constructor
   ReferenceType (Analysis::NodeMapping mappings, Mutability mut,
 		 std::unique_ptr<Type> type_no_bounds, location_t locus,
-		 tl::optional<Lifetime> lifetime);
+		 gcc::optional<Lifetime> lifetime);
 
   // Copy constructor with custom clone method
   ReferenceType (ReferenceType const &other);

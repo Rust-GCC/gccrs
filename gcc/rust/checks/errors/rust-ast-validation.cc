@@ -107,8 +107,8 @@ ASTValidation::visit (AST::Function &function)
   // functions without bodies can only have very specific
   // kinds of patterns in their parameters
   auto is_param_complex_with_loc
-    = [] (AST::Param &param) -> tl::optional<location_t> {
-    tl::optional<location_t> ret;
+    = [] (AST::Param &param) -> gcc::optional<location_t> {
+    gcc::optional<location_t> ret;
 
     if (param.is_self () || param.is_variadic ())
       return ret;
@@ -125,10 +125,10 @@ ASTValidation::visit (AST::Function &function)
 	auto &ident_pat = static_cast<AST::IdentifierPattern &> (pat);
 	if (!ident_pat.get_is_ref () && !ident_pat.get_is_mut ()
 	    && !ident_pat.has_subpattern ())
-	  ret = tl::nullopt;
+	  ret = gcc::nullopt;
       }
     else if (kind == AST::Pattern::Kind::Wildcard)
-      ret = tl::nullopt;
+      ret = gcc::nullopt;
 
     return ret;
   };

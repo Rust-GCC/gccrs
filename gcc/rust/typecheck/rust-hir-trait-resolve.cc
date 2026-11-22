@@ -368,7 +368,7 @@ TraitResolver::resolve_trait (HIR::Trait *trait_reference)
 
 	      auto predicate = get_predicate_from_bound (
 		b->get_path (),
-		tl::nullopt /*this will setup a PLACEHOLDER for self*/,
+		gcc::nullopt /*this will setup a PLACEHOLDER for self*/,
 		BoundPolarity::RegularBound, false, true);
 	      if (predicate.is_error ())
 		return &TraitReference::error_node ();
@@ -493,7 +493,7 @@ TraitItemReference::resolve_item (const TraitReference *tref,
     }
 
   auto substitutions = inherited_substitutions;
-  tl::optional<TypeCheckContext::LifetimeResolverGuard> binder_pin;
+  gcc::optional<TypeCheckContext::LifetimeResolverGuard> binder_pin;
   if (type.has_generics ())
     {
       binder_pin.emplace (*context,
@@ -530,7 +530,7 @@ TraitItemReference::resolve_item (const TraitReference *tref,
 	  auto *b = static_cast<HIR::TraitBound *> (bound.get ());
 	  auto predicate = TypeCheckBase::ResolvePredicateFromBound (
 	    b->get_path (),
-	    tl::nullopt /*this will setup a PLACEHOLDER for self*/,
+	    gcc::nullopt /*this will setup a PLACEHOLDER for self*/,
 	    BoundPolarity::RegularBound, false, true);
 	  if (!predicate.is_error ())
 	    trait_item_bounds.push_back (std::move (predicate));

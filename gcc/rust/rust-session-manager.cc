@@ -134,7 +134,7 @@ infer_crate_name (const std::string &filename)
 static bool
 validate_crate_name (const std::string &crate_name, Error &error)
 {
-  tl::optional<Utf8String> utf8_name_opt
+  gcc::optional<Utf8String> utf8_name_opt
     = Utf8String::make_utf8_string (crate_name);
   if (!utf8_name_opt.has_value ())
     {
@@ -619,7 +619,7 @@ Session::compile_crate (const char *filename)
   // parse file here
   /* create lexer and parser - these are file-specific and so aren't instance
    * variables */
-  tl::optional<std::ofstream &> dump_lex_opt = tl::nullopt;
+  gcc::optional<std::ofstream &> dump_lex_opt = gcc::nullopt;
   std::ofstream dump_lex_stream;
   if (options.dump_option_enabled (CompileOptions::LEXER_DUMP))
     {
@@ -1252,7 +1252,7 @@ Session::dump_hir_pretty (HIR::Crate &crate) const
 
 // imports
 
-tl::expected<Session::LoadedCrate, Session::LoadingError>
+gcc::expected<Session::LoadedCrate, Session::LoadingError>
 Session::load_extern_crate (const std::string &crate_name, location_t locus)
 {
   auto &crate_mapping = mappings.crate;
@@ -1262,7 +1262,7 @@ Session::load_extern_crate (const std::string &crate_name, location_t locus)
       auto resolved_node_id = crate_mapping.crate_num_to_nodeid (*crate_num);
       rust_assert (resolved_node_id);
 
-      return tl::make_unexpected (
+      return gcc::make_unexpected (
 	LoadingError::make_already_loaded (*resolved_node_id));
     }
 
@@ -1293,7 +1293,7 @@ Session::load_extern_crate (const std::string &crate_name, location_t locus)
       && proc_macros.empty ()) // no proc macros
     {
       rust_error_at (locus, "failed to locate crate %qs", import_name.c_str ());
-      return tl::make_unexpected (LoadingError::make_failed_to_locate ());
+      return gcc::make_unexpected (LoadingError::make_failed_to_locate ());
     }
 
   auto extern_crate
@@ -1307,7 +1307,7 @@ Session::load_extern_crate (const std::string &crate_name, location_t locus)
       if (!ok)
 	{
 	  rust_error_at (locus, "failed to load crate metadata");
-	  return tl::make_unexpected (LoadingError::make_failed_to_locate ());
+	  return gcc::make_unexpected (LoadingError::make_failed_to_locate ());
 	}
     }
 
@@ -1318,7 +1318,7 @@ Session::load_extern_crate (const std::string &crate_name, location_t locus)
     {
       rust_error_at (locus, "current crate name %qs collides with this",
 		     current_crate_name.c_str ());
-      return tl::make_unexpected (LoadingError::make_collision ());
+      return gcc::make_unexpected (LoadingError::make_collision ());
     }
 
   // setup mappings

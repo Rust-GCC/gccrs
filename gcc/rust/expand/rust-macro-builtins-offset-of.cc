@@ -16,7 +16,9 @@
 // along with GCC; see the file COPYING3.  If not see
 // <http://www.gnu.org/licenses/>.
 
-#include "optional.h"
+#include "rust-system.h"
+#include "stdbackport/optional"
+
 #include "rust-ast-fragment.h"
 #include "rust-ast.h"
 #include "rust-builtin-ast-nodes.h"
@@ -28,7 +30,7 @@
 
 namespace Rust {
 
-tl::optional<AST::Fragment>
+gcc::optional<AST::Fragment>
 MacroBuiltin::offset_of_handler (location_t invoc_locus,
 				 AST::MacroInvocData &invoc,
 				 AST::InvocKind semicolon)
@@ -63,7 +65,7 @@ MacroBuiltin::offset_of_handler (location_t invoc_locus,
 		   "offset_of");
 
   if (!type || invalid_field)
-    return tl::nullopt;
+    return gcc::nullopt;
 
   auto field = Identifier (field_tok.value ()->get_str ());
 

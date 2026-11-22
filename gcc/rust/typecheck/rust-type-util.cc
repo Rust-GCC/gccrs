@@ -135,7 +135,7 @@ query_type (HirId reference, TyTy::BaseType **result)
 	  return false;
 	}
 
-      tl::optional<ImplTraitFrameGuard> guard;
+      gcc::optional<ImplTraitFrameGuard> guard;
       if (impl_block->has_trait_ref ())
 	{
 	  HIR::TypePath &ref = impl_block->get_trait_ref ();
@@ -210,12 +210,13 @@ query_type (HirId reference, TyTy::BaseType **result)
 	  auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
 
 	  // assign the ref_node_id if we've found something
-	  nr_ctx.lookup (ast_node_id, Resolver2_0::Namespace::Types)
-	    .map ([&ref_node_id] (NodeId resolved) { ref_node_id = resolved; });
+	  if (auto resolved
+	      = nr_ctx.lookup (ast_node_id, Resolver2_0::Namespace::Types))
+	    ref_node_id = resolved.value ();
 
 	  if (ref_node_id != UNKNOWN_NODEID)
 	    {
-	      tl::optional<HirId> hid
+	      gcc::optional<HirId> hid
 		= mappings.lookup_node_to_hir (ref_node_id);
 	      if (hid.has_value () && context->query_in_progress (hid.value ()))
 		{

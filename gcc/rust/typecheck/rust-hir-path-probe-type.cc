@@ -177,7 +177,7 @@ PathProbeCandidate
 TypePathProbe::process_predicate_for_candidates (
   const TyTy::TypeBoundPredicate &predicate)
 {
-  tl::optional<TyTy::TypeBoundPredicateItem> item
+  gcc::optional<TyTy::TypeBoundPredicateItem> item
     = predicate.lookup_associated_item (search.to_string ());
   if (!item.has_value ())
     return PathProbeCandidate::get_error ();

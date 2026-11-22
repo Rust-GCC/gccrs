@@ -19,7 +19,9 @@
 #ifndef RUST_TYTY
 #define RUST_TYTY
 
-#include "optional.h"
+#include "rust-system.h"
+#include "stdbackport/optional"
+
 #include "rust-hir-map.h"
 #include "rust-common.h"
 #include "rust-identifier.h"
@@ -27,7 +29,6 @@
 #include "rust-tyty-util.h"
 #include "rust-tyty-subst.h"
 #include "rust-tyty-region.h"
-#include "rust-system.h"
 #include "rust-hir.h"
 #include "tree.h"
 
@@ -132,10 +133,10 @@ public:
 
   bool contains_item (const std::string &search) const;
 
-  tl::optional<TypeBoundPredicateItem>
+  gcc::optional<TypeBoundPredicateItem>
   lookup_associated_item (const std::string &search) const;
 
-  tl::optional<TypeBoundPredicateItem>
+  gcc::optional<TypeBoundPredicateItem>
   lookup_associated_item (const Resolver::TraitItemReference *ref) const;
 
   // WARNING THIS WILL ALWAYS RETURN NULLPTR
@@ -860,11 +861,11 @@ public:
   static std::string variant_type_string (VariantType type);
 
   VariantDef (HirId id, DefId defid, std::string identifier, RustIdent ident,
-	      tl::optional<std::unique_ptr<HIR::Expr>> &&discriminant);
+	      gcc::optional<std::unique_ptr<HIR::Expr>> &&discriminant);
 
   VariantDef (HirId id, DefId defid, std::string identifier, RustIdent ident,
 	      VariantType type,
-	      tl::optional<std::unique_ptr<HIR::Expr>> &&discriminant,
+	      gcc::optional<std::unique_ptr<HIR::Expr>> &&discriminant,
 	      std::vector<StructFieldType *> fields);
 
   static VariantDef &get_error_node ();
@@ -910,7 +911,7 @@ private:
   VariantType type;
 
   // can either be a structure or a discriminant value
-  tl::optional<std::unique_ptr<HIR::Expr>> discriminant;
+  gcc::optional<std::unique_ptr<HIR::Expr>> discriminant;
 
   std::vector<StructFieldType *> fields;
 };
@@ -2005,7 +2006,7 @@ BaseType::try_as<const SubstitutionRef> () const
   return nullptr;
 }
 
-WARN_UNUSED_RESULT tl::optional<BaseType *>
+WARN_UNUSED_RESULT gcc::optional<BaseType *>
 try_get_box_inner_type (BaseType *base);
 
 } // namespace TyTy

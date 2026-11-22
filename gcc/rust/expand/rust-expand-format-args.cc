@@ -69,7 +69,7 @@ get_trait_name (ffi::FormatSpec format_specifier)
   return it->second;
 }
 
-tl::optional<AST::Fragment>
+gcc::optional<AST::Fragment>
 expand_format_args (AST::FormatArgs &fmt,
 		    std::vector<std::unique_ptr<AST::Token>> &&tokens)
 {

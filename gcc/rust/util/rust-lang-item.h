@@ -18,7 +18,7 @@
 
 #include "rust-system.h"
 #include "rust-operators.h"
-#include "optional.h"
+#include "stdbackport/optional"
 #include "bi-map.h"
 
 #ifndef RUST_LANG_ITEM_H
@@ -201,7 +201,7 @@ public:
 
   static const BiMap<std::string, Kind> lang_items;
 
-  static tl::optional<Kind> Parse (const std::string &item);
+  static gcc::optional<Kind> Parse (const std::string &item);
 
   static std::string ToString (Kind type);
   static std::string PrettyString (Kind type);

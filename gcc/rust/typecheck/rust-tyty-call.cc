@@ -17,7 +17,6 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-tyty-call.h"
-#include "optional.h"
 #include "rust-hir-item.h"
 #include "rust-hir-type-check-expr.h"
 #include "rust-hir-type-check.h"

@@ -19,7 +19,9 @@
 #ifndef RUST_EXPRESSION_YEAST
 #define RUST_EXPRESSION_YEAST
 
-#include "optional.h"
+#include "rust-system.h"
+#include "stdbackport/optional"
+
 #include "rust-ast-pointer-visitor.h"
 #include "rust-ast.h"
 #include "rust-desugar-question-mark.h"
@@ -42,7 +44,7 @@ private:
    * Keep track of the crate we are currently desugaring. This is important for
    * forming paths when generating AST nodes
    */
-  tl::optional<AST::Crate &> current_crate = tl::nullopt;
+  gcc::optional<AST::Crate &> current_crate = gcc::nullopt;
 
   // Dispatch to the proper desugar
   void reseat (std::unique_ptr<Expr> &expr) override;

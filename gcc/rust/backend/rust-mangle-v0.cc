@@ -17,7 +17,7 @@
 // <http://www.gnu.org/licenses/>.
 
 #include "rust-mangle.h"
-#include "optional.h"
+#include "stdbackport/optional"
 #include "rust-base62.h"
 #include "rust-diagnostics.h"
 #include "rust-system.h"
@@ -240,10 +240,10 @@ v0_identifier (const std::string &identifier)
   if (!is_ascii_only (identifier))
     mangled << "u";
 
-  tl::optional<Utf8String> uident_opt
+  gcc::optional<Utf8String> uident_opt
     = Utf8String::make_utf8_string (identifier);
   rust_assert (uident_opt.has_value ());
-  tl::optional<std::string> punycode_opt
+  gcc::optional<std::string> punycode_opt
     = encode_punycode (uident_opt.value ());
   rust_assert (punycode_opt.has_value ());
 
@@ -375,7 +375,7 @@ v0_path (Rust::Compile::Context *ctx, const TyTy::BaseType *ty,
   V0Path v0path = {};
 
   cpath.iterate_segs ([&] (const Resolver::CanonicalPath &seg) {
-    tl::optional<HirId> hid = mappings.lookup_node_to_hir (seg.get_node_id ());
+    gcc::optional<HirId> hid = mappings.lookup_node_to_hir (seg.get_node_id ());
     if (!hid.has_value ())
       {
 	// FIXME: generic arg in canonical path? (e.g. <i32> in crate::S<i32>)

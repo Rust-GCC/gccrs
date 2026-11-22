@@ -156,7 +156,7 @@ Lexer::Lexer (const std::string &input, Linemap *linemap)
 {}
 
 Lexer::Lexer (const char *filename, RAIIFile file_input, Linemap *linemap,
-	      tl::optional<std::ofstream &> dump_lex_opt)
+	      gcc::optional<std::ofstream &> dump_lex_opt)
   : input (std::move (file_input)), current_line (1), current_column (1),
     line_map (linemap), dump_lex_out (dump_lex_opt),
     raw_input_source (new FileInputSource (input.get_raw ())),

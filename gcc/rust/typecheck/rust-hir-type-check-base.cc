@@ -49,7 +49,7 @@ TypeCheckBase::ResolveGenericParams (
 TyTy::TypeBoundPredicate
 TypeCheckBase::ResolvePredicateFromBound (
   HIR::TypePath &path,
-  tl::optional<std::reference_wrapper<HIR::Type>> associated_self,
+  gcc::optional<std::reference_wrapper<HIR::Type>> associated_self,
   BoundPolarity polarity, bool is_qualified_type, bool is_super_trait)
 {
   TypeCheckBase ctx;
