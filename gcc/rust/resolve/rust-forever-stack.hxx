@@ -383,6 +383,13 @@ ForeverStack<N>::get_lang_prelude (const std::string &name)
 
 template <Namespace N>
 tl::optional<Rib::Definition>
+ForeverStack<N>::get_macro_use_prelude (const Identifier &name)
+{
+  return macro_use_prelude.rib (N).get (name);
+}
+
+template <Namespace N>
+tl::optional<Rib::Definition>
 ForeverStack<N>::get_from_prelude (NodeId prelude, const Identifier &name)
 {
   auto starting_point = dfs_node (root, prelude);
