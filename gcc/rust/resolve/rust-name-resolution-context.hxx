@@ -144,6 +144,8 @@ NameResolutionContext::resolve_path (
 
       if (!res)
 	res = stack.get_lang_prelude (seg.name);
+      if (N == Namespace::Macros && !res)
+	res = stack.get_macro_use_prelude (seg.name);
 
       if (N == Namespace::Types && !res)
 	{

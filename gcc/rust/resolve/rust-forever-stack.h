@@ -747,6 +747,7 @@ public:
   tl::optional<Rib::Definition> get (const Identifier &name);
   tl::optional<Rib::Definition> get_lang_prelude (const Identifier &name);
   tl::optional<Rib::Definition> get_lang_prelude (const std::string &name);
+  tl::optional<Rib::Definition> get_macro_use_prelude (const Identifier &name);
   tl::optional<Rib::Definition> get_from_prelude (NodeId prelude,
 						  const Identifier &name);
 
