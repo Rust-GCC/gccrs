@@ -464,10 +464,10 @@ TokenCollector::visit (AttrInputMetaItemContainer &container)
 {
   describe_node (std::string ("AttrInputMetaItemContainer"),
 		 [this, &container] () {
+		   push (Rust::Token::make (LEFT_PAREN, UNDEF_LOCATION));
 		   for (auto &item : container.get_items ())
-		     {
-		       visit (item);
-		     }
+		     visit (item);
+		   push (Rust::Token::make (RIGHT_PAREN, UNDEF_LOCATION));
 		 });
 }
 
