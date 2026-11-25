@@ -934,8 +934,6 @@ public:
     RUST,
     C,
     INT,
-    ALIGN,
-    PACKED,
     TRANSPARENT,
     SIMD,
     // ...
@@ -946,11 +944,11 @@ public:
   {
     ReprKind repr_kind = ReprKind::RUST;
 
-    // For align and pack: 0 = unspecified. Nonzero = byte alignment.
-    // It is an error for both to be nonzero, this should be caught when
-    // parsing the #[repr] attribute.
-    unsigned char align = 0;
-    unsigned char pack = 0;
+    // For align and pack, nullopt means they're not set.
+    // It is an error for both to hold a value at the same time, this is caught
+    // when parsing the #[repr] attribute in the parse_repr_options function
+    tl::optional<unsigned long> align = tl::nullopt;
+    tl::optional<unsigned long> pack = tl::nullopt;
     BaseType *repr = nullptr;
   };
 

@@ -618,6 +618,12 @@ TypeCheckItem::visit (HIR::Enum &enum_decl)
   const AST::AttrVec &attrs = enum_decl.get_outer_attrs ();
   TyTy::ADTType::ReprOptions repr
     = parse_repr_options (attrs, enum_decl.get_locus ());
+  if (repr.pack != tl::nullopt)
+    {
+      rust_error_at (enum_decl.get_locus (),
+		     "the %<repr(packed)%> attribute cannot be used on enums");
+      return;
+    }
 
   std::vector<TyTy::VariantDef *> variants;
   auto *type = new TyTy::ADTType (
