@@ -483,8 +483,9 @@ Parser<ManagedTokenSource>::parse_try_expr (AST::AttrVec outer_attrs,
  * expression). */
 template <typename ManagedTokenSource>
 tl::expected<std::unique_ptr<AST::BreakExpr>, Parse::Error::Node>
-Parser<ManagedTokenSource>::parse_break_expr (AST::AttrVec outer_attrs,
-					      location_t pratt_parsed_loc)
+Parser<ManagedTokenSource>::parse_break_expr (
+  AST::AttrVec outer_attrs, location_t pratt_parsed_loc,
+  ParseRestrictions outer_restrictions)
 {
   location_t locus = pratt_parsed_loc;
   if (locus == UNKNOWN_LOCATION)
@@ -500,7 +501,9 @@ Parser<ManagedTokenSource>::parse_break_expr (AST::AttrVec outer_attrs,
 
   // parse break return expression if it exists
   ParseRestrictions restrictions;
-  restrictions.expr_can_be_null = true;
+  if (lexer.peek_token ()->get_id () != LEFT_CURLY
+      || !outer_restrictions.can_be_struct_expr)
+    restrictions.expr_can_be_null = true;
   auto return_expr = parse_expr (AST::AttrVec (), restrictions);
 
   if (return_expr)
@@ -2442,8 +2445,8 @@ Parser<ManagedTokenSource>::null_denotation_not_path (
     case BREAK:
       // FIXME: is this really a null denotation expression?
       {
-	auto ret
-	  = parse_break_expr (std::move (outer_attrs), tok->get_locus ());
+	auto ret = parse_break_expr (std::move (outer_attrs), tok->get_locus (),
+				     restrictions);
 	if (ret)
 	  return std::move (ret.value ());
 	else
