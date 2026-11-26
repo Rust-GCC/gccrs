@@ -204,7 +204,16 @@ bool
 TraitReference::lookup_hir_trait_item (const HIR::TraitItem &item,
 				       TraitItemReference **ref)
 {
-  return lookup_trait_item (item.trait_identifier (), ref);
+  HirId id = item.get_mappings ().get_hirid ();
+  for (auto &item_ref : item_refs)
+    {
+      if (item_ref.get_hir_trait_item ()->get_mappings ().get_hirid () == id)
+	{
+	  *ref = &item_ref;
+	  return true;
+	}
+    }
+  return false;
 }
 
 bool
