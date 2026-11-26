@@ -1096,7 +1096,23 @@ HIRCompileBase::resolve_method_address (TyTy::FnType *fntype,
   auto root = receiver->get_root ();
   auto candidates
     = Resolver::PathProbeImplTrait::Probe (root, segment, trait_ref);
-  if (candidates.size () == 0)
+
+  // The probe matches on the identifier only, so it can also return from the
+  // type namespace, such as an associated type with the same name as the
+  // method. Only function items are relevant here.
+
+  // filter for the possible case of non fn type items
+  std::set<Resolver::PathProbeCandidate> filteredFunctionCandidates;
+  for (auto &candidate : candidates)
+    {
+      rust_debug ("Candidate: %s", candidate.ty->as_string ().c_str ());
+      bool is_fntype = candidate.ty->get_kind () == TyTy::TypeKind::FNDEF;
+      if (!is_fntype)
+	continue;
+
+      filteredFunctionCandidates.insert (candidate);
+    }
+  if (filteredFunctionCandidates.empty ())
     {
       // this means we are defaulting back to the trait_item if
       // possible
@@ -1117,17 +1133,6 @@ HIRCompileBase::resolve_method_address (TyTy::FnType *fntype,
   const Resolver::PathProbeCandidate *selectedCandidate = nullptr;
   rust_debug_loc (expr_locus, "resolved to %lu candidates",
 		  (unsigned long) candidates.size ());
-
-  // filter for the possible case of non fn type items
-  std::set<Resolver::PathProbeCandidate> filteredFunctionCandidates;
-  for (auto &candidate : candidates)
-    {
-      bool is_fntype = candidate.ty->get_kind () == TyTy::TypeKind::FNDEF;
-      if (!is_fntype)
-	continue;
-
-      filteredFunctionCandidates.insert (candidate);
-    }
 
   // look for the exact fntype
   for (auto &candidate : filteredFunctionCandidates)

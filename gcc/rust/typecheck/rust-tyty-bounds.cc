@@ -665,7 +665,21 @@ tl::optional<TypeBoundPredicateItem>
 TypeBoundPredicate::lookup_associated_item (
   const Resolver::TraitItemReference *ref) const
 {
-  return lookup_associated_item (ref->get_identifier ());
+  // Match on identity, not name: a trait may have an associated type
+  // and a method with the same identifier.
+  for (const auto &item : get ()->get_trait_items ())
+    {
+      if (&item == ref)
+	return TypeBoundPredicateItem (this, ref);
+    }
+  // This item may belong to a super trait.
+  for (auto &super_trait : super_traits)
+    {
+      auto lookup = super_trait.lookup_associated_item (ref);
+      if (lookup.has_value ())
+	return lookup;
+    }
+  return tl::nullopt;
 }
 
 BaseType *
