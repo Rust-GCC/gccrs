@@ -1463,6 +1463,7 @@ protected:
 class EnumItem : public Item
 {
   Identifier variant_name;
+  std::unique_ptr<Expr> discriminant;
   location_t locus;
 
 public:
@@ -1473,17 +1474,40 @@ public:
     Named,
     Tuple,
     Struct,
-    Discriminant,
   };
 
   EnumItem (Analysis::NodeMapping mappings, Identifier variant_name,
-	    AST::AttrVec outer_attrs, location_t locus);
+	    std::unique_ptr<Expr> discriminant, AST::AttrVec outer_attrs,
+	    location_t locus);
 
   // Unique pointer custom clone function
   std::unique_ptr<EnumItem> clone_enum_item () const
   {
     return std::unique_ptr<EnumItem> (clone_item_impl ());
   }
+
+  EnumItem (EnumItem const &other)
+    : Item (other), variant_name (other.variant_name), locus (other.locus)
+  {
+    if (other.discriminant != nullptr)
+      discriminant = other.discriminant->clone_expr ();
+  }
+
+  EnumItem &operator= (EnumItem const &other)
+  {
+    Item::operator= (other);
+    variant_name = other.variant_name;
+    locus = other.locus;
+    if (other.discriminant != nullptr)
+      discriminant = other.discriminant->clone_expr ();
+    else
+      discriminant = nullptr;
+
+    return *this;
+  }
+
+  EnumItem (EnumItem &&other) = default;
+  EnumItem &operator= (EnumItem &&other) = default;
 
   virtual std::string to_string () const override;
   virtual EnumItemKind get_enum_item_kind () const { return Named; };
@@ -1496,6 +1520,9 @@ public:
   location_t get_locus () const override { return locus; }
 
   Identifier get_identifier () const { return variant_name; }
+
+  bool has_discriminant () const { return discriminant != nullptr; }
+  Expr &get_discriminant () const { return *discriminant; }
 
   ItemKind get_item_kind () const override { return ItemKind::EnumItem; }
 
@@ -1519,6 +1546,7 @@ public:
   }
 
   EnumItemTuple (Analysis::NodeMapping mappings, Identifier variant_name,
+		 std::unique_ptr<Expr> discriminant,
 		 std::vector<TupleField> tuple_fields, AST::AttrVec outer_attrs,
 		 location_t locus);
 
@@ -1553,6 +1581,7 @@ public:
   }
 
   EnumItemStruct (Analysis::NodeMapping mappings, Identifier variant_name,
+		  std::unique_ptr<Expr> discriminant,
 		  std::vector<StructField> struct_fields,
 		  AST::AttrVec outer_attrs, location_t locus);
 
@@ -1568,51 +1597,6 @@ protected:
   EnumItemStruct *clone_item_impl () const override
   {
     return new EnumItemStruct (*this);
-  }
-};
-
-// A discriminant (numbered enum) item used in an "enum" tagged union
-class EnumItemDiscriminant : public EnumItem
-{
-  std::unique_ptr<Expr> expression;
-
-public:
-  EnumItemDiscriminant (Analysis::NodeMapping mappings, Identifier variant_name,
-			std::unique_ptr<Expr> expr, AST::AttrVec outer_attrs,
-			location_t locus);
-
-  // Copy constructor with clone
-  EnumItemDiscriminant (EnumItemDiscriminant const &other);
-
-  // Overloaded assignment operator to clone
-  EnumItemDiscriminant &operator= (EnumItemDiscriminant const &other);
-
-  // move constructors
-  EnumItemDiscriminant (EnumItemDiscriminant &&other) = default;
-  EnumItemDiscriminant &operator= (EnumItemDiscriminant &&other) = default;
-
-  EnumItemKind get_enum_item_kind () const override
-  {
-    return EnumItemKind::Discriminant;
-  }
-
-  std::string to_string () const override;
-
-  void accept_vis (HIRFullVisitor &vis) override;
-  void accept_vis (HIRStmtVisitor &vis) override;
-
-  Expr &get_discriminant_expression () { return *expression; }
-
-  std::unique_ptr<Expr> take_discriminant_expression ()
-  {
-    return std::move (expression);
-  }
-
-protected:
-  // Clone function implementation as (not pure) virtual method
-  EnumItemDiscriminant *clone_item_impl () const override
-  {
-    return new EnumItemDiscriminant (*this);
   }
 };
 

@@ -6,7 +6,7 @@ fn test() -> isize {
 }
 
 enum Foo {
-    Bar = test() // { dg-error "only functions marked as .const." }
+    Bar = test() // { dg-error "calls in constants are limited to constant functions, tuple structs and tuple variants" }
 }
 
 fn main() {}

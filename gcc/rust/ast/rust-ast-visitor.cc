@@ -975,6 +975,8 @@ DefaultASTVisitor::visit (AST::EnumItem &item)
 {
   visit_outer_attrs (item);
   visit (item.get_visibility ());
+  if (item.has_discriminant ())
+    visit (item.get_discriminant ());
 }
 
 void
@@ -991,13 +993,6 @@ DefaultASTVisitor::visit (AST::EnumItemStruct &item)
   DefaultASTVisitor::visit (static_cast<EnumItem &> (item));
   for (auto &field : item.get_struct_fields ())
     visit (field);
-}
-
-void
-DefaultASTVisitor::visit (AST::EnumItemDiscriminant &item)
-{
-  DefaultASTVisitor::visit (static_cast<EnumItem &> (item));
-  visit (item.get_expr ());
 }
 
 void

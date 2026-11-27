@@ -745,10 +745,27 @@ PointerVisitor::visit (AST::TupleField &field)
 }
 
 void
-PointerVisitor::visit (AST::EnumItemDiscriminant &item)
+PointerVisitor::visit (AST::EnumItem &item)
 {
-  PointerVisitor::visit (static_cast<EnumItem &> (item));
-  reseat (item.get_expr_ptr ());
+  DefaultASTVisitor::visit (item);
+  if (item.has_discriminant ())
+    reseat (item.get_discriminant_ptr ());
+}
+
+void
+PointerVisitor::visit (AST::EnumItemTuple &item)
+{
+  DefaultASTVisitor::visit (item);
+  if (item.has_discriminant ())
+    reseat (item.get_discriminant_ptr ());
+}
+
+void
+PointerVisitor::visit (AST::EnumItemStruct &item)
+{
+  DefaultASTVisitor::visit (item);
+  if (item.has_discriminant ())
+    reseat (item.get_discriminant_ptr ());
 }
 
 void
