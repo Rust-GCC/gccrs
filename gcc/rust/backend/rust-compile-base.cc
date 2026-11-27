@@ -1212,5 +1212,34 @@ HIRCompileBase::unit_expression (location_t locus)
   return Backend::constructor_expression (unit_type, false, {}, -1, locus);
 }
 
+// rustc reports a local in an array length as E0435
+// shortcut: only a bare path is checked, `n + 1` gets the plain message
+void
+HIRCompileBase::report_non_const_length (HIR::Expr &length)
+{
+  bool is_local = false;
+  if (length.get_expression_type () == HIR::Expr::ExprType::Path)
+    {
+      auto &nr_ctx = Resolver2_0::FinalizedNameResolutionContext::get ();
+      auto def = nr_ctx.lookup (length.get_mappings ().get_nodeid (),
+				Resolver2_0::Namespace::Values);
+      tl::optional<HirId> hid = tl::nullopt;
+      if (def)
+	hid = ctx->get_mappings ().lookup_node_to_hir (*def);
+
+      Bvariable *var = nullptr;
+      tree binding = NULL_TREE;
+      is_local = hid.has_value ()
+		 && (ctx->lookup_var_decl (*hid, &var)
+		     || ctx->lookup_pattern_binding (*hid, &binding));
+    }
+
+  if (is_local)
+    rust_error_at (length.get_locus (), ErrorCode::E0435,
+		   "attempt to use a non-constant value in a constant");
+  else
+    rust_error_at (length.get_locus (), "array length is not a constant");
+}
+
 } // namespace Compile
 } // namespace Rust

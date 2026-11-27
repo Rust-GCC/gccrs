@@ -71,6 +71,8 @@ protected:
   bool verify_array_capacities (tree ltype, tree rtype, location_t ltype_locus,
 				location_t rtype_locus);
 
+  void report_non_const_length (HIR::Expr &length);
+
   tree query_compile (HirId ref, TyTy::BaseType *lookup,
 		      const HIR::PathIdentSegment &final_segment,
 		      const Analysis::NodeMapping &mappings,
