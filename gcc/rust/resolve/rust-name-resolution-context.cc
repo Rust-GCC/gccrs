@@ -413,7 +413,7 @@ NameResolutionContext::scoped (Rib::Kind rib_kind, Namespace ns,
 
 void
 NameResolutionContext::merge (NameResolutionContext &other, NodeId at,
-			      bool macro_use)
+			      MacroUse macro_use)
 {
   // TODO: merge once, for all namespaces at once
 
@@ -443,7 +443,7 @@ NameResolutionContext::merge (NameResolutionContext &other, NodeId at,
   merge_fstack (values, other.values, Namespace::Values);
   merge_fstack (types, other.types, Namespace::Types);
 
-  if (macro_use)
+  if (macro_use == MacroUse::Present)
     {
       for (auto kv : other.macros.root.rib_macros.get_values ())
 	{
