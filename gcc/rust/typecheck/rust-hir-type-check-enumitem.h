@@ -31,7 +31,7 @@ public:
   static TyTy::VariantDef *
   Resolve (HIR::EnumItem &item,
 	   std::map<int64_t, location_t> &discriminant_values,
-	   int64_t &last_discriminant);
+	   int64_t &last_discriminant, TyTy::BaseType *repr_type);
 
 protected:
   void visit (HIR::EnumItem &item);
@@ -40,13 +40,14 @@ protected:
 
 private:
   TypeCheckEnumItem (std::map<int64_t, location_t> &discriminant_values,
-		     int64_t &last_discriminant);
+		     int64_t &last_discriminant, TyTy::BaseType *repr_type);
 
   std::unique_ptr<HIR::Expr> discriminant_of (HIR::EnumItem &item);
 
   TyTy::VariantDef *variant;
   std::map<int64_t, location_t> &discriminant_values;
   int64_t &last_discriminant;
+  TyTy::BaseType *repr_type;
 };
 
 } // namespace Resolver

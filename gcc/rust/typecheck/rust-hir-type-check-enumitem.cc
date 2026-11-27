@@ -24,6 +24,7 @@
 #include "rust-type-util.h"
 #include "rust-finalized-name-resolution-context.h"
 #include "rust-compile-base.h"
+#include "rust-compile-type.h"
 #include "rust-constexpr.h"
 
 namespace Rust {
@@ -32,9 +33,11 @@ namespace Resolver {
 TyTy::VariantDef *
 TypeCheckEnumItem::Resolve (HIR::EnumItem &item,
 			    std::map<int64_t, location_t> &discriminant_values,
-			    int64_t &last_discriminant)
+			    int64_t &last_discriminant,
+			    TyTy::BaseType *repr_type)
 {
-  TypeCheckEnumItem resolver (discriminant_values, last_discriminant);
+  TypeCheckEnumItem resolver (discriminant_values, last_discriminant,
+			      repr_type);
   switch (item.get_enum_item_kind ())
     {
     case HIR::EnumItem::EnumItemKind::Named:
@@ -54,10 +57,10 @@ TypeCheckEnumItem::Resolve (HIR::EnumItem &item,
 
 TypeCheckEnumItem::TypeCheckEnumItem (
   std::map<int64_t, location_t> &discriminant_values,
-  int64_t &last_discriminant)
+  int64_t &last_discriminant, TyTy::BaseType *repr_type)
   : TypeCheckBase (), variant (nullptr),
     discriminant_values (discriminant_values),
-    last_discriminant (last_discriminant)
+    last_discriminant (last_discriminant), repr_type (repr_type)
 {}
 
 void
@@ -168,6 +171,8 @@ TypeCheckEnumItem::visit (HIR::EnumItemStruct &item)
 std::unique_ptr<HIR::Expr>
 TypeCheckEnumItem::discriminant_of (HIR::EnumItem &item)
 {
+  rust_assert (repr_type != nullptr);
+
   std::unique_ptr<HIR::Expr> discim_expr;
   if (item.has_discriminant ())
     {
@@ -176,12 +181,8 @@ TypeCheckEnumItem::discriminant_of (HIR::EnumItem &item)
       if (discriminant_type->get_kind () == TyTy::TypeKind::ERROR)
 	return nullptr;
 
-      TyTy::BaseType *isize = nullptr;
-      bool ok = context->lookup_builtin ("isize", &isize);
-      rust_assert (ok);
-
       auto unified_ty = unify_site (item.get_mappings ().get_hirid (),
-				    TyTy::TyWithLocation (isize),
+				    TyTy::TyWithLocation (repr_type),
 				    TyTy::TyWithLocation (discriminant_type),
 				    item.get_locus ());
 
@@ -201,20 +202,30 @@ TypeCheckEnumItem::discriminant_of (HIR::EnumItem &item)
 
       discim_expr = discriminant.clone_expr ();
 
-      last_discriminant
-	= (int64_t) wi::to_wide (folded_discriminant_expr).to_shwi ();
+      last_discriminant = (int64_t) tree_to_shwi (folded_discriminant_expr);
     }
   else
     {
-      if (last_discriminant == INT64_MAX)
+      tree repr_tree
+	= Compile::TyTyResolveCompile::compile (Compile::Context::get (),
+						repr_type);
+      tree repr_max = TYPE_MAX_VALUE (repr_tree);
+      if (last_discriminant == INT64_MAX
+	  || (tree_fits_shwi_p (repr_max)
+	      && last_discriminant == tree_to_shwi (repr_max)))
 	{
 	  rust_error_at (item.get_locus (), ErrorCode::E0370,
 			 "enum discriminant overflowed");
-	  rust_inform (
-	    item.get_locus (),
-	    "explicitly set %<%s = %lld%> if that is desired outcome",
-	    item.get_identifier ().as_string ().c_str (),
-	    (long long) INT64_MIN);
+
+	  tree repr_min = TYPE_MIN_VALUE (repr_tree);
+
+	  if (tree_fits_shwi_p (repr_min))
+	    rust_inform (
+	      item.get_locus (),
+	      "explicitly set %<%s = %lld%> if that is desired outcome",
+	      item.get_identifier ().as_string ().c_str (),
+	      (long long) tree_to_shwi (repr_min));
+
 	  return nullptr;
 	}
       last_discriminant++;

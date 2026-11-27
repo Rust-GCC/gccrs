@@ -633,7 +633,7 @@ TypeCheckItem::visit (HIR::Enum &enum_decl)
     {
       TyTy::VariantDef *field_type
 	= TypeCheckEnumItem::Resolve (*variant, discriminant_values,
-				      last_discriminant);
+				      last_discriminant, repr.repr);
       if (field_type)
 	{
 	  type->get_variants ().push_back (field_type);
