@@ -798,7 +798,9 @@ private:
 		  location_t pratt_parsed_loc = UNKNOWN_LOCATION);
   tl::expected<std::unique_ptr<AST::BreakExpr>, Parse::Error::Node>
   parse_break_expr (AST::AttrVec outer_attrs = AST::AttrVec (),
-		    location_t pratt_parsed_loc = UNKNOWN_LOCATION);
+		    location_t pratt_parsed_loc = UNKNOWN_LOCATION,
+		    ParseRestrictions outer_restrictions
+		    = ParseRestrictions ());
   std::unique_ptr<AST::ContinueExpr>
   parse_continue_expr (AST::AttrVec outer_attrs = AST::AttrVec (),
 		       location_t pratt_parsed_loc = UNKNOWN_LOCATION);
