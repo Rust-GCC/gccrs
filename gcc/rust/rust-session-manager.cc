@@ -1254,7 +1254,7 @@ Session::dump_hir_pretty (HIR::Crate &crate) const
 // imports
 
 tl::expected<Session::LoadedCrate, Session::LoadingError>
-Session::load_extern_crate (const std::string &crate_name, bool macro_use,
+Session::load_extern_crate (const std::string &crate_name, MacroUse macro_use,
 			    location_t locus)
 {
   auto &crate_mapping = mappings.crate;

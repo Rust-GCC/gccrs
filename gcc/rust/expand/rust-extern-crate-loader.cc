@@ -19,6 +19,7 @@
 #include "rust-extern-crate-loader.h"
 #include "rust-session-manager.h"
 #include "rust-attribute-values.h"
+#include "rust-load-crate.h"
 
 namespace Rust {
 ExternCrateLoaderVisitor::ExternCrateLoaderVisitor (
@@ -49,8 +50,10 @@ ExternCrateLoaderVisitor::visit (AST::ExternCrate &extern_crate)
 					== Values::Attributes::MACRO_USE;
 			       });
     }
-  auto crate = session.load_extern_crate (extern_crate.get_referenced_crate (),
-					  macro_use, extern_crate.get_locus ());
+  auto crate
+    = session.load_extern_crate (extern_crate.get_referenced_crate (),
+				 macro_use ? MacroUse::Present : MacroUse::None,
+				 extern_crate.get_locus ());
   if (crate)
     loaded_crates.push_back (std::move (crate.value ()));
 }

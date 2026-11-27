@@ -26,6 +26,7 @@
 #include "rust-stacked-contexts.h"
 #include "rust-item.h"
 #include "rust-name-resolution.h"
+#include "rust-load-crate.h"
 
 namespace Rust {
 namespace Resolver2_0 {
@@ -841,7 +842,7 @@ public:
    * @param at The node id of the container were the nr context should be
    * merged. Usually an extern crate node.
    */
-  void merge (NameResolutionContext &other, NodeId at, bool macro_use);
+  void merge (NameResolutionContext &other, NodeId at, MacroUse macro_use);
 
 // We disable this function for now as it causes regressions, but I think it
 // is important for a more proper final nameres context - need to investigate
