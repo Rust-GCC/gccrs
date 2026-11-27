@@ -214,6 +214,17 @@ ForeverStack<N>::insert_crate_in_prelude (Identifier crate_name,
 }
 
 template <Namespace N>
+void
+ForeverStack<N>::insert_macro_in_prelude (Identifier macro_name,
+					  NodeId macro_id)
+{
+  rust_assert (N == Namespace::Macros);
+  auto &macro_use_prelude_rib = macro_use_prelude.rib (Namespace::Macros);
+  auto definition = Rib::Definition::Shadowable (macro_id);
+  insert_inner (macro_use_prelude_rib, macro_name, definition);
+}
+
+template <Namespace N>
 inline void
 ForeverStack<N>::insert_lang_prelude (Identifier name, NodeId id)
 {
@@ -368,6 +379,13 @@ tl::optional<Rib::Definition>
 ForeverStack<N>::get_lang_prelude (const std::string &name)
 {
   return lang_prelude.rib (N).get (name);
+}
+
+template <Namespace N>
+tl::optional<Rib::Definition>
+ForeverStack<N>::get_macro_use_prelude (const Identifier &name)
+{
+  return macro_use_prelude.rib (N).get (name);
 }
 
 template <Namespace N>
@@ -771,6 +789,8 @@ ForeverStack<N>::as_debug_string () const
   stream_node (stream, 0, root);
   stream << "Extern prelude \n";
   stream_node (stream, 0, extern_prelude);
+  stream << "Macro use prelude \n";
+  stream_node (stream, 0, macro_use_prelude);
   stream << "Lang prelude \n";
   stream_node (stream, 0, lang_prelude);
 

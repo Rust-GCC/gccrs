@@ -535,6 +535,7 @@ public:
   std::unique_ptr<Node> root;
   std::unique_ptr<Node> lang_prelude;
   std::unique_ptr<Node> extern_prelude;
+  std::unique_ptr<Node> macro_use_prelude;
 
   ForeverStack<Namespace::Values> values;
   ForeverStack<Namespace::Types> types;
@@ -840,7 +841,7 @@ public:
    * @param at The node id of the container were the nr context should be
    * merged. Usually an extern crate node.
    */
-  void merge (NameResolutionContext &other, NodeId at);
+  void merge (NameResolutionContext &other, NodeId at, bool macro_use);
 
 // We disable this function for now as it causes regressions, but I think it
 // is important for a more proper final nameres context - need to investigate

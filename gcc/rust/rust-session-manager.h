@@ -448,9 +448,10 @@ public:
 
   struct LoadedCrate
   {
-    LoadedCrate (std::string name, NodeId node_id,
+    LoadedCrate (std::string name, bool macro_use, NodeId node_id,
 		 Resolver2_0::NameResolutionContext ctx)
-      : name (std::move (name)), node_id (node_id), ctx (std::move (ctx))
+      : name (std::move (name)), node_id (node_id), macro_use (macro_use),
+	ctx (std::move (ctx))
     {}
 
     LoadedCrate (const LoadedCrate &) = delete;
@@ -459,6 +460,7 @@ public:
 
     std::string name;
     NodeId node_id;
+    bool macro_use;
     Resolver2_0::NameResolutionContext ctx;
   };
 
@@ -490,7 +492,8 @@ public:
   };
 
   tl::expected<LoadedCrate, LoadingError>
-  load_extern_crate (const std::string &crate_name, location_t locus);
+  load_extern_crate (const std::string &crate_name, bool macro_use,
+		     location_t locus);
 
   int get_compat_version () const { return options.get_compat_version (); }
 
