@@ -649,15 +649,15 @@ TyTyResolveCompile::visit (const TyTy::ADTType &type)
       if (repr.pack)
 	{
 	  TYPE_PACKED (type_record) = 1;
-	  if (repr.pack > 1)
+	  if (*repr.pack > 1)
 	    {
-	      SET_TYPE_ALIGN (type_record, repr.pack * 8);
+	      SET_TYPE_ALIGN (type_record, *repr.pack * 8);
 	      TYPE_USER_ALIGN (type_record) = 1;
 	    }
 	}
       else if (repr.align)
 	{
-	  SET_TYPE_ALIGN (type_record, repr.align * 8);
+	  SET_TYPE_ALIGN (type_record, *repr.align * 8);
 	  TYPE_USER_ALIGN (type_record) = 1;
 	}
       layout_type (type_record);

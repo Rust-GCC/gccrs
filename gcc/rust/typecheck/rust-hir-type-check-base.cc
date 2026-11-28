@@ -484,14 +484,14 @@ TyTy::ADTType::ReprOptions
 TypeCheckBase::parse_repr_options (const AST::AttrVec &attrs, location_t locus)
 {
   TyTy::ADTType::ReprOptions repr;
-  repr.pack = 0;
-  repr.align = 0;
 
   // Default repr for enums is isize, but we now check for other repr in the
   // attributes.
   bool ok = context->lookup_builtin ("isize", &repr.repr);
   rust_assert (ok);
 
+  // TODO implement parsing of multiple #[repr] statements applied to the same
+  // item
   for (const auto &attr : attrs)
     {
       bool is_repr = attr.get_path ().as_string () == Values::Attributes::REPR;
@@ -543,117 +543,223 @@ TypeCheckBase::parse_repr_options (const AST::AttrVec &attrs, location_t locus)
 	      continue;
 	    }
 
-	  const std::string repr_option = items.at (0)->as_string ();
+	  // warning check for duplicate repr options
+	  // first we collect the strings, sort them, before iterating through
+	  // the sorted array to issue warnings
+	  std::vector<std::pair<std::string, size_t>> sorted_repr_items;
+	  sorted_repr_items.reserve (items.size ());
+
+	  for (size_t i = 0; i < items.size (); i++)
+	    sorted_repr_items.emplace_back (items[i]->as_string (), i);
+
+	  std::sort (sorted_repr_items.begin (), sorted_repr_items.end ());
+	  for (size_t i = 1; i < sorted_repr_items.size (); i++)
+	    {
+	      if (sorted_repr_items[i - 1].first == sorted_repr_items[i].first)
+		{
+		  size_t index = sorted_repr_items[i].second;
+		  rust_warning_at (items[index]->get_locus (), 0,
+				   "attribute is specified more than once");
+		}
+	    }
 
 	  // TODO: it would probably be better to make the MetaItems more aware
 	  // of constructs with nesting like #[repr(packed(2))] rather than
 	  // manually parsing the string "packed(2)" here.
 
-	  size_t oparen = repr_option.find ('(', 0);
-	  bool is_pack = false;
-	  bool is_align = false;
 	  bool is_c = false;
 	  bool is_integer = false;
 	  bool is_transparent = false;
 	  bool is_simd = false;
-	  unsigned char value = 1;
+	  bool parse_failed = false;
 
-	  if (oparen == std::string::npos)
+	  for (const auto &item : items)
 	    {
-	      if (repr_option.compare ("align") == 0)
+	      const std::string repr_option = item->as_string ();
+	      size_t oparen = repr_option.find ('(', 0);
+	      const std::string hint = repr_option.substr (0, oparen);
+
+	      if (oparen == std::string::npos)
 		{
-		  rust_error_at (attr.get_locus (), ErrorCode::E0589,
-				 "invalid %<repr(align)%> attribute: %<align%> "
-				 "needs an argument");
-		  delete meta_items;
-		  break;
+		  // align must include a number as argument, reject it here
+		  if (repr_option.compare ("align") == 0)
+		    {
+		      parse_failed = true;
+		      rust_error_at (
+			attr.get_locus (), ErrorCode::E0589,
+			"invalid %<repr(align)%> attribute: %<align%> "
+			"needs an argument");
+		      break;
+		    }
+
+		  bool current_is_pack = repr_option.compare ("packed") == 0;
+		  is_c |= repr_option.compare ("C") == 0;
+		  is_integer |= (repr_option.compare ("isize") == 0
+				 || repr_option.compare ("i8") == 0
+				 || repr_option.compare ("i16") == 0
+				 || repr_option.compare ("i32") == 0
+				 || repr_option.compare ("i64") == 0
+				 || repr_option.compare ("i128") == 0
+				 || repr_option.compare ("usize") == 0
+				 || repr_option.compare ("u8") == 0
+				 || repr_option.compare ("u16") == 0
+				 || repr_option.compare ("u32") == 0
+				 || repr_option.compare ("u64") == 0
+				 || repr_option.compare ("u128") == 0);
+		  is_transparent |= repr_option.compare ("transparent") == 0;
+		  is_simd |= repr_option.compare ("simd") == 0;
+
+		  if (current_is_pack && repr.pack != tl::nullopt
+		      && repr.pack != 1UL)
+		    {
+		      // packed was previously declared with a non-1 argument
+		      // e.g. #[repr(packed(2), packed)]
+		      parse_failed = true;
+		      rust_error_at (
+			attr.get_locus (), ErrorCode::E0634,
+			"type has conflicting packed representation hints");
+		      break;
+		    }
+		  if (current_is_pack)
+		    {
+		      repr.pack = 1UL; // default packed value
+		    }
 		}
 
-	      is_pack = repr_option.compare ("packed") == 0;
-	      is_c = repr_option.compare ("C") == 0;
-	      is_integer = (repr_option.compare ("isize") == 0
-			    || repr_option.compare ("i8") == 0
-			    || repr_option.compare ("i16") == 0
-			    || repr_option.compare ("i32") == 0
-			    || repr_option.compare ("i64") == 0
-			    || repr_option.compare ("i128") == 0
-			    || repr_option.compare ("usize") == 0
-			    || repr_option.compare ("u8") == 0
-			    || repr_option.compare ("u16") == 0
-			    || repr_option.compare ("u32") == 0
-			    || repr_option.compare ("u64") == 0
-			    || repr_option.compare ("u128") == 0);
-	      is_transparent = repr_option.compare ("transparent") == 0;
-	      is_simd = repr_option.compare ("simd") == 0;
-	    }
-
-	  else
-	    {
-	      std::string rep = repr_option.substr (0, oparen);
-	      is_pack = rep.compare ("packed") == 0;
-	      is_align = rep.compare ("align") == 0;
-
-	      size_t cparen = repr_option.find (')', oparen);
-	      if (cparen == std::string::npos)
+	      else
 		{
-		  rust_error_at (locus, "malformed attribute");
-		}
+		  std::string rep = repr_option.substr (0, oparen);
+		  bool current_is_pack = rep.compare ("packed") == 0;
+		  bool current_is_align = rep.compare ("align") == 0;
 
-	      std::string value_str = repr_option.substr (oparen, cparen);
-	      value = strtoul (value_str.c_str () + 1, NULL, 10);
+		  if (!(current_is_pack || current_is_align))
+		    {
+		      parse_failed = true;
+		      rust_error_at (attr.get_locus (), ErrorCode::E0539,
+				     "malformed %<repr%> attribute input");
+		      break;
+		    }
+
+		  size_t cparen = repr_option.find (')', oparen);
+		  if (cparen == std::string::npos)
+		    {
+		      parse_failed = true;
+		      rust_error_at (locus, "malformed attribute");
+		      break;
+		    }
+
+		  std::string value_str
+		    = repr_option.substr (oparen + 1, cparen - oparen - 1);
+		  bool is_decimal
+		    = !value_str.empty ()
+		      && std::all_of (value_str.begin (), value_str.end (),
+				      [] (char c) {
+					return c >= '0' && c <= '9';
+				      });
+		  if (!is_decimal)
+		    {
+		      parse_failed = true;
+		      rust_error_at (attr.get_locus (), ErrorCode::E0539,
+				     "malformed %<repr%> attribute input");
+		      break;
+		    }
+
+		  unsigned long value = strtoul (value_str.c_str (), NULL, 10);
+		  if (value > (1UL << 29))
+		    {
+		      parse_failed = true;
+		      rust_error_at (
+			attr.get_locus (), ErrorCode::E0589,
+			"invalid alignment value: larger than 2^29");
+		      break;
+		    }
+
+		  if (current_is_pack && repr.pack != tl::nullopt
+		      && repr.pack != value)
+		    {
+		      // packed was previously declared with a different value
+		      // e.g. #[repr(packed(3), packed(2))]
+		      parse_failed = true;
+		      rust_error_at (
+			attr.get_locus (), ErrorCode::E0634,
+			"type has conflicting packed representation hints");
+		      break;
+		    }
+
+		  if (value == 0 || (value & (value - 1)) != 0)
+		    {
+		      parse_failed = true;
+		      rust_error_at (attr.get_locus (), ErrorCode::E0589,
+				     "invalid %<repr(%s)%> attribute: not "
+				     "a power of two",
+				     current_is_pack ? "packed" : "align");
+		      break;
+		    }
+
+		  if (current_is_pack)
+		    {
+		      repr.pack = value;
+		    }
+		  else if (current_is_align)
+		    {
+		      // for multiple align repr values, rustc implementation
+		      // takes the max align value but throws E0634 for multiple
+		      // different valued packed reprs...
+		      repr.align = std::max (repr.align.value_or (0UL), value);
+		    }
+		}
 	    }
 
-	  if (is_transparent)
+	  if (parse_failed)
 	    {
-	      if (is_pack || is_align || is_c || is_integer)
-		rust_error_at (
-		  locus, ErrorCode::E0692,
-		  "transparent struct cannot have other repr hints");
+	      delete meta_items;
+	      break;
+	    }
+
+	  bool is_pack = repr.pack != tl::nullopt;
+	  bool is_align = repr.align != tl::nullopt;
+
+	  if (is_pack && is_align)
+	    {
+	      rust_error_at (
+		locus, ErrorCode::E0587,
+		"type has conflicting packed and align representation hints");
+	    }
+	  else if (is_transparent)
+	    {
+	      if (is_pack || is_align || is_c || is_integer || is_simd)
+		{
+		  rust_error_at (
+		    locus, ErrorCode::E0692,
+		    "transparent struct cannot have other repr hints");
+		}
 
 	      repr.repr_kind = TyTy::ADTType::ReprKind::TRANSPARENT;
 	    }
-	  else if (is_pack)
-	    {
-	      repr.repr_kind = TyTy::ADTType::ReprKind::PACKED;
-	      repr.pack = value;
-	    }
-	  else if (is_align)
-	    {
-	      if (value == 0 || (value & (value - 1)) != 0)
-		rust_error_at (
-		  attr.get_locus (), ErrorCode::E0589,
-		  "invalid %<repr(align)%> attribute: not a power of two");
-	      repr.repr_kind = TyTy::ADTType::ReprKind::ALIGN;
-	      repr.align = value;
-	    }
 	  else if (is_c)
 	    {
+	      if (is_simd)
+		{
+		  rust_error_at (locus, ErrorCode::E0566,
+				 "conflicting representation hints");
+		}
 	      repr.repr_kind = TyTy::ADTType::ReprKind::C;
 	    }
 	  else if (is_integer)
 	    {
 	      repr.repr_kind = TyTy::ADTType::ReprKind::INT;
-	      bool ok = context->lookup_builtin (repr_option, &repr.repr);
-	      if (!ok)
-		{
-		  rust_error_at (attr.get_locus (), ErrorCode::E0552,
-				 "unrecognized representation hint");
-		}
 	    }
 	  else if (is_simd)
 	    {
 	      repr.repr_kind = TyTy::ADTType::ReprKind::SIMD;
 	    }
-	  else
+	  else if (!(is_pack || is_align))
 	    {
 	      rust_error_at (attr.get_locus (), ErrorCode::E0552,
 			     "unrecognized representation hint");
 	    }
 
 	  delete meta_items;
-
-	  // Multiple repr options must be specified with e.g. #[repr(C,
-	  // packed(2))].
 	  break;
 	}
     }
