@@ -599,7 +599,7 @@ cx_error_context (void)
 
 // this is ported from cxx_eval_outermost_constant_expr
 tree
-fold_expr (tree expr)
+fold_expr (tree expr, bool *non_constant_out)
 {
   bool allow_non_constant = false;
   bool strict = true;
@@ -623,6 +623,9 @@ fold_expr (tree expr)
   tree folded = eval_constant_expression (&ctx, expr, false, &non_constant_p,
 					  &overflow_p, &jump_target);
   rust_assert (folded != NULL_TREE);
+
+  if (non_constant_out)
+    *non_constant_out = non_constant_p;
 
   // more logic here to possibly port
   return folded;
@@ -4245,7 +4248,10 @@ constexpr_fn_retval (const constexpr_ctx *ctx, tree body)
 static tree
 constant_value_1 (tree decl, bool, bool, bool unshare_p)
 {
-  while (TREE_CODE (decl) == CONST_DECL)
+  // a static is always initialized with a constant in Rust, and a static's
+  // initializer can read another static
+  while (TREE_CODE (decl) == CONST_DECL
+	 || (VAR_P (decl) && TREE_STATIC (decl) && DECL_INITIAL (decl)))
     {
       tree init;
       /* If DECL is a static data member in a template
@@ -4297,6 +4303,10 @@ non_const_var_error (location_t loc, tree r)
 
   /* Avoid error cascade.  */
   if (DECL_INITIAL (r) == error_mark_node)
+    return;
+  // the notes below are about C++ variables, for a static they would say it
+  // wasn't initialized with a constant when the problem is reading it at all
+  if (TREE_STATIC (r) || DECL_EXTERNAL (r))
     return;
   if (DECL_DECLARED_CONSTEXPR_P (r))
     inform (DECL_SOURCE_LOCATION (r), "%qD used in its own initializer", r);
