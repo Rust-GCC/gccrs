@@ -647,7 +647,18 @@ CompileExpr::visit (HIR::AnonConst &expr)
 void
 CompileExpr::visit (HIR::ConstBlock &expr)
 {
-  expr.get_const_expr ().accept_vis (*this);
+  // a const block is evaluated at compile time like a const item
+  TyTy::BaseType *type = nullptr;
+  if (!ctx->get_tyctx ()->lookup_type (expr.get_mappings ().get_hirid (),
+				       &type))
+    {
+      translated = error_mark_node;
+      return;
+    }
+
+  translated
+    = query_compile_const_expr (ctx, type,
+				expr.get_const_expr ().get_inner_expr ());
 }
 
 void

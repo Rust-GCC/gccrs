@@ -18,6 +18,7 @@
 
 #include "rust-compile-pattern.h"
 #include "rust-compile-stmt.h"
+#include "rust-compile-item.h"
 #include "rust-compile-expr.h"
 #include "rust-compile-type.h"
 #include "rust-compile-var-decl.h"
@@ -44,6 +45,20 @@ void
 CompileStmt::visit (HIR::ExprStmt &stmt)
 {
   translated = CompileExpr::Compile (stmt.get_expr (), ctx);
+}
+
+// rustc evaluates these even when nothing uses them, so compile them here
+// instead of waiting for a path to them
+void
+CompileStmt::visit (HIR::ConstantItem &constant)
+{
+  CompileItem::compile (&constant, ctx);
+}
+
+void
+CompileStmt::visit (HIR::StaticItem &static_item)
+{
+  CompileItem::compile (&static_item, ctx);
 }
 
 void
