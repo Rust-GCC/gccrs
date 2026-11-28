@@ -23,6 +23,7 @@
 #include "rust-hir-visitor.h"
 #include "rust-unused-collector.h"
 #include "rust-finalized-name-resolution-context.h"
+#include "rust-hir-type-check.h"
 
 namespace Rust {
 namespace Analysis {
@@ -35,6 +36,7 @@ public:
 private:
   const Resolver2_0::FinalizedNameResolutionContext &nr_context;
   Analysis::Mappings &mappings;
+  Resolver::TypeCheckContext &context;
   UnusedContext unused_context;
 
   using HIR::DefaultHIRVisitor::visit;
@@ -55,6 +57,11 @@ private:
   virtual void visit (HIR::BorrowExpr &expr) override;
   virtual void visit (HIR::NegationExpr &expr) override;
   virtual void visit (HIR::BreakExpr &expr) override;
+  virtual void visit (HIR::WhileLoopExpr &expr) override;
+  virtual void visit (HIR::ExprStmt &stmt) override;
+  virtual void visit (HIR::ComparisonExpr &expr) override;
+  virtual void visit (HIR::TypeCastExpr &expr) override;
+  virtual void visit (HIR::TypeAlias &type_alias) override;
   virtual void visit_loop_label (HIR::LoopLabel &label) override;
 };
 } // namespace Analysis
