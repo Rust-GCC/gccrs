@@ -1,0 +1,12 @@
+// Ambiguity between a `macro_rules` macro and a non-existent import recovered as `Res::Err`
+
+macro_rules! mac { () => () }
+
+mod m {
+    use nonexistent_module::mac; // { dg-error ".E0432." "" { target *-*-* } }
+
+    mac!(); // { dg-error ".E0659." "" { target *-*-* } }
+}
+
+fn main() {}
+

@@ -1,0 +1,95 @@
+// compile-flags: -Z ui-testing=no
+
+// Line number < 10
+type A = B; // { dg-error ".E0412." "" { target *-*-* } }
+
+// Line number >=10, <100
+type C = D; // { dg-error ".E0412." "" { target *-*-* } }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Line num >=100
+type E = F; // { dg-error ".E0412." "" { target *-*-* } }
+
+fn main() {}
+

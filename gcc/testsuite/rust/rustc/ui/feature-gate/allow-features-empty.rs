@@ -1,0 +1,9 @@
+// compile-flags: -Z allow_features=
+// Note: This test uses rustc internal flags because they will never stabilize.
+
+#![feature(lang_items)] // { dg-error ".E0725." "" { target *-*-* } }
+
+#![feature(unknown_stdlib_feature)] // { dg-error ".E0725." "" { target *-*-* } }
+
+fn main() {}
+

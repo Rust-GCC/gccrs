@@ -1,0 +1,18 @@
+struct A {
+    b: B,
+}
+
+#[derive(Clone)]
+struct B;
+
+fn foo(_: A) {}
+
+fn bar(mut a: A) -> B {
+    a.b = B;
+    foo(a);
+    a.b.clone()
+// { dg-error ".E0382." "" { target *-*-* } .-1 }
+}
+
+fn main() {}
+
