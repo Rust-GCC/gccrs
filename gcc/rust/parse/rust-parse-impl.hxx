@@ -466,15 +466,31 @@ Parser<ManagedTokenSource>::parse_item (bool called_from_statement)
 	}
       gcc_fallthrough ();
     default:
-      // otherwise unrecognised
+    if (t.get ()->get_id () == LET)
+  {
+    const char* msg = "you cant use let for global var use const or static";
+    // otherwise unrecognised
+      add_error (Error (t->get_locus (),
+			"unrecognised token %qs for start of %s",
+			t->get_token_description (),
+			called_from_statement ? "statement" : "item"));
+      rust_warning_at (t->get_locus () , 0 ,msg);
+
+      // skip somewhere
+      return Parse::Error::Item::make_malformed ();
+      break;
+  }else
+  {
+    // otherwise unrecognised
       add_error (Error (t->get_locus (),
 			"unrecognised token %qs for start of %s",
 			t->get_token_description (),
 			called_from_statement ? "statement" : "item"));
 
-      // skip somewhere?
+      // skip somewhere
       return Parse::Error::Item::make_malformed ();
       break;
+  }
     }
 }
 
