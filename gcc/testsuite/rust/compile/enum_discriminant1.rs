@@ -1,7 +1,7 @@
 #![feature(no_core)]
 #![no_core]
 
-enum Foo {
+pub enum Foo {
     Bar = 3 + 12,
 }
 

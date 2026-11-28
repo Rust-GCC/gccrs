@@ -1,6 +1,5 @@
 #![feature(no_core)]
 #![no_core]
-
 #![feature(lang_items)]
 
 // use self::Ordering::*;
@@ -23,7 +22,7 @@
 #[lang = "sized"]
 trait Sized {}
 
-enum Result<T, E> {
+pub enum Result<T, E> {
     Ok(T),
     Err(E),
 }

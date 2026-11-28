@@ -4,7 +4,7 @@
 use self::Ordering::*;
 use Ordering::*;
 
-enum Ordering {
+pub enum Ordering {
     A,
     B,
 }

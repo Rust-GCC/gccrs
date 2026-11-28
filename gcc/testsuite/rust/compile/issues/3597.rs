@@ -1,11 +1,11 @@
 #![feature(no_core)]
 #![no_core]
 
-enum E {
+pub enum E {
     A = {
-        enum F {  }
+        pub enum F {}
         0
-    }
+    },
 }
 
 fn main() {}

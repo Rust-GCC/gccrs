@@ -2,6 +2,6 @@
 #![no_core]
 
 #[cfg_attr(not(wrong = "32"), repr(i32))]
-enum Eu64 {
+pub enum Eu64 {
     Au64 = 0,
 }
