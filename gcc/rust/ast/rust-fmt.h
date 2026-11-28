@@ -22,9 +22,6 @@
 #include "rust-system.h"
 #include "optional.h"
 
-// PR122498 "rust-enabled bootstrap is broken after r16-4897"
-#pragma GCC diagnostic warning "-Warray-bounds"
-
 namespace Rust {
 namespace Fmt {
 
