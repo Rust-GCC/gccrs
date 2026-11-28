@@ -1752,7 +1752,7 @@ CompileExpr::visit (HIR::CallExpr &expr)
     {
       if (!FUNCTION_POINTER_TYPE_P (TREE_TYPE (fn_address)))
 	{
-	  rust_error_at (expr.get_locus (),
+	  rust_error_at (expr.get_locus (), ErrorCode::E0015,
 			 "calls in constants are limited to constant "
 			 "functions, tuple structs and tuple variants");
 	  return;
@@ -1763,7 +1763,7 @@ CompileExpr::visit (HIR::CallExpr &expr)
 	  tree fndecl = TREE_OPERAND (fn_address, 0);
 	  if (!DECL_DECLARED_CONSTEXPR_P (fndecl))
 	    {
-	      rust_error_at (expr.get_locus (),
+	      rust_error_at (expr.get_locus (), ErrorCode::E0015,
 			     "calls in constants are limited to constant "
 			     "functions, tuple structs and tuple variants");
 	      return;
